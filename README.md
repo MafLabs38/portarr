@@ -4,7 +4,7 @@
 
 Portarr is built in the spirit of the *arr suite (Sonarr, Radarr, Prowlarr…): a single container, an API-first design, pluggable **providers**, and a familiar interface. It does not reinvent your tools — it **orchestrates** them: Docker, Kubernetes, Prometheus, Loki, Grafana, Trivy, your reverse proxy and your identity provider.
 
-> **Status: phase 0 (foundations).** Nothing to install yet; follow the [implementation plan](docs/IMPLEMENTATION_PLAN.md).
+> **Status: first MVP.** Launcher and Docker monitoring work; follow the [implementation plan](docs/IMPLEMENTATION_PLAN.md).
 
 ## Why
 
@@ -63,6 +63,9 @@ Settings come from `appsettings.json`, overridden by `PORTARR__*` environment va
 | `PORTARR__DATAFOLDER` | `/config` in the image, the user's local data folder otherwise | SQLite database and future backups |
 | `PORTARR__DATABASE__TYPE` | `Sqlite` | `Sqlite` or `Postgres` |
 | `PORTARR__DATABASE__CONNECTIONSTRING` | — | Required for PostgreSQL, e.g. `Host=db;Database=portarr;Username=portarr;Password=…` |
+| `PORTARR__CATALOGFILE` | `<data folder>/catalog.yaml` | The [catalog](docs/catalog.md) of environments, stacks and apps |
+
+Connectors: [Docker](docs/connectors/docker.md).
 
 Probes: `GET /health/live` (the process answers) and `GET /health/ready` (the database answers).
 

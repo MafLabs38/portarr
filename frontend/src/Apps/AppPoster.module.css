@@ -1,0 +1,55 @@
+.poster {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 12px 14px;
+  border: var(--borderWidth) solid var(--hairline);
+  border-radius: var(--radiusLarge);
+  background-color: var(--paperCard);
+  box-shadow: var(--shadowCard);
+  text-align: center;
+}
+
+.launch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.name {
+  font-family: var(--displayFontFamily);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+a.launch:hover .name,
+a.launch:focus-visible .name {
+  color: var(--accent);
+}
+
+.type {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 10px;
+  font-size: var(--fontSizeMeta);
+}
+
+.links a {
+  color: var(--secondary);
+  font-weight: 700;
+}

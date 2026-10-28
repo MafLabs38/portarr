@@ -1,0 +1,14 @@
+.icon {
+  object-fit: contain;
+}
+
+.fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: var(--secondary);
+  color: var(--inkOnAccent);
+  font-family: var(--displayFontFamily);
+  font-weight: 700;
+}

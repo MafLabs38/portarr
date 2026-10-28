@@ -1,0 +1,50 @@
+.sidebar {
+  display: flex;
+  flex: 0 0 var(--sidebarWidth);
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 12px;
+  border-right: var(--borderWidth) solid var(--hairline);
+  background-color: var(--paperWarm);
+}
+
+.link,
+.activeLink {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radiusMedium);
+  color: var(--inkSoft);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.link:hover {
+  background-color: var(--paperCard);
+  color: var(--ink);
+}
+
+.activeLink {
+  background-color: var(--accent);
+  box-shadow: var(--shadowButton);
+  color: var(--inkOnAccent);
+}
+
+/* Small screens: the menu becomes a horizontal bar under the header. */
+@media (width <= 768px) {
+  .sidebar {
+    flex: none;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 8px 12px;
+    border-right: none;
+    border-bottom: var(--borderWidth) solid var(--hairline);
+  }
+
+  .link,
+  .activeLink {
+    flex: none;
+    padding: 8px 12px;
+  }
+}

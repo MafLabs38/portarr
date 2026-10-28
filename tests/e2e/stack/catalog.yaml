@@ -1,0 +1,31 @@
+# Catalog of the end-to-end stack: one environment read through the socket proxy,
+# a healthy web app and a failing optional service.
+environments:
+  - id: e2e
+    name: E2E host
+    docker: { url: "http://socket-proxy:2375" }
+
+stacks:
+  - id: demo
+    name: Demo
+    members:
+      - { app: web, role: critical }
+      - { app: broken, role: optional }
+
+apps:
+  - id: web
+    name: Web
+    icon: nginx
+    urls:
+      - { label: Home, href: "http://localhost:8080" }
+    workloads:
+      - { runtime: docker@e2e, match: { name: e2e-web } }
+  - id: broken
+    name: Broken job
+    type: service
+    workloads:
+      - { runtime: docker@e2e, match: { name: e2e-broken } }
+  - id: docs
+    name: Docs
+    urls:
+      - { href: "https://docs.homelab.example" }

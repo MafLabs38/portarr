@@ -105,6 +105,8 @@ jobs:
           cache: yarn
       - run: yarn install --frozen-lockfile
       - run: npx playwright install --with-deps chromium firefox
+      - name: Start a failing container for the e2e catalog
+        run: docker run --name e2e-broken alpine:3.20 sh -c 'echo starting; echo fatal error >&2; exit 1' || true
       - name: Build the image and start the e2e stack
         run: docker compose -f tests/e2e/stack/docker-compose.yml up -d --build --wait
       - name: Wait for Portarr

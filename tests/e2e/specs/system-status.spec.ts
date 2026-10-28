@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('System status', { tag: '@smoke' }, () => {
-  test('home redirects to the status page, which shows the running version', async ({ page }) => {
+  test('the status page shows the running version', async ({ page }) => {
     await page.goto('/');
+    await page.getByRole('navigation', { name: 'Main menu' }).getByRole('link', { name: 'System' }).click();
 
     await expect(page).toHaveURL(/\/system\/status$/);
     await expect(page).toHaveTitle('Status - Portarr');

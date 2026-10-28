@@ -1,15 +1,36 @@
-# End-to-end stack: the Portarr image built from this repository.
-# Third-party services (Docker socket proxy, Prometheus…) are added by the verticals that need them.
+# End-to-end stack: the Portarr image built from this repository, reading the host's Docker
+# through a read-only socket proxy, with a sample web container. The failing container
+# (e2e-broken) is started by CI before this stack; if it is missing, its app is Down anyway.
 name: portarr-e2e
 
 services:
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:v0.4.2
+    environment:
+      CONTAINERS: 1
+      POST: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  web:
+    image: nginx:stable-alpine-slim
+    container_name: e2e-web
+    ports:
+      - "8080:80"
+
   portarr:
     build:
       context: ../../..
+    depends_on:
+      - socket-proxy
+      - web
+    environment:
+      PORTARR__CATALOGFILE: /catalog/catalog.yaml
     ports:
-      - '8484:8484'
+      - "8484:8484"
     volumes:
       - portarr-config:/config
+      - ./catalog.yaml:/catalog/catalog.yaml:ro
 
 volumes:
   portarr-config:

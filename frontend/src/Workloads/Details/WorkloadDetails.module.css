@@ -1,0 +1,11 @@
+.layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.muted {
+  margin: 0;
+  color: var(--inkMuted);
+}
