@@ -25,7 +25,7 @@ Closes #
 - [ ] Manual testing (demo mode and/or real environment)
 
 ## Verification on the preview instance
-<!-- Filled once the CI-published image ghcr.io/maflabs38/portarr:pr-<n> runs on the preview instance.
+<!-- Filled once the branch runs on the preview instance (built from source).
      Never include real infrastructure values; screenshots come from demo mode only. -->
 | Acceptance criterion | Checked against | Result |
 |---|---|---|

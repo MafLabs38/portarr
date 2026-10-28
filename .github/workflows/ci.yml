@@ -1,6 +1,6 @@
 # Baseline pipeline derived from the organization's github-template (dotnet stack),
 # extended for Portarr (React frontend, SQLite/PostgreSQL matrix, E2E, security scans).
-# Every PR and develop publish an image used for acceptance on the preview instance
+# Pull requests are built and tested here, but only develop and main publish an image
 # (IMPLEMENTATION_PLAN.md §1.3). Releases (semantic-release, multi-arch) come later in P0.4.
 name: CI
 
@@ -122,8 +122,8 @@ jobs:
     name: image
     runs-on: ubuntu-latest
     needs: e2e-smoke
-    # Publishes only tested images, and never from forks (no write access to the registry).
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    # Integrated code only: pull requests never publish images.
+    if: github.event_name == 'push'
     permissions:
       contents: read
       packages: write
@@ -139,9 +139,8 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}
-          # pr-<number> for pull requests, the branch name for develop and main, plus the commit.
+          # The branch name (develop, main) plus the commit.
           tags: |
-            type=ref,event=pr
             type=ref,event=branch
             type=sha
       - uses: docker/build-push-action@v7

@@ -43,18 +43,20 @@ Every pull request, whatever its type, is **accepted by the maintainer on a runn
 
 | Instance | Runs | Purpose |
 |---|---|---|
-| **preview** | the image of the pull request under review (`ghcr.io/maflabs38/portarr:pr-<n>`) | acceptance before merging |
-| **dev** | the `develop` image, redeployed after each merge | what is integrated, used day to day |
+| **preview** | the pull request's branch, built **from source** on the development machine | acceptance before merging |
+| **dev** | the `develop` image published by CI after each merge | what is integrated, used day to day |
 
-Both run on the maintainer's development machine, connected **read-only** to a real environment. Their deployment files and settings live in the maintainer's private configuration repository, never in this one.
+Day-to-day development uses the usual inner loop (`dotnet watch`, Vite dev server); no image is involved. Pull requests are built and tested by CI but never published: **only integrated code (`develop`, later releases) produces an image in the registry.**
+
+Both instances run on the maintainer's development machine, connected **read-only** to a real environment. Their deployment files and settings live in the maintainer's private configuration repository, never in this one.
 
 1. **Issue** (template "Vertical slice") with acceptance criteria taken from the spec's features, and an **acceptance plan**: the real cases that will prove the slice works.
 2. **Develop** test-first: unit, integration, UI. Heavy test runs are resource-limited on the development machine, or left to CI.
-3. **Draft PR.** CI runs the three test levels, then publishes the `pr-<n>` image. Images are only built by CI.
-4. **Preview.** The author deploys the image on the preview instance and runs the acceptance plan against the real environment.
+3. **Draft PR.** CI runs the three test levels on a throwaway image.
+4. **Preview.** The author builds the branch on the development machine (resource-limited), starts it as the preview instance and runs the acceptance plan against the real environment.
 5. **Verification report** in the PR (section "Verification on the preview instance"): each criterion, what it was checked against, the result, known limitations. No real infrastructure values; screenshots come from demo mode.
 6. **Acceptance.** The PR is marked ready and the maintainer gets the preview URL with the exact steps to test and the expected results.
-7. **Merge** (squash) only after the maintainer's explicit approval; otherwise the PR is changed and the loop restarts at step 3. The dev instance then follows `develop`.
+7. **Merge** (squash) only after the maintainer's explicit approval; otherwise the PR is changed and the loop restarts at step 3. CI then publishes the `develop` image and the dev instance is updated.
 
 ### 1.4 Order and dependencies
 
