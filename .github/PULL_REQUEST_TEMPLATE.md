@@ -24,6 +24,18 @@ Closes #
 - [ ] E2E tests (Playwright)
 - [ ] Manual testing (demo mode and/or real environment)
 
+## Verification on the preview instance
+<!-- Filled once the branch runs on the preview instance (built from source).
+     Never include real infrastructure values; screenshots come from demo mode only. -->
+| Acceptance criterion | Checked against | Result |
+|---|---|---|
+|  | demo / real environment | ✅ / ❌ |
+
+Known limitations:
+-
+
+- [ ] Accepted by the maintainer on the preview instance
+
 ## Definition of Done (vertical slices)
 - [ ] ≥ 80 % coverage on new code
 - [ ] UI follows `docs/DESIGN.md` §10 checklist; screenshots attached (dark + light, 390 px)

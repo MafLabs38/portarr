@@ -21,7 +21,8 @@ A vertical slice PR is merged only if **every** box is checked:
 - [ ] **Documentation**: provider page (collector installation, minimum permissions, configuration), spec updated if a behavior changed, ADR if a decision was made.
 - [ ] **Translations**: `en` and `fr` keys.
 - [ ] **Security**: minimum permissions documented, secrets encrypted, no personal values (gitleaks + denylist green).
-- [ ] **Dogfooding**: deployed on the author's infrastructure and validated against at least one real case from the private inventory.
+- [ ] **Dogfooding**: deployed on the preview instance and validated against at least one real case from the private inventory (§1.3).
+- [ ] **Acceptance**: approved by the maintainer on the preview instance.
 
 ### 1.2 Git workflow
 
@@ -36,7 +37,28 @@ The repository follows the organization-wide GitHub template conventions:
 - **Releases**: a release PR `develop → main` (1 approving review). semantic-release publishes the version, the CHANGELOG and the image from `main`; `develop` publishes pre-releases (`-beta.N`).
 - A PR rarely exceeds ~1,500 lines excluding tests and fixtures. Beyond that, the vertical is split into stacked PRs (backend → API → UI), each one green.
 
-### 1.3 Order and dependencies
+### 1.3 Development and acceptance loop
+
+Every pull request, whatever its type, is **accepted by the maintainer on a running instance** before it is merged. CI being green is necessary, not sufficient.
+
+| Instance | Runs | Purpose |
+|---|---|---|
+| **preview** | the pull request's branch, built **from source** on the development machine | acceptance before merging |
+| **dev** | the `develop` image published by CI after each merge | what is integrated, used day to day |
+
+Day-to-day development uses the usual inner loop (`dotnet watch`, Vite dev server); no image is involved. Pull requests are built and tested by CI but never published: **only integrated code (`develop`, later releases) produces an image in the registry.**
+
+Both instances run on the maintainer's development machine, connected **read-only** to a real environment. Their deployment files and settings live in the maintainer's private configuration repository, never in this one.
+
+1. **Issue** (template "Vertical slice") with acceptance criteria taken from the spec's features, and an **acceptance plan**: the real cases that will prove the slice works.
+2. **Develop** test-first: unit, integration, UI. Heavy test runs are resource-limited on the development machine, or left to CI.
+3. **Draft PR.** CI runs the three test levels on a throwaway image.
+4. **Preview.** The author builds the branch on the development machine (resource-limited), starts it as the preview instance and runs the acceptance plan against the real environment.
+5. **Verification report** in the PR (section "Verification on the preview instance"): each criterion, what it was checked against, the result, known limitations. No real infrastructure values; screenshots come from demo mode.
+6. **Acceptance.** The PR is marked ready and the maintainer gets the preview URL with the exact steps to test and the expected results.
+7. **Merge** (squash) only after the maintainer's explicit approval; otherwise the PR is changed and the loop restarts at step 3. CI then publishes the `develop` image and the dev instance is updated.
+
+### 1.4 Order and dependencies
 
 ```
 Phase 0 Foundations ─► Phase 1 Core (C1 → C7) ─► v0.1
@@ -46,7 +68,7 @@ Phase 0 Foundations ─► Phase 1 Core (C1 → C7) ─► v0.1
                                    ├─► V8 Prometheus ─► V9 Loki ─► V10 Data ─► V11 Backups                                 ─► v0.4
                                    ├─► V12 Maintenance (registries, GitHub, end of life)                                    ─► v0.5
                                    ├─► V13 Security (Trivy, IdP)                                                           ─► v0.6
-                                   └─► V14 Actions ─► V15 IaC Ecosystem (Terraform provider, Helm, Ansible role)           ─► v0.7
+                                   └─► V14 Tool configuration ─► V15 IaC for Portarr (Terraform provider, Helm chart)      ─► v0.7
 ```
 
 This order follows the spec's roadmap (§13). It may be adjusted after each release, based on dogfooding.
@@ -59,7 +81,7 @@ This order follows the spec's roadmap (§13). It may be adjusted after each rele
 
 | PR | Content | Expected tests |
 |---|---|---|
-| **P0.1 Decisions** | ADRs 0001 to 0006: *arr-like stack (D-02 to D-06), license (Q-01), language (Q-02), data access Dapper/FluentMigrator or EF Core (Q-23), assertions (TESTING §2.1), monorepo structure | — |
+| **P0.1 Decisions** | ADRs 0001 to 0006: *arr-like stack (D-02 to D-06), license GPL-3.0 (D-27), language (Q-02), Dapper + FluentMigrator (D-28), xUnit v3 + NSubstitute + AwesomeAssertions (D-29), monorepo structure | — |
 | **P0.2 Skeleton** | .NET solution (`Portarr.Common`, `.Core`, `.Http`, `.Api.V1`, `.Host`, test projects), Vite/React/TS frontend, `Directory.Build.props`, `global.json` (.NET 10), lint and format | Green build |
 | **P0.3 Sample endpoint** | `GET /api/v1/system/status` (version, uptime) + minimal *System → Status* page | **1 unit + 1 integration + 1 E2E**: the pyramid runs end to end |
 | **P0.4 CI/CD** | GitHub Actions: lint, tests (SQLite/PostgreSQL matrix), E2E smoke, SonarQube, Trivy, gitleaks + denylist, multi-arch image build, semantic-release, publishing to GHCR | Green CI on the PR |
@@ -93,7 +115,7 @@ Each row is a PR (or a stack). The listed tests come on top of the generic DoD.
 |---|---|---|---|---|
 | **V1 Docker** | Docker provider (socket-proxy): inventory, state, native healthcheck, real-time stats, live logs, label-based provenance, inferred dependencies, abandoned workloads; Infrastructure → Workloads | F-HLT-03, F-INV-01/02/03/05/06, F-LOG-01/02, F-MET (real time) | Healthy / `unhealthy` / crash-looping sample containers via Testcontainers; read-only socket-proxy rejects writes | Live logs of a container; `unhealthy` workload visible |
 | **V2 Checks** | HTTP, TCP, DNS, ping probes; TLS; history (`UptimeBar`), uptime %; automatically suggested checks | F-HLT-01/02/04/07/11 | Sample HTTP server alternating 200/500; certificate close to expiry | Accept a suggested check, see it turn red |
-| **V3 Routes** | Reverse proxy provider (SWAG/nginx first, ❓ Q-54): routes, resolution to workloads, SSO, anomalies | F-NET-01/02/03 | Corpus of anonymized configs (3 upstream styles) | An app gets its URL from a route |
+| **V3 Routes** | Reverse proxy provider (SWAG/nginx first, several chained proxies, D-42): routes, resolution to workloads, SSO, anomalies | F-NET-01/02/03 | Corpus of anonymized configs (3 upstream styles) | An app gets its URL from a route |
 | **V4 Kubernetes** | Kubernetes provider: nodes, namespaces, workloads, pods, state and reasons, live logs, metrics-server | D-13, F-HLT-03, F-INV, F-LOG-01 | **k3s** via Testcontainers: pod in `CrashLoopBackOff`, deployment 2/3 | See a failing pod and its logs |
 | **V5 Overview and Issues** | Tiered Overview screen (E-00), issue engine (deduplication, severity, snooze), Activity | E-00, F-ISS-01, F-ACT-03, F-HLT-05 | A root cause groups child issues | Container outage → verdict and issue in the Overview |
 
@@ -102,7 +124,7 @@ Each row is a PR (or a stack). The listed tests come on top of the generic DoD.
 | Vertical | Content | Features | Integration | E2E |
 |---|---|---|---|---|
 | **V6 Notifications and heartbeats** | Notification providers (email first), per-trigger rules, toasts, Web Push (PWA); push-mode heartbeats; maintenance | F-NOT-01/02/04, F-HLT-06/08 | Mailpit receives the alert, then the recovery; missed heartbeat → `Down` | Receive a toast; declare a maintenance window |
-| **V7 Hypervisor** | Unraid provider (❓ Q-51), outside view of VMs, environment hierarchy, basic capacity | D-11, F-INV-01, F-MET-02 (allocation) | Simulated hypervisor API (WireMock) | Hypervisor → VM → runtime tree |
+| **V7 Hypervisor** | Unraid provider (D-40), outside view of VMs, environment hierarchy, basic capacity | D-11, F-INV-01, F-MET-02 (allocation) | Simulated hypervisor API (WireMock) | Hypervisor → VM → runtime tree |
 
 ### v0.4 — Resources and data
 
@@ -111,7 +133,7 @@ Each row is a PR (or a stack). The listed tests come on top of the generic DoD.
 | **V8 Prometheus** | Canonical metrics and query templates, sparklines, history, **"who uses what" explorer**, capacity and overcommitment, Prometheus discovery endpoint | F-MET-01/02/05, F-API-06 | Containerized Prometheus with injected series | Treemap: clicking a pod opens its panel |
 | **V9 Loki** | Historical logs, links to Grafana, **unexpected shutdowns and probable cause**, SSH logins, tunnels | F-LOG-03, F-HLT-09/10, F-SEC-02 (SSH) | Containerized Loki + injected `oom-kill` lines | Unexpected shutdown explained |
 | **V10 Data** | Database inventory, storage, saturation forecasting | F-DAT-01/02, F-MET-04 | Sample Postgres and InfluxDB + exporters | Data → Databases |
-| **V11 Backups** | Policies, S3 verification, co-location, coverage (after the tooling study, ❓ Q-50) | F-BAK-01/02/03/04 | MinIO + dated objects; missed backup | An overdue backup becomes an issue |
+| **V11 Backups** | Policies, S3 verification, co-location, coverage (observe only, D-43; tool chosen at start, Q-50) | F-BAK-01/02/03/04 | MinIO + dated objects; missed backup | An overdue backup becomes an issue |
 
 ### v0.5 to v0.7
 
@@ -119,8 +141,8 @@ Each row is a PR (or a stack). The listed tests come on top of the generic DoD.
 |---|---|---|
 | **V12 Maintenance** | Registries (image versions), GitHub (Dependabot, SBOM, releases), endoflife.date, deployed / declared / published versions, deployments, code dependencies | F-UPD-01→07, F-SEC-04 |
 | **V13 Security** | Trivy (image vulnerabilities), identity provider events | F-SEC-01/02 |
-| **V14 Actions** | Workload actions with role, confirmation and audit (❓ Q-10) | F-ACT-01 |
-| **V15 IaC Ecosystem** | `portarr` Terraform provider, Helm chart, `portarr_collectors` Ansible role, companion stack (❓ Q-56) | F-API-05, §6.4 |
+| **V14 Tool configuration** | Connectors that push configuration to their tool through its API (alert rules, scrape targets), with audit (D-36, D-37). No workload actions (D-31) | D-36 |
+| **V15 IaC for Portarr** | `portarr` Terraform provider (apps, stacks, connectors as code) and Helm chart for Portarr itself. The collector kit is not shipped (D-38) | F-API-05 |
 
 ---
 
@@ -128,14 +150,12 @@ Each row is a PR (or a stack). The listed tests come on top of the generic DoD.
 
 | Blocks | Question to settle |
 |---|---|
-| P0.1 | License (Q-01), language (Q-02), Dapper or EF Core (Q-23), assertion library |
+| P0.1 | ✅ License, data access, test stack decided (D-27 to D-29); language (Q-02) |
 | C2 | Final roles (Q-04), what an Observer sees (Q-46) |
-| V3 | Reference reverse proxy (Q-54) |
-| V6 | Who owns the alerting rules (Q-57) |
-| V7 | Reference hypervisor (Q-51) |
-| V11 | Backup tool (Q-50), Portarr's role (Q-52) |
-| V14 | Scope of actions (Q-10, Q-53) |
-| V15 | Ship the kit or document it (Q-56) |
+| V3 | ✅ SWAG/nginx first, chained proxies (D-42) |
+| V6 | ✅ Alerts evaluated by the tools (D-37) |
+| V7 | ✅ Unraid first (D-40) |
+| V11 | Backup tool (Q-50); role ✅ observe only (D-43) |
 
 ---
 

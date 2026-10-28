@@ -16,9 +16,9 @@ This file is read automatically by Claude Code. It applies to every task in this
 ## Tech stack
 
 - **Backend**: .NET 10 (LTS), C# 14, ASP.NET Core, SignalR, FluentValidation
-- **Data**: SQLite by default, PostgreSQL optional (data-access library: see ADR, Q-23)
+- **Data**: SQLite by default, PostgreSQL optional through **Dapper + FluentMigrator** (D-28)
 - **Frontend**: React 18, TypeScript (strict), Vite, TanStack Query, zustand, CSS Modules, lucide-react, Chart.js
-- **Tests**: NUnit + Moq (backend, like Sonarr), Vitest + Testing Library + MSW (frontend), Testcontainers + WireMock.Net (integration), Playwright (E2E)
+- **Tests**: xUnit v3 + NSubstitute + AwesomeAssertions (backend, D-29), Vitest + Testing Library + MSW (frontend), Testcontainers + WireMock.Net (integration), Playwright (E2E)
 - **Quality**: .NET analyzers, `dotnet format`, ESLint, Prettier, Stylelint, SonarQube, Trivy, gitleaks
 - **CI/CD**: GitHub Actions, semantic-release, multi-arch image on GHCR
 
@@ -26,25 +26,27 @@ This file is read automatically by Claude Code. It applies to every task in this
 
 ```bash
 dotnet build src/Portarr.sln
-dotnet test src/Portarr.sln --filter "Category!=Integration"   # unit tests
-dotnet test src/Portarr.sln --filter "Category=Integration"    # integration (Docker required)
-dotnet format --verify-no-changes
-yarn install && yarn start                                      # frontend dev server
-yarn lint && yarn stylelint && yarn typecheck && yarn test
-yarn e2e                                                        # Playwright against the e2e stack
+dotnet test --solution src/Portarr.sln -- --filter-not-trait "Category=Integration" --ignore-exit-code 8   # unit tests
+dotnet test --solution src/Portarr.sln -- --filter-trait "Category=Integration" --ignore-exit-code 8       # integration (Docker required from C1)
+dotnet format src/Portarr.sln --verify-no-changes
+dotnet run --project src/Portarr.Host                           # API on http://localhost:8484
+yarn install && yarn start                                      # frontend dev server on :5173, proxies /api
+yarn lint && yarn stylelint && yarn format:check && yarn typecheck && yarn test
+yarn e2e                                                        # Playwright against a running Portarr (PORTARR_URL)
+docker compose -f tests/e2e/stack/docker-compose.yml up -d --build   # the e2e stack
 ```
 
-*(Commands become effective once phase 0 of the implementation plan is done.)*
+Test runner: Microsoft.Testing.Platform (ADR 0005). Exit code 8 = a test project had no test matching the filter (expected).
 
 ## Non-negotiable rules
 
 1. **English only** for code, comments, documentation, commits, issues and PRs (D-26). UI text goes through `translate()` with English as the source language.
 2. **Public repo, generic product.** Never commit real infrastructure values (domain names, IPs, host names, personal project names, tokens) in code, tests, fixtures, docs or commit messages. Use examples (`homelab.example`, `server-1`, `10.0.0.10`). gitleaks and the private deny-list block offending commits.
-3. ***arr patterns first.** Page anatomy, components, prop vocabulary (`kind`, `size`), index / detail / settings / system screens follow Sonarr ([DESIGN.md](docs/DESIGN.md) §1–§5). Take inspiration from Sonarr's code (GPL-3); do not copy code until the project license is decided (Q-01).
+3. ***arr patterns first.** Page anatomy, components, prop vocabulary (`kind`, `size`), index / detail / settings / system screens follow Sonarr ([DESIGN.md](docs/DESIGN.md) §1–§5). Portarr is GPL-3.0 like Sonarr (D-27): code adapted from Sonarr/Radarr is allowed, with attribution in the file header.
 4. **No hard-coded visual values**: design tokens only ([DESIGN.md](docs/DESIGN.md) §6). **No hard-coded UI strings**: `translate()`.
-5. **Orchestrator, not a Swiss army knife** (D-03): integrate Prometheus, Loki, Docker, Kubernetes… Never store metrics or logs.
-6. **Portarr informs, the operator acts** (D-16): no automatic remediation unless the spec explicitly says so.
-7. **One vertical = one PR**, with green unit, integration and E2E tests and a complete Definition of Done.
+5. **Orchestrator, not a Swiss army knife** (D-03, D-30): integrate Prometheus, Loki, Docker, Kubernetes… Never store metrics or logs, never compute what a tool can compute (thresholds, aggregations, alert evaluation).
+6. **Portarr informs, the operator acts** (D-16, D-31): no action on the infrastructure; the only write allowed is declarative configuration pushed to a tool through its API.
+7. **One vertical = one PR**, with green unit, integration and E2E tests and a complete Definition of Done. **No PR is merged before the maintainer accepts it on the preview instance** ([IMPLEMENTATION_PLAN.md §1.3](docs/IMPLEMENTATION_PLAN.md)).
 8. **One capability = one contract**: every provider passes the contract test suite of each capability it declares.
 9. **Secure by default**: read-only access (docker-socket-proxy, minimal Kubernetes RBAC), secrets encrypted at rest and never returned by the API.
 10. **Never** commit secrets. Use `dotnet user-secrets` locally and GitHub Secrets in CI.

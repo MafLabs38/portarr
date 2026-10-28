@@ -23,11 +23,11 @@ Placement rule: a behavior is tested **at the lowest level that proves it**. An 
 
 | Topic | Choice |
 |---|---|
-| Framework | **NUnit** (like Sonarr) |
-| Mocks | **Moq**, with an auto-mocker (`Mocker`) and a `CoreTest<TSubject>` base class exposing `Subject` and `Mocker`, like `CoreTest<T>` in Sonarr |
-| Assertions | **AwesomeAssertions** (community fork of FluentAssertions 7, under a free license). Reason: FluentAssertions 8 changed its license. ❓ to be confirmed in an ADR |
+| Framework | **xUnit v3** (D-29) |
+| Mocks | **NSubstitute**, with a `CoreTest<TSubject>` base class that builds `Subject` and substitutes its dependencies, in the spirit of `CoreTest<T>` in Sonarr |
+| Assertions | **AwesomeAssertions** (community fork of FluentAssertions 7, under a free license; FluentAssertions 8 changed its license) |
 | Time | Injected `TimeProvider` (`FakeTimeProvider` in tests): no `DateTime.Now` in Core |
-| Naming | `ClassUnderTestFixture`, methods named `should_<result>_when_<condition>` (Sonarr convention) |
+| Naming | `ClassUnderTestFixture`, methods named `should_<result>_when_<condition>` (Sonarr convention); integration tests carry `[Trait("Category", "Integration")]` |
 
 **What must be covered by unit tests:**
 - status engine and aggregation (app, stack, `critical`/`optional` roles, anti-flapping, maintenance);
@@ -40,10 +40,9 @@ Placement rule: a behavior is tested **at the lowest level that proves it**. An 
 - role-based authorization.
 
 ```csharp
-[TestFixture]
 public class StackStatusAggregatorFixture : CoreTest<StackStatusAggregator>
 {
-    [Test]
+    [Fact]
     public void should_be_down_when_a_critical_member_is_down()
     {
         var stack = Builder.Stack()
@@ -167,8 +166,8 @@ tests/
 ## 8. Commands
 
 ```bash
-dotnet test src/Portarr.sln --filter "Category!=Integration"   # backend unit tests
-dotnet test src/Portarr.sln --filter "Category=Integration"    # integration (Docker required)
+dotnet test --solution src/Portarr.sln -- --filter-not-trait "Category=Integration" --ignore-exit-code 8   # backend unit tests
+dotnet test --solution src/Portarr.sln -- --filter-trait "Category=Integration" --ignore-exit-code 8       # integration (Docker required)
 yarn test                                                       # frontend unit tests (Vitest)
 yarn e2e                                                        # Playwright against the e2e stack
 ```
