@@ -93,7 +93,7 @@ Each row is a PR (or a stack). The listed tests come on top of the generic DoD.
 |---|---|---|---|---|
 | **V1 Docker** | Docker provider (socket-proxy): inventory, state, native healthcheck, real-time stats, live logs, label-based provenance, inferred dependencies, abandoned workloads; Infrastructure → Workloads | F-HLT-03, F-INV-01/02/03/05/06, F-LOG-01/02, F-MET (real time) | Healthy / `unhealthy` / crash-looping sample containers via Testcontainers; read-only socket-proxy rejects writes | Live logs of a container; `unhealthy` workload visible |
 | **V2 Checks** | HTTP, TCP, DNS, ping probes; TLS; history (`UptimeBar`), uptime %; automatically suggested checks | F-HLT-01/02/04/07/11 | Sample HTTP server alternating 200/500; certificate close to expiry | Accept a suggested check, see it turn red |
-| **V3 Routes** | Reverse proxy provider (SWAG/nginx first, ❓ Q-54): routes, resolution to workloads, SSO, anomalies | F-NET-01/02/03 | Corpus of anonymized configs (3 upstream styles) | An app gets its URL from a route |
+| **V3 Routes** | Reverse proxy provider (SWAG/nginx first, several chained proxies, D-42): routes, resolution to workloads, SSO, anomalies | F-NET-01/02/03 | Corpus of anonymized configs (3 upstream styles) | An app gets its URL from a route |
 | **V4 Kubernetes** | Kubernetes provider: nodes, namespaces, workloads, pods, state and reasons, live logs, metrics-server | D-13, F-HLT-03, F-INV, F-LOG-01 | **k3s** via Testcontainers: pod in `CrashLoopBackOff`, deployment 2/3 | See a failing pod and its logs |
 | **V5 Overview and Issues** | Tiered Overview screen (E-00), issue engine (deduplication, severity, snooze), Activity | E-00, F-ISS-01, F-ACT-03, F-HLT-05 | A root cause groups child issues | Container outage → verdict and issue in the Overview |
 
@@ -102,7 +102,7 @@ Each row is a PR (or a stack). The listed tests come on top of the generic DoD.
 | Vertical | Content | Features | Integration | E2E |
 |---|---|---|---|---|
 | **V6 Notifications and heartbeats** | Notification providers (email first), per-trigger rules, toasts, Web Push (PWA); push-mode heartbeats; maintenance | F-NOT-01/02/04, F-HLT-06/08 | Mailpit receives the alert, then the recovery; missed heartbeat → `Down` | Receive a toast; declare a maintenance window |
-| **V7 Hypervisor** | Unraid provider (❓ Q-51), outside view of VMs, environment hierarchy, basic capacity | D-11, F-INV-01, F-MET-02 (allocation) | Simulated hypervisor API (WireMock) | Hypervisor → VM → runtime tree |
+| **V7 Hypervisor** | Unraid provider (D-40), outside view of VMs, environment hierarchy, basic capacity | D-11, F-INV-01, F-MET-02 (allocation) | Simulated hypervisor API (WireMock) | Hypervisor → VM → runtime tree |
 
 ### v0.4 — Resources and data
 
@@ -111,7 +111,7 @@ Each row is a PR (or a stack). The listed tests come on top of the generic DoD.
 | **V8 Prometheus** | Canonical metrics and query templates, sparklines, history, **"who uses what" explorer**, capacity and overcommitment, Prometheus discovery endpoint | F-MET-01/02/05, F-API-06 | Containerized Prometheus with injected series | Treemap: clicking a pod opens its panel |
 | **V9 Loki** | Historical logs, links to Grafana, **unexpected shutdowns and probable cause**, SSH logins, tunnels | F-LOG-03, F-HLT-09/10, F-SEC-02 (SSH) | Containerized Loki + injected `oom-kill` lines | Unexpected shutdown explained |
 | **V10 Data** | Database inventory, storage, saturation forecasting | F-DAT-01/02, F-MET-04 | Sample Postgres and InfluxDB + exporters | Data → Databases |
-| **V11 Backups** | Policies, S3 verification, co-location, coverage (after the tooling study, ❓ Q-50) | F-BAK-01/02/03/04 | MinIO + dated objects; missed backup | An overdue backup becomes an issue |
+| **V11 Backups** | Policies, S3 verification, co-location, coverage (observe only, D-43; tool chosen at start, Q-50) | F-BAK-01/02/03/04 | MinIO + dated objects; missed backup | An overdue backup becomes an issue |
 
 ### v0.5 to v0.7
 
@@ -130,10 +130,10 @@ Each row is a PR (or a stack). The listed tests come on top of the generic DoD.
 |---|---|
 | P0.1 | ✅ License, data access, test stack decided (D-27 to D-29); language (Q-02) |
 | C2 | Final roles (Q-04), what an Observer sees (Q-46) |
-| V3 | Reference reverse proxy (Q-54) |
+| V3 | ✅ SWAG/nginx first, chained proxies (D-42) |
 | V6 | ✅ Alerts evaluated by the tools (D-37) |
 | V7 | ✅ Unraid first (D-40) |
-| V11 | Backup tool (Q-50), Portarr's role (Q-52) |
+| V11 | Backup tool (Q-50); role ✅ observe only (D-43) |
 
 ---
 

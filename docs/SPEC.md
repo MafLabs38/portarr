@@ -141,6 +141,9 @@ The original need comes from real-life situations:
 | ✅ D-38 | **The collector kit is not part of Portarr.** The product documents, per connector, what must be installed and how to connect it; deploying the tools is each operator's own IaC (for this project: the private config repo). The only compose files in the repo are test fixtures (E2E stack) and a minimal example. | An installation kit would mirror one particular infrastructure; Portarr stays generic. |
 | ✅ D-39 | **Forge: GitHub only** for v1, organization repositories included (private ones through a read-only token). Version and vulnerability information comes from Dependabot and the GitHub APIs. | Single forge actually used; the forge connector stays behind a capability so another one can be added later. |
 | ✅ D-40 | **The hypervisor is a first-class environment**: its own resources, its VMs and its containers are shown like any other environment. v1 reference: Unraid (dogfooding); Proxmox later. If the hypervisor goes down, Portarr goes down with it: accepted, the outage is obvious anyway (no external heartbeat required). | It is the top of the hierarchy and where Portarr runs (D-34). |
+| ✅ D-41 | **Vulnerabilities of running images are in scope**, not only those of the operator's own code: a critical CVE in a third-party image (identity provider, media server…) must be visible so the operator updates it. Portarr queries a **Trivy server** through a connector; severities below a configurable threshold (HIGH by default) are hidden. | Knowing about a critical flaw in what actually runs is a core reason for the tool. |
+| ✅ D-42 | **No fixed access topology.** Several reverse proxies may coexist and chain (a proxy on the hypervisor forwarding to a VM, then to a cluster ingress). Portarr supports several route connectors at once and resolves a chain of routes down to the workload. First route connector: SWAG/nginx (dogfooding); Traefik / Kubernetes Ingress next. | Real homelabs mix containers, VMs and clusters in many layouts; the model must not assume one. |
+| ✅ D-43 | **Backups: observe and report only** for now. Portarr shows which databases and volumes exist, whether they have a backup, and the last successful one (date, size, destination); it creates or configures nothing. The reference tool is chosen when V11 starts. | The first need is visibility: today nobody knows whether the backup scripts actually run. |
 
 ### 2.1 *arr patterns adopted (D-08)
 
@@ -1259,7 +1262,7 @@ portarr/
 | Q-01 | License | GPL-3.0 (like the *arr apps) or a more permissive license? | ✅ GPL-3.0 (D-27) |
 | Q-02 | Language | English for code and docs; which languages for the UI? Should this spec be translated into English? | ✅ English for code and docs; UI in English + French (D-26) |
 | Q-03 | Users | Who besides the operator will use Portarr, and for what? | ✅ A single operator first and foremost; secondarily observers (showing off one's system) and launcher guests (§3.1) |
-| Q-04 | Roles | Which permission levels are actually useful? | 💬 Several levels wanted; Admin / Operator / Observer / Guest proposal (§11.2) pending validation |
+| Q-04 | Roles | Which permission levels are actually useful? | 💬 Settled when C2 is built |
 | Q-05 | Launcher | How to navigate between stacks: tabs, sections, pages, customizable dashboard? | 💬 The launcher is secondary (D-10); the home page becomes the Overview (Q-43) |
 | Q-06 | Mobile | What use on a phone? | ❓ |
 | Q-07 | URLs | How to automatically pick the LAN or public URL? | ❓ |
@@ -1276,7 +1279,7 @@ portarr/
 | Q-22 | systemd | Should services outside containers be monitored, and how? | ❓ |
 | Q-23 | Data | Dapper + FluentMigrator (like Sonarr) or EF Core? | ✅ Dapper + FluentMigrator (D-28) |
 | Q-24 | UI | Faithful *arr look or a modern design system? | ❓ |
-| Q-25 | Security | Does Portarr embed Trivy, or require an external Trivy server? | ❓ |
+| Q-25 | Security | Does Portarr embed Trivy, or require an external Trivy server? | ✅ External Trivy server through a connector (D-41) |
 | Q-26 | Updates | Are host OS packages in scope? | ❓ |
 | Q-27 | Drift | Should we detect what runs outside IaC? | ❓ |
 | Q-28 | Updates | Should Portarr open PRs on IaC repos (Renovate's role)? | ✅ Not in v1 (D-16); possible evolution |
@@ -1290,15 +1293,15 @@ portarr/
 | Q-43 | Home page | Is the home page the Overview (global view) or the launcher with a status banner? | ❓ |
 | Q-44 | Summary | What cadence and what content for the periodic summary? | ❓ |
 | Q-45 | Backups | Are restore tests part of the need? | ❓ |
-| Q-46 | Observer | What is an observer allowed to see of your real system, and what must stay hidden? | ❓ |
+| Q-46 | Observer | What is an observer allowed to see of your real system, and what must stay hidden? | 💬 Settled when C2 is built |
 | Q-47 | Desktop | For a desktop app, what do we want to track: only the repository (dependencies, releases), or also the version actually installed on workstations? | ✅ Developer view only: dependencies, vulnerabilities, library evolution, framework end of life. No usage statistics (F-UPD-07) |
 | Q-48 | Forges | GitHub only, or also GitLab / Gitea? Private repositories included? | ✅ GitHub only, private repositories included (D-39) |
 | Q-49 | Tunnels | Which tunnel technology, and does it expose metrics? | ❓ |
 | Q-50 | Backups | Which reference backup tool(s) (study §9.15)? | ❓ |
 | Q-51 | Hypervisor | v1 reference hypervisor: the project's own (Unraid) or the most widespread (Proxmox)? | ✅ Unraid in v1, Proxmox later (D-40) |
-| Q-52 | Backups | Does Portarr only observe backups, or does it also configure them? | ❓ |
+| Q-52 | Backups | Does Portarr only observe backups, or does it also configure them? | ✅ Observe and report only (D-43) |
 | Q-53 | Rules | Do "rules" on app and stack state only trigger alerts, or also automatic actions (restart)? This touches on D-16 | ✅ Alerts only, never automatic actions (D-31) |
-| Q-54 | Reverse proxy | v1 reference reverse proxy: SWAG/nginx (dogfooding) or Traefik (the most widespread)? | ❓ |
+| Q-54 | Reverse proxy | v1 reference reverse proxy: SWAG/nginx (dogfooding) or Traefik (the most widespread)? | ✅ Several chained proxies; SWAG/nginx first (D-42) |
 | Q-56 | Ecosystem | Does the project ship the collector kit (Ansible role, Helm, companion stack), or only document what needs to be installed? | ✅ Not shipped; documented per connector (D-38) |
 | Q-57 | Alerts | Who owns the alerting rules: Portarr alone (a single place), or Prometheus/Alertmanager, whose alerts Portarr receives? | ✅ Evaluated by the tools, received by Portarr; editable only by pushing to the tool (D-37) |
 | Q-58 | Hosting | Where does Portarr itself run, given that it must not go down along with what it monitors? | ✅ On the hypervisor host (D-34); going down with it is accepted (D-40) |
@@ -1340,3 +1343,4 @@ portarr/
 | 2026-10-28 | Translated to English (D-26). |
 | 2026-10-28 | Interview #5 (technical choices). D-27 (GPL-3.0), D-28 (Dapper + FluentMigrator), D-29 (xUnit v3 + NSubstitute + AwesomeAssertions), D-30 (collect and report, no computation), D-31 (never acts; declarative configuration through tool APIs only), D-32 (standalone first), D-33 (vCPU and RAM everywhere), D-34 (runs on the hypervisor host). F-ACT-01/02 out of scope. Q-01, Q-10, Q-15, Q-23, Q-53, Q-58 resolved; Q-21, Q-56, Q-57 under discussion. |
 | 2026-10-28 | Interview #6 (technical choices, continued). D-35 (one library per connector), D-36 (pushing configuration to tools allowed, tool logic forbidden), D-37 (alerts evaluated by the tools), D-38 (collector kit not shipped), D-39 (GitHub only), D-40 (hypervisor as a first-class environment, Unraid first). Q-21, Q-48, Q-51, Q-56, Q-57 resolved. |
+| 2026-10-28 | Interview #7. D-41 (vulnerabilities of running images in scope, Trivy server), D-42 (no fixed access topology, chained reverse proxies), D-43 (backups observed only). Q-25, Q-52, Q-54 resolved; remaining questions are settled when the vertical that needs them starts. |
