@@ -1,0 +1,90 @@
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Portarr.Core.Catalog;
+
+namespace Portarr.Core.Workloads;
+
+public sealed record EnvironmentInventory(
+    string EnvironmentId,
+    bool Reachable,
+    string? Error,
+    IReadOnlyList<Workload> Workloads,
+    DateTimeOffset? RefreshedAt);
+
+public interface IWorkloadInventory
+{
+    /// <summary>Last known workloads per environment id. Kept in memory only (D-03).</summary>
+    IReadOnlyDictionary<string, EnvironmentInventory> Current { get; }
+
+    Task RefreshAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>Polls every declared environment and keeps the latest inventory.</summary>
+public sealed partial class WorkloadInventory : BackgroundService, IWorkloadInventory
+{
+    public static readonly TimeSpan Interval = TimeSpan.FromSeconds(15);
+
+    private readonly ICatalogService _catalogService;
+    private readonly IEnumerable<IWorkloadSource> _sources;
+    private readonly TimeProvider _timeProvider;
+    private readonly ILogger<WorkloadInventory> _logger;
+
+    public WorkloadInventory(
+        ICatalogService catalogService,
+        IEnumerable<IWorkloadSource> sources,
+        TimeProvider timeProvider,
+        ILogger<WorkloadInventory> logger)
+    {
+        _catalogService = catalogService;
+        _sources = sources;
+        _timeProvider = timeProvider;
+        _logger = logger;
+    }
+
+    public IReadOnlyDictionary<string, EnvironmentInventory> Current { get; private set; } =
+        new Dictionary<string, EnvironmentInventory>();
+
+    public async Task RefreshAsync(CancellationToken cancellationToken = default)
+    {
+        var environments = _catalogService.Current.Catalog.Environments;
+        var results = await Task.WhenAll(environments.Select(environment => RefreshAsync(environment, cancellationToken)));
+
+        Current = results.Where(r => r is not null).ToDictionary(r => r!.EnvironmentId, r => r!);
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        using var timer = new PeriodicTimer(Interval, _timeProvider);
+        do
+        {
+            await RefreshAsync(stoppingToken);
+        }
+        while (await timer.WaitForNextTickAsync(stoppingToken));
+    }
+
+    private async Task<EnvironmentInventory?> RefreshAsync(CatalogEnvironment environment, CancellationToken cancellationToken)
+    {
+        var source = _sources.FirstOrDefault(s => s.Supports(environment));
+        if (source is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var workloads = await source.ListAsync(environment, cancellationToken);
+            return new EnvironmentInventory(environment.Id, true, null, workloads, _timeProvider.GetUtcNow());
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            LogUnreachable(environment.Id, exception.Message);
+
+            // Keep the last known workloads so the UI can show what was there, flagged as stale.
+            var previous = Current.GetValueOrDefault(environment.Id);
+            return new EnvironmentInventory(environment.Id, false, exception.Message, previous?.Workloads ?? [], previous?.RefreshedAt);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Environment {EnvironmentId} unreachable: {Reason}")]
+    private partial void LogUnreachable(string environmentId, string reason);
+}

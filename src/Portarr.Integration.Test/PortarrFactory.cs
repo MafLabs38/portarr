@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Time.Testing;
 using Portarr.Core.Configuration;
+using Portarr.Core.Workloads;
 
 namespace Portarr.Integration.Test;
 
@@ -22,6 +23,9 @@ public sealed class PortarrFactory : WebApplicationFactory<Program>
 
     public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero));
 
+    /// <summary>Replaces the Docker connector, so API tests never need a Docker Engine.</summary>
+    public FakeWorkloadSource Workloads { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Test");
@@ -31,6 +35,11 @@ public sealed class PortarrFactory : WebApplicationFactory<Program>
             ["Database:Type"] = _options.Database.Type.ToString(),
             ["Database:ConnectionString"] = _options.Database.ConnectionString,
         }));
-        builder.ConfigureServices(services => services.Replace(ServiceDescriptor.Singleton<TimeProvider>(Clock)));
+        builder.ConfigureServices(services =>
+        {
+            services.Replace(ServiceDescriptor.Singleton<TimeProvider>(Clock));
+            services.RemoveAll<IWorkloadSource>();
+            services.AddSingleton<IWorkloadSource>(Workloads);
+        });
     }
 }

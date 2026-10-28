@@ -4,6 +4,7 @@ using Portarr.Core.Datastore.Migration;
 using Portarr.Core.Instrumentation;
 using Portarr.Host.Logging;
 using Portarr.Http;
+using Portarr.Providers.Docker;
 
 // The content root is the binary's folder, whatever the working directory (like the *arr apps).
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -17,6 +18,7 @@ builder.Configuration.AddEnvironmentVariables(prefix: "PORTARR__");
 
 builder.Services.AddPortarrCore(builder.Configuration);
 builder.Services.AddPortarrLogging();
+builder.Services.AddDockerProvider();
 builder.Services
     .AddPortarrHttp()
     .AddPortarrApiV1();

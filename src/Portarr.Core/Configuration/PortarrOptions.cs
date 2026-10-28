@@ -11,6 +11,11 @@ public sealed class PortarrOptions
 
     public DatabaseOptions Database { get; set; } = new();
 
+    /// <summary>Path of catalog.yaml; defaults to the data folder.</summary>
+    public string? CatalogFile { get; set; }
+
+    public string EffectiveCatalogFile => CatalogFile ?? Path.Combine(DataFolder, "catalog.yaml");
+
     private static string DefaultDataFolder()
     {
         return Path.Combine(

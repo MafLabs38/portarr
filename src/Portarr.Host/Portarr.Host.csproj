@@ -6,5 +6,6 @@
   <ItemGroup>
     <PackageReference Include="Serilog.AspNetCore" />
     <ProjectReference Include="..\Portarr.Api.V1\Portarr.Api.V1.csproj" />
+    <ProjectReference Include="..\Portarr.Providers.Docker\Portarr.Providers.Docker.csproj" />
   </ItemGroup>
 </Project>
