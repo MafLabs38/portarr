@@ -1,0 +1,34 @@
+namespace Portarr.Core.Configuration;
+
+/// <summary>
+/// Startup settings, read from appsettings.json then from <c>PORTARR__*</c> environment variables
+/// (e.g. <c>PORTARR__DATAFOLDER</c>, <c>PORTARR__DATABASE__TYPE</c>).
+/// </summary>
+public sealed class PortarrOptions
+{
+    /// <summary>Folder holding the SQLite database and future backups. Created if missing.</summary>
+    public string DataFolder { get; set; } = DefaultDataFolder();
+
+    public DatabaseOptions Database { get; set; } = new();
+
+    private static string DefaultDataFolder()
+    {
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.Create),
+            "Portarr");
+    }
+}
+
+public sealed class DatabaseOptions
+{
+    public DatabaseType Type { get; set; } = DatabaseType.Sqlite;
+
+    /// <summary>Required for PostgreSQL; ignored for SQLite, which lives in the data folder.</summary>
+    public string? ConnectionString { get; set; }
+}
+
+public enum DatabaseType
+{
+    Sqlite,
+    Postgres,
+}

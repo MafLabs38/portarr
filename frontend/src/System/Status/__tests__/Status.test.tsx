@@ -11,6 +11,8 @@ describe('Status', () => {
 
     expect(await screen.findByText('1.2.3')).toBeInTheDocument();
     expect(screen.getByText('1d 2h 3m')).toBeInTheDocument();
+    expect(screen.getByText('SQLite 3.46.1')).toBeInTheDocument();
+    expect(screen.getByText('/config')).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Status' })).toBeInTheDocument();
   });
 

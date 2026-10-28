@@ -1,17 +1,29 @@
 using System.Net;
 using System.Net.Http.Json;
 using Portarr.Api.V1.System;
+using Portarr.Core.Configuration;
 
 namespace Portarr.Integration.Test.Api;
 
 [Trait("Category", "Integration")]
-public sealed class SystemStatusFixture : IClassFixture<PortarrFactory>
+public sealed class SystemStatusFixture : IAsyncLifetime
 {
-    private readonly PortarrFactory _factory;
+    private readonly TestDatabase _database;
+    private PortarrFactory _factory = null!;
 
-    public SystemStatusFixture(PortarrFactory factory)
+    public SystemStatusFixture(TestDatabase database)
     {
-        _factory = factory;
+        _database = database;
+    }
+
+    public async ValueTask InitializeAsync()
+    {
+        _factory = new PortarrFactory(await _database.CreateOptionsAsync());
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        return _factory.DisposeAsync();
     }
 
     [Fact]
@@ -26,6 +38,17 @@ public sealed class SystemStatusFixture : IClassFixture<PortarrFactory>
         second.AppName.Should().Be("Portarr");
         second.StartTime.Should().Be(first.StartTime);
         (second.UptimeSeconds - first.UptimeSeconds).Should().Be(42);
+    }
+
+    [Fact]
+    public async Task should_report_the_database_in_use()
+    {
+        using var client = _factory.CreateClient();
+
+        var status = await GetStatusAsync(client);
+
+        status.DatabaseEngine.Should().StartWith(_database.Type == DatabaseType.Postgres ? "PostgreSQL " : "SQLite ");
+        status.DataFolder.Should().NotBeNullOrWhiteSpace();
     }
 
     [Fact]

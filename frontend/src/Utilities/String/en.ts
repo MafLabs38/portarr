@@ -2,6 +2,8 @@
 const en: Record<string, string> = {
   About: 'About',
   AppName: 'Application',
+  DataFolder: 'Data folder',
+  Database: 'Database',
   DurationDaysHoursMinutes: '{days}d {hours}h {minutes}m',
   ErrorLoadingSystemStatus: 'Unable to load the system status.',
   Loading: 'Loading…',

@@ -11,6 +11,16 @@ test.describe('System status', { tag: '@smoke' }, () => {
     const about = page.getByRole('region', { name: 'About' });
     await expect(about.getByText('Portarr', { exact: true })).toBeVisible();
     await expect(about.getByText(/^\.NET /)).toBeVisible();
+    await expect(about.getByText(/^(SQLite|PostgreSQL) \d/)).toBeVisible();
+  });
+
+  test('liveness and readiness probes answer', async ({ request }) => {
+    for (const path of ['/health/live', '/health/ready']) {
+      const response = await request.get(path);
+
+      expect(response.status(), path).toBe(200);
+      expect(await response.text(), path).toBe('Healthy');
+    }
   });
 
   test('unknown API routes return 404 instead of the frontend', async ({ request }) => {

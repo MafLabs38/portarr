@@ -53,6 +53,19 @@ yarn install && yarn start                   # UI on http://localhost:5173 (prox
 
 All commands (tests, lint, e2e) are listed in [CLAUDE.md](CLAUDE.md#commands).
 
+## Configuration
+
+Settings come from `appsettings.json`, overridden by `PORTARR__*` environment variables (`__` separates sections).
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORTARR__URLS` | `http://+:8484` | Listening address |
+| `PORTARR__DATAFOLDER` | `/config` in the image, the user's local data folder otherwise | SQLite database and future backups |
+| `PORTARR__DATABASE__TYPE` | `Sqlite` | `Sqlite` or `Postgres` |
+| `PORTARR__DATABASE__CONNECTIONSTRING` | — | Required for PostgreSQL, e.g. `Host=db;Database=portarr;Username=portarr;Password=…` |
+
+Probes: `GET /health/live` (the process answers) and `GET /health/ready` (the database answers).
+
 ## License
 
 [GPL-3.0](LICENSE), like the *arr apps.

@@ -15,8 +15,9 @@ public sealed class SystemController : ControllerBase
     }
 
     [HttpGet("status")]
-    public SystemStatusResource GetStatus()
+    public async Task<SystemStatusResource> GetStatusAsync(CancellationToken cancellationToken)
     {
-        return _systemStatusService.GetStatus().ToResource();
+        var status = await _systemStatusService.GetStatusAsync(cancellationToken);
+        return status.ToResource();
     }
 }

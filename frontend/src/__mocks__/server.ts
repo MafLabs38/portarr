@@ -10,6 +10,8 @@ export const systemStatus: SystemStatus = {
   uptimeSeconds: 93_780,
   runtimeVersion: '.NET 10.0.0',
   osDescription: 'Linux 6.8.0',
+  databaseEngine: 'SQLite 3.46.1',
+  dataFolder: '/config',
 };
 
 export const handlers = [http.get('/api/v1/system/status', () => HttpResponse.json(systemStatus))];

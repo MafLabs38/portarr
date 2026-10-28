@@ -6,4 +6,6 @@ public sealed record SystemStatus(
     DateTimeOffset StartTime,
     TimeSpan Uptime,
     string RuntimeVersion,
-    string OsDescription);
+    string OsDescription,
+    string DatabaseEngine,
+    string DataFolder);

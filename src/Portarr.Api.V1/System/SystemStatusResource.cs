@@ -8,7 +8,9 @@ public sealed record SystemStatusResource(
     DateTimeOffset StartTime,
     long UptimeSeconds,
     string RuntimeVersion,
-    string OsDescription);
+    string OsDescription,
+    string DatabaseEngine,
+    string DataFolder);
 
 public static class SystemStatusResourceMapper
 {
@@ -20,6 +22,8 @@ public static class SystemStatusResourceMapper
             status.StartTime,
             (long)status.Uptime.TotalSeconds,
             status.RuntimeVersion,
-            status.OsDescription);
+            status.OsDescription,
+            status.DatabaseEngine,
+            status.DataFolder);
     }
 }

@@ -5,4 +5,6 @@ export default interface SystemStatus {
   uptimeSeconds: number;
   runtimeVersion: string;
   osDescription: string;
+  databaseEngine: string;
+  dataFolder: string;
 }

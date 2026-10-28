@@ -19,6 +19,8 @@ export default function About() {
           <DescriptionListItem data={data.version} monospace title={translate('Version')} />
           <DescriptionListItem data={data.runtimeVersion} monospace title={translate('Runtime')} />
           <DescriptionListItem data={data.osDescription} monospace title={translate('OperatingSystem')} />
+          <DescriptionListItem data={data.databaseEngine} monospace title={translate('Database')} />
+          <DescriptionListItem data={data.dataFolder} monospace title={translate('DataFolder')} />
           <DescriptionListItem
             data={new Date(data.startTime).toLocaleString()}
             monospace
