@@ -44,4 +44,4 @@ See the full [specification](docs/SPEC.md).
 
 ## License
 
-To be decided (see [Q-01](docs/SPEC.md#14-question-register)).
+[GPL-3.0](LICENSE), like the *arr apps.

@@ -46,7 +46,7 @@ Phase 0 Foundations ─► Phase 1 Core (C1 → C7) ─► v0.1
                                    ├─► V8 Prometheus ─► V9 Loki ─► V10 Data ─► V11 Backups                                 ─► v0.4
                                    ├─► V12 Maintenance (registries, GitHub, end of life)                                    ─► v0.5
                                    ├─► V13 Security (Trivy, IdP)                                                           ─► v0.6
-                                   └─► V14 Actions ─► V15 IaC Ecosystem (Terraform provider, Helm, Ansible role)           ─► v0.7
+                                   └─► V14 Tool configuration ─► V15 IaC for Portarr (Terraform provider, Helm chart)      ─► v0.7
 ```
 
 This order follows the spec's roadmap (§13). It may be adjusted after each release, based on dogfooding.
@@ -59,7 +59,7 @@ This order follows the spec's roadmap (§13). It may be adjusted after each rele
 
 | PR | Content | Expected tests |
 |---|---|---|
-| **P0.1 Decisions** | ADRs 0001 to 0006: *arr-like stack (D-02 to D-06), license (Q-01), language (Q-02), data access Dapper/FluentMigrator or EF Core (Q-23), assertions (TESTING §2.1), monorepo structure | — |
+| **P0.1 Decisions** | ADRs 0001 to 0006: *arr-like stack (D-02 to D-06), license GPL-3.0 (D-27), language (Q-02), Dapper + FluentMigrator (D-28), xUnit v3 + NSubstitute + AwesomeAssertions (D-29), monorepo structure | — |
 | **P0.2 Skeleton** | .NET solution (`Portarr.Common`, `.Core`, `.Http`, `.Api.V1`, `.Host`, test projects), Vite/React/TS frontend, `Directory.Build.props`, `global.json` (.NET 10), lint and format | Green build |
 | **P0.3 Sample endpoint** | `GET /api/v1/system/status` (version, uptime) + minimal *System → Status* page | **1 unit + 1 integration + 1 E2E**: the pyramid runs end to end |
 | **P0.4 CI/CD** | GitHub Actions: lint, tests (SQLite/PostgreSQL matrix), E2E smoke, SonarQube, Trivy, gitleaks + denylist, multi-arch image build, semantic-release, publishing to GHCR | Green CI on the PR |
@@ -119,8 +119,8 @@ Each row is a PR (or a stack). The listed tests come on top of the generic DoD.
 |---|---|---|
 | **V12 Maintenance** | Registries (image versions), GitHub (Dependabot, SBOM, releases), endoflife.date, deployed / declared / published versions, deployments, code dependencies | F-UPD-01→07, F-SEC-04 |
 | **V13 Security** | Trivy (image vulnerabilities), identity provider events | F-SEC-01/02 |
-| **V14 Actions** | Workload actions with role, confirmation and audit (❓ Q-10) | F-ACT-01 |
-| **V15 IaC Ecosystem** | `portarr` Terraform provider, Helm chart, `portarr_collectors` Ansible role, companion stack (❓ Q-56) | F-API-05, §6.4 |
+| **V14 Tool configuration** | Connectors that push configuration to their tool through its API (alert rules, scrape targets), with audit (D-36, D-37). No workload actions (D-31) | D-36 |
+| **V15 IaC for Portarr** | `portarr` Terraform provider (apps, stacks, connectors as code) and Helm chart for Portarr itself. The collector kit is not shipped (D-38) | F-API-05 |
 
 ---
 
@@ -128,14 +128,12 @@ Each row is a PR (or a stack). The listed tests come on top of the generic DoD.
 
 | Blocks | Question to settle |
 |---|---|
-| P0.1 | License (Q-01), language (Q-02), Dapper or EF Core (Q-23), assertion library |
+| P0.1 | ✅ License, data access, test stack decided (D-27 to D-29); language (Q-02) |
 | C2 | Final roles (Q-04), what an Observer sees (Q-46) |
 | V3 | Reference reverse proxy (Q-54) |
-| V6 | Who owns the alerting rules (Q-57) |
-| V7 | Reference hypervisor (Q-51) |
+| V6 | ✅ Alerts evaluated by the tools (D-37) |
+| V7 | ✅ Unraid first (D-40) |
 | V11 | Backup tool (Q-50), Portarr's role (Q-52) |
-| V14 | Scope of actions (Q-10, Q-53) |
-| V15 | Ship the kit or document it (Q-56) |
 
 ---
 

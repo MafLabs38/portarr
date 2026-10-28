@@ -127,6 +127,20 @@ The original need comes from real-life situations:
 | ✅ D-24 | **Implementation as a core then verticals**, one vertical = one PR with its definition of "done" (three levels of tests, compliant UI, demo mode, docs, dogfooding). Details: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). | Modular, provider-based application: each integration ships and is validated on its own. |
 | ✅ D-25 | **Formalized design guidelines**: mandatory *arr patterns for structure, Portarr theme through tokens only. Details: [DESIGN.md](DESIGN.md). | Strict adherence to the *arr pattern, including by AI agents. |
 | ✅ D-26 | **English everywhere in the repository**: code, comments, documentation, commits, issues and PRs are written in English. The UI ships in English with a French translation (i18n). | Public, international project; maximize the potential audience and contributors. |
+| ✅ D-27 | **License: GPL-3.0**, like the *arr apps. Code adapted from Sonarr/Radarr is allowed, with attribution. | Consistency with the *arr ecosystem and freedom to reuse its proven components. |
+| ✅ D-28 | **Data access: Dapper + FluentMigrator** (like Sonarr), no EF Core. Explicit SQL, migrations replayed on SQLite and PostgreSQL. | Data is not central to Portarr (configuration, inventory, issue history); explicit SQL keeps queries visible and lightweight; stays in the *arr philosophy. |
+| ✅ D-29 | **Backend tests: xUnit v3 + NSubstitute + AwesomeAssertions** (all free licenses). Replaces the NUnit + Moq of the first draft. | Most common choice in modern .NET, consistent with the organization's .NET template. |
+| ✅ D-30 | **Portarr collects and reports, it does not compute.** Thresholds, aggregations, alert evaluation and any calculation live in the connected tools (Prometheus, Alertmanager, Kubernetes, backup tools…). Portarr's own logic is limited to **orchestration**: linking entities, combining the states reported by the tools, presenting them. Reinforces D-03. | A clean application is a relay that relies heavily on the tools, not a second monitoring engine. |
+| ✅ D-31 | **Portarr never acts on the infrastructure.** No imperative action (start, stop, restart, scale, IaC job triggering). The only write allowed: **declarative configuration pushed to a tool through its API or its configuration files**, when a connector declares it (e.g. a backup schedule, a scrape target). Rules only raise alerts, never automatic actions. Reinforces D-16. | Portarr is a reporter; acting stays with the operator and their tools. |
+| ✅ D-32 | **Standalone first.** With no connector at all, Portarr works as a launcher and an inventory (apps, links, stacks, which environment they run on), like a Heimdall-type portal. Each connector plugged in adds capabilities (metrics, logs, health, updates…); missing data is shown as "not connected", never as an error. | Low entry barrier; the ecosystem is opt-in, connector by connector. |
+| ✅ D-33 | **Resources expressed in vCPU (cores) and RAM consumed**, the same way across every environment type (Docker host, VM, hypervisor container, Kubernetes pod and node). The percentage of the parent's capacity is secondary; Kubernetes adds request and limit. | Uniform units make a container on the hypervisor, a VM and a pod comparable. |
+| ✅ D-34 | **Portarr runs on the hypervisor host**, next to the reverse proxy, as the place with the most height; it understands VMs and their workloads through connectors. | The central view belongs at the top of the hierarchy. |
+| ✅ D-35 | **One class library per connector** (`Portarr.Providers.Docker`, `Portarr.Providers.Prometheus`…), compiled into the application. Loading external DLLs may come later at little cost, since connectors are already isolated. No plugin marketplace or third-party contributor model is designed for now. | Solo project; maximum decoupling is the goal, a plugin ecosystem is not. |
+| ✅ D-36 | **Configuring tools is allowed, tool logic is not.** A connector may push configuration to its tool through the tool's API or configuration files (alert rules, scrape targets, a backup policy…): this is the preferred way to get the right information. What is forbidden is re-implementing in Portarr business logic tightly coupled to a tool (own threshold evaluation, own query engine). Any tool-specific code stays inside its connector library; the Core knows only capabilities. Refines D-30 and D-31. | Portarr steers the tools, it does not replace them. |
+| ✅ D-37 | **Alerts are evaluated by the tools** (Prometheus/Alertmanager, Kubernetes, backup tools…) and received by Portarr, which links them to apps, stacks and environments. Rules can be edited from Portarr only when the connector can push them to the tool (D-36). Portarr's own signals are limited to orchestration: combining reported states (a stack degraded because a critical member is down). | No second alerting engine; one source of truth per rule. |
+| ✅ D-38 | **The collector kit is not part of Portarr.** The product documents, per connector, what must be installed and how to connect it; deploying the tools is each operator's own IaC (for this project: the private config repo). The only compose files in the repo are test fixtures (E2E stack) and a minimal example. | An installation kit would mirror one particular infrastructure; Portarr stays generic. |
+| ✅ D-39 | **Forge: GitHub only** for v1, organization repositories included (private ones through a read-only token). Version and vulnerability information comes from Dependabot and the GitHub APIs. | Single forge actually used; the forge connector stays behind a capability so another one can be added later. |
+| ✅ D-40 | **The hypervisor is a first-class environment**: its own resources, its VMs and its containers are shown like any other environment. v1 reference: Unraid (dogfooding); Proxmox later. If the hypervisor goes down, Portarr goes down with it: accepted, the outage is obvious anyway (no external heartbeat required). | It is the top of the hierarchy and where Portarr runs (D-34). |
 
 ### 2.1 *arr patterns adopted (D-08)
 
@@ -386,17 +400,15 @@ Portarr is a **hub**: it collects almost nothing by itself and relies on standar
 
 | Level | What is connected | Available features |
 |---|---|---|
-| **0 · Standalone** | Portarr + socket-proxy and/or Kubernetes API | Launcher, inventory, state, live logs, **real-time** metrics, HTTP/TCP/heartbeat checks, routes, email alerts |
+| **0 · Launcher** | Nothing | Apps, links, stacks and environments described by hand (D-32) |
+| **0+ · Runtime APIs** | Portarr + socket-proxy and/or Kubernetes API | Launcher, inventory, state, live logs, **real-time** metrics, HTTP/TCP/heartbeat checks, routes, email alerts |
 | **1 · + metrics** | + Prometheus and exporters | History, capacity and overcommitment, disk forecasts, sparklines |
 | **2 · + logs** | + Loki and Alloy | Log search, **shutdown causes** (OOM), SSH logins |
 | **3 · + maintenance** | + Trivy, GitHub, registries, backup tool | Vulnerabilities, dependencies, versions, end of life, backups |
 
 For each unavailable feature, the UI shows **which component to connect** to enable it ("Connect Prometheus to see history"), like System → Health in the *arr apps.
 
-**The kit is delivered as IaC by the project** 🟡 ❓ Q-56:
-- an **Ansible role** `portarr_collectors` for Docker hosts, VMs and hypervisors;
-- **Helm values** for clusters;
-- a docker-compose **companion stack** (Prometheus + Loki + Alloy + Trivy) for those who have nothing yet.
+**The kit is not shipped by Portarr** (D-38): each connector's documentation lists what to install and how to connect it. Operators deploy these tools with their own IaC.
 
 **Integrations in the other direction** 🟡:
 - **Prometheus discovery**: Portarr exposes an *HTTP service discovery* endpoint (`/api/v1/prometheus/sd`). Prometheus then automatically scrapes everything Portarr knows about, without maintaining the target list by hand (F-API-06).
@@ -935,7 +947,7 @@ Persistent header: global search (Ctrl+K), global health indicator, issue counte
 
 ### 9.9 F-ACT — Activity and actions
 
-**F-ACT-01 · Workload actions** 🟡
+**F-ACT-01 · Workload actions** ❌ Out of scope (D-31)
 
 | Type | Actions |
 |---|---|
@@ -945,10 +957,9 @@ Persistent header: global search (Ctrl+K), global health indicator, issue counte
 | VM | start, shutdown, force stop, reboot |
 | Stack | restart all its workloads, in order ❓ |
 
-- **Rules**: disabled by default ❓ Q-10; required role; confirmation (type the name for destructive actions); **audit log** (who, what, when, result).
-- **Phase**: v0.3 (read-only before that)
+- Kept for the record only: Portarr never acts on workloads (D-31). The operator uses their own tools.
 
-**F-ACT-02 · Triggering IaC jobs** 🟡
+**F-ACT-02 · Triggering IaC jobs** ❌ Out of scope (D-31)
 - Declare **jobs** (webhook, GitHub Actions `workflow_dispatch`, Semaphore/AWX template…) attached to a stack: "redeploy Media", "terraform plan monitoring".
 - **Display**: button on the stack; tracking in Activity → Queue; link to the job logs.
 - **Phase**: v0.7
@@ -1231,8 +1242,8 @@ portarr/
 | **v0.4** | Resources and data | Prometheus provider, F-MET-01, **F-MET-02 capacity**, **F-HLT-09 unexpected shutdowns**, **F-HLT-10 tunnels**, **F-DAT-01/02**, **F-BAK-01/02**, F-NOT-03, F-LOG-03 |
 | **v0.5** | Maintenance | Registry, GitHub and endoflife.date providers, F-UPD-01/02/03, **F-UPD-04/05/06/07**, **F-SEC-04**, F-CAT-07 (dependency tracking), F-MET-04, F-BAK-03, F-INV-04, F-CAT-05 |
 | **v0.6** | Security | Trivy, identity provider, F-SEC-01/02 |
-| **v0.7** | Act | F-ACT-01 ❓ Q-10, other notification channels, F-API-04 |
-| **Future** | Automate | F-ACT-02 (IaC jobs), GitOps, PR creation, remediation: outside v1 (D-16) |
+| **v0.7** | Extend | Other notification channels, F-API-04 |
+| **Never** | Act | Workload actions, IaC jobs, GitOps, PR creation, remediation (D-16, D-31) |
 
 > **Slicing rule (D-17)**: each version only integrates the §7.0 reference tool for the capabilities it covers. The other §7.4 providers are future evolutions.
 | **v1.0** | Stabilization | Frozen v1 API, complete documentation, online demo |
@@ -1245,7 +1256,7 @@ portarr/
 
 | # | Topic | Question | Status |
 |---|---|---|---|
-| Q-01 | License | GPL-3.0 (like the *arr apps) or a more permissive license? | ❓ |
+| Q-01 | License | GPL-3.0 (like the *arr apps) or a more permissive license? | ✅ GPL-3.0 (D-27) |
 | Q-02 | Language | English for code and docs; which languages for the UI? Should this spec be translated into English? | ✅ English for code and docs; UI in English + French (D-26) |
 | Q-03 | Users | Who besides the operator will use Portarr, and for what? | ✅ A single operator first and foremost; secondarily observers (showing off one's system) and launcher guests (§3.1) |
 | Q-04 | Roles | Which permission levels are actually useful? | 💬 Several levels wanted; Admin / Operator / Observer / Guest proposal (§11.2) pending validation |
@@ -1254,16 +1265,16 @@ portarr/
 | Q-07 | URLs | How to automatically pick the LAN or public URL? | ❓ |
 | Q-08 | Catalog | Can the UI edit the catalog, or is it *as code* only? | ✅ Both (D-19); an app managed through config is read-only in the UI |
 | Q-09 | Catalog | Priority between sources in case of conflict | ❓ |
-| Q-10 | Actions | Which actions from the first version, and which ones never? | ❓ |
+| Q-10 | Actions | Which actions from the first version, and which ones never? | ✅ None: Portarr never acts on the infrastructure (D-31) |
 | Q-12 | Status | How to distinguish "stopped on purpose" from "went down"? | 💬 F-HLT-09 approach: any shutdown with no recorded action or maintenance is "unexpected" |
 | Q-14 | VM | Which view of a VM matters: inside, hypervisor, or both? | ✅ Both, correlated (D-11) |
-| Q-15 | Metrics | How to express CPU (cores, %, relative to what)? | ❓ |
+| Q-15 | Metrics | How to express CPU (cores, %, relative to what)? | ✅ vCPU and RAM consumed, everywhere (D-33) |
 | Q-16 | Logs | How much history in the live view; do we need logs persisted outside Loki? | ❓ |
 | Q-17 | Notifications | Priority of notifications in the roadmap | ✅ High: email from v0.3 (D-10) |
 | Q-20 | Collection | Will an agent ever be needed (unreachable hosts, NAT, VPS)? | 💬 Concrete case: a worker VPS connected through a tunnel. Approach: collect via the cluster (§4.4) rather than an agent |
-| Q-21 | Extensibility | Providers compiled into the application or dynamically loaded plugins? | ❓ |
+| Q-21 | Extensibility | Providers compiled into the application or dynamically loaded plugins? | ✅ One class library per connector, compiled in (D-35) |
 | Q-22 | systemd | Should services outside containers be monitored, and how? | ❓ |
-| Q-23 | Data | Dapper + FluentMigrator (like Sonarr) or EF Core? | ❓ |
+| Q-23 | Data | Dapper + FluentMigrator (like Sonarr) or EF Core? | ✅ Dapper + FluentMigrator (D-28) |
 | Q-24 | UI | Faithful *arr look or a modern design system? | ❓ |
 | Q-25 | Security | Does Portarr embed Trivy, or require an external Trivy server? | ❓ |
 | Q-26 | Updates | Are host OS packages in scope? | ❓ |
@@ -1281,16 +1292,16 @@ portarr/
 | Q-45 | Backups | Are restore tests part of the need? | ❓ |
 | Q-46 | Observer | What is an observer allowed to see of your real system, and what must stay hidden? | ❓ |
 | Q-47 | Desktop | For a desktop app, what do we want to track: only the repository (dependencies, releases), or also the version actually installed on workstations? | ✅ Developer view only: dependencies, vulnerabilities, library evolution, framework end of life. No usage statistics (F-UPD-07) |
-| Q-48 | Forges | GitHub only, or also GitLab / Gitea? Private repositories included? | ❓ |
+| Q-48 | Forges | GitHub only, or also GitLab / Gitea? Private repositories included? | ✅ GitHub only, private repositories included (D-39) |
 | Q-49 | Tunnels | Which tunnel technology, and does it expose metrics? | ❓ |
 | Q-50 | Backups | Which reference backup tool(s) (study §9.15)? | ❓ |
-| Q-51 | Hypervisor | v1 reference hypervisor: the project's own (Unraid) or the most widespread (Proxmox)? | ❓ |
+| Q-51 | Hypervisor | v1 reference hypervisor: the project's own (Unraid) or the most widespread (Proxmox)? | ✅ Unraid in v1, Proxmox later (D-40) |
 | Q-52 | Backups | Does Portarr only observe backups, or does it also configure them? | ❓ |
-| Q-53 | Rules | Do "rules" on app and stack state only trigger alerts, or also automatic actions (restart)? This touches on D-16 | ❓ |
+| Q-53 | Rules | Do "rules" on app and stack state only trigger alerts, or also automatic actions (restart)? This touches on D-16 | ✅ Alerts only, never automatic actions (D-31) |
 | Q-54 | Reverse proxy | v1 reference reverse proxy: SWAG/nginx (dogfooding) or Traefik (the most widespread)? | ❓ |
-| Q-56 | Ecosystem | Does the project ship the collector kit (Ansible role, Helm, companion stack), or only document what needs to be installed? | ❓ |
-| Q-57 | Alerts | Who owns the alerting rules: Portarr alone (a single place), or Prometheus/Alertmanager, whose alerts Portarr receives? | ❓ |
-| Q-58 | Hosting | Where does Portarr itself run, given that it must not go down along with what it monitors? | ❓ |
+| Q-56 | Ecosystem | Does the project ship the collector kit (Ansible role, Helm, companion stack), or only document what needs to be installed? | ✅ Not shipped; documented per connector (D-38) |
+| Q-57 | Alerts | Who owns the alerting rules: Portarr alone (a single place), or Prometheus/Alertmanager, whose alerts Portarr receives? | ✅ Evaluated by the tools, received by Portarr; editable only by pushing to the tool (D-37) |
+| Q-58 | Hosting | Where does Portarr itself run, given that it must not go down along with what it monitors? | ✅ On the hypervisor host (D-34); going down with it is accepted (D-40) |
 | Q-59 | Logs | v1 reference log backend: Loki or Elasticsearch / OpenSearch? | ✅ Loki + Prometheus + Grafana (D-22); Elasticsearch / OpenSearch as a later provider |
 | Q-55 | Positioning | Should Portarr replace an existing launcher (Homarr, Homepage) and a container tool (Portainer), or coexist with them? | ❓ |
 
@@ -1327,3 +1338,5 @@ portarr/
 | 2026-10-26 | Feedback on the v1 mockups. New art direction (§8.3), real icons per app, F-MET-05 (interactive resource explorer VM → pods, with access to logs). |
 | 2026-10-28 | Design guidelines (DESIGN.md, based on Sonarr's frontend code), testing strategy (TESTING.md), implementation plan (IMPLEMENTATION_PLAN.md), repo CLAUDE.md. D-23 to D-25. |
 | 2026-10-28 | Translated to English (D-26). |
+| 2026-10-28 | Interview #5 (technical choices). D-27 (GPL-3.0), D-28 (Dapper + FluentMigrator), D-29 (xUnit v3 + NSubstitute + AwesomeAssertions), D-30 (collect and report, no computation), D-31 (never acts; declarative configuration through tool APIs only), D-32 (standalone first), D-33 (vCPU and RAM everywhere), D-34 (runs on the hypervisor host). F-ACT-01/02 out of scope. Q-01, Q-10, Q-15, Q-23, Q-53, Q-58 resolved; Q-21, Q-56, Q-57 under discussion. |
+| 2026-10-28 | Interview #6 (technical choices, continued). D-35 (one library per connector), D-36 (pushing configuration to tools allowed, tool logic forbidden), D-37 (alerts evaluated by the tools), D-38 (collector kit not shipped), D-39 (GitHub only), D-40 (hypervisor as a first-class environment, Unraid first). Q-21, Q-48, Q-51, Q-56, Q-57 resolved. |

@@ -16,9 +16,9 @@ This file is read automatically by Claude Code. It applies to every task in this
 ## Tech stack
 
 - **Backend**: .NET 10 (LTS), C# 14, ASP.NET Core, SignalR, FluentValidation
-- **Data**: SQLite by default, PostgreSQL optional (data-access library: see ADR, Q-23)
+- **Data**: SQLite by default, PostgreSQL optional through **Dapper + FluentMigrator** (D-28)
 - **Frontend**: React 18, TypeScript (strict), Vite, TanStack Query, zustand, CSS Modules, lucide-react, Chart.js
-- **Tests**: NUnit + Moq (backend, like Sonarr), Vitest + Testing Library + MSW (frontend), Testcontainers + WireMock.Net (integration), Playwright (E2E)
+- **Tests**: xUnit v3 + NSubstitute + AwesomeAssertions (backend, D-29), Vitest + Testing Library + MSW (frontend), Testcontainers + WireMock.Net (integration), Playwright (E2E)
 - **Quality**: .NET analyzers, `dotnet format`, ESLint, Prettier, Stylelint, SonarQube, Trivy, gitleaks
 - **CI/CD**: GitHub Actions, semantic-release, multi-arch image on GHCR
 
@@ -40,10 +40,10 @@ yarn e2e                                                        # Playwright aga
 
 1. **English only** for code, comments, documentation, commits, issues and PRs (D-26). UI text goes through `translate()` with English as the source language.
 2. **Public repo, generic product.** Never commit real infrastructure values (domain names, IPs, host names, personal project names, tokens) in code, tests, fixtures, docs or commit messages. Use examples (`homelab.example`, `server-1`, `10.0.0.10`). gitleaks and the private deny-list block offending commits.
-3. ***arr patterns first.** Page anatomy, components, prop vocabulary (`kind`, `size`), index / detail / settings / system screens follow Sonarr ([DESIGN.md](docs/DESIGN.md) §1–§5). Take inspiration from Sonarr's code (GPL-3); do not copy code until the project license is decided (Q-01).
+3. ***arr patterns first.** Page anatomy, components, prop vocabulary (`kind`, `size`), index / detail / settings / system screens follow Sonarr ([DESIGN.md](docs/DESIGN.md) §1–§5). Portarr is GPL-3.0 like Sonarr (D-27): code adapted from Sonarr/Radarr is allowed, with attribution in the file header.
 4. **No hard-coded visual values**: design tokens only ([DESIGN.md](docs/DESIGN.md) §6). **No hard-coded UI strings**: `translate()`.
-5. **Orchestrator, not a Swiss army knife** (D-03): integrate Prometheus, Loki, Docker, Kubernetes… Never store metrics or logs.
-6. **Portarr informs, the operator acts** (D-16): no automatic remediation unless the spec explicitly says so.
+5. **Orchestrator, not a Swiss army knife** (D-03, D-30): integrate Prometheus, Loki, Docker, Kubernetes… Never store metrics or logs, never compute what a tool can compute (thresholds, aggregations, alert evaluation).
+6. **Portarr informs, the operator acts** (D-16, D-31): no action on the infrastructure; the only write allowed is declarative configuration pushed to a tool through its API.
 7. **One vertical = one PR**, with green unit, integration and E2E tests and a complete Definition of Done.
 8. **One capability = one contract**: every provider passes the contract test suite of each capability it declares.
 9. **Secure by default**: read-only access (docker-socket-proxy, minimal Kubernetes RBAC), secrets encrypted at rest and never returned by the API.
