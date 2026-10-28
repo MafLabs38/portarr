@@ -79,7 +79,7 @@ jobs:
         run: dotnet test src/Portarr.sln --no-build --configuration Release --filter "Category!=Integration" --collect:"XPlat Code Coverage" --results-directory ./coverage/unit
       - name: Integration tests (Testcontainers)
         run: dotnet test src/Portarr.sln --no-build --configuration Release --filter "Category=Integration" --collect:"XPlat Code Coverage" --results-directory ./coverage/integration
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: coverage-backend-${{ matrix.database }}
           path: coverage/
@@ -96,7 +96,7 @@ jobs:
           cache: yarn
       - run: yarn install --frozen-lockfile
       - run: yarn test --coverage
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: coverage-frontend
           path: coverage/
@@ -117,7 +117,7 @@ jobs:
         run: docker compose -f tests/e2e/stack/docker-compose.yml up -d --build --wait
       - run: yarn e2e --grep @smoke
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: playwright-report/
