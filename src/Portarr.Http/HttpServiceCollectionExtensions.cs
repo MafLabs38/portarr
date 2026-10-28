@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Portarr.Common;
 using Portarr.Core.Datastore;
+using Prometheus;
 
 namespace Portarr.Http;
 
@@ -47,11 +49,27 @@ public static class HttpServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Returns the frontend's index page for client-side routes. Unknown /api and /health routes stay plain 404s.
+    /// Prometheus metrics of Portarr itself on <c>/metrics</c> (F-SYS-06): HTTP requests, .NET runtime,
+    /// process, and <c>portarr_build_info</c>. Call after routing so requests are labelled by route.
+    /// </summary>
+    public static WebApplication UsePortarrMetrics(this WebApplication app)
+    {
+        Metrics.CreateGauge("portarr_build_info", "Portarr build running, always 1.", "version")
+            .WithLabels(BuildInfo.Version)
+            .Set(1);
+
+        app.UseHttpMetrics();
+        app.MapMetrics();
+
+        return app;
+    }
+
+    /// <summary>
+    /// Returns the frontend's index page for client-side routes. Unknown /api, /health and /metrics routes stay plain 404s.
     /// </summary>
     public static WebApplication MapPortarrFrontendFallback(this WebApplication app)
     {
-        app.MapFallbackToFile("{**path:regex(^(?!(api|health)(/|$)).*$)}", "index.html");
+        app.MapFallbackToFile("{**path:regex(^(?!(api|health|metrics)(/|$)).*$)}", "index.html");
 
         return app;
     }

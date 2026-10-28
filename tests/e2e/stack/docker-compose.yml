@@ -7,7 +7,7 @@ services:
     build:
       context: ../../..
     ports:
-      - "8484:8484"
+      - '8484:8484'
     volumes:
       - portarr-config:/config
 

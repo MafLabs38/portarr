@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Portarr.Core.Configuration;
 using Portarr.Core.Datastore;
 using Portarr.Core.Datastore.Migration;
+using Portarr.Core.Instrumentation;
 using Portarr.Core.SystemInfo;
 
 namespace Portarr.Core;
@@ -23,6 +24,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IMigrationController, MigrationController>();
         services.AddSingleton<IConfigRepository, ConfigRepository>();
         services.AddSingleton<ISystemStatusService, SystemStatusService>();
+        services.AddSingleton<ILogLevelService, LogLevelService>();
 
         return services;
     }

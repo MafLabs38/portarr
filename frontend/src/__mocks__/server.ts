@@ -14,6 +14,20 @@ export const systemStatus: SystemStatus = {
   dataFolder: '/config',
 };
 
-export const handlers = [http.get('/api/v1/system/status', () => HttpResponse.json(systemStatus))];
+let logLevel = 'Information';
+
+export function resetMockState() {
+  logLevel = 'Information';
+}
+
+export const handlers = [
+  http.get('/api/v1/system/status', () => HttpResponse.json(systemStatus)),
+  http.get('/api/v1/system/logging', () => HttpResponse.json({ level: logLevel })),
+  http.put('/api/v1/system/logging', async ({ request }) => {
+    const body = (await request.json()) as { level: string };
+    logLevel = body.level;
+    return HttpResponse.json({ level: logLevel });
+  }),
+];
 
 export const server = setupServer(...handlers);
