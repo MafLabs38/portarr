@@ -1,0 +1,66 @@
+# .NET build
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+publish/
+_output/
+_artifacts/
+
+# IDE
+.vs/
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# NuGet
+*.nupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+# Node / frontend
+node_modules/
+.yarn/*
+!.yarn/releases
+!.yarn/plugins
+*.tsbuildinfo
+*.module.css.d.ts.map
+
+# Tests
+/coverage
+TestResults/
+playwright-report/
+test-results/
+tests/e2e/.auth/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+
+# Secrets and local config
+secrets.json
+.env
+.env.local
+.mcp.json
+.claude/settings.local.json
+
+# Runtime data (local dev)
+/data/
+*.db
+*.db-shm
+*.db-wal
+
+# System
+.DS_Store
+Thumbs.db
+*.log

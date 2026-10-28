@@ -1,0 +1,146 @@
+# Portarr — Implementation Plan
+
+> **Status**: v1, 2026-10-28.
+> **Principle**: first a solid, tested **core**, then **vertical slices**. A vertical slice delivers a provider (or a cross-cutting capability) and the features that depend on it, from the database all the way to the screen.
+> **One vertical slice = one pull request** (or a small stack of linked PRs), mergeable on its own, with its three levels of tests green ([TESTING.md](TESTING.md)) and a UI compliant with [DESIGN.md](DESIGN.md).
+> The `F-…` and `D-…` identifiers refer to the [spec](SPEC.md).
+
+---
+
+## 1. Ground rules
+
+### 1.1 Definition of Done (DoD) for a vertical slice
+
+A vertical slice PR is merged only if **every** box is checked:
+
+- [ ] **Unit**: the slice's business rules are covered, ≥ 80 % on new code.
+- [ ] **Integration**: provider tested against its real service (Testcontainers) or its fixtures (WireMock); it passes the **contract suite** of each of its capabilities; persistence green on SQLite and PostgreSQL.
+- [ ] **E2E**: at least one end-to-end Playwright journey for the main feature; global smoke still green.
+- [ ] **UI**: [DESIGN.md §10](DESIGN.md) checklist followed, screenshots attached.
+- [ ] **Demo mode**: the slice provides realistic simulated data.
+- [ ] **Documentation**: provider page (collector installation, minimum permissions, configuration), spec updated if a behavior changed, ADR if a decision was made.
+- [ ] **Translations**: `en` and `fr` keys.
+- [ ] **Security**: minimum permissions documented, secrets encrypted, no personal values (gitleaks + denylist green).
+- [ ] **Dogfooding**: deployed on the author's infrastructure and validated against at least one real case from the private inventory.
+
+### 1.2 Git workflow
+
+The repository follows the organization-wide GitHub template conventions:
+
+- **Protected branches** (GitHub Rulesets, managed as code): `main` holds stable releases, `develop` is the integration branch. Nobody can push to them directly; every change goes through a pull request.
+- **One GitHub issue per vertical** (template "Vertical slice"), then one branch from `develop`: `feature/<issue>-<short-description>` (e.g. `feature/42-reverse-proxy-routes`). Other prefixes: `fix/`, `chore/`, `docs/`.
+- Commits follow **Conventional Commits** (`feat(routes): …`, `test(docker): …`).
+- The PR targets `develop` and uses the repository template: summary, covered features, DoD checklist, screenshots, test notes.
+- Mandatory CI: lint, unit tests, integration on both databases, E2E smoke, SonarQube, Trivy, gitleaks.
+- Code review, then **squash merge** into `develop`.
+- **Releases**: a release PR `develop → main` (1 approving review). semantic-release publishes the version, the CHANGELOG and the image from `main`; `develop` publishes pre-releases (`-beta.N`).
+- A PR rarely exceeds ~1,500 lines excluding tests and fixtures. Beyond that, the vertical is split into stacked PRs (backend → API → UI), each one green.
+
+### 1.3 Order and dependencies
+
+```
+Phase 0 Foundations ─► Phase 1 Core (C1 → C7) ─► v0.1
+                                   │
+                                   ├─► V1 Docker ─► V2 Checks ─► V3 Routes ─► V4 Kubernetes ─► V5 Overview + Issues      ─► v0.2
+                                   ├─► V6 Notifications + Heartbeats ─► V7 Hypervisor                                      ─► v0.3
+                                   ├─► V8 Prometheus ─► V9 Loki ─► V10 Data ─► V11 Backups                                 ─► v0.4
+                                   ├─► V12 Maintenance (registries, GitHub, end of life)                                    ─► v0.5
+                                   ├─► V13 Security (Trivy, IdP)                                                           ─► v0.6
+                                   └─► V14 Actions ─► V15 IaC Ecosystem (Terraform provider, Helm, Ansible role)           ─► v0.7
+```
+
+This order follows the spec's roadmap (§13). It may be adjusted after each release, based on dogfooding.
+
+---
+
+## 2. Phase 0 — Foundations
+
+**Goal**: a clean public repo in which a "hello world" feature goes through all three test levels and CI, before writing any business logic.
+
+| PR | Content | Expected tests |
+|---|---|---|
+| **P0.1 Decisions** | ADRs 0001 to 0006: *arr-like stack (D-02 to D-06), license (Q-01), language (Q-02), data access Dapper/FluentMigrator or EF Core (Q-23), assertions (TESTING §2.1), monorepo structure | — |
+| **P0.2 Skeleton** | .NET solution (`Portarr.Common`, `.Core`, `.Http`, `.Api.V1`, `.Host`, test projects), Vite/React/TS frontend, `Directory.Build.props`, `global.json` (.NET 10), lint and format | Green build |
+| **P0.3 Sample endpoint** | `GET /api/v1/system/status` (version, uptime) + minimal *System → Status* page | **1 unit + 1 integration + 1 E2E**: the pyramid runs end to end |
+| **P0.4 CI/CD** | GitHub Actions: lint, tests (SQLite/PostgreSQL matrix), E2E smoke, SonarQube, Trivy, gitleaks + denylist, multi-arch image build, semantic-release, publishing to GHCR | Green CI on the PR |
+| **P0.5 Repo hygiene** | README (pitch, demo mode screenshots), CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, issue and PR templates, `CLAUDE.md`, Dependabot | — |
+
+---
+
+## 3. Phase 1 — The core (v0.1)
+
+| PR | Content | Features | Key tests |
+|---|---|---|---|
+| **C1 Host and persistence** | Configuration (file + `PORTARR__*`), logging, SQLite/PostgreSQL database, migrations, database backup and restore, `/health/live` and `/ready`, `/metrics` | F-SYS-01/04/05/06, NF-07/08 | Migrations replayed on both databases; restoring a backup |
+| **C2 Authentication and roles** | Local accounts, generic OIDC, Admin / Operator / Observer / Guest roles, scoped API keys, audit log | F-SET-05, §11.2 | Role × endpoint matrix in integration; E2E local login + OIDC (containerized Keycloak) |
+| **C3 Frontend shell** | `Page`, `PageHeader`, `PageSidebar`, `PageToolbar`, `PageContent*`, dark/light themes + `data-color-impaired`, `translate()`, routing, API client (TanStack Query), `SignalRListener`, base components (DESIGN §4.1) | F-SET-06, NF-09/10 | Vitest + axe on every component; visual regression of the shell |
+| **C4 Provider framework** | Equivalent of `ThingiProvider`: definitions, `[FieldDefinition]` schema, CRUD, *Test* action, secret encryption, per-provider health status; Settings → Providers UI (cards, generated Add/Edit); **contract suites** per capability | §7, F-SET-02 | Generated form tested from a schema; secret never returned by the API |
+| **C5 Domain and engine** | Environment / Runtime / Workload / App / Stack / Check / Issue / Event; status engine (roles, viability, anti-flapping); event bus; command queue and scheduled tasks; System → Health / Tasks / Events | §4, §5, F-SYS-02/03 | The bulk of the project's unit tests |
+| **C6 Catalog and launcher** | `catalog.yaml` + JSON Schema + hot reload, CRUD UI (read-only when managed by config), provenance, `AppIcon` (dashboard-icons), Apps index (Posters / Overview / Table, sorting, filters, options), app detail (skeleton), Ctrl+K search | F-CAT-01/02/03/04/06/07, F-SET-01/03 | E2E: create an app via the UI, then via YAML; search |
+| **C7 Demo mode** | Simulated provider covering every capability, scenarios (outages, CVEs, updates) | F-DEMO | Serves as the foundation for visual E2E tests |
+
+**v0.1 release**: Portarr installable via `docker run`, complete launcher, authentication, provider framework ready, online demo possible.
+
+---
+
+## 4. Phase 2 — The vertical slices
+
+Each row is a PR (or a stack). The listed tests come on top of the generic DoD.
+
+### v0.2 — See
+
+| Vertical | Content | Features | Integration | E2E |
+|---|---|---|---|---|
+| **V1 Docker** | Docker provider (socket-proxy): inventory, state, native healthcheck, real-time stats, live logs, label-based provenance, inferred dependencies, abandoned workloads; Infrastructure → Workloads | F-HLT-03, F-INV-01/02/03/05/06, F-LOG-01/02, F-MET (real time) | Healthy / `unhealthy` / crash-looping sample containers via Testcontainers; read-only socket-proxy rejects writes | Live logs of a container; `unhealthy` workload visible |
+| **V2 Checks** | HTTP, TCP, DNS, ping probes; TLS; history (`UptimeBar`), uptime %; automatically suggested checks | F-HLT-01/02/04/07/11 | Sample HTTP server alternating 200/500; certificate close to expiry | Accept a suggested check, see it turn red |
+| **V3 Routes** | Reverse proxy provider (SWAG/nginx first, ❓ Q-54): routes, resolution to workloads, SSO, anomalies | F-NET-01/02/03 | Corpus of anonymized configs (3 upstream styles) | An app gets its URL from a route |
+| **V4 Kubernetes** | Kubernetes provider: nodes, namespaces, workloads, pods, state and reasons, live logs, metrics-server | D-13, F-HLT-03, F-INV, F-LOG-01 | **k3s** via Testcontainers: pod in `CrashLoopBackOff`, deployment 2/3 | See a failing pod and its logs |
+| **V5 Overview and Issues** | Tiered Overview screen (E-00), issue engine (deduplication, severity, snooze), Activity | E-00, F-ISS-01, F-ACT-03, F-HLT-05 | A root cause groups child issues | Container outage → verdict and issue in the Overview |
+
+### v0.3 — Get notified
+
+| Vertical | Content | Features | Integration | E2E |
+|---|---|---|---|---|
+| **V6 Notifications and heartbeats** | Notification providers (email first), per-trigger rules, toasts, Web Push (PWA); push-mode heartbeats; maintenance | F-NOT-01/02/04, F-HLT-06/08 | Mailpit receives the alert, then the recovery; missed heartbeat → `Down` | Receive a toast; declare a maintenance window |
+| **V7 Hypervisor** | Unraid provider (❓ Q-51), outside view of VMs, environment hierarchy, basic capacity | D-11, F-INV-01, F-MET-02 (allocation) | Simulated hypervisor API (WireMock) | Hypervisor → VM → runtime tree |
+
+### v0.4 — Resources and data
+
+| Vertical | Content | Features | Integration | E2E |
+|---|---|---|---|---|
+| **V8 Prometheus** | Canonical metrics and query templates, sparklines, history, **"who uses what" explorer**, capacity and overcommitment, Prometheus discovery endpoint | F-MET-01/02/05, F-API-06 | Containerized Prometheus with injected series | Treemap: clicking a pod opens its panel |
+| **V9 Loki** | Historical logs, links to Grafana, **unexpected shutdowns and probable cause**, SSH logins, tunnels | F-LOG-03, F-HLT-09/10, F-SEC-02 (SSH) | Containerized Loki + injected `oom-kill` lines | Unexpected shutdown explained |
+| **V10 Data** | Database inventory, storage, saturation forecasting | F-DAT-01/02, F-MET-04 | Sample Postgres and InfluxDB + exporters | Data → Databases |
+| **V11 Backups** | Policies, S3 verification, co-location, coverage (after the tooling study, ❓ Q-50) | F-BAK-01/02/03/04 | MinIO + dated objects; missed backup | An overdue backup becomes an issue |
+
+### v0.5 to v0.7
+
+| Vertical | Content | Features |
+|---|---|---|
+| **V12 Maintenance** | Registries (image versions), GitHub (Dependabot, SBOM, releases), endoflife.date, deployed / declared / published versions, deployments, code dependencies | F-UPD-01→07, F-SEC-04 |
+| **V13 Security** | Trivy (image vulnerabilities), identity provider events | F-SEC-01/02 |
+| **V14 Actions** | Workload actions with role, confirmation and audit (❓ Q-10) | F-ACT-01 |
+| **V15 IaC Ecosystem** | `portarr` Terraform provider, Helm chart, `portarr_collectors` Ansible role, companion stack (❓ Q-56) | F-API-05, §6.4 |
+
+---
+
+## 5. Blocking prerequisites
+
+| Blocks | Question to settle |
+|---|---|
+| P0.1 | License (Q-01), language (Q-02), Dapper or EF Core (Q-23), assertion library |
+| C2 | Final roles (Q-04), what an Observer sees (Q-46) |
+| V3 | Reference reverse proxy (Q-54) |
+| V6 | Who owns the alerting rules (Q-57) |
+| V7 | Reference hypervisor (Q-51) |
+| V11 | Backup tool (Q-50), Portarr's role (Q-52) |
+| V14 | Scope of actions (Q-10, Q-53) |
+| V15 | Ship the kit or document it (Q-56) |
+
+---
+
+## 6. Tracking
+
+- Each vertical slice has a **GitHub issue** ("Vertical" template) that restates its row from this plan and the DoD.
+- One **milestone** per release (v0.1 … v0.7).
+- A **GitHub project** (board): Backlog → Spec OK → In progress → In review → Merged → Validated in dogfooding.
