@@ -45,7 +45,7 @@ jobs:
     if: needs.detect.outputs.code == 'true'
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - uses: actions/setup-node@v4
@@ -70,7 +70,7 @@ jobs:
       PORTARR_TEST_DATABASE: ${{ matrix.database }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - run: dotnet restore src/Portarr.sln
@@ -130,7 +130,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
       - uses: actions/download-artifact@v4
