@@ -21,7 +21,8 @@ A vertical slice PR is merged only if **every** box is checked:
 - [ ] **Documentation**: provider page (collector installation, minimum permissions, configuration), spec updated if a behavior changed, ADR if a decision was made.
 - [ ] **Translations**: `en` and `fr` keys.
 - [ ] **Security**: minimum permissions documented, secrets encrypted, no personal values (gitleaks + denylist green).
-- [ ] **Dogfooding**: deployed on the author's infrastructure and validated against at least one real case from the private inventory.
+- [ ] **Dogfooding**: deployed on the preview instance and validated against at least one real case from the private inventory (§1.3).
+- [ ] **Acceptance**: approved by the maintainer on the preview instance.
 
 ### 1.2 Git workflow
 
@@ -36,7 +37,26 @@ The repository follows the organization-wide GitHub template conventions:
 - **Releases**: a release PR `develop → main` (1 approving review). semantic-release publishes the version, the CHANGELOG and the image from `main`; `develop` publishes pre-releases (`-beta.N`).
 - A PR rarely exceeds ~1,500 lines excluding tests and fixtures. Beyond that, the vertical is split into stacked PRs (backend → API → UI), each one green.
 
-### 1.3 Order and dependencies
+### 1.3 Development and acceptance loop
+
+Every pull request, whatever its type, is **accepted by the maintainer on a running instance** before it is merged. CI being green is necessary, not sufficient.
+
+| Instance | Runs | Purpose |
+|---|---|---|
+| **preview** | the image of the pull request under review (`ghcr.io/maflabs38/portarr:pr-<n>`) | acceptance before merging |
+| **dev** | the `develop` image, redeployed after each merge | what is integrated, used day to day |
+
+Both run on the maintainer's development machine, connected **read-only** to a real environment. Their deployment files and settings live in the maintainer's private configuration repository, never in this one.
+
+1. **Issue** (template "Vertical slice") with acceptance criteria taken from the spec's features, and an **acceptance plan**: the real cases that will prove the slice works.
+2. **Develop** test-first: unit, integration, UI. Heavy test runs are resource-limited on the development machine, or left to CI.
+3. **Draft PR.** CI runs the three test levels, then publishes the `pr-<n>` image. Images are only built by CI.
+4. **Preview.** The author deploys the image on the preview instance and runs the acceptance plan against the real environment.
+5. **Verification report** in the PR (section "Verification on the preview instance"): each criterion, what it was checked against, the result, known limitations. No real infrastructure values; screenshots come from demo mode.
+6. **Acceptance.** The PR is marked ready and the maintainer gets the preview URL with the exact steps to test and the expected results.
+7. **Merge** (squash) only after the maintainer's explicit approval; otherwise the PR is changed and the loop restarts at step 3. The dev instance then follows `develop`.
+
+### 1.4 Order and dependencies
 
 ```
 Phase 0 Foundations ─► Phase 1 Core (C1 → C7) ─► v0.1
