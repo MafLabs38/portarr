@@ -4,7 +4,7 @@
 
 Portarr is built in the spirit of the *arr suite (Sonarr, Radarr, Prowlarr…): a single container, an API-first design, pluggable **providers**, and a familiar interface. It does not reinvent your tools — it **orchestrates** them: Docker, Kubernetes, Prometheus, Loki, Grafana, Trivy, your reverse proxy and your identity provider.
 
-> **Status: design phase.** The specification is being finalized; no release yet. Follow the [implementation plan](docs/IMPLEMENTATION_PLAN.md).
+> **Status: phase 0 (foundations).** Nothing to install yet; follow the [implementation plan](docs/IMPLEMENTATION_PLAN.md).
 
 ## Why
 
@@ -41,6 +41,17 @@ See the full [specification](docs/SPEC.md).
 ## Tech stack
 
 .NET 10 · ASP.NET Core · SignalR · SQLite / PostgreSQL · React · TypeScript · Vite · TanStack Query · Playwright · Testcontainers · GitHub Actions.
+
+## Development
+
+Requirements: .NET 10 SDK, Node.js 22 with Corepack (Yarn 1), Docker for integration and end-to-end tests.
+
+```bash
+dotnet run --project src/Portarr.Host        # API on http://localhost:8484
+yarn install && yarn start                   # UI on http://localhost:5173 (proxies /api)
+```
+
+All commands (tests, lint, e2e) are listed in [CLAUDE.md](CLAUDE.md#commands).
 
 ## License
 

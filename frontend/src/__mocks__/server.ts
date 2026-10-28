@@ -1,0 +1,17 @@
+import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
+
+import type SystemStatus from 'typings/SystemStatus';
+
+export const systemStatus: SystemStatus = {
+  appName: 'Portarr',
+  version: '1.2.3',
+  startTime: '2026-01-01T12:00:00Z',
+  uptimeSeconds: 93_780,
+  runtimeVersion: '.NET 10.0.0',
+  osDescription: 'Linux 6.8.0',
+};
+
+export const handlers = [http.get('/api/v1/system/status', () => HttpResponse.json(systemStatus))];
+
+export const server = setupServer(...handlers);

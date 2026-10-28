@@ -1,0 +1,10 @@
+# End-to-end stack: the Portarr image built from this repository.
+# Third-party services (Docker socket proxy, Prometheus…) are added by the verticals that need them.
+name: portarr-e2e
+
+services:
+  portarr:
+    build:
+      context: ../../..
+    ports:
+      - "8484:8484"

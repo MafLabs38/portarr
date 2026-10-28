@@ -1,6 +1,6 @@
 # Baseline pipeline derived from the organization's github-template (dotnet stack),
 # extended for Portarr (React frontend, SQLite/PostgreSQL matrix, E2E, security scans).
-# Becomes effective with phase 0 (P0.2–P0.4) of docs/IMPLEMENTATION_PLAN.md.
+# Image publishing and semantic-release come with the release part of phase 0 (P0.4).
 name: CI
 
 on:
@@ -19,36 +19,19 @@ concurrency:
 env:
   DOTNET_VERSION: "10.0.x"
   NODE_VERSION: "22"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
 
 jobs:
-  # Skips build and test jobs until phase 0 adds the solution and the frontend,
-  # so the pipeline stays green on a docs-only repository.
-  detect:
-    name: detect
-    runs-on: ubuntu-latest
-    outputs:
-      code: ${{ steps.files.outputs.code }}
-    steps:
-      - uses: actions/checkout@v4
-      - id: files
-        run: |
-          if [ -f src/Portarr.sln ] && [ -f package.json ]; then
-            echo "code=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "code=false" >> "$GITHUB_OUTPUT"
-          fi
-
   lint:
     name: lint
     runs-on: ubuntu-latest
-    needs: detect
-    if: needs.detect.outputs.code == 'true'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-      - uses: actions/setup-node@v4
+          global-json-file: global.json
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
@@ -56,6 +39,7 @@ jobs:
       - run: yarn install --frozen-lockfile
       - run: yarn lint
       - run: yarn stylelint
+      - run: yarn format:check
       - run: yarn typecheck
 
   test-backend:
@@ -67,19 +51,26 @@ jobs:
       matrix:
         database: [sqlite, postgres]
     env:
+      # Read by the persistence tests once C1 adds the database (TESTING.md §3).
       PORTARR_TEST_DATABASE: ${{ matrix.database }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-      - run: dotnet restore src/Portarr.sln
-      - run: dotnet build src/Portarr.sln --no-restore --configuration Release
+          global-json-file: global.json
+      - run: dotnet build src/Portarr.sln --configuration Release
+      # Exit code 8 means "no test matched the filter" in a project: expected, each project holds one kind.
       - name: Unit tests
-        run: dotnet test src/Portarr.sln --no-build --configuration Release --filter "Category!=Integration" --collect:"XPlat Code Coverage" --results-directory ./coverage/unit
-      - name: Integration tests (Testcontainers)
-        run: dotnet test src/Portarr.sln --no-build --configuration Release --filter "Category=Integration" --collect:"XPlat Code Coverage" --results-directory ./coverage/integration
-      - uses: actions/upload-artifact@v4
+        run: >
+          dotnet test --solution src/Portarr.sln --configuration Release --no-build --
+          --filter-not-trait "Category=Integration" --ignore-exit-code 8
+          --coverage --coverage-output-format xml --results-directory "$PWD/coverage/unit"
+      - name: Integration tests
+        run: >
+          dotnet test --solution src/Portarr.sln --configuration Release --no-build --
+          --filter-trait "Category=Integration" --ignore-exit-code 8
+          --coverage --coverage-output-format xml --results-directory "$PWD/coverage/integration"
+      - uses: actions/upload-artifact@v7
         with:
           name: coverage-backend-${{ matrix.database }}
           path: coverage/
@@ -89,35 +80,39 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
       - run: yarn install --frozen-lockfile
       - run: yarn test --coverage
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: coverage-frontend
-          path: coverage/
+          path: coverage/frontend/
 
   e2e-smoke:
     name: e2e-smoke
     runs-on: ubuntu-latest
     needs: [test-backend, test-frontend]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
       - run: yarn install --frozen-lockfile
       - run: npx playwright install --with-deps chromium firefox
-      - name: Build image and start the e2e stack
+      - name: Build the image and start the e2e stack
         run: docker compose -f tests/e2e/stack/docker-compose.yml up -d --build --wait
+      - name: Wait for Portarr
+        run: timeout 60 bash -c 'until curl -fs http://localhost:8484/api/v1/system/status; do sleep 1; done'
       - run: yarn e2e --grep @smoke
+      - if: failure()
+        run: docker compose -f tests/e2e/stack/docker-compose.yml logs
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: playwright-report/
@@ -126,14 +121,16 @@ jobs:
     name: sonarqube
     runs-on: ubuntu-latest
     needs: [test-backend, test-frontend]
+    # Runs once a SonarQube server is configured (repository variable + secret).
+    if: vars.SONAR_HOST_URL != ''
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-      - uses: actions/download-artifact@v4
+          global-json-file: global.json
+      - uses: actions/download-artifact@v8
         with:
           path: coverage/
       - run: dotnet tool install --global dotnet-sonarscanner
@@ -143,7 +140,7 @@ jobs:
           /k:"${{ github.repository_owner }}_${{ github.event.repository.name }}"
           /d:sonar.host.url="${{ vars.SONAR_HOST_URL }}"
           /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
-          /d:sonar.cs.opencover.reportsPaths="coverage/**/coverage.opencover.xml"
+          /d:sonar.cs.vscoveragexml.reportsPaths="coverage/**/*.xml"
           /d:sonar.javascript.lcov.reportPaths="coverage/coverage-frontend/lcov.info"
       - run: dotnet build src/Portarr.sln
       - name: End SonarQube analysis
@@ -153,7 +150,7 @@ jobs:
     name: security
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       # gitleaks-action needs a license key on organization repositories; the CLI does not.

@@ -26,15 +26,17 @@ This file is read automatically by Claude Code. It applies to every task in this
 
 ```bash
 dotnet build src/Portarr.sln
-dotnet test src/Portarr.sln --filter "Category!=Integration"   # unit tests
-dotnet test src/Portarr.sln --filter "Category=Integration"    # integration (Docker required)
-dotnet format --verify-no-changes
-yarn install && yarn start                                      # frontend dev server
-yarn lint && yarn stylelint && yarn typecheck && yarn test
-yarn e2e                                                        # Playwright against the e2e stack
+dotnet test --solution src/Portarr.sln -- --filter-not-trait "Category=Integration" --ignore-exit-code 8   # unit tests
+dotnet test --solution src/Portarr.sln -- --filter-trait "Category=Integration" --ignore-exit-code 8       # integration (Docker required from C1)
+dotnet format src/Portarr.sln --verify-no-changes
+dotnet run --project src/Portarr.Host                           # API on http://localhost:8484
+yarn install && yarn start                                      # frontend dev server on :5173, proxies /api
+yarn lint && yarn stylelint && yarn format:check && yarn typecheck && yarn test
+yarn e2e                                                        # Playwright against a running Portarr (PORTARR_URL)
+docker compose -f tests/e2e/stack/docker-compose.yml up -d --build   # the e2e stack
 ```
 
-*(Commands become effective once phase 0 of the implementation plan is done.)*
+Test runner: Microsoft.Testing.Platform (ADR 0005). Exit code 8 = a test project had no test matching the filter (expected).
 
 ## Non-negotiable rules
 

@@ -166,8 +166,8 @@ tests/
 ## 8. Commands
 
 ```bash
-dotnet test src/Portarr.sln --filter "Category!=Integration"   # backend unit tests
-dotnet test src/Portarr.sln --filter "Category=Integration"    # integration (Docker required)
+dotnet test --solution src/Portarr.sln -- --filter-not-trait "Category=Integration" --ignore-exit-code 8   # backend unit tests
+dotnet test --solution src/Portarr.sln -- --filter-trait "Category=Integration" --ignore-exit-code 8       # integration (Docker required)
 yarn test                                                       # frontend unit tests (Vitest)
 yarn e2e                                                        # Playwright against the e2e stack
 ```

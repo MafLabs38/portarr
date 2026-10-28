@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <AssemblyName>Portarr</AssemblyName>
+    <RootNamespace>Portarr.Host</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Portarr.Api.V1\Portarr.Api.V1.csproj" />
+  </ItemGroup>
+</Project>
