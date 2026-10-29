@@ -30,6 +30,7 @@ describe('AppsIndex', () => {
     expect(within(other).getByRole('article', { name: 'Docs' })).toBeInTheDocument();
   });
 
+  // jsdom serves the page from localhost: Portarr counts as opened from the LAN.
   it('opens the LAN URL when Portarr is opened locally, and lists the other URL', async () => {
     renderWithProviders(<AppsIndex />);
 
@@ -54,7 +55,7 @@ describe('AppsIndex', () => {
       'href',
       'https://sonarr.homelab.example/',
     );
-    expect(screen.getByRole('radio', { name: 'Public' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Public' })).toBeChecked();
   });
 
   it('shows the container state and the healthcheck separately', async () => {
@@ -96,6 +97,6 @@ describe('AppsIndex', () => {
     renderWithProviders(<AppsIndex />);
 
     expect(await screen.findByText('Ahoy! No apps on board yet.')).toBeInTheDocument();
-    expect(screen.getByText(/\/config\/catalog\.yaml/)).toBeInTheDocument();
+    expect(screen.getByText(/Declare your environments, stacks and apps in catalog\.yaml/)).toBeInTheDocument();
   });
 });

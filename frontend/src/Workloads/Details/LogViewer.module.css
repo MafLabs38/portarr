@@ -53,6 +53,11 @@
   line-height: 1.6;
 }
 
+.lines:focus-visible {
+  outline: var(--borderWidth) solid var(--accent);
+  outline-offset: -2px;
+}
+
 .line,
 .stderr {
   display: flex;
@@ -73,4 +78,9 @@
 .placeholder {
   margin: 0;
   color: var(--inkMuted);
+}
+
+.truncated {
+  color: var(--inkMuted);
+  font-style: italic;
 }

@@ -4,7 +4,8 @@ export interface Environment {
   id: string;
   name: string;
   runtime: string;
-  reachable: boolean;
+  connection: 'connected' | 'unreachable' | 'pending' | 'not-connected';
+  /** Reason code: unreachable, timeout, invalid-response, http-<code>. */
   error: string | null;
   workloads: number;
   refreshedAt: string | null;
@@ -20,6 +21,7 @@ export interface LogLine {
   timestamp: string | null;
   stream: 'stdout' | 'stderr';
   text: string;
+  truncated: boolean;
 }
 
 export default interface Workload {

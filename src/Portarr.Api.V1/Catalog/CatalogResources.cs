@@ -39,8 +39,9 @@ public sealed record StackMemberResource(string AppId, string Name, string Role,
 
 public sealed record StackResource(string Id, string Name, string? Description, StatusResource Status, IReadOnlyList<StackMemberResource> Members);
 
+/// <summary>Catalog state. Only the file name is exposed: the absolute path stays on the server.</summary>
 public sealed record CatalogStatusResource(
-    string FilePath,
+    string FileName,
     bool FileExists,
     DateTimeOffset? LoadedAt,
     IReadOnlyList<string> Errors,
@@ -88,7 +89,7 @@ public static class CatalogResourceMapper
     public static CatalogStatusResource ToResource(this CatalogState state)
     {
         return new CatalogStatusResource(
-            state.FilePath,
+            Path.GetFileName(state.FilePath),
             state.FileExists,
             state.LoadedAt,
             state.Errors,

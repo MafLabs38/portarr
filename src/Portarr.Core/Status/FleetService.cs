@@ -47,17 +47,17 @@ public sealed class FleetService : IFleetService
 
     public IReadOnlyList<AppView> GetApps()
     {
-        var catalog = _catalogService.Current.Catalog;
-        var inventory = _inventory.Current;
-
-        return catalog.Apps.Select(app => BuildAppView(app, catalog, inventory)).ToList();
+        return BuildApps(_catalogService.Current.Catalog, _inventory.Current);
     }
 
+    // Each call reads the catalog and the inventory once: a hot reload in between cannot
+    // produce a stack member that is not in the app list.
     public IReadOnlyList<StackView> GetStacks()
     {
-        var apps = GetApps().ToDictionary(a => a.App.Id);
+        var catalog = _catalogService.Current.Catalog;
+        var apps = BuildApps(catalog, _inventory.Current).ToDictionary(a => a.App.Id);
 
-        return _catalogService.Current.Catalog.Stacks.Select(stack =>
+        return catalog.Stacks.Select(stack =>
         {
             var members = stack.Members
                 .Select(member => new StackMemberView(member, apps[member.AppId].App.Name, apps[member.AppId].Status))
@@ -71,8 +71,9 @@ public sealed class FleetService : IFleetService
     public IReadOnlyList<WorkloadView> GetWorkloads()
     {
         var apps = _catalogService.Current.Catalog.Apps;
+        var inventories = _inventory.Current;
 
-        return _inventory.Current.Values
+        return inventories.Values
             .SelectMany(inventory => inventory.Workloads.Select(workload => new WorkloadView(
                 workload,
                 inventory.Reachable ? StatusResolver.ForWorkload(workload) : new ResolvedStatus(HealthStatus.Unknown, $"{inventory.EnvironmentId} unreachable"),
@@ -110,6 +111,11 @@ public sealed class FleetService : IFleetService
         return urls;
     }
 
+    private static List<AppView> BuildApps(Catalog.Catalog catalog, IReadOnlyDictionary<string, EnvironmentInventory> inventory)
+    {
+        return catalog.Apps.Select(app => BuildAppView(app, catalog, inventory)).ToList();
+    }
+
     private static AppView BuildAppView(CatalogApp app, Catalog.Catalog catalog, IReadOnlyDictionary<string, EnvironmentInventory> inventory)
     {
         var matches = app.Workloads.Select(selector =>
@@ -124,12 +130,12 @@ public sealed class FleetService : IFleetService
             m.selector.Name,
             m.selector.Role,
             m.workload,
-            StatusResolver.ForApp(app with { Workloads = [m.selector with { Role = MemberRole.Critical }] }, [m]))).ToList();
+            StatusResolver.ForSelector(m.selector, m.environmentInventory, m.workload))).ToList();
 
         var stack = catalog.Stacks.FirstOrDefault(s => s.Members.Any(member => member.AppId == app.Id));
         var role = stack?.Members.First(member => member.AppId == app.Id).Role;
         var icon = app.Icon ?? workloadViews.Select(w => w.Workload).OfType<Workload>().Select(w => IconNames.FromImage(w.Image)).FirstOrDefault();
 
-        return new AppView(app, StatusResolver.ForApp(app, matches), stack, role, workloadViews, BuildUrls(app, workloadViews, catalog), icon);
+        return new AppView(app, StatusResolver.ForApp(matches), stack, role, workloadViews, BuildUrls(app, workloadViews, catalog), icon);
     }
 }

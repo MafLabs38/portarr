@@ -1,5 +1,5 @@
 export default interface CatalogStatus {
-  filePath: string;
+  fileName: string;
   fileExists: boolean;
   loadedAt: string | null;
   errors: string[];

@@ -180,6 +180,8 @@ jobs:
           /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
           /d:sonar.cs.vscoveragexml.reportsPaths="coverage/**/*.xml"
           /d:sonar.javascript.lcov.reportPaths="coverage/coverage-frontend/lcov.info"
+          /d:sonar.coverage.exclusions="**/obj/**,**/*.g.cs,**/__tests__/**,**/__mocks__/**,tests/**"
+          /d:sonar.qualitygate.wait=true
       - run: dotnet build src/Portarr.sln
       - name: End SonarQube analysis
         run: dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"

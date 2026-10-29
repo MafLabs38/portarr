@@ -12,15 +12,14 @@ import formatBytes from 'Utilities/Number/formatBytes';
 import formatCores from 'Utilities/Number/formatCores';
 import translate from 'Utilities/String/translate';
 
-import { useWorkloads, useWorkloadUsage } from '../useWorkloads';
+import { useWorkload, useWorkloadUsage } from '../useWorkloads';
 import LogViewer from './LogViewer';
 import styles from './WorkloadDetails.module.css';
 
 export default function WorkloadDetails() {
   const { environmentId = '', name = '' } = useParams();
-  const workloads = useWorkloads();
-  const usage = useWorkloadUsage(environmentId, name);
-  const workload = workloads.data?.find((w) => w.environmentId === environmentId && w.name === name);
+  const { data: workload, isError: notFound } = useWorkload(environmentId, name);
+  const usage = useWorkloadUsage(environmentId, name, Boolean(workload) && workload?.appIds.length !== 0);
   const base = `/workloads/${encodeURIComponent(environmentId)}/${encodeURIComponent(name)}`;
 
   return (
@@ -28,7 +27,7 @@ export default function WorkloadDetails() {
       <PageContentBody>
         <PageHeading scope={environmentId} title={name} />
 
-        {workloads.data && !workload ? <Alert kind="warning">{translate('WorkloadNotFound')}</Alert> : null}
+        {notFound ? <Alert kind="warning">{translate('WorkloadNotFound')}</Alert> : null}
 
         {workload ? (
           <div className={styles.layout}>
@@ -71,7 +70,10 @@ export default function WorkloadDetails() {
           </div>
         ) : null}
 
-        {workload ? <LogViewer path={`${base}/logs?tail=200`} /> : null}
+        {workload && workload.appIds.length > 0 ? <LogViewer path={`${base}/logs?tail=200`} /> : null}
+        {workload && workload.appIds.length === 0 ? (
+          <Alert kind="info">{translate('LogsOnlyForCatalogApps')}</Alert>
+        ) : null}
       </PageContentBody>
     </PageContent>
   );

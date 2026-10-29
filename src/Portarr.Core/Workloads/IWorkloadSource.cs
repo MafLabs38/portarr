@@ -15,6 +15,16 @@ public interface IWorkloadSource
 
     Task<WorkloadUsage?> GetUsageAsync(CatalogEnvironment environment, string workloadName, CancellationToken cancellationToken);
 
-    /// <summary>The last <paramref name="tail"/> lines, then new lines as they are written when <paramref name="follow"/> is set.</summary>
-    IAsyncEnumerable<LogLine> StreamLogsAsync(CatalogEnvironment environment, string workloadName, int tail, bool follow, CancellationToken cancellationToken);
+    /// <summary>
+    /// Opens the logs: the last <paramref name="tail"/> lines, then new lines as they are written when
+    /// <paramref name="follow"/> is set. Returns null when the workload does not exist; throws when the
+    /// environment cannot serve them, so callers can report it before streaming anything.
+    /// </summary>
+    Task<ILogStream?> OpenLogsAsync(CatalogEnvironment environment, string workloadName, int tail, bool follow, CancellationToken cancellationToken);
+}
+
+/// <summary>An open log stream; ends when the workload stops writing (it exited) or is disposed.</summary>
+public interface ILogStream : IAsyncDisposable
+{
+    IAsyncEnumerable<LogLine> ReadAsync(CancellationToken cancellationToken);
 }

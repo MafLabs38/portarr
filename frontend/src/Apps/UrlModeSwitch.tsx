@@ -6,25 +6,28 @@ import styles from './UrlModeSwitch.module.css';
 const modes: UrlMode[] = ['auto', 'public', 'lan'];
 const labels: Record<UrlMode, string> = { auto: 'UrlModeAuto', public: 'UrlModePublic', lan: 'UrlModeLan' };
 
+/** Which URL the tiles open (D-46); native radios give keyboard navigation for free. */
 export default function UrlModeSwitch() {
   const { mode, setMode } = useUrlModeStore();
   const effective = resolveScope(mode, window.location.hostname);
 
   return (
-    <div aria-label={translate('OpenAppsWith')} className={styles.switch} role="radiogroup">
+    <fieldset className={styles.switch}>
+      <legend className={styles.legend}>{translate('OpenAppsWith')}</legend>
       {modes.map((value) => (
-        <button
-          aria-checked={mode === value}
-          className={mode === value ? styles.active : styles.option}
-          key={value}
-          onClick={() => setMode(value)}
-          role="radio"
-          type="button"
-        >
+        <label className={mode === value ? styles.active : styles.option} key={value}>
+          <input
+            checked={mode === value}
+            className={styles.input}
+            name="urlMode"
+            onChange={() => setMode(value)}
+            type="radio"
+            value={value}
+          />
           {translate(labels[value])}
           {value === 'auto' ? ` (${translate(effective === 'lan' ? 'UrlModeLan' : 'UrlModePublic')})` : null}
-        </button>
+        </label>
       ))}
-    </div>
+    </fieldset>
   );
 }

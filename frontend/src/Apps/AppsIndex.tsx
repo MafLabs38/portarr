@@ -2,6 +2,7 @@ import Alert from 'Components/Alert/Alert';
 import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
 import PageHeading from 'Components/Page/PageHeading';
+import PageToolbar from 'Components/Page/PageToolbar';
 import StatusLabel from 'Components/Status/StatusLabel';
 import type App from 'typings/App';
 import translate from 'Utilities/String/translate';
@@ -28,11 +29,9 @@ export default function AppsIndex() {
 
   return (
     <PageContent title={translate('Apps')}>
+      <PageToolbar right={<UrlModeSwitch />} />
       <PageContentBody>
-        <div className={styles.heading}>
-          <PageHeading scope={translate('Launcher')} title={translate('Apps')} />
-          <UrlModeSwitch />
-        </div>
+        <PageHeading scope={translate('Launcher')} title={translate('Apps')} />
 
         {catalog.data && catalog.data.errors.length > 0 ? (
           <Alert kind="warning">
@@ -50,7 +49,7 @@ export default function AppsIndex() {
         {apps.data && apps.data.length === 0 ? (
           <div className={styles.empty}>
             <p className={styles.ahoy}>{translate('AppsEmptyTitle')}</p>
-            <p>{translate('AppsEmptyHint', { path: catalog.data?.filePath ?? 'catalog.yaml' })}</p>
+            <p>{translate('AppsEmptyHint', { path: catalog.data?.fileName ?? 'catalog.yaml' })}</p>
           </div>
         ) : null}
 

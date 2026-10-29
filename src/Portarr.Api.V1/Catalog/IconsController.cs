@@ -27,10 +27,14 @@ public sealed class IconsController : ControllerBase
             return NotFound();
         }
 
-        Response.Headers.CacheControl = "public, max-age=86400";
+        // Short cache plus validators: an icon dropped in icons/ shows up within minutes, without restart.
+        Response.Headers.CacheControl = "public, max-age=300";
         Response.Headers.ContentSecurityPolicy = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
         Response.Headers.XContentTypeOptions = "nosniff";
 
-        return PhysicalFile(icon.Path, icon.ContentType);
+        var lastModified = global::System.IO.File.GetLastWriteTimeUtc(icon.Path);
+        var etag = new Microsoft.Net.Http.Headers.EntityTagHeaderValue($"\"{lastModified.Ticks:x}\"");
+
+        return PhysicalFile(icon.Path, icon.ContentType, new DateTimeOffset(lastModified), etag);
     }
 }

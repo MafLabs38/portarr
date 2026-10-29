@@ -3,7 +3,7 @@
 environments:
   - id: e2e
     name: E2E host
-    docker: { url: "http://socket-proxy:2375" }
+    docker: { url: 'http://socket-proxy:2375' }
 
 stacks:
   - id: demo
@@ -17,7 +17,7 @@ apps:
     name: Web
     icon: nginx
     urls:
-      - { label: Home, href: "http://localhost:8080" }
+      - { label: Home, href: 'http://localhost:8080' }
     workloads:
       - { runtime: docker@e2e, match: { name: e2e-web } }
   - id: broken
@@ -28,4 +28,4 @@ apps:
   - id: docs
     name: Docs
     urls:
-      - { href: "https://docs.homelab.example" }
+      - { href: 'https://docs.homelab.example' }

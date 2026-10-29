@@ -31,9 +31,11 @@ await app.Services.GetRequiredService<ILogLevelService>().RestoreAsync();
 
 app.UsePortarrRequestLogging();
 app.UseExceptionHandler();
+app.UsePortarrSecurityHeaders();
 app.UseStatusCodePages();
 app.UsePortarrFrontendFiles();
 app.UseRouting();
+app.UseRateLimiter();
 app.UsePortarrMetrics();
 app.MapControllers();
 app.MapPortarrHealthChecks();

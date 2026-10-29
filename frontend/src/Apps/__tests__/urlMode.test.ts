@@ -6,8 +6,13 @@ const lanUrl: AppUrl = { label: 'LAN', href: 'http://10.0.0.10:8096/', scope: 'l
 
 describe('urlMode', () => {
   it.each([
-    ['192.168.1.20', true],
+    ['192.168.100.20', true],
     ['10.0.0.10', true],
+    ['169.254.1.1', true],
+    ['[fd00::1]', true],
+    ['fe80::1', true],
+    ['10.homelab.example', false],
+    ['127.example.org', false],
     ['172.16.4.2', true],
     ['localhost', true],
     ['portarr', true],
@@ -19,9 +24,9 @@ describe('urlMode', () => {
   });
 
   it('follows the address Portarr is opened on in auto mode', () => {
-    expect(resolveScope('auto', '192.168.1.20')).toBe('lan');
+    expect(resolveScope('auto', '192.168.100.20')).toBe('lan');
     expect(resolveScope('auto', 'portarr.homelab.example')).toBe('public');
-    expect(resolveScope('public', '192.168.1.20')).toBe('public');
+    expect(resolveScope('public', '192.168.100.20')).toBe('public');
   });
 
   it('falls back to any URL when the preferred scope has none', () => {

@@ -1,5 +1,7 @@
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Portarr.Common;
@@ -10,6 +12,10 @@ namespace Portarr.Http;
 
 public static class HttpServiceCollectionExtensions
 {
+    /// <summary>Rate limiting policies used by the API controllers.</summary>
+    public const string LogStreamsPolicyName = "log-streams";
+    public const string UsagePolicyName = "usage";
+
     private const string ReadyTag = "ready";
 
     /// <summary>
@@ -18,10 +24,49 @@ public static class HttpServiceCollectionExtensions
     public static IMvcBuilder AddPortarrHttp(this IServiceCollection services)
     {
         services.AddProblemDetails();
+        services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            // Each open log stream holds a connection to a Docker host: a few per client.
+            options.AddPolicy(LogStreamsPolicyName, context => RateLimitPartition.GetConcurrencyLimiter(
+                ClientKey(context),
+                _ => new ConcurrencyLimiterOptions { PermitLimit = 4, QueueLimit = 0 }));
+
+            // Usage makes Docker sample a container twice; the UI polls every 5 s per open page.
+            options.AddPolicy(UsagePolicyName, context => RateLimitPartition.GetFixedWindowLimiter(
+                ClientKey(context),
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromSeconds(10), QueueLimit = 0 }));
+        });
         services.AddHealthChecks()
             .AddCheck<DatabaseHealthCheck>("database", tags: [ReadyTag]);
 
         return services.AddControllers();
+    }
+
+    private static string ClientKey(HttpContext context)
+    {
+        return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    }
+
+    /// <summary>
+    /// Defense-in-depth headers on every response: the UI only loads its own scripts, styles,
+    /// fonts and images, cannot be framed, and leaks no referrer to the apps it links to.
+    /// Icons set their own stricter policy.
+    /// </summary>
+    public static WebApplication UsePortarrSecurityHeaders(this WebApplication app)
+    {
+        app.Use(async (context, next) =>
+        {
+            var headers = context.Response.Headers;
+            headers.XContentTypeOptions = "nosniff";
+            headers["Referrer-Policy"] = "no-referrer";
+            headers.ContentSecurityPolicy =
+                "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+            await next(context);
+        });
+
+        return app;
     }
 
     /// <summary>

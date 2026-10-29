@@ -22,15 +22,17 @@ interface StatusLabelProps {
   status: Status;
   /** Shows the reason next to the status instead of only in the tooltip. */
   showReason?: boolean;
+  /** Icon only, the status text stays available to assistive technologies. */
+  compact?: boolean;
 }
 
-export default function StatusLabel({ status, showReason = false }: StatusLabelProps) {
+export default function StatusLabel({ status, showReason = false, compact = false }: StatusLabelProps) {
   const { kind, icon: Icon } = mapping[status.status];
 
   return (
-    <span className={`${styles.label} ${styles[kind]}`} title={status.reason}>
+    <span className={`${compact ? styles.compact : styles.label} ${styles[kind]}`} title={status.reason}>
       <Icon aria-hidden="true" className={styles.icon} size={14} strokeWidth={2.5} />
-      <span>{translate(`Status${status.status}`)}</span>
+      <span className={compact ? styles.visuallyHidden : undefined}>{translate(`Status${status.status}`)}</span>
       {showReason ? <span className={styles.reason}>· {status.reason}</span> : null}
     </span>
   );

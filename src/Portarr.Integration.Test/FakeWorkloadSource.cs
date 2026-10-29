@@ -28,15 +28,31 @@ public sealed class FakeWorkloadSource : IWorkloadSource
         return Task.FromResult<WorkloadUsage?>(new WorkloadUsage(0.25, 100_000_000, 500_000_000));
     }
 
-    public async IAsyncEnumerable<LogLine> StreamLogsAsync(CatalogEnvironment environment, string workloadName, int tail, bool follow, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public Task<ILogStream?> OpenLogsAsync(CatalogEnvironment environment, string workloadName, int tail, bool follow, CancellationToken cancellationToken)
     {
-        await Task.Yield();
-        yield return new LogLine(DateTimeOffset.UnixEpoch, LogStream.Stdout, $"{workloadName} started");
-        yield return new LogLine(DateTimeOffset.UnixEpoch, LogStream.Stderr, "warning: disk almost full");
+        return Task.FromResult<ILogStream?>(new FakeLogStream(
+        [
+            new LogLine(DateTimeOffset.UnixEpoch, LogStream.Stdout, $"{workloadName} started"),
+            new LogLine(DateTimeOffset.UnixEpoch, LogStream.Stderr, "warning: disk almost full"),
+        ]));
     }
 
     public static Workload Container(string environmentId, string name, WorkloadState state = WorkloadState.Running, WorkloadHealth health = WorkloadHealth.None)
     {
         return new Workload(environmentId, $"id-{name}", name, $"{name}:latest", state, health, state.ToString(), DateTimeOffset.UnixEpoch, null, new Dictionary<string, string>());
+    }
+
+    private sealed class FakeLogStream(IReadOnlyList<LogLine> lines) : ILogStream
+    {
+        public async IAsyncEnumerable<LogLine> ReadAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            foreach (var line in lines)
+            {
+                await Task.Yield();
+                yield return line;
+            }
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

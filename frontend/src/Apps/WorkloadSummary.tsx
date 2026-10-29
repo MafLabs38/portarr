@@ -47,6 +47,25 @@ function Line({ icon: Icon, label, value, tone, title }: LineProps) {
   );
 }
 
+/** Several workloads: unhealthy first, then starting, then healthy; none means no healthcheck at all. */
+function healthSummary(workloads: AppWorkload[]): { tone: Tone; value: string } {
+  const count = (health: string) => workloads.filter((w) => w.health === health).length;
+  const unhealthy = count('unhealthy');
+  const starting = count('starting');
+  const healthy = count('healthy');
+
+  if (unhealthy > 0) {
+    return { tone: 'bad', value: translate('HealthUnhealthyCount', { count: unhealthy }) };
+  }
+  if (starting > 0) {
+    return { tone: 'warn', value: translate('HealthStartingCount', { count: starting }) };
+  }
+  if (healthy > 0) {
+    return { tone: 'ok', value: translate('HealthHealthyCount', { count: healthy }) };
+  }
+  return { tone: 'muted', value: translate('HealthNone') };
+}
+
 /** Container state and healthcheck, like Portainer (D-45); several workloads are counted. */
 export default function WorkloadSummary({ workloads }: WorkloadSummaryProps) {
   if (workloads.length === 0) {
@@ -78,8 +97,7 @@ export default function WorkloadSummary({ workloads }: WorkloadSummaryProps) {
   }
 
   const up = workloads.filter((w) => stateTone(w) === 'ok').length;
-  const withHealth = workloads.filter((w) => w.health && w.health !== 'none');
-  const unhealthy = withHealth.filter((w) => w.health === 'unhealthy');
+  const health = healthSummary(workloads);
   const details = workloads
     .map((w) => `${w.name}: ${stateText(w)}${w.health && w.health !== 'none' ? ` (${w.health})` : ''}`)
     .join('\n');
@@ -92,18 +110,7 @@ export default function WorkloadSummary({ workloads }: WorkloadSummaryProps) {
         tone={up === workloads.length ? 'ok' : 'bad'}
         value={translate('ContainersUp', { up, total: workloads.length })}
       />
-      <Line
-        icon={icons.HEALTHCHECK}
-        label={translate('Healthcheck')}
-        tone={unhealthy.length > 0 ? 'bad' : withHealth.length > 0 ? 'ok' : 'muted'}
-        value={
-          withHealth.length === 0
-            ? translate('HealthNone')
-            : unhealthy.length > 0
-              ? translate('HealthUnhealthyCount', { count: unhealthy.length })
-              : translate('HealthHealthyCount', { count: withHealth.length })
-        }
-      />
+      <Line icon={icons.HEALTHCHECK} label={translate('Healthcheck')} tone={health.tone} value={health.value} />
     </div>
   );
 }

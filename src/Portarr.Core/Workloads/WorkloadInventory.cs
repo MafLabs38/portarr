@@ -57,7 +57,15 @@ public sealed partial class WorkloadInventory : BackgroundService, IWorkloadInve
         using var timer = new PeriodicTimer(Interval, _timeProvider);
         do
         {
-            await RefreshAsync(stoppingToken);
+            try
+            {
+                await RefreshAsync(stoppingToken);
+            }
+            catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
+            {
+                // A failed tick must never end the service (and with it the host).
+                LogRefreshFailed(exception);
+            }
         }
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }
@@ -75,15 +83,30 @@ public sealed partial class WorkloadInventory : BackgroundService, IWorkloadInve
             var workloads = await source.ListAsync(environment, cancellationToken);
             return new EnvironmentInventory(environment.Id, true, null, workloads, _timeProvider.GetUtcNow());
         }
-        catch (Exception exception) when (exception is HttpRequestException or IOException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
+            // Details stay in the logs; the API only exposes a reason code (no internal hosts or ports).
             LogUnreachable(environment.Id, exception.Message);
 
             // Keep the last known workloads so the UI can show what was there, flagged as stale.
             var previous = Current.GetValueOrDefault(environment.Id);
-            return new EnvironmentInventory(environment.Id, false, exception.Message, previous?.Workloads ?? [], previous?.RefreshedAt);
+            return new EnvironmentInventory(environment.Id, false, ReasonCode(exception), previous?.Workloads ?? [], previous?.RefreshedAt);
         }
     }
+
+    private static string ReasonCode(Exception exception)
+    {
+        return exception switch
+        {
+            TaskCanceledException or TimeoutException => "timeout",
+            HttpRequestException { StatusCode: { } status } => $"http-{(int)status}",
+            HttpRequestException or IOException => "unreachable",
+            _ => "invalid-response",
+        };
+    }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Inventory refresh failed")]
+    private partial void LogRefreshFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Environment {EnvironmentId} unreachable: {Reason}")]
     private partial void LogUnreachable(string environmentId, string reason);

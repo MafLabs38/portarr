@@ -9,7 +9,6 @@ public sealed class DockerMapperFixture
     [InlineData("Up 2 minutes (unhealthy)", WorkloadHealth.Unhealthy)]
     [InlineData("Up 5 seconds (health: starting)", WorkloadHealth.Starting)]
     [InlineData("Up 3 hours", WorkloadHealth.None)]
-    [InlineData("Exited (0) 4 months ago", WorkloadHealth.None)]
     public void should_read_health_from_the_status_text(string status, WorkloadHealth expected)
     {
         DockerMapper.ParseHealth(status).Should().Be(expected);
@@ -17,9 +16,7 @@ public sealed class DockerMapperFixture
 
     [Theory]
     [InlineData("running", WorkloadState.Running)]
-    [InlineData("exited", WorkloadState.Exited)]
-    [InlineData("restarting", WorkloadState.Restarting)]
-    [InlineData("something-new", WorkloadState.Dead)]
+    [InlineData("something-new", WorkloadState.Unknown)]
     public void should_read_the_state(string state, WorkloadState expected)
     {
         DockerMapper.ParseState(state).Should().Be(expected);

@@ -34,12 +34,20 @@ export default function WorkloadsIndex() {
               <header className={styles.sectionHeader}>
                 <h2 className={styles.sectionTitle}>{environment.name}</h2>
                 <span className={styles.meta}>
-                  {translate('ContainerCount', { count: environment.workloads })} · {environment.runtime}
+                  {translate('ContainerCount', { count: environment.workloads })} ·{' '}
+                  {translate(`Connection_${environment.connection}`)}
                 </span>
               </header>
 
-              {!environment.reachable ? (
-                <Alert kind="warning">{translate('EnvironmentUnreachable', { error: environment.error ?? '' })}</Alert>
+              {environment.connection === 'unreachable' ? (
+                <Alert kind="warning">
+                  {translate('EnvironmentUnreachable', {
+                    reason: translate(`Reason_${environment.error ?? 'unreachable'}`),
+                  })}
+                </Alert>
+              ) : null}
+              {environment.connection === 'not-connected' ? (
+                <p className={styles.muted}>{translate('EnvironmentNotConnected')}</p>
               ) : null}
 
               <div className={styles.tableWrapper}>
@@ -56,7 +64,11 @@ export default function WorkloadsIndex() {
                   </thead>
                   <tbody>
                     {rows.map((workload) => (
-                      <tr className={workload.stale ? styles.stale : undefined} key={workload.id}>
+                      <tr
+                        className={workload.stale ? styles.stale : undefined}
+                        data-stale={workload.stale}
+                        key={workload.id}
+                      >
                         <td>
                           <StatusLabel status={workload.status} />
                         </td>

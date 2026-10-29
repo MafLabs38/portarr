@@ -83,6 +83,14 @@ public sealed class CatalogParserFixture
     }
 
     [Fact]
+    public void should_keep_an_explicit_optional_role_over_the_stack_shorthand()
+    {
+        const string yaml = "apps:\n  - { id: a, stack: s }\nstacks:\n  - id: s\n    members: [{ app: a, role: optional }]";
+
+        CatalogParser.Parse(yaml).Catalog.Stacks.Single().Members.Should().Equal(new StackMember("a", MemberRole.Optional));
+    }
+
+    [Fact]
     public void should_accept_an_empty_file()
     {
         var result = CatalogParser.Parse(string.Empty);
@@ -101,8 +109,14 @@ public sealed class CatalogParserFixture
     [InlineData("apps:\n  - id: a\n    workloads: [{ runtime: podman@x }]", "must be docker@<environment id>")]
     [InlineData("stacks:\n  - id: s\n    members: [{ app: ghost }]", "member 'ghost' is not a declared app")]
     [InlineData("environments:\n  - id: e\n    docker: { url: \"ssh://host\" }", "docker.url must be")]
-    [InlineData("apps:\n  - id: a\n    colour: red", "Invalid YAML")]
+    [InlineData("apps:\n  - id: a\n    colour: red", "colour")]
     [InlineData("apps: [", "Invalid YAML")]
+    [InlineData("apps:\n  - id: a\n    icon: \"https://cdn.example/a.png\"", "not a URL")]
+    [InlineData("environments:\n  - { id: e, docker: { url: \"http://p:2375\" } }\napps:\n  - id: a\n    workloads: [{ runtime: docker@e }]", "needs match.name")]
+    [InlineData("apps:\n  - id: a\nstacks:\n  - id: s\n    members: [{ app: a, role: main }]", "must be critical or optional")]
+    [InlineData("apps:\n  - id: a\nstacks:\n  - id: s\n    members: [{ app: a }, { app: a }]", "listed twice")]
+    [InlineData("apps:\n  - id: a\nstacks:\n  - { id: s, members: [{ app: a }] }\n  - { id: t, members: [{ app: a }] }", "belongs to several stacks")]
+    [InlineData("apps:\n  - id: a\n    urls: [{ href: \"ftp://user:secret@x\" }]", "ftp://***@x")]
     [InlineData("apps:\n  - id: a\n    urls: [{ href: \"http://x.example\", scope: intranet }]", "must be public or lan")]
     [InlineData("environments:\n  - { id: e, docker: { url: \"http://p:2375\" } }\napps:\n  - id: a\n    workloads: [{ runtime: docker@e, match: { name: a }, role: maybe }]", "must be critical or optional")]
     public void should_report_a_clear_error_and_return_an_empty_catalog(string yaml, string expected)
@@ -111,6 +125,7 @@ public sealed class CatalogParserFixture
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(error => error.Contains(expected, StringComparison.Ordinal));
+        result.Errors.Should().NotContain(error => error.Contains("secret", StringComparison.Ordinal));
         result.Catalog.Should().Be(Portarr.Core.Catalog.Catalog.Empty);
     }
 }

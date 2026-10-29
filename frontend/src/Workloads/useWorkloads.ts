@@ -12,9 +12,20 @@ export function useEnvironments() {
   return useApiQuery<Environment[]>({ path: '/environments', refetchInterval });
 }
 
-export function useWorkloadUsage(environmentId: string, name: string) {
+function workloadPath(environmentId: string, name: string) {
+  return `/workloads/${encodeURIComponent(environmentId)}/${encodeURIComponent(name)}`;
+}
+
+export function useWorkload(environmentId: string, name: string) {
+  return useApiQuery<Workload>({ path: workloadPath(environmentId, name), refetchInterval, retry: false });
+}
+
+/** Polled every 5 s while the page is open, only once the workload is known to exist. */
+export function useWorkloadUsage(environmentId: string, name: string, enabled: boolean) {
   return useApiQuery<WorkloadUsage>({
-    path: `/workloads/${encodeURIComponent(environmentId)}/${encodeURIComponent(name)}/usage`,
+    path: `${workloadPath(environmentId, name)}/usage`,
     refetchInterval: 5_000,
+    enabled,
+    retry: false,
   });
 }

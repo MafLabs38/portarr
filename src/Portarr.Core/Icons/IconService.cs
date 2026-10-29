@@ -1,7 +1,9 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Portarr.Core.Catalog;
 using Portarr.Core.Configuration;
+using Portarr.Core.Status;
 
 namespace Portarr.Core.Icons;
 
@@ -15,36 +17,50 @@ public interface IIconService
 
 /// <summary>
 /// Resolves icons (D-47): the operator's <c>icons/</c> folder first, then the community set,
-/// downloaded once and cached in the data folder. A name missing everywhere is remembered for a
-/// day so the community site is not asked again on every page load.
+/// downloaded once and cached in the data folder. Only names used by the catalog are downloaded,
+/// so anonymous requests cannot make Portarr fetch or store arbitrary files. Failures are
+/// remembered in memory: a missing icon for a day, an unreachable source for a few minutes.
 /// </summary>
 public sealed partial class IconService : IIconService
 {
     public const string HttpClientName = "icons";
 
+    /// <summary>Community icons are small; anything bigger is not an icon.</summary>
+    public const long MaxIconBytes = 1024 * 1024;
+
+    private const int MaxNameLength = 64;
     private static readonly TimeSpan MissingRetryDelay = TimeSpan.FromDays(1);
+    private static readonly TimeSpan OfflineRetryDelay = TimeSpan.FromMinutes(5);
     private static readonly (string Extension, string ContentType)[] Formats =
         [("svg", "image/svg+xml"), ("png", "image/png"), ("webp", "image/webp")];
 
     private readonly string _customFolder;
     private readonly string _cacheFolder;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IFleetService _fleetService;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<IconService> _logger;
-    private readonly SemaphoreSlim _downloadLock = new(1, 1);
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _retryAfter = new();
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();
 
-    public IconService(IOptions<PortarrOptions> options, IHttpClientFactory httpClientFactory, TimeProvider timeProvider, ILogger<IconService> logger)
+    public IconService(
+        IOptions<PortarrOptions> options,
+        IHttpClientFactory httpClientFactory,
+        IFleetService fleetService,
+        TimeProvider timeProvider,
+        ILogger<IconService> logger)
     {
         _customFolder = options.Value.CustomIconsFolder;
         _cacheFolder = Path.Combine(options.Value.DataFolder, "cache", "icons");
         _httpClientFactory = httpClientFactory;
+        _fleetService = fleetService;
         _timeProvider = timeProvider;
         _logger = logger;
     }
 
     public async Task<IconFile?> GetAsync(string name, CancellationToken cancellationToken = default)
     {
-        if (!IconNames.IsValid(name))
+        if (name.Length > MaxNameLength || !IconNames.IsValid(name))
         {
             return null;
         }
@@ -55,15 +71,21 @@ public sealed partial class IconService : IIconService
             return local;
         }
 
-        await _downloadLock.WaitAsync(cancellationToken);
+        if (!IsUsedByTheCatalog(name) || _retryAfter.TryGetValue(name, out var retryAfter) && _timeProvider.GetUtcNow() < retryAfter)
+        {
+            return null;
+        }
+
+        // One download per name at a time; different names download in parallel.
+        var nameLock = _locks.GetOrAdd(name, _ => new SemaphoreSlim(1, 1));
+        await nameLock.WaitAsync(cancellationToken);
         try
         {
-            // Another request may have downloaded it while this one waited.
-            return Find(_cacheFolder, name) ?? (IsKnownMissing(name) ? null : await DownloadAsync(name, cancellationToken));
+            return Find(_cacheFolder, name) ?? await DownloadAsync(name, cancellationToken);
         }
         finally
         {
-            _downloadLock.Release();
+            nameLock.Release();
         }
     }
 
@@ -81,10 +103,9 @@ public sealed partial class IconService : IIconService
         return null;
     }
 
-    private bool IsKnownMissing(string name)
+    private bool IsUsedByTheCatalog(string name)
     {
-        var marker = MissingMarker(name);
-        return File.Exists(marker) && _timeProvider.GetUtcNow() - File.GetLastWriteTimeUtc(marker) < MissingRetryDelay;
+        return _fleetService.GetApps().Any(app => app.Icon == name);
     }
 
     private async Task<IconFile?> DownloadAsync(string name, CancellationToken cancellationToken)
@@ -96,36 +117,32 @@ public sealed partial class IconService : IIconService
             foreach (var (extension, contentType) in Formats.Take(2))
             {
                 using var response = await client.GetAsync($"{extension}/{name}.{extension}", cancellationToken);
-                if (!response.IsSuccessStatusCode)
+                if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > MaxIconBytes)
                 {
                     continue;
                 }
 
+                var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
                 Directory.CreateDirectory(_cacheFolder);
                 var path = Path.Combine(_cacheFolder, $"{name}.{extension}");
                 var temporary = path + ".tmp";
-                await File.WriteAllBytesAsync(temporary, await response.Content.ReadAsByteArrayAsync(cancellationToken), cancellationToken);
+                await File.WriteAllBytesAsync(temporary, bytes, cancellationToken);
                 File.Move(temporary, path, overwrite: true);
                 LogCached(name);
 
                 return new IconFile(path, contentType);
             }
 
-            Directory.CreateDirectory(_cacheFolder);
-            await File.WriteAllTextAsync(MissingMarker(name), string.Empty, cancellationToken);
+            _retryAfter[name] = _timeProvider.GetUtcNow() + MissingRetryDelay;
             return null;
         }
-        catch (HttpRequestException exception)
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
         {
-            // Offline or blocked: no marker, the next request tries again.
+            // Offline, blocked or too slow: try again later, not on every page load.
+            _retryAfter[name] = _timeProvider.GetUtcNow() + OfflineRetryDelay;
             LogUnavailable(name, exception.Message);
             return null;
         }
-    }
-
-    private string MissingMarker(string name)
-    {
-        return Path.Combine(_cacheFolder, $"{name}.missing");
     }
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Icon {Name} downloaded and cached")]

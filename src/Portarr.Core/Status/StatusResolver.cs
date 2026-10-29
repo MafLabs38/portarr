@@ -26,24 +26,31 @@ public static class StatusResolver
         };
     }
 
-    /// <param name="app">The declared app.</param>
-    /// <param name="matches">For each selector of the app: the inventory of its environment and the matched workload, if any.</param>
-    public static ResolvedStatus ForApp(CatalogApp app, IReadOnlyList<(WorkloadSelector Selector, EnvironmentInventory? Inventory, Workload? Workload)> matches)
+    /// <summary>Status of one workload selector: its environment, then the matched container.</summary>
+    public static ResolvedStatus ForSelector(WorkloadSelector selector, EnvironmentInventory? inventory, Workload? workload)
     {
-        if (app.Workloads.Count == 0)
+        return (inventory, workload) switch
+        {
+            (null, _) => new ResolvedStatus(HealthStatus.Unknown, $"{selector.EnvironmentId} not inventoried yet"),
+            ({ Reachable: false }, _) => new ResolvedStatus(HealthStatus.Unknown, $"{selector.EnvironmentId} unreachable"),
+            (_, null) => new ResolvedStatus(HealthStatus.Down, $"Container {selector.Name} not found on {selector.EnvironmentId}"),
+            _ => ForWorkload(workload),
+        };
+    }
+
+    /// <summary>
+    /// App status from its workloads: critical ones decide, a failing optional one only degrades
+    /// the app (D-48). No workload at all: Unknown.
+    /// </summary>
+    public static ResolvedStatus ForApp(IReadOnlyList<(WorkloadSelector Selector, EnvironmentInventory? Inventory, Workload? Workload)> matches)
+    {
+        if (matches.Count == 0)
         {
             return new(HealthStatus.Unknown, "Not linked to a workload");
         }
 
-        var resolved = matches.Select(match => (match.Selector.Role, Status: match switch
-        {
-            { Inventory: null } => new ResolvedStatus(HealthStatus.Unknown, $"{match.Selector.EnvironmentId} not inventoried yet"),
-            { Inventory.Reachable: false } => new ResolvedStatus(HealthStatus.Unknown, $"{match.Selector.EnvironmentId} unreachable"),
-            { Workload: null } => new ResolvedStatus(HealthStatus.Down, $"Container {match.Selector.Name} not found on {match.Selector.EnvironmentId}"),
-            _ => ForWorkload(match.Workload),
-        })).ToList();
+        var resolved = matches.Select(m => (m.Selector.Role, Status: ForSelector(m.Selector, m.Inventory, m.Workload))).ToList();
 
-        // Critical workloads decide; a failing optional one only degrades the app (D-48).
         var critical = resolved.Where(r => r.Role == MemberRole.Critical).Select(r => r.Status).ToList();
         var worst = critical.Count > 0 ? critical.MaxBy(s => s.Status)! : new ResolvedStatus(HealthStatus.Healthy, "Running");
         if (worst.Status >= HealthStatus.Degraded)

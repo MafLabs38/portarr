@@ -20,6 +20,8 @@ services:
       - "2375:2375"   # reachable from Portarr only (firewall, or a private network)
 ```
 
+> **What `CONTAINERS=1` gives away**: every GET under `/containers`, including `inspect` (environment variables, so secrets), logs and container file exports. Treat port 2375 as sensitive as the secrets of every container on the host: bind it to one interface and allow only Portarr's host (firewall rule, or a private Docker network shared with Portarr so nothing is published at all). Pin the proxy image by digest in production.
+
 Then declare the environment in the catalog:
 
 ```yaml

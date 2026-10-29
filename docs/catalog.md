@@ -23,7 +23,7 @@ stacks:
 apps:
   - id: jellyfin
     name: Jellyfin
-    icon: jellyfin                    # icons/<name>.svg|png next to the catalog, else dashboard-icons; guessed from the image when omitted
+    icon: jellyfin                    # an icon name (not a URL): icons/<name>.svg|png next to the catalog, else dashboard-icons; guessed from the image when omitted
     stack: media                      # shorthand for a critical membership
     urls:                             # private IPs and local names are LAN URLs (scope: public|lan to force)
       - { label: Public, href: "https://jellyfin.homelab.example" }
@@ -63,7 +63,11 @@ An app with several workloads takes the worst of its critical ones; a failing op
 
 ## Icons
 
-In this order (D-47): `icons/<name>.svg|png|webp` in the folder of the catalog (your own apps, versioned with the catalog), then [dashboard-icons](https://github.com/homarr-labs/dashboard-icons) by name, downloaded once by Portarr and cached in the data folder, then a name guessed from the image (`lscr.io/linuxserver/sonarr:4` → `sonarr`), then the app's initial. Browsers only call `GET /api/v1/icons/<name>`.
+In this order (D-47): `icons/<name>.svg|png|webp` in the folder of the catalog (your own apps, versioned with the catalog), then [dashboard-icons](https://github.com/homarr-labs/dashboard-icons) by name, downloaded once by Portarr and cached in the data folder, then a name guessed from the image (`lscr.io/linuxserver/sonarr:4` → `sonarr`), then the app's initial. Browsers only call `GET /api/v1/icons/<name>`; `icon:` takes a name, never a URL.
+
+**Your own icons**: put `<name>.svg`, `.png` or `.webp` files in an `icons/` folder **next to `catalog.yaml`**, and version them with it (same Git repository as your catalog). Mount that folder with the catalog, e.g. `./my-catalog:/catalog:ro` plus `PORTARR__CATALOGFILE=/catalog/catalog.yaml`: the icons live where your catalog lives, so rebuilding Portarr loses nothing. A new file is picked up within minutes, without restart.
+
+**Community icons** are downloaded once, only for names your catalog uses, and cached in `<data folder>/cache/icons` (`/config` volume). Deleting the cache only means downloading them again.
 
 ## Links
 

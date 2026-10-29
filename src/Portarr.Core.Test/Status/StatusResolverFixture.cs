@@ -8,8 +8,6 @@ public sealed class StatusResolverFixture
 {
     private static readonly WorkloadSelector Selector = new("server-1", "sonarr");
 
-    private static readonly CatalogApp Sonarr = new("sonarr", "Sonarr", AppType.Web, null, null, [], [], [Selector]);
-
     [Theory]
     [InlineData(WorkloadState.Running, WorkloadHealth.None, HealthStatus.Healthy)]
     [InlineData(WorkloadState.Running, WorkloadHealth.Healthy, HealthStatus.Healthy)]
@@ -19,6 +17,7 @@ public sealed class StatusResolverFixture
     [InlineData(WorkloadState.Exited, WorkloadHealth.None, HealthStatus.Down)]
     [InlineData(WorkloadState.Paused, WorkloadHealth.None, HealthStatus.Paused)]
     [InlineData(WorkloadState.Created, WorkloadHealth.None, HealthStatus.Unknown)]
+    [InlineData(WorkloadState.Unknown, WorkloadHealth.None, HealthStatus.Unknown)]
     public void should_map_container_state_and_health(WorkloadState state, WorkloadHealth health, HealthStatus expected)
     {
         StatusResolver.ForWorkload(Workload(state, health)).Status.Should().Be(expected);
@@ -27,15 +26,27 @@ public sealed class StatusResolverFixture
     [Fact]
     public void should_be_unknown_when_the_app_has_no_workload()
     {
-        var app = Sonarr with { Workloads = [] };
+        StatusResolver.ForApp([]).Should().Be(new ResolvedStatus(HealthStatus.Unknown, "Not linked to a workload"));
+    }
 
-        StatusResolver.ForApp(app, []).Should().Be(new ResolvedStatus(HealthStatus.Unknown, "Not linked to a workload"));
+    [Fact]
+    public void should_be_unknown_before_the_first_inventory()
+    {
+        StatusResolver.ForApp([(Selector, null, null)]).Reason.Should().Be("server-1 not inventoried yet");
+    }
+
+    [Fact]
+    public void should_only_degrade_an_app_whose_workloads_are_all_optional()
+    {
+        var job = new WorkloadSelector("server-1", "job", MemberRole.Optional);
+
+        StatusResolver.ForApp([(job, Inventory(true), Workload(WorkloadState.Exited, WorkloadHealth.None))]).Status.Should().Be(HealthStatus.Degraded);
     }
 
     [Fact]
     public void should_be_down_when_the_container_is_missing()
     {
-        var status = StatusResolver.ForApp(Sonarr, [(Selector, Inventory(reachable: true), null)]);
+        var status = StatusResolver.ForApp([(Selector, Inventory(reachable: true), null)]);
 
         status.Status.Should().Be(HealthStatus.Down);
         status.Reason.Should().Contain("not found");
@@ -44,7 +55,7 @@ public sealed class StatusResolverFixture
     [Fact]
     public void should_be_unknown_when_the_environment_is_unreachable()
     {
-        var status = StatusResolver.ForApp(Sonarr, [(Selector, Inventory(reachable: false), Workload(WorkloadState.Running, WorkloadHealth.None))]);
+        var status = StatusResolver.ForApp([(Selector, Inventory(reachable: false), Workload(WorkloadState.Running, WorkloadHealth.None))]);
 
         status.Status.Should().Be(HealthStatus.Unknown);
         status.Reason.Should().Contain("unreachable");
@@ -54,9 +65,8 @@ public sealed class StatusResolverFixture
     public void should_take_the_worst_workload_of_an_app()
     {
         var database = new WorkloadSelector("server-1", "sonarr-db");
-        var app = Sonarr with { Workloads = [Selector, database] };
 
-        var status = StatusResolver.ForApp(app,
+        var status = StatusResolver.ForApp(
         [
             (Selector, Inventory(true), Workload(WorkloadState.Running, WorkloadHealth.Healthy)),
             (database, Inventory(true), Workload(WorkloadState.Exited, WorkloadHealth.None)),
@@ -69,9 +79,8 @@ public sealed class StatusResolverFixture
     public void should_only_degrade_the_app_when_an_optional_workload_is_down()
     {
         var scanner = new WorkloadSelector("server-1", "scanner", MemberRole.Optional);
-        var app = Sonarr with { Workloads = [Selector, scanner] };
 
-        var status = StatusResolver.ForApp(app,
+        var status = StatusResolver.ForApp(
         [
             (Selector, Inventory(true), Workload(WorkloadState.Running, WorkloadHealth.Healthy)),
             (scanner, Inventory(true), Workload(WorkloadState.Running, WorkloadHealth.Unhealthy)),
@@ -110,6 +119,19 @@ public sealed class StatusResolverFixture
     {
         StatusResolver.ForStack([(new StackMember("sonarr", MemberRole.Critical), "Sonarr", HealthStatus.Healthy)])
             .Status.Should().Be(HealthStatus.Healthy);
+    }
+
+    [Fact]
+    public void should_put_the_stack_down_only_for_a_down_critical_member_not_a_paused_one()
+    {
+        StatusResolver.ForStack([(new StackMember("sonarr", MemberRole.Critical), "Sonarr", HealthStatus.Paused)])
+            .Status.Should().Be(HealthStatus.Degraded);
+    }
+
+    [Fact]
+    public void should_be_unknown_when_the_stack_has_no_member()
+    {
+        StatusResolver.ForStack([]).Status.Should().Be(HealthStatus.Unknown);
     }
 
     [Fact]

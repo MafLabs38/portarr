@@ -22,6 +22,8 @@ public sealed record PublishedPort(int PrivatePort, int PublicPort, string Proto
 
 public enum WorkloadState
 {
+    /// <summary>A state this version of Portarr does not know.</summary>
+    Unknown,
     Created,
     Running,
     Paused,
@@ -49,4 +51,5 @@ public enum LogStream
     Stderr,
 }
 
-public sealed record LogLine(DateTimeOffset? Timestamp, LogStream Stream, string Text);
+/// <summary>A log line; <c>Truncated</c> when it was longer than the line limit.</summary>
+public sealed record LogLine(DateTimeOffset? Timestamp, LogStream Stream, string Text, bool Truncated = false);

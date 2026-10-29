@@ -38,7 +38,7 @@ internal static class DockerMapper
 
     public static WorkloadState ParseState(string state)
     {
-        return Enum.TryParse<WorkloadState>(state, ignoreCase: true, out var parsed) ? parsed : WorkloadState.Dead;
+        return Enum.TryParse<WorkloadState>(state, ignoreCase: true, out var parsed) ? parsed : WorkloadState.Unknown;
     }
 
     /// <summary>The list endpoint only carries health in its status text: "Up 3 hours (healthy)".</summary>

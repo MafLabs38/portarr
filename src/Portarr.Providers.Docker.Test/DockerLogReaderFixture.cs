@@ -37,6 +37,37 @@ public sealed class DockerLogReaderFixture
     }
 
     [Fact]
+    public async Task should_cut_and_flag_a_line_longer_than_the_limit()
+    {
+        using var stream = Frames((1, new string('x', DockerLogReader.MaxLineLength + 10) + "\nnext\n"));
+
+        var lines = await ReadAllAsync(stream, tty: false);
+
+        lines[0].Should().Match<LogLine>(l => l.Text.Length == DockerLogReader.MaxLineLength && l.Truncated);
+        lines[1].Should().Match<LogLine>(l => l.Text == "next" && !l.Truncated);
+    }
+
+    [Fact]
+    public async Task should_keep_a_character_split_across_two_frames()
+    {
+        var euro = Encoding.UTF8.GetBytes("€\n");
+        using var stream = RawFrames((1, euro[..1]), (1, euro[1..]));
+
+        (await ReadAllAsync(stream, tty: false)).Single().Text.Should().Be("€");
+    }
+
+    [Fact]
+    public async Task should_stop_on_a_frame_size_that_is_not_docker_framing()
+    {
+        var header = new byte[8];
+        header[0] = 1;
+        BinaryPrimitives.WriteInt32BigEndian(header.AsSpan(4), int.MaxValue);
+        using var stream = new MemoryStream(header);
+
+        (await ReadAllAsync(stream, tty: false)).Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task should_read_raw_lines_when_the_container_has_a_tty()
     {
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes("one\r\ntwo\n"));
@@ -48,10 +79,14 @@ public sealed class DockerLogReaderFixture
 
     private static MemoryStream Frames(params (byte Stream, string Text)[] frames)
     {
+        return RawFrames(frames.Select(f => (f.Stream, Encoding.UTF8.GetBytes(f.Text))).ToArray());
+    }
+
+    private static MemoryStream RawFrames(params (byte Stream, byte[] Payload)[] frames)
+    {
         var buffer = new MemoryStream();
-        foreach (var (type, text) in frames)
+        foreach (var (type, payload) in frames)
         {
-            var payload = Encoding.UTF8.GetBytes(text);
             var header = new byte[8];
             header[0] = type;
             BinaryPrimitives.WriteInt32BigEndian(header.AsSpan(4), payload.Length);

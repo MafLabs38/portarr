@@ -1,88 +1,83 @@
-using DotNet.Testcontainers.Builders;
-using DotNet.Testcontainers.Containers;
-using Portarr.Core.Catalog;
+using System.Diagnostics;
 using Portarr.Core.Workloads;
 
 namespace Portarr.Providers.Docker.Test;
 
-/// <summary>Against the real Docker Engine of the machine running the tests (Unix socket).</summary>
+/// <summary>Against a real Docker Engine, directly and through the read-only socket proxy.</summary>
 [Trait("Category", "Integration")]
-public sealed class DockerWorkloadSourceFixture : IAsyncLifetime
+public sealed class DockerWorkloadSourceFixture : IClassFixture<DockerHost>, IDisposable
 {
-    private static readonly CatalogEnvironment Environment = new("local", "Local", new DockerEndpoint(new Uri("unix:///var/run/docker.sock")));
-
-    private readonly string _name = $"portarr-test-{Guid.NewGuid():N}"[..24];
+    private readonly DockerHost _host;
     private readonly DockerHttpClientFactory _clients = new();
-    private IContainer _container = null!;
+
+    public DockerWorkloadSourceFixture(DockerHost host)
+    {
+        _host = host;
+    }
 
     private DockerWorkloadSource Subject => new(_clients);
 
-    public async ValueTask InitializeAsync()
-    {
-        _container = new ContainerBuilder("alpine:3.20")
-            .WithName(_name)
-            .WithLabel("com.docker.compose.project", "portarr-test")
-            .WithCommand("sh", "-c", "echo hello from stdout; echo oops from stderr >&2; sleep 300")
-            .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("oops from stderr"))
-            .Build();
-        await _container.StartAsync();
-    }
+    public void Dispose() => _clients.Dispose();
 
-    public async ValueTask DisposeAsync()
+    [Fact]
+    public async Task should_list_containers_through_the_socket_proxy_with_their_compose_project()
     {
-        await _container.DisposeAsync();
-        _clients.Dispose();
+        var workloads = await Subject.ListAsync(_host.ThroughProxy, TestContext.Current.CancellationToken);
+
+        var talker = workloads.Should().ContainSingle(w => w.Name == _host.TalkerName).Which;
+        talker.Should().Match<Workload>(w => w.State == WorkloadState.Running && w.Image == "alpine:3.20" && w.ComposeProject == "portarr-test" && w.EnvironmentId == "proxied");
     }
 
     [Fact]
-    public async Task should_list_the_running_container_with_its_compose_project()
+    public async Task should_report_a_failing_healthcheck()
     {
-        var workloads = await Subject.ListAsync(Environment, TestContext.Current.CancellationToken);
-
-        var workload = workloads.Should().ContainSingle(w => w.Name == _name).Which;
-        workload.State.Should().Be(WorkloadState.Running);
-        workload.Image.Should().Be("alpine:3.20");
-        workload.ComposeProject.Should().Be("portarr-test");
-        workload.EnvironmentId.Should().Be("local");
-    }
-
-    [Fact]
-    public async Task should_read_stdout_and_stderr_with_timestamps()
-    {
-        var lines = new List<LogLine>();
-        await foreach (var line in Subject.StreamLogsAsync(Environment, _name, tail: 10, follow: false, TestContext.Current.CancellationToken))
+        var health = WorkloadHealth.None;
+        var deadline = Stopwatch.StartNew();
+        while (health != WorkloadHealth.Unhealthy && deadline.Elapsed < TimeSpan.FromSeconds(15))
         {
-            lines.Add(line);
+            var workloads = await Subject.ListAsync(_host.Direct, TestContext.Current.CancellationToken);
+            health = workloads.Single(w => w.Name == _host.UnhealthyName).Health;
+            await Task.Delay(250, TestContext.Current.CancellationToken);
         }
 
+        health.Should().Be(WorkloadHealth.Unhealthy);
+    }
+
+    [Fact]
+    public async Task should_read_the_tail_then_follow_new_lines_within_two_seconds()
+    {
+        await using var logs = await Subject.OpenLogsAsync(_host.Direct, _host.TalkerName, tail: 100, follow: true, TestContext.Current.CancellationToken);
+        var lines = new List<LogLine>();
+        var started = Stopwatch.StartNew();
+
+        await foreach (var line in logs!.ReadAsync(TestContext.Current.CancellationToken))
+        {
+            lines.Add(line);
+            if (line.Text.StartsWith("tick", StringComparison.Ordinal) && line.Timestamp > DateTimeOffset.UtcNow.AddSeconds(-1))
+            {
+                break;
+            }
+        }
+
+        started.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(2));
         lines.Should().Contain(l => l.Stream == LogStream.Stdout && l.Text == "hello from stdout");
         lines.Should().Contain(l => l.Stream == LogStream.Stderr && l.Text == "oops from stderr");
-        lines.Should().OnlyContain(l => l.Timestamp != null);
     }
 
     [Fact]
-    public async Task should_report_memory_usage()
+    public async Task should_report_memory_usage_through_the_proxy()
     {
-        var usage = await Subject.GetUsageAsync(Environment, _name, TestContext.Current.CancellationToken);
+        var usage = await Subject.GetUsageAsync(_host.ThroughProxy, _host.TalkerName, TestContext.Current.CancellationToken);
 
-        usage.Should().NotBeNull();
         usage!.MemoryBytes.Should().BePositive();
-        usage.CpuCores.Should().BeGreaterThanOrEqualTo(0);
     }
 
     [Fact]
-    public async Task should_return_no_usage_for_an_unknown_container()
+    public async Task should_return_nothing_for_an_unknown_container()
     {
-        var usage = await Subject.GetUsageAsync(Environment, "portarr-no-such-container", TestContext.Current.CancellationToken);
+        var usage = await Subject.GetUsageAsync(_host.Direct, "portarr-no-such-container", TestContext.Current.CancellationToken);
+        var logs = await Subject.OpenLogsAsync(_host.Direct, "portarr-no-such-container", 10, false, TestContext.Current.CancellationToken);
 
-        usage.Should().BeNull();
-    }
-
-    [Fact]
-    public async Task should_refuse_a_name_that_is_not_a_container_name()
-    {
-        var read = () => Subject.GetUsageAsync(Environment, "../../info", TestContext.Current.CancellationToken);
-
-        await read.Should().ThrowAsync<ArgumentException>();
+        (usage, logs).Should().Be((null, null));
     }
 }

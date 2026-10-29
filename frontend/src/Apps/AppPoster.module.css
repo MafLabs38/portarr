@@ -1,4 +1,5 @@
 .poster {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -28,6 +29,12 @@
   border-color: var(--infoColor);
 }
 
+.status {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
 .launch {
   display: flex;
   flex-direction: column;
@@ -39,7 +46,7 @@
 
 .name {
   font-family: var(--displayFontFamily);
-  font-size: 16px;
+  font-size: var(--fontSizeBody);
   font-weight: 600;
   line-height: 1.2;
 }

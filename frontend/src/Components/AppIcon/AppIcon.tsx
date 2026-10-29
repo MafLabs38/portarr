@@ -24,7 +24,13 @@ export default function AppIcon({ name, icon, size }: AppIconProps) {
     );
   }
 
-  const src = /^https?:\/\//.test(icon) ? icon : `${ICON_BASE_URL}/${encodeURIComponent(icon)}`;
-
-  return <img alt="" className={styles.icon} onError={() => setFailed(true)} src={src} style={style} />;
+  return (
+    <img
+      alt=""
+      className={styles.icon}
+      onError={() => setFailed(true)}
+      src={`${ICON_BASE_URL}/${encodeURIComponent(icon)}`}
+      style={style}
+    />
+  );
 }

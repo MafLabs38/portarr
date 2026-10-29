@@ -108,6 +108,11 @@ public static partial class CatalogParser
                     continue;
                 }
 
+                if (document.Icon is not null && !IconNames.IsValid(document.Icon))
+                {
+                    _errors.Add($"App '{id}': icon '{document.Icon}' must be an icon name (lowercase letters, digits, dashes), not a URL; put custom icons in the icons folder next to the catalog.");
+                }
+
                 var type = AppType.Web;
                 if (document.Type is not null && !Enum.TryParse(document.Type, ignoreCase: true, out type))
                 {
@@ -139,14 +144,14 @@ public static partial class CatalogParser
                     var scope = UrlScopes.Infer(href);
                     if (document.Scope is not null && !Enum.TryParse(document.Scope, ignoreCase: true, out scope))
                     {
-                        _errors.Add($"App '{appId}': scope of '{document.Href}' must be public or lan.");
+                        _errors.Add($"App '{appId}': scope of '{Redact(document.Href)}' must be public or lan.");
                     }
 
                     result.Add(new AppUrl(document.Label ?? href.Host, href, scope));
                 }
                 else
                 {
-                    _errors.Add($"App '{appId}': url '{document.Href}' must be an absolute http(s) URL.");
+                    _errors.Add($"App '{appId}': url '{Redact(document.Href)}' must be an absolute http(s) URL.");
                 }
             }
 
@@ -206,6 +211,12 @@ public static partial class CatalogParser
                 var members = new List<StackMember>();
                 foreach (var member in document.Members ?? [])
                 {
+                    if (member.App is not null && members.Exists(m => m.AppId == member.App))
+                    {
+                        _errors.Add($"Stack '{id}': member '{member.App}' is listed twice.");
+                        continue;
+                    }
+
                     if (member.App is null || !appIds.Contains(member.App))
                     {
                         _errors.Add($"Stack '{id}': member '{member.App}' is not a declared app.");
@@ -230,6 +241,12 @@ public static partial class CatalogParser
                 result.Add(new CatalogStack(id, document.Name ?? id, document.Description, members));
             }
 
+            // An app has one stack: its role and its place in the launcher must not be ambiguous.
+            foreach (var app in result.SelectMany(s => s.Members.Select(m => (Stack: s.Id, m.AppId))).GroupBy(m => m.AppId).Where(g => g.Count() > 1))
+            {
+                _errors.Add($"App '{app.Key}' belongs to several stacks ({string.Join(", ", app.Select(m => m.Stack))}); an app has one stack.");
+            }
+
             var stackIds = result.Select(s => s.Id).ToHashSet();
             foreach (var app in appDocuments.Where(a => a.Stack is not null && !stackIds.Contains(a.Stack)))
             {
@@ -237,6 +254,14 @@ public static partial class CatalogParser
             }
 
             return result;
+        }
+
+        // Never echo credentials from a URL into an error message.
+        private static string? Redact(string? url)
+        {
+            var at = url?.IndexOf('@', StringComparison.Ordinal) ?? -1;
+            var scheme = url?.IndexOf("://", StringComparison.Ordinal) ?? -1;
+            return at > scheme && scheme >= 0 ? string.Concat(url.AsSpan(0, scheme + 3), "***", url.AsSpan(at)) : url;
         }
 
         private string? RequireId(string? id, string location, IEnumerable<string> existing)

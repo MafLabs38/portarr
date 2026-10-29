@@ -53,6 +53,10 @@ yarn install && yarn start                   # UI on http://localhost:5173 (prox
 
 All commands (tests, lint, e2e) are listed in [CLAUDE.md](CLAUDE.md#commands).
 
+## Security notice
+
+Portarr has **no authentication yet** (planned). Anyone who reaches it can see your inventory and the live logs of the containers your catalog declares. Keep it on your LAN or put it behind an authenticating reverse proxy (SSO, basic auth) before exposing it.
+
 ## Configuration
 
 Settings come from `appsettings.json`, overridden by `PORTARR__*` environment variables (`__` separates sections).
@@ -63,7 +67,8 @@ Settings come from `appsettings.json`, overridden by `PORTARR__*` environment va
 | `PORTARR__DATAFOLDER` | `/config` in the image, the user's local data folder otherwise | SQLite database and future backups |
 | `PORTARR__DATABASE__TYPE` | `Sqlite` | `Sqlite` or `Postgres` |
 | `PORTARR__DATABASE__CONNECTIONSTRING` | — | Required for PostgreSQL, e.g. `Host=db;Database=portarr;Username=portarr;Password=…` |
-| `PORTARR__CATALOGFILE` | `<data folder>/catalog.yaml` | The [catalog](docs/catalog.md) of environments, stacks and apps |
+| `PORTARR__CATALOGFILE` | `<data folder>/catalog.yaml` | The [catalog](docs/catalog.md) of environments, stacks and apps; your own icons go in `icons/` next to it |
+| `PORTARR__LOGSOFALLWORKLOADS` | `false` | Serve live logs and usage of containers no app declares |
 
 Connectors: [Docker](docs/connectors/docker.md).
 

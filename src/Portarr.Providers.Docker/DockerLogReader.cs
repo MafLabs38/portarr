@@ -9,62 +9,109 @@ namespace Portarr.Providers.Docker;
 /// Decodes the logs endpoint. Without a TTY, Docker multiplexes stdout and stderr in frames:
 /// an 8-byte header (stream type, 3 zero bytes, big-endian payload size) then the payload,
 /// which may hold several lines or part of one. With a TTY, the stream is raw stdout.
+/// Lines longer than <see cref="MaxLineLength"/> are cut and flagged, so a container writing
+/// without newlines cannot make Portarr's memory grow.
 /// </summary>
 internal static class DockerLogReader
 {
+    public const int MaxLineLength = 16 * 1024;
+    public const int MaxFrameSize = 1024 * 1024;
+
     private const int HeaderSize = 8;
 
     public static async IAsyncEnumerable<LogLine> ReadAsync(Stream stream, bool tty, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        var lines = new Dictionary<LogStream, LineSplitter> { [LogStream.Stdout] = new(), [LogStream.Stderr] = new() };
+
         if (tty)
         {
-            using var reader = new StreamReader(stream, Encoding.UTF8);
-            while (await reader.ReadLineAsync(cancellationToken) is { } line)
+            var buffer = new byte[8192];
+            int read;
+            while ((read = await stream.ReadAsync(buffer, cancellationToken)) > 0)
             {
-                yield return DockerMapper.ParseLogLine(LogStream.Stdout, line);
+                foreach (var line in lines[LogStream.Stdout].Push(buffer.AsSpan(0, read)))
+                {
+                    yield return DockerMapper.ParseLogLine(LogStream.Stdout, line.Text) with { Truncated = line.Truncated };
+                }
             }
-
-            yield break;
         }
-
-        var header = new byte[HeaderSize];
-        var pending = new Dictionary<LogStream, StringBuilder>
+        else
         {
-            [LogStream.Stdout] = new(),
-            [LogStream.Stderr] = new(),
-        };
-
-        while (await ReadFrameHeaderAsync(stream, header, cancellationToken))
-        {
-            var logStream = header[0] == 2 ? LogStream.Stderr : LogStream.Stdout;
-            var size = BinaryPrimitives.ReadInt32BigEndian(header.AsSpan(4));
-            var payload = new byte[size];
-            await stream.ReadExactlyAsync(payload, cancellationToken);
-
-            var buffer = pending[logStream].Append(Encoding.UTF8.GetString(payload));
-            var text = buffer.ToString();
-            var lastNewLine = text.LastIndexOf('\n');
-            if (lastNewLine < 0)
+            var header = new byte[HeaderSize];
+            while (await stream.ReadAtLeastAsync(header, HeaderSize, throwOnEndOfStream: false, cancellationToken) == HeaderSize)
             {
-                continue;
-            }
+                var logStream = header[0] == 2 ? LogStream.Stderr : LogStream.Stdout;
+                var size = BinaryPrimitives.ReadInt32BigEndian(header.AsSpan(4));
+                if (size is < 0 or > MaxFrameSize)
+                {
+                    // Not the Docker framing (or a corrupted stream): stop rather than allocate it.
+                    yield break;
+                }
 
-            buffer.Clear().Append(text, lastNewLine + 1, text.Length - lastNewLine - 1);
-            foreach (var line in text[..lastNewLine].Split('\n'))
-            {
-                yield return DockerMapper.ParseLogLine(logStream, line.TrimEnd('\r'));
+                var payload = new byte[size];
+                await stream.ReadExactlyAsync(payload, cancellationToken);
+                foreach (var line in lines[logStream].Push(payload))
+                {
+                    yield return DockerMapper.ParseLogLine(logStream, line.Text) with { Truncated = line.Truncated };
+                }
             }
         }
 
-        foreach (var (logStream, rest) in pending.Where(p => p.Value.Length > 0))
+        foreach (var (logStream, splitter) in lines)
         {
-            yield return DockerMapper.ParseLogLine(logStream, rest.ToString());
+            if (splitter.Flush() is { } rest)
+            {
+                yield return DockerMapper.ParseLogLine(logStream, rest.Text) with { Truncated = rest.Truncated };
+            }
         }
     }
 
-    private static async Task<bool> ReadFrameHeaderAsync(Stream stream, byte[] header, CancellationToken cancellationToken)
+    /// <summary>
+    /// Splits decoded text into lines. Keeps the UTF-8 decoder state between chunks so a character
+    /// split across two frames is not garbled, and only scans the new chunk for newlines.
+    /// </summary>
+    private sealed class LineSplitter
     {
-        var read = await stream.ReadAtLeastAsync(header, HeaderSize, throwOnEndOfStream: false, cancellationToken);
-        return read == HeaderSize;
+        private readonly Decoder _decoder = Encoding.UTF8.GetDecoder();
+        private readonly StringBuilder _pending = new();
+        private bool _truncated;
+
+        public List<(string Text, bool Truncated)> Push(ReadOnlySpan<byte> bytes)
+        {
+            var chars = new char[_decoder.GetCharCount(bytes, flush: false)];
+            _decoder.GetChars(bytes, chars, flush: false);
+
+            var lines = new List<(string, bool)>();
+            foreach (var character in chars)
+            {
+                if (character == '\n')
+                {
+                    lines.Add(Take());
+                }
+                else if (_pending.Length < MaxLineLength)
+                {
+                    _pending.Append(character);
+                }
+                else
+                {
+                    _truncated = true;
+                }
+            }
+
+            return lines;
+        }
+
+        public (string Text, bool Truncated)? Flush()
+        {
+            return _pending.Length > 0 ? Take() : null;
+        }
+
+        private (string Text, bool Truncated) Take()
+        {
+            var line = (_pending.ToString().TrimEnd('\r'), _truncated);
+            _pending.Clear();
+            _truncated = false;
+            return line;
+        }
     }
 }

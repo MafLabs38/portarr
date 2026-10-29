@@ -100,6 +100,11 @@ public sealed partial class CatalogService : ICatalogService, IHostedService, ID
             // The editor may still be writing the file: the watcher fires again when it is done.
             LogUnreadable(exception.Message);
         }
+        catch (UnauthorizedAccessException)
+        {
+            // Typical of a volume mounted with the wrong owner: report it instead of failing startup.
+            Current = Current with { FileExists = true, Errors = ["catalog.yaml cannot be read: permission denied for the Portarr user."], LoadedAt = _timeProvider.GetUtcNow() };
+        }
         finally
         {
             _reloadLock.Release();
@@ -108,6 +113,7 @@ public sealed partial class CatalogService : ICatalogService, IHostedService, ID
 
     public void Dispose()
     {
+        _pendingReload?.Cancel();
         _watcher?.Dispose();
         _pendingReload?.Dispose();
         _reloadLock.Dispose();
@@ -123,7 +129,8 @@ public sealed partial class CatalogService : ICatalogService, IHostedService, ID
 
         _ = Task.Delay(Debounce, _timeProvider, next.Token)
             .ContinueWith(_ => ReloadAsync(), next.Token, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default)
-            .Unwrap();
+            .Unwrap()
+            .ContinueWith(task => LogReloadFailed(task.Exception!), CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Catalog loaded: {Apps} apps, {Stacks} stacks, {Environments} environments")]
@@ -134,6 +141,9 @@ public sealed partial class CatalogService : ICatalogService, IHostedService, ID
 
     [LoggerMessage(Level = LogLevel.Information, Message = "No catalog at {Path}: Portarr starts empty")]
     private partial void LogMissing(string path);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Catalog reload failed")]
+    private partial void LogReloadFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Catalog not readable yet: {Reason}")]
     private partial void LogUnreadable(string reason);

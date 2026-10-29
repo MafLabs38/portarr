@@ -16,7 +16,7 @@ services:
     image: nginx:stable-alpine-slim
     container_name: e2e-web
     ports:
-      - "8080:80"
+      - '8080:80'
 
   portarr:
     build:
@@ -27,7 +27,7 @@ services:
     environment:
       PORTARR__CATALOGFILE: /catalog/catalog.yaml
     ports:
-      - "8484:8484"
+      - '8484:8484'
     volumes:
       - portarr-config:/config
       - ./catalog.yaml:/catalog/catalog.yaml:ro

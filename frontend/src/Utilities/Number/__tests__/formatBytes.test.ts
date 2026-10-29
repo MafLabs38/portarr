@@ -3,7 +3,7 @@ import formatCores from 'Utilities/Number/formatCores';
 
 describe('formatBytes', () => {
   it.each([
-    [0, '0 B'],
+    [-1, '0 B'],
     [512, '512 B'],
     [138_522_624, '132 MB'],
     [1_610_612_736, '1.5 GB'],

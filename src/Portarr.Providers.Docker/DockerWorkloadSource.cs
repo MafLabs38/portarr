@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Portarr.Core.Catalog;
 using Portarr.Core.Workloads;
@@ -49,27 +48,60 @@ public sealed partial class DockerWorkloadSource : IWorkloadSource
         return stats is null ? null : DockerMapper.ToUsage(stats);
     }
 
-    public async IAsyncEnumerable<LogLine> StreamLogsAsync(
-        CatalogEnvironment environment,
-        string workloadName,
-        int tail,
-        bool follow,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<ILogStream?> OpenLogsAsync(CatalogEnvironment environment, string workloadName, int tail, bool follow, CancellationToken cancellationToken)
     {
         var name = ValidName(workloadName);
         var client = Client(environment);
 
-        var inspect = await client.GetFromJsonAsync($"containers/{name}/json", DockerJsonContext.Default.ContainerInspect, cancellationToken)
-            ?? throw new KeyNotFoundException(workloadName);
+        // Inspect and the response headers must come quickly; only the body may stay open.
+        using var opening = Timeout(cancellationToken, TimeSpan.FromSeconds(10));
+        using var inspectResponse = await client.GetAsync($"containers/{name}/json", opening.Token);
+        if (inspectResponse.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        inspectResponse.EnsureSuccessStatusCode();
+        var inspect = await inspectResponse.Content.ReadFromJsonAsync(DockerJsonContext.Default.ContainerInspect, opening.Token)
+            ?? throw new InvalidOperationException($"Empty inspect response for {name}.");
 
         var query = $"containers/{name}/logs?stdout=true&stderr=true&timestamps=true&tail={Math.Clamp(tail, 0, 5000)}&follow={(follow ? "true" : "false")}";
-        using var response = await client.GetAsync(query, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-
-        await foreach (var line in DockerLogReader.ReadAsync(stream, inspect.Config.Tty, cancellationToken))
+        var response = await client.GetAsync(query, HttpCompletionOption.ResponseHeadersRead, opening.Token);
+        try
         {
-            yield return line;
+            response.EnsureSuccessStatusCode();
+            var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            return new DockerLogStream(response, stream, inspect.Config.Tty);
+        }
+        catch
+        {
+            response.Dispose();
+            throw;
+        }
+    }
+
+    private sealed class DockerLogStream : ILogStream
+    {
+        private readonly HttpResponseMessage _response;
+        private readonly Stream _stream;
+        private readonly bool _tty;
+
+        public DockerLogStream(HttpResponseMessage response, Stream stream, bool tty)
+        {
+            _response = response;
+            _stream = stream;
+            _tty = tty;
+        }
+
+        public IAsyncEnumerable<LogLine> ReadAsync(CancellationToken cancellationToken)
+        {
+            return DockerLogReader.ReadAsync(_stream, _tty, cancellationToken);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await _stream.DisposeAsync();
+            _response.Dispose();
         }
     }
 

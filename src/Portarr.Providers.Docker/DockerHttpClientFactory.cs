@@ -9,6 +9,9 @@ namespace Portarr.Providers.Docker;
 /// </summary>
 public sealed class DockerHttpClientFactory : IDisposable
 {
+    /// <summary>Caps connections to one Docker host: live log streams cannot exhaust it.</summary>
+    public const int MaxConnections = 32;
+
     private readonly Dictionary<Uri, HttpClient> _clients = [];
     private readonly Lock _lock = new();
 
@@ -34,13 +37,14 @@ public sealed class DockerHttpClientFactory : IDisposable
         }
     }
 
-    private static HttpClient Create(Uri url)
+    internal static HttpClient Create(Uri url)
     {
         if (url.Scheme == "unix")
         {
             var socketPath = url.AbsolutePath;
             var handler = new SocketsHttpHandler
             {
+                MaxConnectionsPerServer = MaxConnections,
                 ConnectCallback = async (_, cancellationToken) =>
                 {
                     var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
@@ -67,6 +71,7 @@ public sealed class DockerHttpClientFactory : IDisposable
             builder.Port = 2375;
         }
 
-        return new HttpClient { BaseAddress = builder.Uri, Timeout = Timeout.InfiniteTimeSpan };
+        var tcpHandler = new SocketsHttpHandler { MaxConnectionsPerServer = MaxConnections };
+        return new HttpClient(tcpHandler) { BaseAddress = builder.Uri, Timeout = Timeout.InfiniteTimeSpan };
     }
 }

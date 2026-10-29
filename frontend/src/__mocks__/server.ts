@@ -100,7 +100,7 @@ export const stacks: Stack[] = [
 ];
 
 export const catalogStatus: CatalogStatus = {
-  filePath: '/config/catalog.yaml',
+  fileName: 'catalog.yaml',
   fileExists: true,
   loadedAt: '2026-01-01T12:00:00Z',
   errors: [],
@@ -114,7 +114,7 @@ export const environments: Environment[] = [
     id: 'server-1',
     name: 'Server 1',
     runtime: 'docker',
-    reachable: true,
+    connection: 'connected',
     error: null,
     workloads: 2,
     refreshedAt: null,
@@ -123,8 +123,17 @@ export const environments: Environment[] = [
     id: 'server-2',
     name: 'Server 2',
     runtime: 'docker',
-    reachable: false,
-    error: 'Connection refused',
+    connection: 'unreachable',
+    error: 'timeout',
+    workloads: 1,
+    refreshedAt: null,
+  },
+  {
+    id: 'nas',
+    name: 'NAS',
+    runtime: 'none',
+    connection: 'not-connected',
+    error: null,
     workloads: 0,
     refreshedAt: null,
   },
@@ -150,6 +159,11 @@ function container(name: string, status: Workload['status'], appIds: string[]): 
 export const workloads: Workload[] = [
   container('sonarr', healthy, ['sonarr']),
   container('recyclarr', down, ['recyclarr']),
+  {
+    ...container('grafana', { status: 'Unknown', reason: 'server-2 unreachable' }, []),
+    environmentId: 'server-2',
+    stale: true,
+  },
 ];
 
 let logLevel = 'Information';
@@ -165,6 +179,10 @@ export const handlers = [
   http.get('/api/v1/catalog/status', () => HttpResponse.json(catalogStatus)),
   http.get('/api/v1/environments', () => HttpResponse.json(environments)),
   http.get('/api/v1/workloads', () => HttpResponse.json(workloads)),
+  http.get('/api/v1/workloads/:environmentId/:name', ({ params }) => {
+    const workload = workloads.find((w) => w.environmentId === params.environmentId && w.name === params.name);
+    return workload ? HttpResponse.json(workload) : new HttpResponse(null, { status: 404 });
+  }),
   http.get('/api/v1/workloads/:environmentId/:name/usage', () =>
     HttpResponse.json({ cpuCores: 0.004, memoryBytes: 138_522_624, memoryLimitBytes: 536_870_912 }),
   ),

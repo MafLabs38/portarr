@@ -1,4 +1,5 @@
 import AppIcon from 'Components/AppIcon/AppIcon';
+import StatusLabel from 'Components/Status/StatusLabel';
 import * as icons from 'Helpers/Props/icons';
 import type App from 'typings/App';
 import translate from 'Utilities/String/translate';
@@ -29,11 +30,11 @@ export default function AppPoster({ app }: AppPosterProps) {
   );
 
   return (
-    <article
-      aria-label={app.name}
-      className={`${styles.poster} ${styles[app.status.status.toLowerCase()]}`}
-      title={app.status.reason}
-    >
+    <article aria-label={app.name} className={`${styles.poster} ${styles[app.status.status.toLowerCase()]}`}>
+      {/* The frame color repeats the status; the label says it (DESIGN.md §5). */}
+      <span className={styles.status}>
+        <StatusLabel compact status={app.status} />
+      </span>
       {app.type === 'web' && mainUrl ? (
         <a className={styles.launch} href={mainUrl.href} rel="noopener noreferrer" target="_blank" title={mainUrl.href}>
           {body}

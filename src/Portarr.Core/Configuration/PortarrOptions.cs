@@ -19,6 +19,12 @@ public sealed class PortarrOptions
     /// <summary>The operator's own icons: an <c>icons</c> folder next to the catalog (D-47).</summary>
     public string CustomIconsFolder => Path.Combine(Path.GetDirectoryName(Path.GetFullPath(EffectiveCatalogFile))!, "icons");
 
+    /// <summary>
+    /// Live logs of workloads that no catalog app declares. Off by default: until authentication
+    /// exists (C2), anyone who reaches Portarr can read the logs it serves.
+    /// </summary>
+    public bool LogsOfAllWorkloads { get; set; }
+
     /// <summary>Community icon set, fetched once per icon and cached in the data folder.</summary>
     public Uri IconSourceUrl { get; set; } = new("https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/");
 

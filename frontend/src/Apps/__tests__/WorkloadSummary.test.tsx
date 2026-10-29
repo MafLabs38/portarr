@@ -32,6 +32,15 @@ describe('WorkloadSummary', () => {
 
     expect(screen.getByText('3/4 up')).toBeInTheDocument();
     expect(screen.getByText('1 unhealthy')).toBeInTheDocument();
+    expect(screen.getByTitle(/scanner: Up 1 hour \(unhealthy\)/)).toBeInTheDocument();
+  });
+
+  it('reports starting healthchecks before calling the app healthy', () => {
+    render(
+      <WorkloadSummary workloads={[workload('a', { health: 'healthy' }), workload('b', { health: 'starting' })]} />,
+    );
+
+    expect(screen.getByText('1 starting')).toBeInTheDocument();
   });
 
   it('says when a declared container does not exist', () => {

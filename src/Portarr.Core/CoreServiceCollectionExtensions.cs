@@ -42,6 +42,7 @@ public static class CoreServiceCollectionExtensions
         {
             client.BaseAddress = provider.GetRequiredService<IOptions<PortarrOptions>>().Value.IconSourceUrl;
             client.Timeout = TimeSpan.FromSeconds(10);
+            client.MaxResponseContentBufferSize = IconService.MaxIconBytes;
         });
         services.AddSingleton<IIconService, IconService>();
 
