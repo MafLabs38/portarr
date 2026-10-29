@@ -34,6 +34,7 @@ public sealed class PortarrFactory : WebApplicationFactory<Program>
             ["DataFolder"] = _options.DataFolder,
             ["Database:Type"] = _options.Database.Type.ToString(),
             ["Database:ConnectionString"] = _options.Database.ConnectionString,
+            ["LogsOfAllWorkloads"] = _options.LogsOfAllWorkloads.ToString(),
         }));
         builder.ConfigureServices(services =>
         {

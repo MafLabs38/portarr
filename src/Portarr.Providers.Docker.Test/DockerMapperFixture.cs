@@ -77,6 +77,22 @@ public sealed class DockerMapperFixture
         DockerMapper.ToUsage(stats).CpuCores.Should().Be(0);
     }
 
+    [Theory]
+    [InlineData(10_000, 10_000)]   // no system time elapsed
+    [InlineData(9_000, 10_000)]    // system counter went backwards
+    public void should_never_report_non_finite_or_negative_usage_from_inconsistent_samples(ulong systemNow, ulong systemBefore)
+    {
+        var stats = new ContainerStats(
+            new CpuStats(new CpuUsage(1_500), systemNow, 4),
+            new CpuStats(new CpuUsage(1_000), systemBefore, 4),
+            new MemoryStats(100_000_000, 1_000_000_000, new Dictionary<string, long> { ["inactive_file"] = 300_000_000 }));
+
+        var usage = DockerMapper.ToUsage(stats);
+
+        usage.CpuCores.Should().Be(0);
+        usage.MemoryBytes.Should().Be(0, "a page cache larger than the usage must not give a negative memory");
+    }
+
     [Fact]
     public void should_split_the_nanosecond_timestamp_from_the_text()
     {

@@ -9,7 +9,7 @@ const labels: Record<UrlMode, string> = { auto: 'UrlModeAuto', public: 'UrlModeP
 /** Which URL the tiles open (D-46); native radios give keyboard navigation for free. */
 export default function UrlModeSwitch() {
   const { mode, setMode } = useUrlModeStore();
-  const effective = resolveScope(mode, window.location.hostname);
+  const effective = translate(labels[resolveScope(mode, globalThis.location.hostname)]);
 
   return (
     <fieldset className={styles.switch}>
@@ -25,7 +25,7 @@ export default function UrlModeSwitch() {
             value={value}
           />
           {translate(labels[value])}
-          {value === 'auto' ? ` (${translate(effective === 'lan' ? 'UrlModeLan' : 'UrlModePublic')})` : null}
+          {value === 'auto' ? ` (${effective})` : null}
         </label>
       ))}
     </fieldset>

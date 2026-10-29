@@ -70,10 +70,8 @@ export default function WorkloadDetails() {
           </div>
         ) : null}
 
-        {workload && workload.appIds.length > 0 ? <LogViewer path={`${base}/logs?tail=200`} /> : null}
-        {workload && workload.appIds.length === 0 ? (
-          <Alert kind="info">{translate('LogsOnlyForCatalogApps')}</Alert>
-        ) : null}
+        {(workload?.appIds.length ?? 0) > 0 ? <LogViewer path={`${base}/logs?tail=200`} /> : null}
+        {workload?.appIds.length === 0 ? <Alert kind="info">{translate('LogsOnlyForCatalogApps')}</Alert> : null}
       </PageContentBody>
     </PageContent>
   );

@@ -46,14 +46,18 @@ public sealed class DockerWorkloadSourceFixture : IClassFixture<DockerHost>, IDi
     [Fact]
     public async Task should_read_the_tail_then_follow_new_lines_within_two_seconds()
     {
-        await using var logs = await Subject.OpenLogsAsync(_host.Direct, _host.TalkerName, tail: 100, follow: true, TestContext.Current.CancellationToken);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        var lastTick = await LastTickAsync(timeout.Token);
+
+        await using var logs = await Subject.OpenLogsAsync(_host.Direct, _host.TalkerName, tail: 100, follow: true, timeout.Token);
         var lines = new List<LogLine>();
         var started = Stopwatch.StartNew();
 
-        await foreach (var line in logs!.ReadAsync(TestContext.Current.CancellationToken))
+        await foreach (var line in logs!.ReadAsync(timeout.Token))
         {
             lines.Add(line);
-            if (line.Text.StartsWith("tick", StringComparison.Ordinal) && line.Timestamp > DateTimeOffset.UtcNow.AddSeconds(-1))
+            if (Tick(line) > lastTick)
             {
                 break;
             }
@@ -79,5 +83,24 @@ public sealed class DockerWorkloadSourceFixture : IClassFixture<DockerHost>, IDi
         var logs = await Subject.OpenLogsAsync(_host.Direct, "portarr-no-such-container", 10, false, TestContext.Current.CancellationToken);
 
         (usage, logs).Should().Be((null, null));
+    }
+
+    /// <summary>The tick number of a talker line ("tick 12"), 0 for other lines.</summary>
+    private static int Tick(LogLine line)
+    {
+        return line.Text.StartsWith("tick ", StringComparison.Ordinal) && int.TryParse(line.Text.AsSpan(5), out var tick) ? tick : 0;
+    }
+
+    /// <summary>The last tick already written: any higher tick is a live line, not part of the tail.</summary>
+    private async Task<int> LastTickAsync(CancellationToken cancellationToken)
+    {
+        await using var logs = await Subject.OpenLogsAsync(_host.Direct, _host.TalkerName, tail: 1, follow: false, cancellationToken);
+        var last = 0;
+        await foreach (var line in logs!.ReadAsync(cancellationToken))
+        {
+            last = Math.Max(last, Tick(line));
+        }
+
+        return last;
     }
 }

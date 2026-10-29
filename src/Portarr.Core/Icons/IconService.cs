@@ -34,6 +34,10 @@ public sealed partial class IconService : IIconService
     private static readonly (string Extension, string ContentType)[] Formats =
         [("svg", "image/svg+xml"), ("png", "image/png"), ("webp", "image/webp")];
 
+    // The community set has a png for every icon: webp is only looked up in local folders.
+    private static readonly (string Extension, string ContentType)[] DownloadFormats =
+        [("svg", "image/svg+xml"), ("png", "image/png")];
+
     private readonly string _customFolder;
     private readonly string _cacheFolder;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -114,15 +118,20 @@ public sealed partial class IconService : IIconService
 
         try
         {
-            foreach (var (extension, contentType) in Formats.Take(2))
+            foreach (var (extension, contentType) in DownloadFormats)
             {
-                using var response = await client.GetAsync($"{extension}/{name}.{extension}", cancellationToken);
+                using var response = await client.GetAsync($"{extension}/{name}.{extension}", HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > MaxIconBytes)
                 {
                     continue;
                 }
 
-                var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+                var bytes = await ReadAtMostAsync(response.Content, MaxIconBytes, cancellationToken);
+                if (bytes is null)
+                {
+                    continue;
+                }
+
                 Directory.CreateDirectory(_cacheFolder);
                 var path = Path.Combine(_cacheFolder, $"{name}.{extension}");
                 var temporary = path + ".tmp";
@@ -143,6 +152,26 @@ public sealed partial class IconService : IIconService
             LogUnavailable(name, exception.Message);
             return null;
         }
+    }
+
+    /// <summary>The body, or null past <paramref name="limit"/> bytes: Content-Length may be missing (chunked) or wrong.</summary>
+    private static async Task<byte[]?> ReadAtMostAsync(HttpContent content, long limit, CancellationToken cancellationToken)
+    {
+        await using var stream = await content.ReadAsStreamAsync(cancellationToken);
+        using var body = new MemoryStream();
+        var chunk = new byte[16 * 1024];
+        int read;
+        while ((read = await stream.ReadAsync(chunk, cancellationToken)) > 0)
+        {
+            if (body.Length + read > limit)
+            {
+                return null;
+            }
+
+            body.Write(chunk, 0, read);
+        }
+
+        return body.ToArray();
     }
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Icon {Name} downloaded and cached")]

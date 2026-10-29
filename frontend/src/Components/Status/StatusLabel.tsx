@@ -26,7 +26,7 @@ interface StatusLabelProps {
   compact?: boolean;
 }
 
-export default function StatusLabel({ status, showReason = false, compact = false }: StatusLabelProps) {
+export default function StatusLabel({ status, showReason = false, compact = false }: Readonly<StatusLabelProps>) {
   const { kind, icon: Icon } = mapping[status.status];
 
   return (

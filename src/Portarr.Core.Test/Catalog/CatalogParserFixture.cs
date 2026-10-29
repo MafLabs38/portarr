@@ -118,6 +118,8 @@ public sealed class CatalogParserFixture
     [InlineData("apps:\n  - id: a\nstacks:\n  - { id: s, members: [{ app: a }] }\n  - { id: t, members: [{ app: a }] }", "belongs to several stacks")]
     [InlineData("apps:\n  - id: a\n    urls: [{ href: \"ftp://user:secret@x\" }]", "ftp://***@x")]
     [InlineData("apps:\n  - id: a\n    urls: [{ href: \"http://x.example\", scope: intranet }]", "must be public or lan")]
+    [InlineData("apps:\n  - id: a\n    urls: [{ href: \"https://admin:secret@x.example\" }]", "must not contain credentials")]
+    [InlineData("environments:\n  - id: e\n    docker: { url: \"ssh://root:secret@host\" }", "docker.url must be")]
     [InlineData("environments:\n  - { id: e, docker: { url: \"http://p:2375\" } }\napps:\n  - id: a\n    workloads: [{ runtime: docker@e, match: { name: a }, role: maybe }]", "must be critical or optional")]
     public void should_report_a_clear_error_and_return_an_empty_catalog(string yaml, string expected)
     {

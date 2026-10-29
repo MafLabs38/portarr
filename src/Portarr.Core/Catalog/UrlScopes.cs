@@ -37,7 +37,8 @@ public static class UrlScopes
 
         if (address.AddressFamily == AddressFamily.InterNetworkV6)
         {
-            return address.IsIPv6LinkLocal || address.IsIPv6UniqueLocal || (address.IsIPv4MappedToIPv6 && IsPrivate(address.MapToIPv4()));
+            // Same rules as the frontend (urlMode.ts): an IPv4-mapped address is not unwrapped.
+            return address.IsIPv6LinkLocal || address.IsIPv6UniqueLocal;
         }
 
         var bytes = address.GetAddressBytes();

@@ -39,6 +39,20 @@ public sealed class CatalogServiceFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_keep_the_last_valid_catalog_and_report_an_error_when_the_file_disappears()
+    {
+        await System.IO.File.WriteAllTextAsync(File, "apps:\n  - { id: sonarr, name: Sonarr }", TestContext.Current.CancellationToken);
+        await _subject.ReloadAsync(TestContext.Current.CancellationToken);
+
+        System.IO.File.Delete(File);
+        await _subject.ReloadAsync(TestContext.Current.CancellationToken);
+
+        _subject.Current.FileExists.Should().BeFalse();
+        _subject.Current.Catalog.Apps.Should().ContainSingle().Which.Id.Should().Be("sonarr");
+        _subject.Current.Errors.Should().ContainSingle().Which.Should().Contain("catalog.yaml is missing");
+    }
+
+    [Fact]
     public async Task should_start_empty_without_a_catalog_file()
     {
         await _subject.ReloadAsync(TestContext.Current.CancellationToken);

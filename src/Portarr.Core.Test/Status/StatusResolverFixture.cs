@@ -36,14 +36,6 @@ public sealed class StatusResolverFixture
     }
 
     [Fact]
-    public void should_only_degrade_an_app_whose_workloads_are_all_optional()
-    {
-        var job = new WorkloadSelector("server-1", "job", MemberRole.Optional);
-
-        StatusResolver.ForApp([(job, Inventory(true), Workload(WorkloadState.Exited, WorkloadHealth.None))]).Status.Should().Be(HealthStatus.Degraded);
-    }
-
-    [Fact]
     public void should_be_down_when_the_container_is_missing()
     {
         var status = StatusResolver.ForApp([(Selector, Inventory(reachable: true), null)]);
@@ -75,18 +67,18 @@ public sealed class StatusResolverFixture
         status.Status.Should().Be(HealthStatus.Down);
     }
 
-    [Fact]
-    public void should_only_degrade_the_app_when_an_optional_workload_is_down()
+    [Theory]
+    [InlineData(WorkloadState.Exited, WorkloadHealth.None, false, "Exited (1) 2 minutes ago")]
+    [InlineData(WorkloadState.Running, WorkloadHealth.Unhealthy, true, "Healthcheck failing")]
+    public void should_only_degrade_the_app_when_an_optional_workload_fails(WorkloadState state, WorkloadHealth health, bool withCriticalWorkload, string reason)
     {
         var scanner = new WorkloadSelector("server-1", "scanner", MemberRole.Optional);
+        var critical = (Selector, Inventory(true), Workload(WorkloadState.Running, WorkloadHealth.Healthy));
+        var optional = (scanner, Inventory(true), Workload(state, health));
 
-        var status = StatusResolver.ForApp(
-        [
-            (Selector, Inventory(true), Workload(WorkloadState.Running, WorkloadHealth.Healthy)),
-            (scanner, Inventory(true), Workload(WorkloadState.Running, WorkloadHealth.Unhealthy)),
-        ]);
+        var status = StatusResolver.ForApp(withCriticalWorkload ? [critical, optional] : [optional]);
 
-        status.Should().Be(new ResolvedStatus(HealthStatus.Degraded, "Healthcheck failing"));
+        status.Should().Be(new ResolvedStatus(HealthStatus.Degraded, reason));
     }
 
     [Fact]
@@ -122,7 +114,7 @@ public sealed class StatusResolverFixture
     }
 
     [Fact]
-    public void should_put_the_stack_down_only_for_a_down_critical_member_not_a_paused_one()
+    public void should_degrade_the_stack_when_a_critical_member_is_paused()
     {
         StatusResolver.ForStack([(new StackMember("sonarr", MemberRole.Critical), "Sonarr", HealthStatus.Paused)])
             .Status.Should().Be(HealthStatus.Degraded);

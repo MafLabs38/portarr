@@ -139,20 +139,26 @@ public static partial class CatalogParser
 
             foreach (var document in documents)
             {
-                if (Uri.TryCreate(document.Href, UriKind.Absolute, out var href) && href.Scheme is "http" or "https")
-                {
-                    var scope = UrlScopes.Infer(href);
-                    if (document.Scope is not null && !Enum.TryParse(document.Scope, ignoreCase: true, out scope))
-                    {
-                        _errors.Add($"App '{appId}': scope of '{Redact(document.Href)}' must be public or lan.");
-                    }
-
-                    result.Add(new AppUrl(document.Label ?? href.Host, href, scope));
-                }
-                else
+                if (!Uri.TryCreate(document.Href, UriKind.Absolute, out var href) || href.Scheme is not ("http" or "https"))
                 {
                     _errors.Add($"App '{appId}': url '{Redact(document.Href)}' must be an absolute http(s) URL.");
+                    continue;
                 }
+
+                // App URLs are served to anonymous visitors: credentials in them would leak.
+                if (href.UserInfo.Length > 0)
+                {
+                    _errors.Add($"App '{appId}': url '{Redact(document.Href)}' must not contain credentials (user:password@); every visitor would see them.");
+                    continue;
+                }
+
+                var scope = UrlScopes.Infer(href);
+                if (document.Scope is not null && !Enum.TryParse(document.Scope, ignoreCase: true, out scope))
+                {
+                    _errors.Add($"App '{appId}': scope of '{Redact(document.Href)}' must be public or lan.");
+                }
+
+                result.Add(new AppUrl(document.Label ?? href.Host, href, scope));
             }
 
             return result;
@@ -208,29 +214,7 @@ public static partial class CatalogParser
                     continue;
                 }
 
-                var members = new List<StackMember>();
-                foreach (var member in document.Members ?? [])
-                {
-                    if (member.App is not null && members.Exists(m => m.AppId == member.App))
-                    {
-                        _errors.Add($"Stack '{id}': member '{member.App}' is listed twice.");
-                        continue;
-                    }
-
-                    if (member.App is null || !appIds.Contains(member.App))
-                    {
-                        _errors.Add($"Stack '{id}': member '{member.App}' is not a declared app.");
-                        continue;
-                    }
-
-                    var role = MemberRole.Critical;
-                    if (member.Role is not null && !Enum.TryParse(member.Role, ignoreCase: true, out role))
-                    {
-                        _errors.Add($"Stack '{id}': role of '{member.App}' must be critical or optional.");
-                    }
-
-                    members.Add(new StackMember(member.App, role));
-                }
+                var members = BuildMembers(id, document.Members ?? [], appIds);
 
                 // "stack: <id>" on an app is a shorthand for a critical membership.
                 foreach (var app in appDocuments.Where(a => a.Stack == id && a.Id is not null && members.All(m => m.AppId != a.Id)))
@@ -254,6 +238,36 @@ public static partial class CatalogParser
             }
 
             return result;
+        }
+
+        private List<StackMember> BuildMembers(string stackId, List<MemberDocument> documents, HashSet<string> appIds)
+        {
+            var members = new List<StackMember>();
+
+            foreach (var member in documents)
+            {
+                if (member.App is not null && members.Exists(m => m.AppId == member.App))
+                {
+                    _errors.Add($"Stack '{stackId}': member '{member.App}' is listed twice.");
+                    continue;
+                }
+
+                if (member.App is null || !appIds.Contains(member.App))
+                {
+                    _errors.Add($"Stack '{stackId}': member '{member.App}' is not a declared app.");
+                    continue;
+                }
+
+                var role = MemberRole.Critical;
+                if (member.Role is not null && !Enum.TryParse(member.Role, ignoreCase: true, out role))
+                {
+                    _errors.Add($"Stack '{stackId}': role of '{member.App}' must be critical or optional.");
+                }
+
+                members.Add(new StackMember(member.App, role));
+            }
+
+            return members;
         }
 
         // Never echo credentials from a URL into an error message.

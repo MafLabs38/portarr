@@ -32,7 +32,7 @@ function parse(data: string): LogLine | null {
  * flushes them on resume. The server sends `end` when the container stops writing (it exited):
  * the stream is closed instead of reconnecting and replaying the tail.
  */
-export default function LogViewer({ path }: LogViewerProps) {
+export default function LogViewer({ path }: Readonly<LogViewerProps>) {
   const [rows, setRows] = useState<Row[]>([]);
   const [paused, setPaused] = useState(false);
   const [connection, setConnection] = useState<Connection>('connecting');
@@ -105,8 +105,8 @@ export default function LogViewer({ path }: LogViewerProps) {
           {translate(paused ? 'Resume' : 'Pause')}
         </button>
       </header>
-      {/* Focusable so keyboard users can scroll the log. */}
-      <div className={styles.lines} ref={linesRef} role="log" tabIndex={0}>
+      {/* Focusable so keyboard users can scroll the log (axe scrollable-region-focusable): S6845 does not apply. */}
+      <div className={styles.lines} ref={linesRef} role="log" tabIndex={0} /* NOSONAR */>
         {rows.length === 0 ? <p className={styles.placeholder}>{translate('LogsWaiting')}</p> : null}
         {rows.map((row) => (
           <div className={row.stream === 'stderr' ? styles.stderr : styles.line} data-stream={row.stream} key={row.id}>

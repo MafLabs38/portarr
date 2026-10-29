@@ -12,7 +12,7 @@ interface AppIconProps {
 }
 
 /** An app's logo, falling back to its initial when no icon is set or found (DESIGN.md §4.2). */
-export default function AppIcon({ name, icon, size }: AppIconProps) {
+export default function AppIcon({ name, icon, size }: Readonly<AppIconProps>) {
   const [failed, setFailed] = useState(false);
   const style = { width: size, height: size };
 

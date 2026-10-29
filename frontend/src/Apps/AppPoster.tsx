@@ -16,9 +16,9 @@ interface AppPosterProps {
  * A launcher tile (F-CAT-01): a web app opens its URL for the current network (D-46); desktop apps
  * and services are not launchable. The frame color is the app status (D-45).
  */
-export default function AppPoster({ app }: AppPosterProps) {
+export default function AppPoster({ app }: Readonly<AppPosterProps>) {
   const mode = useUrlModeStore((state) => state.mode);
-  const mainUrl = pickUrl(app.urls, resolveScope(mode, window.location.hostname));
+  const mainUrl = pickUrl(app.urls, resolveScope(mode, globalThis.location.hostname));
   const otherUrls = app.urls.filter((url) => url !== mainUrl);
   const TypeIcon = app.type === 'desktop' ? icons.DESKTOP : icons.SERVICE;
 
@@ -42,12 +42,12 @@ export default function AppPoster({ app }: AppPosterProps) {
       ) : (
         <div className={styles.launch}>
           {body}
-          {app.type !== 'web' ? (
+          {app.type === 'web' ? null : (
             <span className={styles.type}>
               <TypeIcon aria-hidden="true" size={12} />
               {translate(app.type === 'desktop' ? 'AppTypeDesktop' : 'AppTypeService')}
             </span>
-          ) : null}
+          )}
         </div>
       )}
       <WorkloadSummary workloads={app.workloads} />

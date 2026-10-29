@@ -1,4 +1,4 @@
-import { isLanHost, pickUrl, resolveScope } from 'Apps/urlMode';
+import { isLanHost, pickUrl, resolveScope, useUrlModeStore } from 'Apps/urlMode';
 import type { AppUrl } from 'typings/App';
 
 const publicUrl: AppUrl = { label: 'Public', href: 'https://app.homelab.example/', scope: 'public', derived: false };
@@ -33,5 +33,15 @@ describe('urlMode', () => {
     expect(pickUrl([publicUrl, lanUrl], 'lan')).toBe(lanUrl);
     expect(pickUrl([lanUrl], 'public')).toBe(lanUrl);
     expect(pickUrl([], 'public')).toBeUndefined();
+  });
+
+  it('restores the chosen mode from the browser storage', async () => {
+    localStorage.setItem('portarr.apps.urlMode', JSON.stringify({ state: { mode: 'lan' }, version: 0 }));
+
+    await useUrlModeStore.persist.rehydrate();
+
+    expect(useUrlModeStore.getState().mode).toBe('lan');
+    localStorage.clear();
+    useUrlModeStore.setState({ mode: 'auto' });
   });
 });

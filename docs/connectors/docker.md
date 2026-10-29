@@ -22,6 +22,8 @@ services:
 
 > **What `CONTAINERS=1` gives away**: every GET under `/containers`, including `inspect` (environment variables, so secrets), logs and container file exports. Treat port 2375 as sensitive as the secrets of every container on the host: bind it to one interface and allow only Portarr's host (firewall rule, or a private Docker network shared with Portarr so nothing is published at all). Pin the proxy image by digest in production.
 
+> **Until authentication exists (C2)**: `GET /api/v1/workloads` lists every container of every environment (names, images, state) to anyone who can reach Portarr. Do not expose Portarr directly: put it behind your reverse proxy's authentication (forward auth, OIDC, basic auth) or keep it on a private network meanwhile.
+
 Then declare the environment in the catalog:
 
 ```yaml
@@ -31,7 +33,7 @@ environments:
 
 ## Local Docker
 
-When Portarr runs on the Docker host itself, mount the socket read-only and use `unix:///var/run/docker.sock`. Prefer the proxy in production: the socket gives full control of the host.
+When Portarr runs on the Docker host itself, it can use `unix:///var/run/docker.sock` directly, but avoid it outside a disposable test setup: mounting the socket with `:ro` does not restrict the Docker API. Whoever holds the socket can start a privileged container, so a direct mount gives root-equivalent access to the host. Run the socket proxy next to Portarr instead (`docker: { url: "http://socket-proxy:2375" }` on a private Docker network).
 
 ## What it provides
 

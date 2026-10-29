@@ -22,22 +22,61 @@ public sealed class WorkloadInventoryFixture
         _subject = new WorkloadInventory(catalog, [_source], _clock, NullLogger<WorkloadInventory>.Instance);
     }
 
+    public static TheoryData<Exception, string> Failures => new()
+    {
+        { new HttpRequestException("Connection refused"), "unreachable" },
+        { new TaskCanceledException(), "timeout" },
+        { new System.Text.Json.JsonException(), "invalid-response" },
+    };
+
     [Theory]
-    [InlineData(typeof(HttpRequestException), "unreachable")]
-    [InlineData(typeof(TaskCanceledException), "timeout")]
-    [InlineData(typeof(System.Text.Json.JsonException), "invalid-response")]
-    public async Task should_keep_the_last_known_workloads_when_an_environment_fails(Type failure, string reason)
+    [MemberData(nameof(Failures), DisableDiscoveryEnumeration = true)]
+    public async Task should_keep_the_last_known_workloads_when_an_environment_fails(Exception failure, string reason)
     {
         _source.ListAsync(Server, Arg.Any<CancellationToken>()).Returns([Sonarr]);
         await _subject.RefreshAsync(TestContext.Current.CancellationToken);
         var lastSeen = _clock.GetUtcNow();
 
         _clock.Advance(TimeSpan.FromMinutes(1));
-        _source.ListAsync(Server, Arg.Any<CancellationToken>()).Returns<IReadOnlyList<Workload>>(_ => throw (Exception)Activator.CreateInstance(failure)!);
+        _source.ListAsync(Server, Arg.Any<CancellationToken>()).Returns<IReadOnlyList<Workload>>(_ => throw failure);
         await _subject.RefreshAsync(TestContext.Current.CancellationToken);
 
-        _subject.Current["server-1"].Should().Be(new EnvironmentInventory("server-1", false, reason, [Sonarr], lastSeen) with { Workloads = _subject.Current["server-1"].Workloads });
-        _subject.Current["server-1"].Workloads.Should().Equal(Sonarr);
+        var current = _subject.Current["server-1"];
+        current.Reachable.Should().BeFalse();
+        current.Error.Should().Be(reason);
+        current.Workloads.Should().Equal(Sonarr);
+        current.RefreshedAt.Should().Be(lastSeen);
+    }
+
+    [Fact]
+    public async Task should_be_reachable_again_without_error_when_an_environment_recovers()
+    {
+        _source.ListAsync(Server, Arg.Any<CancellationToken>()).Returns<IReadOnlyList<Workload>>(_ => throw new HttpRequestException("Connection refused"));
+        await _subject.RefreshAsync(TestContext.Current.CancellationToken);
+
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        _source.ListAsync(Server, Arg.Any<CancellationToken>()).Returns([Sonarr]);
+        await _subject.RefreshAsync(TestContext.Current.CancellationToken);
+
+        var current = _subject.Current["server-1"];
+        current.Reachable.Should().BeTrue();
+        current.Error.Should().BeNull();
+        current.Workloads.Should().Equal(Sonarr);
+        current.RefreshedAt.Should().Be(_clock.GetUtcNow());
+    }
+
+    [Fact]
+    public async Task should_propagate_caller_cancellation_instead_of_recording_a_timeout()
+    {
+        using var caller = new CancellationTokenSource();
+        _source.ListAsync(Server, Arg.Any<CancellationToken>()).Returns<IReadOnlyList<Workload>>(_ =>
+        {
+            caller.Cancel();
+            throw new TaskCanceledException();
+        });
+
+        await FluentActions.Awaiting(() => _subject.RefreshAsync(caller.Token)).Should().ThrowAsync<OperationCanceledException>();
+        _subject.Current.Should().BeEmpty();
     }
 
     [Fact]

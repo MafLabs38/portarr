@@ -35,7 +35,7 @@ describe('WorkloadSummary', () => {
     expect(screen.getByTitle(/scanner: Up 1 hour \(unhealthy\)/)).toBeInTheDocument();
   });
 
-  it('reports starting healthchecks before calling the app healthy', () => {
+  it('reports starting healthchecks of several containers before calling the app healthy', () => {
     render(
       <WorkloadSummary workloads={[workload('a', { health: 'healthy' }), workload('b', { health: 'starting' })]} />,
     );
@@ -49,7 +49,7 @@ describe('WorkloadSummary', () => {
     expect(screen.getByText('Not found')).toBeInTheDocument();
   });
 
-  it('shows a starting healthcheck', () => {
+  it('shows the starting healthcheck of a single container on its own line', () => {
     render(
       <WorkloadSummary
         workloads={[workload('db', { health: 'starting', statusText: 'Up 5 seconds (health: starting)' })]}

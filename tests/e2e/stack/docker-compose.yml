@@ -1,6 +1,7 @@
 # End-to-end stack: the Portarr image built from this repository, reading the host's Docker
-# through a read-only socket proxy, with a sample web container. The failing container
-# (e2e-broken) is started by CI before this stack; if it is missing, its app is Down anyway.
+# through the socket proxy (GET only), with a sample web container and a failing one.
+# The socket is mounted into the proxy only: `:ro` does not restrict the Docker API, a direct
+# mount would give Portarr root-equivalent access to the host.
 name: portarr-e2e
 
 services:
@@ -17,6 +18,13 @@ services:
     container_name: e2e-web
     ports:
       - '8080:80'
+
+  # Exits with code 1 once, for the Down/Degraded statuses and the stderr logs.
+  broken:
+    image: alpine:3.20
+    container_name: e2e-broken
+    command: ['sh', '-c', 'echo starting; echo fatal error >&2; exit 1']
+    restart: 'no'
 
   portarr:
     build:

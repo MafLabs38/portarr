@@ -6,6 +6,6 @@ interface PageContentBodyProps {
   children: ReactNode;
 }
 
-export default function PageContentBody({ children }: PageContentBodyProps) {
+export default function PageContentBody({ children }: Readonly<PageContentBodyProps>) {
   return <div className={styles.body}>{children}</div>;
 }

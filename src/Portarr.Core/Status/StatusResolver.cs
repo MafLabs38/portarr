@@ -87,7 +87,7 @@ public static class StatusResolver
         }
 
         // Only unknown members: we cannot claim it is degraded.
-        if (notHealthy.TrueForAll(m => m.Status == HealthStatus.Unknown) && notHealthy.Count == members.Count)
+        if (members.All(m => m.Status == HealthStatus.Unknown))
         {
             return new(HealthStatus.Unknown, "No data yet");
         }

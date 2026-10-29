@@ -6,6 +6,6 @@ interface DescriptionListProps {
   children: ReactNode;
 }
 
-export default function DescriptionList({ children }: DescriptionListProps) {
+export default function DescriptionList({ children }: Readonly<DescriptionListProps>) {
   return <dl className={styles.list}>{children}</dl>;
 }

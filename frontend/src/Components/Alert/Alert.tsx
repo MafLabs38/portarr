@@ -9,7 +9,7 @@ interface AlertProps {
   children: ReactNode;
 }
 
-export default function Alert({ kind, children }: AlertProps) {
+export default function Alert({ kind, children }: Readonly<AlertProps>) {
   return (
     <div className={`${styles.alert} ${styles[kind]}`} role={kind === 'info' ? 'status' : 'alert'}>
       {children}

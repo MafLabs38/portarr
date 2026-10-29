@@ -12,6 +12,14 @@ public sealed class DockerHttpClientFactory : IDisposable
     /// <summary>Caps connections to one Docker host: live log streams cannot exhaust it.</summary>
     public const int MaxConnections = 32;
 
+    /// <summary>Docker's default plain-TCP port, for tcp:// endpoints without one.</summary>
+    private const int DefaultTcpPort = 2375;
+
+    /// <summary>
+    /// Base address of Unix socket clients: the host name is ignored on a Unix socket, but HTTP needs one.
+    /// </summary>
+    private const string UnixSocketBaseAddress = "http://docker/";
+
     private readonly Dictionary<Uri, HttpClient> _clients = [];
     private readonly Lock _lock = new();
 
@@ -31,9 +39,14 @@ public sealed class DockerHttpClientFactory : IDisposable
 
     public void Dispose()
     {
-        foreach (var client in _clients.Values)
+        lock (_lock)
         {
-            client.Dispose();
+            foreach (var client in _clients.Values)
+            {
+                client.Dispose();
+            }
+
+            _clients.Clear();
         }
     }
 
@@ -61,14 +74,13 @@ public sealed class DockerHttpClientFactory : IDisposable
                 },
             };
 
-            // The host name is ignored on a Unix socket, but HTTP needs one.
-            return new HttpClient(handler) { BaseAddress = new Uri("http://docker/"), Timeout = Timeout.InfiniteTimeSpan };
+            return new HttpClient(handler) { BaseAddress = new Uri(UnixSocketBaseAddress), Timeout = Timeout.InfiniteTimeSpan };
         }
 
         var builder = new UriBuilder(url) { Scheme = url.Scheme == "tcp" ? "http" : url.Scheme, Path = "/" };
         if (url.Scheme == "tcp" && url.IsDefaultPort)
         {
-            builder.Port = 2375;
+            builder.Port = DefaultTcpPort;
         }
 
         var tcpHandler = new SocketsHttpHandler { MaxConnectionsPerServer = MaxConnections };

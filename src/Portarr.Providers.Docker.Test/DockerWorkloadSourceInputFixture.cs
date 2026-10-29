@@ -26,7 +26,6 @@ public sealed class DockerWorkloadSourceInputFixture : IDisposable
     [Theory]
     [InlineData("tcp://socket-proxy", "http://socket-proxy:2375/")]
     [InlineData("tcp://socket-proxy:2376", "http://socket-proxy:2376/")]
-    [InlineData("http://socket-proxy:2375", "http://socket-proxy:2375/")]
     [InlineData("unix:///var/run/docker.sock", "http://docker/")]
     public void should_target_the_endpoint_of_each_scheme(string endpoint, string expected)
     {

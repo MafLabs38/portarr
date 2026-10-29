@@ -9,7 +9,7 @@ interface PageToolbarProps {
   right?: ReactNode;
 }
 
-export default function PageToolbar({ left, right }: PageToolbarProps) {
+export default function PageToolbar({ left, right }: Readonly<PageToolbarProps>) {
   return (
     <div className={styles.toolbar} role="toolbar">
       <div className={styles.section}>{left}</div>

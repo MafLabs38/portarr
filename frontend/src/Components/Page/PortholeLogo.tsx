@@ -3,7 +3,7 @@ interface PortholeLogoProps {
 }
 
 /** The Portarr porthole (DESIGN.md §6.2). Decorative: the product name is always next to it. */
-export default function PortholeLogo({ size }: PortholeLogoProps) {
+export default function PortholeLogo({ size }: Readonly<PortholeLogoProps>) {
   return (
     <svg aria-hidden="true" height={size} viewBox="0 0 32 32" width={size}>
       <circle cx="16" cy="16" fill="var(--accent)" r="15" />

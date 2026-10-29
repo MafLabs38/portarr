@@ -29,6 +29,7 @@ var app = builder.Build();
 app.Services.GetRequiredService<IMigrationController>().Migrate();
 await app.Services.GetRequiredService<ILogLevelService>().RestoreAsync();
 
+app.UsePortarrForwardedHeaders();
 app.UsePortarrRequestLogging();
 app.UseExceptionHandler();
 app.UsePortarrSecurityHeaders();

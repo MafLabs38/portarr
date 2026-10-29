@@ -1,6 +1,9 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
+// The e2e-web container as the browser reaches it; must match its URL in stack/catalog.yaml.
+const webUrl = new URL(process.env.E2E_WEB_URL ?? 'http://localhost:8080');
+
 test.describe('Launcher and workloads', { tag: '@smoke' }, () => {
   test('apps are grouped by stack with container state and healthcheck', async ({ page }) => {
     await page.goto('/');
@@ -10,10 +13,10 @@ test.describe('Launcher and workloads', { tag: '@smoke' }, () => {
     const web = demo.getByRole('article', { name: 'Web' });
     await expect(web.getByText(/^Up /)).toBeVisible({ timeout: 15_000 });
     await expect(web.getByText('no healthcheck')).toBeVisible();
-    // CI creates e2e-broken, which exits with code 1.
+    // e2e-broken (stack/docker-compose.yml) exits with code 1.
     await expect(demo.getByRole('article', { name: 'Broken job' }).getByText(/^Exited \(1\)/)).toBeVisible();
     await expect(demo.getByText('Degraded', { exact: true })).toBeVisible();
-    await expect(demo.getByRole('link', { name: 'Web' })).toHaveAttribute('href', 'http://localhost:8080/');
+    await expect(demo.getByRole('link', { name: 'Web' })).toHaveAttribute('href', webUrl.href);
   });
 
   test('a container page follows new log lines live', async ({ page, request }) => {
@@ -26,7 +29,7 @@ test.describe('Launcher and workloads', { tag: '@smoke' }, () => {
 
     // Sent once the stream is open: the line can only arrive through live follow, not the tail.
     const probe = `portarr-e2e-probe-${Date.now()}`;
-    expect((await request.get(`http://localhost:8080/${probe}`)).status()).toBe(404);
+    expect((await request.get(new URL(probe, webUrl).href)).status()).toBe(404);
     await expect(page.getByRole('log')).toContainText(probe, { timeout: 5_000 });
   });
 

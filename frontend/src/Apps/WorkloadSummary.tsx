@@ -27,6 +27,12 @@ function stateTone(workload: AppWorkload): Tone {
   return workload.state === 'running' ? 'ok' : 'muted';
 }
 
+// One line of the tile tooltip: "web: Up 3 hours (healthy)".
+function describe(workload: AppWorkload): string {
+  const health = workload.health && workload.health !== 'none' ? ` (${workload.health})` : '';
+  return `${workload.name}: ${stateText(workload)}${health}`;
+}
+
 const healthTone: Record<string, Tone> = { healthy: 'ok', unhealthy: 'bad', starting: 'warn', none: 'muted' };
 
 interface LineProps {
@@ -38,7 +44,7 @@ interface LineProps {
 }
 
 // Icon instead of a text label, so the value keeps the tile's width; the label stays accessible.
-function Line({ icon: Icon, label, value, tone, title }: LineProps) {
+function Line({ icon: Icon, label, value, tone, title }: Readonly<LineProps>) {
   return (
     <div className={`${styles.line} ${styles[tone]}`} title={title ?? `${label}: ${value}`}>
       <Icon aria-label={label} role="img" size={13} strokeWidth={2.5} />
@@ -67,7 +73,7 @@ function healthSummary(workloads: AppWorkload[]): { tone: Tone; value: string } 
 }
 
 /** Container state and healthcheck, like Portainer (D-45); several workloads are counted. */
-export default function WorkloadSummary({ workloads }: WorkloadSummaryProps) {
+export default function WorkloadSummary({ workloads }: Readonly<WorkloadSummaryProps>) {
   if (workloads.length === 0) {
     return null;
   }
@@ -98,9 +104,7 @@ export default function WorkloadSummary({ workloads }: WorkloadSummaryProps) {
 
   const up = workloads.filter((w) => stateTone(w) === 'ok').length;
   const health = healthSummary(workloads);
-  const details = workloads
-    .map((w) => `${w.name}: ${stateText(w)}${w.health && w.health !== 'none' ? ` (${w.health})` : ''}`)
-    .join('\n');
+  const details = workloads.map(describe).join('\n');
 
   return (
     <div className={styles.summary} title={details}>

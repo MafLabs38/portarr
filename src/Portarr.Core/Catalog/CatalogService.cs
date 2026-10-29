@@ -16,8 +16,9 @@ public interface ICatalogService
 }
 
 /// <summary>
-/// Keeps catalog.yaml in memory and reloads it when the file changes. A broken edit keeps the
-/// last valid catalog and reports the errors, so a typo never empties the portal.
+/// Keeps catalog.yaml in memory and reloads it when the file changes. A broken edit, or a file
+/// that disappears after a successful load, keeps the last valid catalog and reports the errors,
+/// so a typo or a bad volume mount never empties the portal.
 /// </summary>
 public sealed partial class CatalogService : ICatalogService, IHostedService, IDisposable
 {
@@ -29,16 +30,23 @@ public sealed partial class CatalogService : ICatalogService, IHostedService, ID
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
     private FileSystemWatcher? _watcher;
     private CancellationTokenSource? _pendingReload;
+    private volatile CatalogState _current;
+    private bool _loaded;
 
     public CatalogService(IOptions<PortarrOptions> options, TimeProvider timeProvider, ILogger<CatalogService> logger)
     {
         _filePath = Path.GetFullPath(options.Value.EffectiveCatalogFile);
         _timeProvider = timeProvider;
         _logger = logger;
-        Current = new CatalogState(Catalog.Empty, _filePath, false, [], null);
+        _current = new CatalogState(Catalog.Empty, _filePath, false, [], null);
     }
 
-    public CatalogState Current { get; private set; }
+    // Read by request threads while a reload replaces it: always a whole, published state.
+    public CatalogState Current
+    {
+        get => _current;
+        private set => _current = value;
+    }
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -71,8 +79,7 @@ public sealed partial class CatalogService : ICatalogService, IHostedService, ID
         {
             if (!File.Exists(_filePath))
             {
-                Current = new CatalogState(Catalog.Empty, _filePath, false, [], _timeProvider.GetUtcNow());
-                LogMissing(_filePath);
+                ReportMissing();
                 return;
             }
 
@@ -88,6 +95,7 @@ public sealed partial class CatalogService : ICatalogService, IHostedService, ID
 
             if (result.IsValid)
             {
+                _loaded = true;
                 LogLoaded(result.Catalog.Apps.Count, result.Catalog.Stacks.Count, result.Catalog.Environments.Count);
             }
             else
@@ -119,6 +127,24 @@ public sealed partial class CatalogService : ICatalogService, IHostedService, ID
         _reloadLock.Dispose();
     }
 
+    private void ReportMissing()
+    {
+        if (!_loaded)
+        {
+            Current = new CatalogState(Catalog.Empty, _filePath, false, [], _timeProvider.GetUtcNow());
+            LogMissing(_filePath);
+            return;
+        }
+
+        Current = Current with
+        {
+            FileExists = false,
+            Errors = [$"{Path.GetFileName(_filePath)} is missing: keeping the last valid catalog."],
+            LoadedAt = _timeProvider.GetUtcNow(),
+        };
+        LogMissingKept(_filePath);
+    }
+
     private void ScheduleReload()
     {
         // Editors write files in several steps: wait for the burst of events to settle.
@@ -141,6 +167,9 @@ public sealed partial class CatalogService : ICatalogService, IHostedService, ID
 
     [LoggerMessage(Level = LogLevel.Information, Message = "No catalog at {Path}: Portarr starts empty")]
     private partial void LogMissing(string path);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Catalog {Path} disappeared, keeping the previous version")]
+    private partial void LogMissingKept(string path);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Catalog reload failed")]
     private partial void LogReloadFailed(Exception exception);

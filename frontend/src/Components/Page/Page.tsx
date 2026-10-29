@@ -8,7 +8,7 @@ interface PageProps {
   children: ReactNode;
 }
 
-export default function Page({ children }: PageProps) {
+export default function Page({ children }: Readonly<PageProps>) {
   return (
     <div className={styles.page}>
       <PageHeader />

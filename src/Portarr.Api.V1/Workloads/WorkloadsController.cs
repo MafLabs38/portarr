@@ -15,6 +15,9 @@ namespace Portarr.Api.V1.Workloads;
 [Route("api/v1")]
 public sealed class WorkloadsController : ControllerBase
 {
+    /// <summary>Largest log tail a client can ask for; bigger values are clamped.</summary>
+    public const int MaxLogTail = 5000;
+
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     private readonly ICatalogService _catalogService;
@@ -88,12 +91,21 @@ public sealed class WorkloadsController : ControllerBase
             return NotFound();
         }
 
-        var usage = await source.GetUsageAsync(environment, name, cancellationToken);
+        WorkloadUsage? usage;
+        try
+        {
+            usage = await source.GetUsageAsync(environment, name, cancellationToken);
+        }
+        catch (Exception exception) when (IsConnectorFailure(exception, cancellationToken))
+        {
+            return StatusCode(StatusCodes.Status502BadGateway);
+        }
+
         return usage is null ? NotFound() : new WorkloadUsageResource(usage.CpuCores, usage.MemoryBytes, usage.MemoryLimitBytes);
     }
 
     /// <summary>
-    /// Server-sent events: the last <paramref name="tail"/> lines, then new lines live; an
+    /// Server-sent events: the last <paramref name="tail"/> lines (0 to <see cref="MaxLogTail"/>), then new lines live; an
     /// <c>end</c> event when the workload stops writing (e.g. it exited), so clients do not reconnect
     /// and replay the tail. The stream is opened before any byte is sent: failures are plain
     /// 404/502 responses.
@@ -112,9 +124,9 @@ public sealed class WorkloadsController : ControllerBase
         ILogStream? logs;
         try
         {
-            logs = await source.OpenLogsAsync(environment, name, tail, follow: true, cancellationToken);
+            logs = await source.OpenLogsAsync(environment, name, Math.Clamp(tail, 0, MaxLogTail), follow: true, cancellationToken);
         }
-        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+        catch (Exception exception) when (IsConnectorFailure(exception, cancellationToken))
         {
             Response.StatusCode = StatusCodes.Status502BadGateway;
             return;
@@ -148,8 +160,26 @@ public sealed class WorkloadsController : ControllerBase
             }
             catch (Exception exception) when (exception is HttpRequestException or IOException)
             {
-                await Response.WriteAsync("event: error\ndata: {}\n\n", CancellationToken.None);
+                await TryWriteErrorEventAsync();
             }
+        }
+    }
+
+    /// <summary>The connector failed or timed out, as opposed to the caller giving up.</summary>
+    private static bool IsConnectorFailure(Exception exception, CancellationToken cancellationToken)
+    {
+        return exception is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested;
+    }
+
+    private async Task TryWriteErrorEventAsync()
+    {
+        try
+        {
+            await Response.WriteAsync("event: error\ndata: {}\n\n", CancellationToken.None);
+        }
+        catch (Exception exception) when (exception is IOException or OperationCanceledException or ObjectDisposedException)
+        {
+            // The client is gone too: nobody to tell.
         }
     }
 

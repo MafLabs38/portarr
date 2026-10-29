@@ -9,13 +9,15 @@ public sealed class FleetServiceFixture : CoreTest<FleetService>
 {
     private static readonly CatalogEnvironment Server = new("server-1", "Server 1", new DockerEndpoint(new Uri("http://proxy:2375")), "10.0.0.10");
 
-    [Fact]
-    public void should_derive_a_lan_url_from_the_address_and_the_first_published_tcp_port()
+    [Theory]
+    [InlineData("10.0.0.10", "http://10.0.0.10:8096")]
+    [InlineData("fd00::10", "http://[fd00::10]:8096")]
+    public void should_derive_a_lan_url_from_the_address_and_the_first_published_tcp_port(string address, string expected)
     {
-        Given(App("jellyfin", "jellyfin"), Container("jellyfin", new PublishedPort(1900, 1900, "udp"), new PublishedPort(8096, 8096, "tcp")));
+        Given(App("jellyfin", "jellyfin"), Container("jellyfin", new PublishedPort(1900, 1900, "udp"), new PublishedPort(8096, 8096, "tcp")), Server with { Address = address });
 
         Subject.GetApps().Single().Urls.Should().ContainSingle()
-            .Which.Should().Be(new AppUrlView("LAN", new Uri("http://10.0.0.10:8096"), UrlScope.Lan, true));
+            .Which.Should().Be(new AppUrlView("LAN", new Uri(expected), UrlScope.Lan, true));
     }
 
     [Fact]

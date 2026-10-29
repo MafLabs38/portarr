@@ -94,6 +94,19 @@ public sealed class IconServiceFixture : IDisposable
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task should_not_cache_an_icon_bigger_than_the_limit(bool withoutContentLength)
+    {
+        _cdn.Files["svg/jellyfin.svg"] = new string('x', (int)IconService.MaxIconBytes + 1);
+        _cdn.Chunked = withoutContentLength;
+
+        (await Get("jellyfin")).Should().BeNull();
+        var cache = Path.Combine(_folder, "cache", "icons");
+        (Directory.Exists(cache) ? Directory.GetFiles(cache) : []).Should().BeEmpty();
+    }
+
+    [Theory]
     [InlineData("unused-by-the-catalog")]
     [InlineData("../etc/passwd")]
     [InlineData("a/b")]
@@ -120,6 +133,9 @@ public sealed class IconServiceFixture : IDisposable
 
         public bool Offline { get; set; }
 
+        /// <summary>Bodies without Content-Length, as a chunked response.</summary>
+        public bool Chunked { get; set; }
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var path = request.RequestUri!.AbsolutePath.TrimStart('/');
@@ -129,9 +145,27 @@ public sealed class IconServiceFixture : IDisposable
                 throw new HttpRequestException("Network unreachable");
             }
 
-            return Task.FromResult(Files.TryGetValue(path, out var content)
-                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(content) }
-                : new HttpResponseMessage(HttpStatusCode.NotFound));
+            if (!Files.TryGetValue(path, out var content))
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            }
+
+            HttpContent body = Chunked ? new ChunkedContent(content) : new StringContent(content);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = body });
+        }
+    }
+
+    private sealed class ChunkedContent(string content) : HttpContent
+    {
+        protected override Task SerializeToStreamAsync(Stream stream, System.Net.TransportContext? context)
+        {
+            return stream.WriteAsync(System.Text.Encoding.UTF8.GetBytes(content)).AsTask();
+        }
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return false;
         }
     }
 }

@@ -22,9 +22,7 @@ export default function WorkloadsIndex() {
 
         {workloads.isError ? <Alert kind="danger">{translate('ErrorLoadingWorkloads')}</Alert> : null}
 
-        {environments.data && environments.data.length === 0 ? (
-          <p className={styles.empty}>{translate('WorkloadsEmptyHint')}</p>
-        ) : null}
+        {environments.data?.length === 0 ? <p className={styles.empty}>{translate('WorkloadsEmptyHint')}</p> : null}
 
         {(environments.data ?? []).map((environment) => {
           const rows = (workloads.data ?? []).filter((w) => w.environmentId === environment.id);

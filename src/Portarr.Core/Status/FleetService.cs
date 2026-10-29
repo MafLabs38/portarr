@@ -36,6 +36,8 @@ public interface IFleetService
 /// <summary>The declared catalog joined with the discovered inventory, with statuses resolved.</summary>
 public sealed class FleetService : IFleetService
 {
+    private const string TcpProtocol = "tcp";
+
     private readonly ICatalogService _catalogService;
     private readonly IWorkloadInventory _inventory;
 
@@ -100,10 +102,12 @@ public sealed class FleetService : IFleetService
             .OrderBy(w => w.Role)
             .Select(w => (Workload: w.Workload, Address: catalog.Environments.FirstOrDefault(e => e.Id == w.EnvironmentId)?.Address))
             .Where(w => w.Workload is not null && w.Address is not null)
-            .Select(w => (w.Address, Port: w.Workload!.PublishedPorts.FirstOrDefault(p => p.Protocol == "tcp")))
+            .Select(w => (w.Address, Port: w.Workload!.PublishedPorts.FirstOrDefault(p => p.Protocol == TcpProtocol)))
             .FirstOrDefault(w => w.Port is not null);
 
-        if (derived.Port is not null && Uri.TryCreate($"http://{derived.Address}:{derived.Port.PublicPort}", UriKind.Absolute, out var href))
+        // UriBuilder puts an IPv6 address in brackets.
+        if (derived.Port is not null
+            && Uri.TryCreate(new UriBuilder(Uri.UriSchemeHttp, derived.Address, derived.Port.PublicPort).ToString(), UriKind.Absolute, out var href))
         {
             urls.Add(new AppUrlView("LAN", href, UrlScope.Lan, true));
         }

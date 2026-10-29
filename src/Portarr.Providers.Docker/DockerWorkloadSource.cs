@@ -26,7 +26,7 @@ public sealed partial class DockerWorkloadSource : IWorkloadSource
 
     public async Task<IReadOnlyList<Workload>> ListAsync(CatalogEnvironment environment, CancellationToken cancellationToken)
     {
-        using var timeout = Timeout(cancellationToken, TimeSpan.FromSeconds(10));
+        using var timeout = Timeout(TimeSpan.FromSeconds(10), cancellationToken);
         var containers = await Client(environment).GetFromJsonAsync("containers/json?all=true", DockerJsonContext.Default.ListContainerSummary, timeout.Token);
 
         return (containers ?? []).Select(container => DockerMapper.ToWorkload(environment.Id, container)).ToList();
@@ -35,7 +35,7 @@ public sealed partial class DockerWorkloadSource : IWorkloadSource
     public async Task<WorkloadUsage?> GetUsageAsync(CatalogEnvironment environment, string workloadName, CancellationToken cancellationToken)
     {
         // stream=false waits for two samples (about a second) so the CPU delta is meaningful.
-        using var timeout = Timeout(cancellationToken, TimeSpan.FromSeconds(10));
+        using var timeout = Timeout(TimeSpan.FromSeconds(10), cancellationToken);
         using var response = await Client(environment).GetAsync($"containers/{ValidName(workloadName)}/stats?stream=false", timeout.Token);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
@@ -54,7 +54,7 @@ public sealed partial class DockerWorkloadSource : IWorkloadSource
         var client = Client(environment);
 
         // Inspect and the response headers must come quickly; only the body may stay open.
-        using var opening = Timeout(cancellationToken, TimeSpan.FromSeconds(10));
+        using var opening = Timeout(TimeSpan.FromSeconds(10), cancellationToken);
         using var inspectResponse = await client.GetAsync($"containers/{name}/json", opening.Token);
         if (inspectResponse.StatusCode == HttpStatusCode.NotFound)
         {
@@ -105,7 +105,7 @@ public sealed partial class DockerWorkloadSource : IWorkloadSource
         }
     }
 
-    private static CancellationTokenSource Timeout(CancellationToken cancellationToken, TimeSpan timeout)
+    private static CancellationTokenSource Timeout(TimeSpan timeout, CancellationToken cancellationToken)
     {
         var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         source.CancelAfter(timeout);

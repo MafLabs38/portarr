@@ -9,7 +9,7 @@ interface DescriptionListItemProps {
   monospace?: boolean;
 }
 
-export default function DescriptionListItem({ title, data, monospace = false }: DescriptionListItemProps) {
+export default function DescriptionListItem({ title, data, monospace = false }: Readonly<DescriptionListItemProps>) {
   return (
     <>
       <dt className={styles.title}>{title}</dt>

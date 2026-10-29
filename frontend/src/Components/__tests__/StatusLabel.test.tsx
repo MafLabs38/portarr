@@ -7,6 +7,7 @@ describe('StatusLabel', () => {
     render(<StatusLabel status={{ status: 'Down', reason: 'Exited (1)' }} />);
 
     expect(screen.getByTitle('Exited (1)')).toHaveTextContent('Down');
+    expect(screen.getByText('Down')).not.toHaveClass('visuallyHidden');
   });
 
   it('can show the reason next to the status', () => {
@@ -15,9 +16,9 @@ describe('StatusLabel', () => {
     expect(screen.getByText('· Recyclarr not healthy')).toBeInTheDocument();
   });
 
-  it('keeps the status text for assistive technologies when compact', () => {
+  it('shows only the icon when compact, the status text staying for assistive technologies', () => {
     render(<StatusLabel compact status={{ status: 'Healthy', reason: 'Running' }} />);
 
-    expect(screen.getByTitle('Running')).toHaveTextContent('Healthy');
+    expect(screen.getByText('Healthy')).toHaveClass('visuallyHidden');
   });
 });

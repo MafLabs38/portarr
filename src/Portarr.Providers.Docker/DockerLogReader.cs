@@ -22,38 +22,13 @@ internal static class DockerLogReader
     public static async IAsyncEnumerable<LogLine> ReadAsync(Stream stream, bool tty, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var lines = new Dictionary<LogStream, LineSplitter> { [LogStream.Stdout] = new(), [LogStream.Stderr] = new() };
+        var chunks = tty ? ReadRawAsync(stream, cancellationToken) : ReadFramesAsync(stream, cancellationToken);
 
-        if (tty)
+        await foreach (var (logStream, chunk) in chunks)
         {
-            var buffer = new byte[8192];
-            int read;
-            while ((read = await stream.ReadAsync(buffer, cancellationToken)) > 0)
+            foreach (var line in lines[logStream].Push(chunk.Span))
             {
-                foreach (var line in lines[LogStream.Stdout].Push(buffer.AsSpan(0, read)))
-                {
-                    yield return DockerMapper.ParseLogLine(LogStream.Stdout, line.Text) with { Truncated = line.Truncated };
-                }
-            }
-        }
-        else
-        {
-            var header = new byte[HeaderSize];
-            while (await stream.ReadAtLeastAsync(header, HeaderSize, throwOnEndOfStream: false, cancellationToken) == HeaderSize)
-            {
-                var logStream = header[0] == 2 ? LogStream.Stderr : LogStream.Stdout;
-                var size = BinaryPrimitives.ReadInt32BigEndian(header.AsSpan(4));
-                if (size is < 0 or > MaxFrameSize)
-                {
-                    // Not the Docker framing (or a corrupted stream): stop rather than allocate it.
-                    yield break;
-                }
-
-                var payload = new byte[size];
-                await stream.ReadExactlyAsync(payload, cancellationToken);
-                foreach (var line in lines[logStream].Push(payload))
-                {
-                    yield return DockerMapper.ParseLogLine(logStream, line.Text) with { Truncated = line.Truncated };
-                }
+                yield return ToLogLine(logStream, line);
             }
         }
 
@@ -61,7 +36,47 @@ internal static class DockerLogReader
         {
             if (splitter.Flush() is { } rest)
             {
-                yield return DockerMapper.ParseLogLine(logStream, rest.Text) with { Truncated = rest.Truncated };
+                yield return ToLogLine(logStream, rest);
+            }
+        }
+    }
+
+    private static LogLine ToLogLine(LogStream logStream, (string Text, bool Truncated) line)
+    {
+        return DockerMapper.ParseLogLine(logStream, line.Text) with { Truncated = line.Truncated };
+    }
+
+    /// <summary>With a TTY: raw stdout. The buffer is reused, each chunk is consumed before the next read.</summary>
+    private static async IAsyncEnumerable<(LogStream Stream, ReadOnlyMemory<byte> Chunk)> ReadRawAsync(Stream stream, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var buffer = new byte[8192];
+        int read;
+        while ((read = await stream.ReadAsync(buffer, cancellationToken)) > 0)
+        {
+            yield return (LogStream.Stdout, buffer.AsMemory(0, read));
+        }
+    }
+
+    /// <summary>Without a TTY: multiplexed frames. A connection closed mid-frame ends the stream with what was received.</summary>
+    private static async IAsyncEnumerable<(LogStream Stream, ReadOnlyMemory<byte> Chunk)> ReadFramesAsync(Stream stream, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var header = new byte[HeaderSize];
+        while (await stream.ReadAtLeastAsync(header, HeaderSize, throwOnEndOfStream: false, cancellationToken) == HeaderSize)
+        {
+            var logStream = header[0] == 2 ? LogStream.Stderr : LogStream.Stdout;
+            var size = BinaryPrimitives.ReadInt32BigEndian(header.AsSpan(4));
+            if (size is < 0 or > MaxFrameSize)
+            {
+                // Not the Docker framing (or a corrupted stream): stop rather than allocate it.
+                yield break;
+            }
+
+            var payload = new byte[size];
+            var read = await stream.ReadAtLeastAsync(payload, size, throwOnEndOfStream: false, cancellationToken);
+            yield return (logStream, payload.AsMemory(0, read));
+            if (read < size)
+            {
+                yield break;
             }
         }
     }

@@ -32,7 +32,7 @@ function isPrivateIpv4(a: number, b: number): boolean {
  * UrlScopes: private, loopback and link-local IPs, IPv6 ULA and link-local, local names, single labels.
  */
 export function isLanHost(hostname: string): boolean {
-  const host = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  const host = hostname.replaceAll(/^\[|\]$/g, '').toLowerCase();
   const ipv4 = IPV4.exec(host);
   if (ipv4) {
     return isPrivateIpv4(Number(ipv4[1]), Number(ipv4[2]));

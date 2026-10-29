@@ -46,7 +46,7 @@ export default function AppsIndex() {
 
         {apps.isError ? <Alert kind="danger">{translate('ErrorLoadingApps')}</Alert> : null}
 
-        {apps.data && apps.data.length === 0 ? (
+        {apps.data?.length === 0 ? (
           <div className={styles.empty}>
             <p className={styles.ahoy}>{translate('AppsEmptyTitle')}</p>
             <p>{translate('AppsEmptyHint', { path: catalog.data?.fileName ?? 'catalog.yaml' })}</p>

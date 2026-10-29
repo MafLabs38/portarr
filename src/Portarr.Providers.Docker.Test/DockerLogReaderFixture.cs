@@ -68,6 +68,17 @@ public sealed class DockerLogReaderFixture
     }
 
     [Fact]
+    public async Task should_end_cleanly_when_the_connection_closes_mid_frame()
+    {
+        var header = new byte[8];
+        header[0] = 1;
+        BinaryPrimitives.WriteInt32BigEndian(header.AsSpan(4), 100);
+        using var stream = new MemoryStream([.. header, .. Encoding.UTF8.GetBytes("partial")]);
+
+        (await ReadAllAsync(stream, tty: false)).Should().ContainSingle().Which.Text.Should().Be("partial");
+    }
+
+    [Fact]
     public async Task should_read_raw_lines_when_the_container_has_a_tty()
     {
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes("one\r\ntwo\n"));

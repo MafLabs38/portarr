@@ -28,6 +28,7 @@ public sealed partial class WorkloadInventory : BackgroundService, IWorkloadInve
     private readonly IEnumerable<IWorkloadSource> _sources;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<WorkloadInventory> _logger;
+    private volatile IReadOnlyDictionary<string, EnvironmentInventory> _current = new Dictionary<string, EnvironmentInventory>();
 
     public WorkloadInventory(
         ICatalogService catalogService,
@@ -41,13 +42,17 @@ public sealed partial class WorkloadInventory : BackgroundService, IWorkloadInve
         _logger = logger;
     }
 
-    public IReadOnlyDictionary<string, EnvironmentInventory> Current { get; private set; } =
-        new Dictionary<string, EnvironmentInventory>();
+    // Read by request threads while a poll replaces it: always a whole, published dictionary.
+    public IReadOnlyDictionary<string, EnvironmentInventory> Current
+    {
+        get => _current;
+        private set => _current = value;
+    }
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
         var environments = _catalogService.Current.Catalog.Environments;
-        var results = await Task.WhenAll(environments.Select(environment => RefreshAsync(environment, cancellationToken)));
+        var results = await Task.WhenAll(environments.Select(environment => RefreshEnvironmentAsync(environment, cancellationToken)));
 
         Current = results.Where(r => r is not null).ToDictionary(r => r!.EnvironmentId, r => r!);
     }
@@ -70,7 +75,7 @@ public sealed partial class WorkloadInventory : BackgroundService, IWorkloadInve
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
-    private async Task<EnvironmentInventory?> RefreshAsync(CatalogEnvironment environment, CancellationToken cancellationToken)
+    private async Task<EnvironmentInventory?> RefreshEnvironmentAsync(CatalogEnvironment environment, CancellationToken cancellationToken)
     {
         var source = _sources.FirstOrDefault(s => s.Supports(environment));
         if (source is null)
