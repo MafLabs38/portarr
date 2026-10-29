@@ -12,12 +12,17 @@ interface WorkloadSummaryProps {
 
 type Tone = 'ok' | 'bad' | 'warn' | 'muted';
 
-// "Up 3 hours (healthy)" → "Up 3 hours": the healthcheck has its own line (D-45).
+// Docker appends the healthcheck to the status; it has its own line on the tile (D-45).
+const healthSuffixes = [' (healthy)', ' (unhealthy)', ' (health: starting)'];
+
+// "Up 3 hours (healthy)" → "Up 3 hours". Plain suffix checks: no regex backtracking on Docker's text.
 function stateText(workload: AppWorkload): string {
   if (!workload.found) {
     return translate('ContainerNotFound');
   }
-  return (workload.statusText ?? workload.state ?? '').replace(/\s*\((healthy|unhealthy|health: starting)\)$/, '');
+  const text = workload.statusText ?? workload.state ?? '';
+  const suffix = healthSuffixes.find((s) => text.endsWith(s));
+  return suffix ? text.slice(0, -suffix.length) : text;
 }
 
 function stateTone(workload: AppWorkload): Tone {
