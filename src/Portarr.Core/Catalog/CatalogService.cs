@@ -121,9 +121,11 @@ public sealed partial class CatalogService : ICatalogService, IHostedService, ID
 
     public void Dispose()
     {
-        _pendingReload?.Cancel();
-        _watcher?.Dispose();
-        _pendingReload?.Dispose();
+        // Idempotent: the host may dispose a singleton registered under several service types twice.
+        var pending = Interlocked.Exchange(ref _pendingReload, null);
+        pending?.Cancel();
+        pending?.Dispose();
+        Interlocked.Exchange(ref _watcher, null)?.Dispose();
         _reloadLock.Dispose();
     }
 

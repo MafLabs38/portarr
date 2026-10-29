@@ -53,6 +53,18 @@ public sealed class CatalogServiceFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_be_disposable_twice_with_a_reload_pending()
+    {
+        await _subject.StartAsync(TestContext.Current.CancellationToken);
+        await System.IO.File.WriteAllTextAsync(File, "apps: []", TestContext.Current.CancellationToken);
+        await Task.Delay(200, TestContext.Current.CancellationToken); // let the watcher schedule the debounced reload
+
+        _subject.Dispose();
+
+        _subject.Invoking(s => s.Dispose()).Should().NotThrow();
+    }
+
+    [Fact]
     public async Task should_start_empty_without_a_catalog_file()
     {
         await _subject.ReloadAsync(TestContext.Current.CancellationToken);
