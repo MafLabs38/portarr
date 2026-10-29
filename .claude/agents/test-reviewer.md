@@ -1,6 +1,7 @@
 ---
 name: test-reviewer
 description: Critical review of the tests of a change — relevance, redundancy, missing cases, speed and coverage. Use before opening or updating a vertical PR. Read-only; reports findings.
+model: sonnet
 tools: Read, Grep, Glob, Bash
 ---
 

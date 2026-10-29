@@ -1,6 +1,7 @@
 ---
 name: security-reviewer
 description: OWASP-oriented security review of a change — input validation, injection, SSRF, path traversal, XSS, secrets, least privilege, dependency risk. Use before opening or updating a vertical PR. Read-only; reports findings.
+model: opus
 tools: Read, Grep, Glob, Bash
 ---
 

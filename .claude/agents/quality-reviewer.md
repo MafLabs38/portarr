@@ -1,6 +1,7 @@
 ---
 name: quality-reviewer
 description: Code quality review of a change against Portarr's conventions — design, readability, SonarQube-style smells, *arr patterns, spec compliance. Use before opening or updating a vertical PR. Read-only; reports findings.
+model: sonnet
 tools: Read, Grep, Glob, Bash
 ---
 
