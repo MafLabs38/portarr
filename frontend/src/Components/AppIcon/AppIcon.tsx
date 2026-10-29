@@ -2,8 +2,8 @@ import { useState } from 'react';
 
 import styles from './AppIcon.module.css';
 
-// Community icon set used by most homelab dashboards; names follow the app ("jellyfin", "grafana").
-const ICON_BASE_URL = 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg';
+// Served by Portarr: the operator's icons first, then the community set, cached server-side (D-47).
+const ICON_BASE_URL = '/api/v1/icons';
 
 interface AppIconProps {
   name: string;
@@ -24,7 +24,7 @@ export default function AppIcon({ name, icon, size }: AppIconProps) {
     );
   }
 
-  const src = /^https?:\/\//.test(icon) ? icon : `${ICON_BASE_URL}/${encodeURIComponent(icon)}.svg`;
+  const src = /^https?:\/\//.test(icon) ? icon : `${ICON_BASE_URL}/${encodeURIComponent(icon)}`;
 
   return <img alt="" className={styles.icon} onError={() => setFailed(true)} src={src} style={style} />;
 }

@@ -20,6 +20,8 @@ internal sealed class EnvironmentDocument
     public string? Name { get; set; }
 
     public DockerDocument? Docker { get; set; }
+
+    public string? Address { get; set; }
 }
 
 internal sealed class DockerDocument
@@ -72,6 +74,9 @@ internal sealed class UrlDocument
     public string? Label { get; set; }
 
     public string? Href { get; set; }
+
+    /// <summary>public or lan; inferred from the host when omitted.</summary>
+    public string? Scope { get; set; }
 }
 
 internal sealed class SelectorDocument
@@ -80,6 +85,8 @@ internal sealed class SelectorDocument
     public string? Runtime { get; set; }
 
     public MatchDocument? Match { get; set; }
+
+    public string? Role { get; set; }
 }
 
 internal sealed class MatchDocument

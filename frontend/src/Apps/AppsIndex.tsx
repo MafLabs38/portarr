@@ -8,6 +8,7 @@ import translate from 'Utilities/String/translate';
 
 import AppPoster from './AppPoster';
 import styles from './AppsIndex.module.css';
+import UrlModeSwitch from './UrlModeSwitch';
 import { useApps, useCatalogStatus, useStacks } from './useApps';
 
 /** Apps grouped by stack, in catalog order; apps without a stack come last. */
@@ -28,7 +29,10 @@ export default function AppsIndex() {
   return (
     <PageContent title={translate('Apps')}>
       <PageContentBody>
-        <PageHeading scope={translate('Launcher')} title={translate('Apps')} />
+        <div className={styles.heading}>
+          <PageHeading scope={translate('Launcher')} title={translate('Apps')} />
+          <UrlModeSwitch />
+        </div>
 
         {catalog.data && catalog.data.errors.length > 0 ? (
           <Alert kind="warning">

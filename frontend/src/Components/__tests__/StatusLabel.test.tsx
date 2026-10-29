@@ -18,13 +18,10 @@ describe('StatusLabel', () => {
 });
 
 describe('AppIcon', () => {
-  it('uses the community icon set by name', () => {
+  it('asks Portarr for the icon, never a third-party site', () => {
     const { container } = render(<AppIcon icon="jellyfin" name="Jellyfin" size={32} />);
 
-    expect(container.querySelector('img')).toHaveAttribute(
-      'src',
-      'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/jellyfin.svg',
-    );
+    expect(container.querySelector('img')).toHaveAttribute('src', '/api/v1/icons/jellyfin');
   });
 
   it('accepts a full URL', () => {

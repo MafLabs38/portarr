@@ -40,6 +40,20 @@ public sealed class DockerMapperFixture
     }
 
     [Fact]
+    public void should_keep_one_published_port_per_mapping_and_skip_unpublished_ones()
+    {
+        var ports = DockerMapper.ToPublishedPorts(
+        [
+            new ContainerPort("0.0.0.0", 8096, 8096, "tcp"),
+            new ContainerPort("::", 8096, 8096, "tcp"),
+            new ContainerPort(null, 1900, null, "udp"),
+            new ContainerPort("0.0.0.0", 80, 8080, "tcp"),
+        ]);
+
+        ports.Should().Equal(new PublishedPort(80, 8080, "tcp"), new PublishedPort(8096, 8096, "tcp"));
+    }
+
+    [Fact]
     public void should_compute_cores_from_the_cpu_delta_and_memory_without_page_cache()
     {
         // Half of the host's CPU time over the interval, on 4 CPUs: 2 cores.

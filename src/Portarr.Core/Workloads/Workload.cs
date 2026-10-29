@@ -11,7 +11,14 @@ public sealed record Workload(
     string StatusText,
     DateTimeOffset CreatedAt,
     string? ComposeProject,
-    IReadOnlyDictionary<string, string> Labels);
+    IReadOnlyDictionary<string, string> Labels,
+    IReadOnlyList<PublishedPort>? Ports = null)
+{
+    public IReadOnlyList<PublishedPort> PublishedPorts => Ports ?? [];
+}
+
+/// <summary>A container port published on the host (<c>-p 8080:80</c>: public 8080, private 80).</summary>
+public sealed record PublishedPort(int PrivatePort, int PublicPort, string Protocol);
 
 public enum WorkloadState
 {

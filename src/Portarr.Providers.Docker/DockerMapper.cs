@@ -21,7 +21,19 @@ internal static class DockerMapper
             container.Status,
             DateTimeOffset.FromUnixTimeSeconds(container.Created),
             labels.GetValueOrDefault(ComposeProjectLabel),
-            labels);
+            labels,
+            ToPublishedPorts(container.Ports ?? []));
+    }
+
+    /// <summary>Docker lists a port once per address family (0.0.0.0 and ::): keep one entry per mapping.</summary>
+    public static IReadOnlyList<PublishedPort> ToPublishedPorts(IReadOnlyList<ContainerPort> ports)
+    {
+        return ports
+            .Where(port => port.PublicPort is > 0)
+            .Select(port => new PublishedPort(port.PrivatePort, port.PublicPort!.Value, port.Type))
+            .Distinct()
+            .OrderBy(port => port.PrivatePort)
+            .ToList();
     }
 
     public static WorkloadState ParseState(string state)

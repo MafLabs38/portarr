@@ -35,15 +35,29 @@ public static class StatusResolver
             return new(HealthStatus.Unknown, "Not linked to a workload");
         }
 
-        var statuses = matches.Select(match => match switch
+        var resolved = matches.Select(match => (match.Selector.Role, Status: match switch
         {
             { Inventory: null } => new ResolvedStatus(HealthStatus.Unknown, $"{match.Selector.EnvironmentId} not inventoried yet"),
             { Inventory.Reachable: false } => new ResolvedStatus(HealthStatus.Unknown, $"{match.Selector.EnvironmentId} unreachable"),
             { Workload: null } => new ResolvedStatus(HealthStatus.Down, $"Container {match.Selector.Name} not found on {match.Selector.EnvironmentId}"),
             _ => ForWorkload(match.Workload),
-        }).ToList();
+        })).ToList();
 
-        return statuses.MaxBy(s => s.Status)!;
+        // Critical workloads decide; a failing optional one only degrades the app (D-48).
+        var critical = resolved.Where(r => r.Role == MemberRole.Critical).Select(r => r.Status).ToList();
+        var worst = critical.Count > 0 ? critical.MaxBy(s => s.Status)! : new ResolvedStatus(HealthStatus.Healthy, "Running");
+        if (worst.Status >= HealthStatus.Degraded)
+        {
+            return worst;
+        }
+
+        var failingOptional = resolved.FirstOrDefault(r => r.Role == MemberRole.Optional && r.Status.Status >= HealthStatus.Degraded);
+        if (failingOptional != default)
+        {
+            return new ResolvedStatus(HealthStatus.Degraded, failingOptional.Status.Reason);
+        }
+
+        return critical.Count > 0 ? worst : resolved.MaxBy(r => r.Status.Status).Status;
     }
 
     public static ResolvedStatus ForStack(IReadOnlyList<(StackMember Member, string AppName, HealthStatus Status)> members)

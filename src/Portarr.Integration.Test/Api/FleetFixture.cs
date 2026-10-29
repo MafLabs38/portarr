@@ -13,7 +13,7 @@ public sealed class FleetFixture : IAsyncLifetime
 {
     private const string Catalog = """
         environments:
-          - { id: server-1, name: Server 1, docker: { url: "http://socket-proxy:2375" } }
+          - { id: server-1, name: Server 1, address: 10.0.0.10, docker: { url: "http://socket-proxy:2375" } }
           - { id: server-2, name: Server 2, docker: { url: "http://socket-proxy-2:2375" } }
         stacks:
           - id: media
@@ -37,6 +37,9 @@ public sealed class FleetFixture : IAsyncLifetime
           - id: grafana
             name: Grafana
             workloads: [{ runtime: docker@server-2, match: { name: grafana } }]
+          - id: jellyfin
+            name: Jellyfin
+            workloads: [{ runtime: docker@server-1, match: { name: jellyfin } }]
         """;
 
     private readonly TestDatabase _database;
@@ -59,6 +62,7 @@ public sealed class FleetFixture : IAsyncLifetime
             FakeWorkloadSource.Container("server-1", "sonarr", health: WorkloadHealth.Healthy),
             FakeWorkloadSource.Container("server-1", "recyclarr", WorkloadState.Exited),
             FakeWorkloadSource.Container("server-1", "watchtower"),
+            FakeWorkloadSource.Container("server-1", "jellyfin") with { Image = "lscr.io/linuxserver/jellyfin:10.10", Ports = [new PublishedPort(8096, 8096, "tcp")] },
         ];
         _factory.Workloads.Unreachable.Add("server-2");
         _client = _factory.CreateClient();
@@ -78,7 +82,7 @@ public sealed class FleetFixture : IAsyncLifetime
 
         status.FileExists.Should().BeTrue();
         status.Errors.Should().BeEmpty();
-        (status.Apps, status.Stacks, status.Environments).Should().Be((4, 1, 2));
+        (status.Apps, status.Stacks, status.Environments).Should().Be((5, 1, 2));
     }
 
     [Fact]
@@ -95,6 +99,24 @@ public sealed class FleetFixture : IAsyncLifetime
     }
 
     [Fact]
+    public async Task should_derive_a_lan_url_and_an_icon_from_the_container()
+    {
+        var jellyfin = await Get<AppResource>("/api/v1/apps/jellyfin");
+
+        jellyfin.Urls.Should().ContainSingle().Which.Should().Be(new AppUrlResource("LAN", "http://10.0.0.10:8096/", "lan", true));
+        jellyfin.Icon.Should().Be("jellyfin");
+        jellyfin.Workloads.Single().Should().Match<AppWorkloadResource>(w => w.State == "running" && w.Health == "none" && w.Role == "critical");
+    }
+
+    [Fact]
+    public async Task should_keep_declared_public_urls_and_not_derive_one_without_a_lan_address()
+    {
+        var sonarr = await Get<AppResource>("/api/v1/apps/sonarr");
+
+        sonarr.Urls.Should().ContainSingle().Which.Scope.Should().Be("public");
+    }
+
+    [Fact]
     public async Task should_degrade_the_stack_when_an_optional_member_is_down()
     {
         var stack = (await Get<List<StackResource>>("/api/v1/stacks")).Single();
@@ -107,7 +129,7 @@ public sealed class FleetFixture : IAsyncLifetime
     {
         var workloads = await Get<List<WorkloadResource>>("/api/v1/workloads");
 
-        workloads.Select(w => w.Name).Should().Equal("recyclarr", "sonarr", "watchtower");
+        workloads.Select(w => w.Name).Should().Equal("jellyfin", "recyclarr", "sonarr", "watchtower");
         workloads.Single(w => w.Name == "sonarr").AppIds.Should().Equal("sonarr");
         workloads.Single(w => w.Name == "watchtower").AppIds.Should().BeEmpty();
     }
@@ -117,7 +139,7 @@ public sealed class FleetFixture : IAsyncLifetime
     {
         var environments = (await Get<List<EnvironmentResource>>("/api/v1/environments")).ToDictionary(e => e.Id);
 
-        environments["server-1"].Should().Match<EnvironmentResource>(e => e.Reachable && e.Workloads == 3);
+        environments["server-1"].Should().Match<EnvironmentResource>(e => e.Reachable && e.Workloads == 4);
         environments["server-2"].Should().Match<EnvironmentResource>(e => !e.Reachable && e.Error == "Connection refused");
     }
 

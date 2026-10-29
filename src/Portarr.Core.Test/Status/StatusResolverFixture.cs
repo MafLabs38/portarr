@@ -66,6 +66,21 @@ public sealed class StatusResolverFixture
     }
 
     [Fact]
+    public void should_only_degrade_the_app_when_an_optional_workload_is_down()
+    {
+        var scanner = new WorkloadSelector("server-1", "scanner", MemberRole.Optional);
+        var app = Sonarr with { Workloads = [Selector, scanner] };
+
+        var status = StatusResolver.ForApp(app,
+        [
+            (Selector, Inventory(true), Workload(WorkloadState.Running, WorkloadHealth.Healthy)),
+            (scanner, Inventory(true), Workload(WorkloadState.Running, WorkloadHealth.Unhealthy)),
+        ]);
+
+        status.Should().Be(new ResolvedStatus(HealthStatus.Degraded, "Healthcheck failing"));
+    }
+
+    [Fact]
     public void should_put_the_stack_down_and_name_the_app_when_a_critical_member_is_down()
     {
         var status = StatusResolver.ForStack(

@@ -3,9 +3,20 @@ using Portarr.Core.Workloads;
 
 namespace Portarr.Core.Status;
 
-public sealed record AppWorkloadView(string EnvironmentId, string Name, Workload? Workload, ResolvedStatus Status);
+public sealed record AppWorkloadView(string EnvironmentId, string Name, MemberRole Role, Workload? Workload, ResolvedStatus Status);
 
-public sealed record AppView(CatalogApp App, ResolvedStatus Status, CatalogStack? Stack, MemberRole? Role, IReadOnlyList<AppWorkloadView> Workloads);
+/// <summary>A declared URL, or a LAN URL derived from a published port (<c>Derived</c>).</summary>
+public sealed record AppUrlView(string Label, Uri Href, UrlScope Scope, bool Derived);
+
+/// <summary>An app joined with its workloads. <c>Icon</c> is the declared one, or one guessed from the first container image (D-47).</summary>
+public sealed record AppView(
+    CatalogApp App,
+    ResolvedStatus Status,
+    CatalogStack? Stack,
+    MemberRole? Role,
+    IReadOnlyList<AppWorkloadView> Workloads,
+    IReadOnlyList<AppUrlView> Urls,
+    string? Icon);
 
 public sealed record StackMemberView(StackMember Member, string AppName, ResolvedStatus Status);
 
@@ -72,6 +83,33 @@ public sealed class FleetService : IFleetService
             .ToList();
     }
 
+    /// <summary>
+    /// Declared URLs, plus a LAN URL built from the environment address and the first published TCP
+    /// port when the app declares none (D-46). Web apps only: a service's port is rarely a UI.
+    /// </summary>
+    private static List<AppUrlView> BuildUrls(CatalogApp app, IReadOnlyList<AppWorkloadView> workloads, Catalog.Catalog catalog)
+    {
+        var urls = app.Urls.Select(url => new AppUrlView(url.Label, url.Href, url.Scope, false)).ToList();
+        if (app.Type != AppType.Web || urls.Exists(url => url.Scope == UrlScope.Lan))
+        {
+            return urls;
+        }
+
+        var derived = workloads
+            .OrderBy(w => w.Role)
+            .Select(w => (Workload: w.Workload, Address: catalog.Environments.FirstOrDefault(e => e.Id == w.EnvironmentId)?.Address))
+            .Where(w => w.Workload is not null && w.Address is not null)
+            .Select(w => (w.Address, Port: w.Workload!.PublishedPorts.FirstOrDefault(p => p.Protocol == "tcp")))
+            .FirstOrDefault(w => w.Port is not null);
+
+        if (derived.Port is not null && Uri.TryCreate($"http://{derived.Address}:{derived.Port.PublicPort}", UriKind.Absolute, out var href))
+        {
+            urls.Add(new AppUrlView("LAN", href, UrlScope.Lan, true));
+        }
+
+        return urls;
+    }
+
     private static AppView BuildAppView(CatalogApp app, Catalog.Catalog catalog, IReadOnlyDictionary<string, EnvironmentInventory> inventory)
     {
         var matches = app.Workloads.Select(selector =>
@@ -84,12 +122,14 @@ public sealed class FleetService : IFleetService
         var workloadViews = matches.Select(m => new AppWorkloadView(
             m.selector.EnvironmentId,
             m.selector.Name,
+            m.selector.Role,
             m.workload,
-            StatusResolver.ForApp(app with { Workloads = [m.selector] }, [m]))).ToList();
+            StatusResolver.ForApp(app with { Workloads = [m.selector with { Role = MemberRole.Critical }] }, [m]))).ToList();
 
         var stack = catalog.Stacks.FirstOrDefault(s => s.Members.Any(member => member.AppId == app.Id));
         var role = stack?.Members.First(member => member.AppId == app.Id).Role;
+        var icon = app.Icon ?? workloadViews.Select(w => w.Workload).OfType<Workload>().Select(w => IconNames.FromImage(w.Image)).FirstOrDefault();
 
-        return new AppView(app, StatusResolver.ForApp(app, matches), stack, role, workloadViews);
+        return new AppView(app, StatusResolver.ForApp(app, matches), stack, role, workloadViews, BuildUrls(app, workloadViews, catalog), icon);
     }
 }

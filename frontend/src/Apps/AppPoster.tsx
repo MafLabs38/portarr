@@ -1,18 +1,24 @@
 import AppIcon from 'Components/AppIcon/AppIcon';
-import StatusLabel from 'Components/Status/StatusLabel';
 import * as icons from 'Helpers/Props/icons';
 import type App from 'typings/App';
 import translate from 'Utilities/String/translate';
 
 import styles from './AppPoster.module.css';
+import { pickUrl, resolveScope, useUrlModeStore } from './urlMode';
+import WorkloadSummary from './WorkloadSummary';
 
 interface AppPosterProps {
   app: App;
 }
 
-/** A launcher tile (F-CAT-01): a web app opens its first URL; desktop apps and services are not launchable. */
+/**
+ * A launcher tile (F-CAT-01): a web app opens its URL for the current network (D-46); desktop apps
+ * and services are not launchable. The frame color is the app status (D-45).
+ */
 export default function AppPoster({ app }: AppPosterProps) {
-  const [mainUrl, ...otherUrls] = app.urls;
+  const mode = useUrlModeStore((state) => state.mode);
+  const mainUrl = pickUrl(app.urls, resolveScope(mode, window.location.hostname));
+  const otherUrls = app.urls.filter((url) => url !== mainUrl);
   const TypeIcon = app.type === 'desktop' ? icons.DESKTOP : icons.SERVICE;
 
   const body = (
@@ -23,7 +29,11 @@ export default function AppPoster({ app }: AppPosterProps) {
   );
 
   return (
-    <article aria-label={app.name} className={styles.poster}>
+    <article
+      aria-label={app.name}
+      className={`${styles.poster} ${styles[app.status.status.toLowerCase()]}`}
+      title={app.status.reason}
+    >
       {app.type === 'web' && mainUrl ? (
         <a className={styles.launch} href={mainUrl.href} rel="noopener noreferrer" target="_blank" title={mainUrl.href}>
           {body}
@@ -39,7 +49,7 @@ export default function AppPoster({ app }: AppPosterProps) {
           ) : null}
         </div>
       )}
-      <StatusLabel status={app.status} />
+      <WorkloadSummary workloads={app.workloads} />
       {otherUrls.length > 0 ? (
         <div className={styles.links}>
           {otherUrls.map((url) => (

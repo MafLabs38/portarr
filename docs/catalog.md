@@ -10,6 +10,7 @@ The catalog declares what you run: **environments**, **stacks** and **apps**. Wo
 environments:
   - id: server-1                      # lowercase letters, digits and dashes
     name: Server 1
+    address: 10.0.0.10                # LAN address: LAN links are built from published ports
     docker: { url: "http://socket-proxy:2375" }   # or unix:///var/run/docker.sock
 
 stacks:
@@ -22,11 +23,11 @@ stacks:
 apps:
   - id: jellyfin
     name: Jellyfin
-    icon: jellyfin                    # a dashboard-icons name, or a full image URL
+    icon: jellyfin                    # icons/<name>.svg|png next to the catalog, else dashboard-icons; guessed from the image when omitted
     stack: media                      # shorthand for a critical membership
-    urls:                             # the first URL opens when the tile is clicked
+    urls:                             # private IPs and local names are LAN URLs (scope: public|lan to force)
       - { label: Public, href: "https://jellyfin.homelab.example" }
-      - { label: LAN, href: "http://10.0.0.10:8096" }
+                                      # no LAN URL declared: http://10.0.0.10:<published port> is added
     workloads:
       - { runtime: docker@server-1, match: { name: jellyfin } }   # container name
   - id: recyclarr
@@ -34,6 +35,13 @@ apps:
     type: service                     # web (default), desktop or service: only web apps are launchable
     workloads:
       - { runtime: docker@server-1, match: { name: recyclarr } }
+  - id: trading
+    name: Trading platform            # an app made of several services (D-48)
+    icon: trading                     # icons/trading.png: the operator's own logo
+    workloads:
+      - { runtime: docker@server-1, match: { name: trading-front } }
+      - { runtime: docker@server-1, match: { name: trading-api } }
+      - { runtime: docker@server-1, match: { name: trading-scanner }, role: optional }   # only degrades the app
   - id: docs
     name: Docs                        # no workload: a plain link, status Unknown
     urls: [{ href: "https://docs.homelab.example" }]
@@ -51,4 +59,12 @@ apps:
 | Environment unreachable | Unknown |
 | No workload declared | Unknown |
 
-An app with several workloads takes the worst of them.
+An app with several workloads takes the worst of its critical ones; a failing optional workload makes it Degraded at most.
+
+## Icons
+
+In this order (D-47): `icons/<name>.svg|png|webp` in the folder of the catalog (your own apps, versioned with the catalog), then [dashboard-icons](https://github.com/homarr-labs/dashboard-icons) by name, downloaded once by Portarr and cached in the data folder, then a name guessed from the image (`lscr.io/linuxserver/sonarr:4` → `sonarr`), then the app's initial. Browsers only call `GET /api/v1/icons/<name>`.
+
+## Links
+
+When Portarr is opened on a LAN address (private IP, local name), tiles open LAN URLs; on a public name, public URLs. The Public / Local switch on the Apps page forces either; it is remembered per browser.

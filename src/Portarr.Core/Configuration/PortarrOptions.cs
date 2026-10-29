@@ -16,6 +16,12 @@ public sealed class PortarrOptions
 
     public string EffectiveCatalogFile => CatalogFile ?? Path.Combine(DataFolder, "catalog.yaml");
 
+    /// <summary>The operator's own icons: an <c>icons</c> folder next to the catalog (D-47).</summary>
+    public string CustomIconsFolder => Path.Combine(Path.GetDirectoryName(Path.GetFullPath(EffectiveCatalogFile))!, "icons");
+
+    /// <summary>Community icon set, fetched once per icon and cached in the data folder.</summary>
+    public Uri IconSourceUrl { get; set; } = new("https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/");
+
     private static string DefaultDataFolder()
     {
         return Path.Combine(

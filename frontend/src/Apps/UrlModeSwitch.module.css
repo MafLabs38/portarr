@@ -1,0 +1,25 @@
+.switch {
+  display: inline-flex;
+  padding: 3px;
+  border: var(--borderWidth) solid var(--hairline);
+  border-radius: var(--radiusPill);
+  background-color: var(--paperSunken);
+}
+
+.option,
+.active {
+  padding: 4px 14px;
+  border: none;
+  border-radius: var(--radiusPill);
+  background: none;
+  color: var(--inkSoft);
+  font: inherit;
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.active {
+  background-color: var(--secondary);
+  color: var(--inkOnAccent);
+}

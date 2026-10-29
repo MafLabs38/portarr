@@ -1,0 +1,44 @@
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  font-size: var(--fontSizeMeta);
+}
+
+.line {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.label {
+  color: var(--inkMuted);
+  font-weight: 700;
+}
+
+.ok,
+.bad,
+.warn,
+.muted {
+  overflow: hidden;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ok {
+  color: var(--successColor);
+}
+
+.bad {
+  color: var(--dangerColor);
+}
+
+.warn {
+  color: var(--warningColor);
+}
+
+.muted {
+  color: var(--inkMuted);
+}

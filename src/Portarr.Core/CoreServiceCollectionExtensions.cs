@@ -6,6 +6,7 @@ using Portarr.Core.Catalog;
 using Portarr.Core.Configuration;
 using Portarr.Core.Datastore;
 using Portarr.Core.Datastore.Migration;
+using Portarr.Core.Icons;
 using Portarr.Core.Instrumentation;
 using Portarr.Core.Status;
 using Portarr.Core.SystemInfo;
@@ -36,6 +37,13 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IWorkloadInventory>(provider => provider.GetRequiredService<WorkloadInventory>());
         services.AddHostedService(provider => provider.GetRequiredService<WorkloadInventory>());
         services.AddSingleton<IFleetService, FleetService>();
+
+        services.AddHttpClient(IconService.HttpClientName, (provider, client) =>
+        {
+            client.BaseAddress = provider.GetRequiredService<IOptions<PortarrOptions>>().Value.IconSourceUrl;
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
+        services.AddSingleton<IIconService, IconService>();
 
         return services;
     }

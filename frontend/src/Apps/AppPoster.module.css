@@ -11,6 +11,23 @@
   text-align: center;
 }
 
+.healthy {
+  border-color: var(--successColor);
+}
+
+.degraded {
+  border-color: var(--warningColor);
+}
+
+.down {
+  border-color: var(--dangerColor);
+}
+
+.paused,
+.maintenance {
+  border-color: var(--infoColor);
+}
+
 .launch {
   display: flex;
   flex-direction: column;

@@ -8,11 +8,20 @@ public sealed record StatusResource(string Status, string Reason)
     public static StatusResource From(ResolvedStatus status) => new(status.Status.ToString(), status.Reason);
 }
 
-public sealed record AppUrlResource(string Label, string Href);
+/// <summary>An app URL: <c>Scope</c> is public or lan, <c>Derived</c> when built from a published port.</summary>
+public sealed record AppUrlResource(string Label, string Href, string Scope, bool Derived);
 
 public sealed record AppStackResource(string Id, string Name, string Role);
 
-public sealed record AppWorkloadResource(string EnvironmentId, string Name, bool Found, StatusResource Status);
+public sealed record AppWorkloadResource(
+    string EnvironmentId,
+    string Name,
+    string Role,
+    bool Found,
+    string? State,
+    string? Health,
+    string? StatusText,
+    StatusResource Status);
 
 public sealed record AppResource(
     string Id,
@@ -49,13 +58,21 @@ public static class CatalogResourceMapper
             app.Id,
             app.Name,
             app.Type.ToString().ToLowerInvariant(),
-            app.Icon,
+            view.Icon,
             app.Description,
             app.Tags,
-            app.Urls.Select(url => new AppUrlResource(url.Label, url.Href.ToString())).ToList(),
+            view.Urls.Select(url => new AppUrlResource(url.Label, url.Href.ToString(), url.Scope.ToString().ToLowerInvariant(), url.Derived)).ToList(),
             view.Stack is null ? null : new AppStackResource(view.Stack.Id, view.Stack.Name, view.Role!.Value.ToString().ToLowerInvariant()),
             StatusResource.From(view.Status),
-            view.Workloads.Select(w => new AppWorkloadResource(w.EnvironmentId, w.Name, w.Workload is not null, StatusResource.From(w.Status))).ToList());
+            view.Workloads.Select(w => new AppWorkloadResource(
+                w.EnvironmentId,
+                w.Name,
+                w.Role.ToString().ToLowerInvariant(),
+                w.Workload is not null,
+                w.Workload?.State.ToString().ToLowerInvariant(),
+                w.Workload?.Health.ToString().ToLowerInvariant(),
+                w.Workload?.StatusText,
+                StatusResource.From(w.Status))).ToList());
     }
 
     public static StackResource ToResource(this StackView view)

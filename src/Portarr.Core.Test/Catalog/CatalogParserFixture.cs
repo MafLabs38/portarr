@@ -58,6 +58,31 @@ public sealed class CatalogParserFixture
     }
 
     [Fact]
+    public void should_read_the_lan_address_url_scopes_and_workload_roles()
+    {
+        const string yaml = """
+            environments:
+              - { id: server-1, address: 10.0.0.10, docker: { url: "http://socket-proxy:2375" } }
+            apps:
+              - id: trading
+                urls:
+                  - { href: "https://trading.homelab.example" }
+                  - { href: "http://10.0.0.10:3000" }
+                  - { label: Tunnel, href: "https://tunnel.homelab.example", scope: lan }
+                workloads:
+                  - { runtime: docker@server-1, match: { name: trading-front } }
+                  - { runtime: docker@server-1, match: { name: trading-scanner }, role: optional }
+            """;
+
+        var result = CatalogParser.Parse(yaml);
+
+        result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
+        result.Catalog.Environments.Single().Address.Should().Be("10.0.0.10");
+        result.Catalog.Apps.Single().Urls.Select(u => u.Scope).Should().Equal(UrlScope.Public, UrlScope.Lan, UrlScope.Lan);
+        result.Catalog.Apps.Single().Workloads.Select(w => w.Role).Should().Equal(MemberRole.Critical, MemberRole.Optional);
+    }
+
+    [Fact]
     public void should_accept_an_empty_file()
     {
         var result = CatalogParser.Parse(string.Empty);
@@ -78,6 +103,8 @@ public sealed class CatalogParserFixture
     [InlineData("environments:\n  - id: e\n    docker: { url: \"ssh://host\" }", "docker.url must be")]
     [InlineData("apps:\n  - id: a\n    colour: red", "Invalid YAML")]
     [InlineData("apps: [", "Invalid YAML")]
+    [InlineData("apps:\n  - id: a\n    urls: [{ href: \"http://x.example\", scope: intranet }]", "must be public or lan")]
+    [InlineData("environments:\n  - { id: e, docker: { url: \"http://p:2375\" } }\napps:\n  - id: a\n    workloads: [{ runtime: docker@e, match: { name: a }, role: maybe }]", "must be critical or optional")]
     public void should_report_a_clear_error_and_return_an_empty_catalog(string yaml, string expected)
     {
         var result = CatalogParser.Parse(yaml);

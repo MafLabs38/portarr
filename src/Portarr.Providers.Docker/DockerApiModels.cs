@@ -11,7 +11,14 @@ internal sealed record ContainerSummary(
     [property: JsonPropertyName("State")] string State,
     [property: JsonPropertyName("Status")] string Status,
     [property: JsonPropertyName("Created")] long Created,
-    [property: JsonPropertyName("Labels")] IReadOnlyDictionary<string, string>? Labels);
+    [property: JsonPropertyName("Labels")] IReadOnlyDictionary<string, string>? Labels,
+    [property: JsonPropertyName("Ports")] IReadOnlyList<ContainerPort>? Ports = null);
+
+internal sealed record ContainerPort(
+    [property: JsonPropertyName("IP")] string? Ip,
+    [property: JsonPropertyName("PrivatePort")] int PrivatePort,
+    [property: JsonPropertyName("PublicPort")] int? PublicPort,
+    [property: JsonPropertyName("Type")] string Type);
 
 internal sealed record ContainerInspect(
     [property: JsonPropertyName("Id")] string Id,

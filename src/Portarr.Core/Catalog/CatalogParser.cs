@@ -90,7 +90,7 @@ public static partial class CatalogParser
                     }
                 }
 
-                result.Add(new CatalogEnvironment(id, document.Name ?? id, docker));
+                result.Add(new CatalogEnvironment(id, document.Name ?? id, docker, string.IsNullOrWhiteSpace(document.Address) ? null : document.Address.Trim()));
             }
 
             return result;
@@ -136,7 +136,13 @@ public static partial class CatalogParser
             {
                 if (Uri.TryCreate(document.Href, UriKind.Absolute, out var href) && href.Scheme is "http" or "https")
                 {
-                    result.Add(new AppUrl(document.Label ?? href.Host, href));
+                    var scope = UrlScopes.Infer(href);
+                    if (document.Scope is not null && !Enum.TryParse(document.Scope, ignoreCase: true, out scope))
+                    {
+                        _errors.Add($"App '{appId}': scope of '{document.Href}' must be public or lan.");
+                    }
+
+                    result.Add(new AppUrl(document.Label ?? href.Host, href, scope));
                 }
                 else
                 {
@@ -173,7 +179,13 @@ public static partial class CatalogParser
                     continue;
                 }
 
-                result.Add(new WorkloadSelector(environmentId, document.Match.Name));
+                var role = MemberRole.Critical;
+                if (document.Role is not null && !Enum.TryParse(document.Role, ignoreCase: true, out role))
+                {
+                    _errors.Add($"App '{appId}': role of workload '{document.Match.Name}' must be critical or optional.");
+                }
+
+                result.Add(new WorkloadSelector(environmentId, document.Match.Name, role));
             }
 
             return result;

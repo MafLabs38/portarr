@@ -3,6 +3,9 @@ import type Status from './Status';
 export interface AppUrl {
   label: string;
   href: string;
+  scope: 'public' | 'lan';
+  /** Built from a published port rather than declared. */
+  derived: boolean;
 }
 
 export interface AppStack {
@@ -14,7 +17,11 @@ export interface AppStack {
 export interface AppWorkload {
   environmentId: string;
   name: string;
+  role: 'critical' | 'optional';
   found: boolean;
+  state: string | null;
+  health: 'none' | 'starting' | 'healthy' | 'unhealthy' | null;
+  statusText: string | null;
   status: Status;
 }
 

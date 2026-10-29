@@ -12,7 +12,8 @@ public sealed record Catalog(
     public static Catalog Empty { get; } = new([], [], []);
 }
 
-public sealed record CatalogEnvironment(string Id, string Name, DockerEndpoint? Docker);
+/// <summary>A host or cluster. <c>Address</c> is its LAN address, used to build LAN URLs from published ports (D-46).</summary>
+public sealed record CatalogEnvironment(string Id, string Name, DockerEndpoint? Docker, string? Address = null);
 
 /// <summary>Docker Engine API endpoint: <c>unix:///var/run/docker.sock</c> or <c>http://host:2375</c> (socket proxy).</summary>
 public sealed record DockerEndpoint(Uri Url);
@@ -44,7 +45,17 @@ public enum AppType
     Service,
 }
 
-public sealed record AppUrl(string Label, Uri Href);
+public sealed record AppUrl(string Label, Uri Href, UrlScope Scope);
 
-/// <summary>Matches discovered workloads of one environment by container name.</summary>
-public sealed record WorkloadSelector(string EnvironmentId, string Name);
+/// <summary>Public URLs go through DNS; LAN URLs only work from the local network (D-46).</summary>
+public enum UrlScope
+{
+    Public,
+    Lan,
+}
+
+/// <summary>
+/// Matches discovered workloads of one environment by container name. An <c>Optional</c> role means the
+/// app still works without it: its failure only degrades the app (D-48).
+/// </summary>
+public sealed record WorkloadSelector(string EnvironmentId, string Name, MemberRole Role = MemberRole.Critical);
