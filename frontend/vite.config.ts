@@ -31,8 +31,9 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // PORTARR_API: where the backend runs (e.g. a dotnet watch on another port).
     proxy: {
-      '/api': 'http://localhost:8484',
+      '/api': process.env.PORTARR_API ?? 'http://localhost:8484',
     },
   },
   build: {

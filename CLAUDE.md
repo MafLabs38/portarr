@@ -46,7 +46,7 @@ Test runner: Microsoft.Testing.Platform (ADR 0005). Exit code 8 = a test project
 4. **No hard-coded visual values**: design tokens only ([DESIGN.md](docs/DESIGN.md) §6). **No hard-coded UI strings**: `translate()`.
 5. **Orchestrator, not a Swiss army knife** (D-03, D-30): integrate Prometheus, Loki, Docker, Kubernetes… Never store metrics or logs, never compute what a tool can compute (thresholds, aggregations, alert evaluation).
 6. **Portarr informs, the operator acts** (D-16, D-31): no action on the infrastructure; the only write allowed is declarative configuration pushed to a tool through its API.
-7. **One vertical = one PR**, with green unit, integration and E2E tests and a complete Definition of Done. **No PR is opened before the maintainer accepts the vertical on the preview instance**; the PR then runs the full pipeline ([IMPLEMENTATION_PLAN.md §1.3](docs/IMPLEMENTATION_PLAN.md)).
+7. **One vertical = one PR**, with green unit, integration and E2E tests and a complete Definition of Done. **Develop in the sandbox first (working tree, hot reload: no commit, push, PR or CI); the PR is opened only once the maintainer has accepted the vertical there**, and then runs the full pipeline ([IMPLEMENTATION_PLAN.md §1.3](docs/IMPLEMENTATION_PLAN.md)).
 8. **One capability = one contract**: every provider passes the contract test suite of each capability it declares.
 9. **Secure by default**: read-only access (docker-socket-proxy, minimal Kubernetes RBAC), secrets encrypted at rest and never returned by the API.
 10. **Never** commit secrets. Use `dotnet user-secrets` locally and GitHub Secrets in CI.

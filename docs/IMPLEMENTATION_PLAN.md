@@ -39,23 +39,26 @@ The repository follows the organization-wide GitHub template conventions:
 
 ### 1.3 Development and acceptance loop
 
-A vertical is **accepted by the maintainer on a running instance before its pull request exists**. The product is validated first; the full pipeline only runs on what the maintainer has accepted, so no CI time is spent on a change that will be reworked anyway.
+A vertical goes through two phases. The first implementation is assumed to be wrong until the maintainer has tried it, so nothing is committed, pushed or run in CI while the product is still being shaped.
 
 | Instance | Runs | Purpose |
 |---|---|---|
-| **preview** | the feature branch, built **from source** on the development machine | acceptance, before the pull request |
+| **sandbox** | the developer's working tree: `dotnet watch` for the API, the Vite dev server (hot reload) for the UI | exploration and acceptance, before any commit |
 | **dev** | the `develop` image published by CI after each merge | what is integrated, used day to day |
 
-Day-to-day development uses the usual inner loop (`dotnet watch`, Vite dev server, unit tests); no image is involved. Pull requests are built and tested by CI but never published: **only integrated code (`develop`, later releases) produces an image in the registry.**
+Both run on the maintainer's development machine (resource-limited), connected **read-only** to a real environment. Their scripts and settings live in the maintainer's private configuration repository, never in this one. **Only integrated code (`develop`, later releases) produces an image in the registry.**
 
-Both instances run on the maintainer's development machine, connected **read-only** to a real environment. Their deployment files and settings live in the maintainer's private configuration repository, never in this one.
+**Phase 1: exploration, in the sandbox.**
 
 1. **Issue** (template "Vertical slice") with acceptance criteria taken from the spec's features, and an **acceptance plan**: the real cases that will prove the slice works.
-2. **Develop** on a feature branch, with the fast local checks only (build, unit tests, resource-limited). No pull request, so no CI.
-3. **Preview.** The author builds the branch on the development machine (resource-limited), starts it as the preview instance and checks the acceptance plan against the real environment.
-4. **Acceptance.** The maintainer gets the preview URL with the exact steps to test and the expected results, and tests the product. Feedback goes back to step 2 on the same branch.
-5. **Pull request**, opened only once the maintainer has accepted the preview. It runs the whole pipeline: lint, unit, integration and E2E tests, SonarQube gate, CodeQL, and the three AI review agents. The author fixes what they find (the preview is rebuilt if behavior changes) and adds the verification report (section "Verification on the preview instance": each criterion, what it was checked against, the result, known limitations; no real infrastructure values) and the review section.
-6. **Merge** (squash) by the maintainer once the pipeline is green. CI then publishes the `develop` image and the dev instance is updated.
+2. **Develop** in the sandbox, on the working tree: no commit required, no push, no pull request, no CI, no image. The developer checks it runs and writes the tests that help development, not yet the full set.
+3. **Acceptance.** At the end of the vertical, the maintainer gets the sandbox URL and what to try. Requested changes are made live (hot reload) until the maintainer accepts the product.
+
+**Phase 2: industrialization, only for an accepted vertical.**
+
+4. **Harden**: complete the unit, integration and E2E tests, lint and format, check the production build (security headers, served UI) once, write clean commits.
+5. **Pull request**: it runs the whole pipeline (lint, tests, SonarQube gate, CodeQL, the three AI review agents). The author fixes what it finds and adds the verification report (each criterion, what it was checked against, the result, known limitations; no real infrastructure values) and the review section. The maintainer is given the pull request link.
+6. **Merge** (squash) by the maintainer. CI then publishes the `develop` image and the dev instance is updated.
 
 ### 1.4 Order and dependencies
 
