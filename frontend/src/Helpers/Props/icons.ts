@@ -1,10 +1,12 @@
 // The only place lucide icons are imported (DESIGN.md §1.1): renaming an icon is a one-line change.
 export {
   LayoutGrid as APPS,
+  Box as CONTAINER,
   TriangleAlert as DEGRADED,
   Monitor as DESKTOP,
   CircleX as DOWN,
   ExternalLink as EXTERNAL_LINK,
+  HeartPulse as HEALTHCHECK,
   CircleCheck as HEALTHY,
   Wrench as MAINTENANCE,
   Pause as PAUSE,

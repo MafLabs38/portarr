@@ -1,3 +1,6 @@
+import type { LucideIcon } from 'lucide-react';
+
+import * as icons from 'Helpers/Props/icons';
 import type { AppWorkload } from 'typings/App';
 import translate from 'Utilities/String/translate';
 
@@ -26,11 +29,20 @@ function stateTone(workload: AppWorkload): Tone {
 
 const healthTone: Record<string, Tone> = { healthy: 'ok', unhealthy: 'bad', starting: 'warn', none: 'muted' };
 
-function Line({ label, value, tone, title }: { label: string; value: string; tone: Tone; title?: string }) {
+interface LineProps {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  tone: Tone;
+  title?: string;
+}
+
+// Icon instead of a text label, so the value keeps the tile's width; the label stays accessible.
+function Line({ icon: Icon, label, value, tone, title }: LineProps) {
   return (
-    <div className={styles.line} title={title}>
-      <span className={styles.label}>{label}</span>
-      <span className={styles[tone]}>● {value}</span>
+    <div className={`${styles.line} ${styles[tone]}`} title={title ?? `${label}: ${value}`}>
+      <Icon aria-label={label} role="img" size={13} strokeWidth={2.5} />
+      <span className={styles.value}>{value}</span>
     </div>
   );
 }
@@ -47,6 +59,7 @@ export default function WorkloadSummary({ workloads }: WorkloadSummaryProps) {
     return (
       <div className={styles.summary}>
         <Line
+          icon={icons.CONTAINER}
           label={translate('Container')}
           title={only.statusText ?? undefined}
           tone={stateTone(only)}
@@ -54,6 +67,7 @@ export default function WorkloadSummary({ workloads }: WorkloadSummaryProps) {
         />
         {only.found ? (
           <Line
+            icon={icons.HEALTHCHECK}
             label={translate('Healthcheck')}
             tone={healthTone[health] ?? 'muted'}
             value={translate(`Health${health.charAt(0).toUpperCase()}${health.slice(1)}`)}
@@ -73,11 +87,13 @@ export default function WorkloadSummary({ workloads }: WorkloadSummaryProps) {
   return (
     <div className={styles.summary} title={details}>
       <Line
+        icon={icons.CONTAINER}
         label={translate('Containers')}
         tone={up === workloads.length ? 'ok' : 'bad'}
         value={translate('ContainersUp', { up, total: workloads.length })}
       />
       <Line
+        icon={icons.HEALTHCHECK}
         label={translate('Healthcheck')}
         tone={unhealthy.length > 0 ? 'bad' : withHealth.length > 0 ? 'ok' : 'muted'}
         value={

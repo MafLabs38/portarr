@@ -61,8 +61,8 @@ describe('AppsIndex', () => {
     renderWithProviders(<AppsIndex />);
 
     const sonarr = await screen.findByRole('article', { name: 'Sonarr' });
-    expect(within(sonarr).getByText('● Up 3 hours')).toBeInTheDocument();
-    expect(within(sonarr).getByText('● healthy')).toBeInTheDocument();
+    expect(within(sonarr).getByText('Up 3 hours')).toBeInTheDocument();
+    expect(within(sonarr).getByText('healthy')).toBeInTheDocument();
   });
 
   it('does not make a service launchable and shows its type', async () => {
@@ -71,8 +71,8 @@ describe('AppsIndex', () => {
     const recyclarr = await screen.findByRole('article', { name: 'Recyclarr' });
     expect(within(recyclarr).queryByRole('link')).not.toBeInTheDocument();
     expect(within(recyclarr).getByText('Service')).toBeInTheDocument();
-    expect(within(recyclarr).getByText('● Exited (1) 2 minutes ago')).toBeInTheDocument();
-    expect(within(recyclarr).getByText('● no healthcheck')).toBeInTheDocument();
+    expect(within(recyclarr).getByText('Exited (1) 2 minutes ago')).toBeInTheDocument();
+    expect(within(recyclarr).getByText('no healthcheck')).toBeInTheDocument();
   });
 
   it('shows catalog errors', async () => {

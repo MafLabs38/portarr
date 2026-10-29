@@ -30,14 +30,14 @@ describe('WorkloadSummary', () => {
       />,
     );
 
-    expect(screen.getByText('● 3/4 up')).toBeInTheDocument();
-    expect(screen.getByText('● 1 unhealthy')).toBeInTheDocument();
+    expect(screen.getByText('3/4 up')).toBeInTheDocument();
+    expect(screen.getByText('1 unhealthy')).toBeInTheDocument();
   });
 
   it('says when a declared container does not exist', () => {
     render(<WorkloadSummary workloads={[workload('ghost', { found: false, state: null, statusText: null })]} />);
 
-    expect(screen.getByText('● Not found')).toBeInTheDocument();
+    expect(screen.getByText('Not found')).toBeInTheDocument();
   });
 
   it('shows a starting healthcheck', () => {
@@ -47,7 +47,7 @@ describe('WorkloadSummary', () => {
       />,
     );
 
-    expect(screen.getByText('● Up 5 seconds')).toBeInTheDocument();
-    expect(screen.getByText('● starting')).toBeInTheDocument();
+    expect(screen.getByText('Up 5 seconds')).toBeInTheDocument();
+    expect(screen.getByText('starting')).toBeInTheDocument();
   });
 });

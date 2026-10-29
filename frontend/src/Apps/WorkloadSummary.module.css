@@ -1,28 +1,22 @@
 .summary {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 2px;
-  width: 100%;
+  max-width: 100%;
   font-size: var(--fontSizeMeta);
 }
 
 .line {
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.label {
-  color: var(--inkMuted);
-  font-weight: 700;
-}
-
-.ok,
-.bad,
-.warn,
-.muted {
-  overflow: hidden;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
   font-weight: 800;
+}
+
+.value {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

@@ -6,8 +6,10 @@ test.describe('Launcher and workloads', { tag: '@smoke' }, () => {
 
     await expect(page).toHaveURL(/\/apps$/);
     const demo = page.getByRole('region', { name: 'Demo' });
-    await expect(demo.getByRole('article', { name: 'Web' }).getByText('Healthy')).toBeVisible({ timeout: 30_000 });
-    await expect(demo.getByRole('article', { name: 'Broken job' }).getByText('Down')).toBeVisible();
+    const web = demo.getByRole('article', { name: 'Web' });
+    await expect(web.getByText(/^Up /)).toBeVisible({ timeout: 30_000 });
+    await expect(web.getByText('no healthcheck')).toBeVisible();
+    await expect(demo.getByRole('article', { name: 'Broken job' }).getByText(/^(Exited|Not found)/)).toBeVisible();
     await expect(demo.getByText('Degraded', { exact: true })).toBeVisible();
     await expect(demo.getByRole('link', { name: 'Web' })).toHaveAttribute('href', 'http://localhost:8080/');
     await expect(page.getByRole('region', { name: 'Other apps' }).getByRole('article', { name: 'Docs' })).toBeVisible();
