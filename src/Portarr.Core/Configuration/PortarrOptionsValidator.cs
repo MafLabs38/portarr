@@ -21,6 +21,11 @@ public sealed class PortarrOptionsValidator : IValidateOptions<PortarrOptions>
             failures.Add("Database:ConnectionString is required when Database:Type is Postgres (PORTARR__DATABASE__CONNECTIONSTRING).");
         }
 
+        foreach (var entry in options.TrustedProxyEntries.Where(entry => !PortarrOptions.TryParseProxy(entry, out _)))
+        {
+            failures.Add($"TrustedProxies entry '{entry}' must be an IP address or a CIDR network such as 10.0.0.0/24 (PORTARR__TRUSTEDPROXIES).");
+        }
+
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
 }

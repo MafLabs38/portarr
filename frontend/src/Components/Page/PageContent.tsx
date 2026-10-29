@@ -8,7 +8,7 @@ interface PageContentProps {
   children: ReactNode;
 }
 
-export default function PageContent({ title, children }: PageContentProps) {
+export default function PageContent({ title, children }: Readonly<PageContentProps>) {
   useEffect(() => {
     document.title = `${title} - Portarr`;
   }, [title]);

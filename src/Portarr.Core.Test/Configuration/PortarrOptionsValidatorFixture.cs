@@ -32,4 +32,14 @@ public sealed class PortarrOptionsValidatorFixture : CoreTest<PortarrOptionsVali
         result.Failed.Should().BeTrue();
         result.FailureMessage.Should().Contain("PORTARR__DATAFOLDER");
     }
+
+    [Theory]
+    [InlineData("10.0.0.2, 10.0.1.0/24,fd00::/8", true)]
+    [InlineData("10.0.0.2,proxy.homelab.example", false)]
+    public void should_accept_only_ips_and_cidr_networks_as_trusted_proxies(string proxies, bool valid)
+    {
+        var result = Subject.Validate(null, new PortarrOptions { TrustedProxies = proxies });
+
+        result.Succeeded.Should().Be(valid, result.FailureMessage);
+    }
 }

@@ -125,6 +125,9 @@ Third-party API responses are stored under `tests/fixtures/<provider>/` (anonymi
 | Backend lint | .NET analyzers, `dotnet format --verify-no-changes` | PR |
 | Frontend lint | ESLint, Stylelint, Prettier, `tsc --noEmit` | PR |
 | Quality and coverage | SonarQube (Quality Gate) | PR |
+| Static security analysis (SAST) | CodeQL (C#, TypeScript, workflows), `security-and-quality` queries | PR + weekly |
+| AI review (advisory) | The three agents of `.claude/agents/` (tests, quality, security), one PR comment each, never blocking | PR opened / ready, or `ai-review` label |
+| Mutation testing | Stryker.NET (Core) and StrykerJS (frontend): do the tests catch injected bugs? Score and survivors in the job summary | weekly |
 | Secrets and privacy | gitleaks + denylist of personal values | pre-commit + PR |
 | Vulnerabilities | Trivy (image and dependencies), Dependabot | PR + daily |
 | Dependency licenses | license scan (compatibility with the project license) | PR |
@@ -143,6 +146,8 @@ Third-party API responses are stored under `tests/fixtures/<provider>/` (anonymi
 | E2E smoke | 100 % green on every PR |
 | Flaky tests | A flaky test is quarantined (`[Flaky]` tag) with an open issue; quarantine lasts no longer than 2 weeks |
 | Visual regression | Any difference is explicitly approved in the PR |
+| CodeQL | No high or critical alert on new code |
+| Mutation score | Reported, not enforced: a surviving mutant in code a vertical relies on is a missing test, a survivor in glue code is not |
 
 ---
 
@@ -170,6 +175,8 @@ dotnet test --solution src/Portarr.sln -- --filter-not-trait "Category=Integrati
 dotnet test --solution src/Portarr.sln -- --filter-trait "Category=Integration" --ignore-exit-code 8       # integration (Docker required)
 yarn test                                                       # frontend unit tests (Vitest)
 yarn e2e                                                        # Playwright against the e2e stack
+(cd src/Portarr.Core.Test && dotnet tool restore && dotnet stryker)   # mutation testing, backend (~1 min)
+yarn stryker run                                                # mutation testing, frontend (~15 min)
 ```
 
 > Integration and E2E tests start containers and are CPU-intensive. On a small machine, prefer CI, or limit the test process's resources.

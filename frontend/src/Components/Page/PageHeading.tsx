@@ -5,7 +5,7 @@ interface PageHeadingProps {
   title: string;
 }
 
-export default function PageHeading({ scope, title }: PageHeadingProps) {
+export default function PageHeading({ scope, title }: Readonly<PageHeadingProps>) {
   return (
     <div className={styles.heading}>
       <span className={styles.scope}>{scope}</span>

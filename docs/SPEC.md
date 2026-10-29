@@ -144,6 +144,12 @@ The original need comes from real-life situations:
 | ✅ D-41 | **Vulnerabilities of running images are in scope**, not only those of the operator's own code: a critical CVE in a third-party image (identity provider, media server…) must be visible so the operator updates it. Portarr queries a **Trivy server** through a connector; severities below a configurable threshold (HIGH by default) are hidden. | Knowing about a critical flaw in what actually runs is a core reason for the tool. |
 | ✅ D-42 | **No fixed access topology.** Several reverse proxies may coexist and chain (a proxy on the hypervisor forwarding to a VM, then to a cluster ingress). Portarr supports several route connectors at once and resolves a chain of routes down to the workload. First route connector: SWAG/nginx (dogfooding); Traefik / Kubernetes Ingress next. | Real homelabs mix containers, VMs and clusters in many layouts; the model must not assume one. |
 | ✅ D-43 | **Backups: observe and report only** for now. Portarr shows which databases and volumes exist, whether they have a backup, and the last successful one (date, size, destination); it creates or configures nothing. The reference tool is chosen when V11 starts. | The first need is visibility: today nobody knows whether the backup scripts actually run. |
+| ✅ D-44 | **The catalog file is the primary source** of environments, stacks and apps: it is written and maintained as code (by hand, by IaC or by an AI agent). The UI shows it read-only, with its origin; Settings shows the configuration rather than editing it. Creating apps from the UI stays a later option for operators who want it (F-CAT-04). | Automation first: one versioned file is easier to generate, review and rebuild than state edited in a UI. |
+| ✅ D-45 | **Tiles show the container state and the healthcheck separately**, like Portainer: "Up 3 h" / "Exited (1)" on one line, "healthy" / "unhealthy" / "starting" / "no healthcheck" on the other; the app's overall status is the tile's frame color. | The two signals answer different questions (is it running? does it work?) and must both be visible at a glance. |
+| ✅ D-46 | **Public and LAN URLs, picked automatically.** An app may have public (DNS) and LAN URLs; a URL whose host is a private IP is a LAN URL. When no LAN URL is declared, Portarr derives one from the environment's `address` and the container's published port. The launcher opens LAN URLs when Portarr itself is opened on a LAN address, public ones otherwise, with a Public/Local switch to force either. Resolves Q-07. | One-click access from home and from the Internet, without writing every URL twice. |
+| ✅ D-47 | **Icons resolve in this order**: the operator's own icon library (an `icons/` folder next to the catalog, versioned with it), then the dashboard-icons community set by name, then a name guessed from the container image, then the app's initial. Portarr serves every icon from its own API and caches community icons in its data folder: browsers never call a third-party CDN, and icons keep working offline. | Custom apps get their real logo; common apps need no configuration; no tracking, offline homelabs supported. |
+| ✅ D-48 | **An app can be made of several workloads** (micro-services, database), each `critical` (default) or `optional` for the app; the tile summarizes them ("7/8 up"). A stack groups the apps that form one solution, including back-end services used by a single product. | A product built as micro-services is one thing for its operator, while each service keeps its own status. |
+| ✅ D-49 | **One spec page per vertical** (`docs/verticals/`), written before or with the vertical: need, scope, behavior, acceptance criteria, decisions. SPEC.md stays the global reference and links to them. | The spec evolves with the product, vertical by vertical, close to the code that implements it. |
 
 ### 2.1 *arr patterns adopted (D-08)
 
@@ -610,7 +616,7 @@ Persistent header: global search (Ctrl+K), global health indicator, issue counte
 **F-CAT-01 · Application tiles** 🟡
 - **Need**: access any app in one click.
 - **Display**: E-01. Click = open the main URL (same tab or new tab, configurable).
-- **Rules**: several URLs per app (Public, LAN, Admin…); default URL chosen according to the client's network ❓ Q-07.
+- **Rules**: several URLs per app (Public, LAN, Admin…); default URL chosen according to the address Portarr is opened on (D-46).
 - **Phase**: v0.1
 
 **F-CAT-02 · Grouping by stack, groups and tags** 🟡
@@ -1265,9 +1271,9 @@ portarr/
 | Q-04 | Roles | Which permission levels are actually useful? | 💬 Settled when C2 is built |
 | Q-05 | Launcher | How to navigate between stacks: tabs, sections, pages, customizable dashboard? | 💬 The launcher is secondary (D-10); the home page becomes the Overview (Q-43) |
 | Q-06 | Mobile | What use on a phone? | ❓ |
-| Q-07 | URLs | How to automatically pick the LAN or public URL? | ❓ |
+| Q-07 | URLs | How to automatically pick the LAN or public URL? | ✅ By the address Portarr is opened on, with a Public/Local switch (D-46) |
 | Q-08 | Catalog | Can the UI edit the catalog, or is it *as code* only? | ✅ Both (D-19); an app managed through config is read-only in the UI |
-| Q-09 | Catalog | Priority between sources in case of conflict | ❓ |
+| Q-09 | Catalog | Priority between sources in case of conflict | 💬 The catalog file is the primary source (D-44); labels and UI come later |
 | Q-10 | Actions | Which actions from the first version, and which ones never? | ✅ None: Portarr never acts on the infrastructure (D-31) |
 | Q-12 | Status | How to distinguish "stopped on purpose" from "went down"? | 💬 F-HLT-09 approach: any shutdown with no recorded action or maintenance is "unexpected" |
 | Q-14 | VM | Which view of a VM matters: inside, hypervisor, or both? | ✅ Both, correlated (D-11) |
@@ -1344,3 +1350,4 @@ portarr/
 | 2026-10-28 | Interview #5 (technical choices). D-27 (GPL-3.0), D-28 (Dapper + FluentMigrator), D-29 (xUnit v3 + NSubstitute + AwesomeAssertions), D-30 (collect and report, no computation), D-31 (never acts; declarative configuration through tool APIs only), D-32 (standalone first), D-33 (vCPU and RAM everywhere), D-34 (runs on the hypervisor host). F-ACT-01/02 out of scope. Q-01, Q-10, Q-15, Q-23, Q-53, Q-58 resolved; Q-21, Q-56, Q-57 under discussion. |
 | 2026-10-28 | Interview #6 (technical choices, continued). D-35 (one library per connector), D-36 (pushing configuration to tools allowed, tool logic forbidden), D-37 (alerts evaluated by the tools), D-38 (collector kit not shipped), D-39 (GitHub only), D-40 (hypervisor as a first-class environment, Unraid first). Q-21, Q-48, Q-51, Q-56, Q-57 resolved. |
 | 2026-10-28 | Interview #7. D-41 (vulnerabilities of running images in scope, Trivy server), D-42 (no fixed access topology, chained reverse proxies), D-43 (backups observed only). Q-25, Q-52, Q-54 resolved; remaining questions are settled when the vertical that needs them starts. |
+| 2026-10-29 | Feedback on the first MVP preview. D-44 (catalog file as primary source), D-45 (container state and healthcheck on tiles), D-46 (public and LAN URLs, LAN derived from published ports), D-47 (icon resolution and server-side cache), D-48 (apps made of several workloads), D-49 (one spec page per vertical). Q-07 resolved. First vertical page: [verticals/V1-launcher-docker.md](verticals/V1-launcher-docker.md). |

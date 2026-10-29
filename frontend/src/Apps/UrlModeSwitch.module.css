@@ -1,0 +1,47 @@
+.switch {
+  display: inline-flex;
+  margin: 0;
+  min-width: 0;
+  padding: 3px;
+  border: var(--borderWidth) solid var(--hairline);
+  border-radius: var(--radiusPill);
+  background-color: var(--paperSunken);
+}
+
+.legend {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.input {
+  position: absolute;
+  opacity: 0;
+}
+
+.option,
+.active {
+  padding: 4px 14px;
+  border: none;
+  border-radius: var(--radiusPill);
+  background: none;
+  color: var(--inkSoft);
+  font: inherit;
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.active {
+  background-color: var(--secondary);
+  color: var(--inkOnAccent);
+}
+
+.option:focus-within,
+.active:focus-within {
+  outline: var(--borderWidth) solid var(--accent);
+  outline-offset: 2px;
+}

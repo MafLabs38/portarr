@@ -64,3 +64,8 @@ secrets.json
 .DS_Store
 Thumbs.db
 *.log
+
+# Mutation testing reports
+StrykerOutput/
+reports/mutation/
+.stryker-tmp/

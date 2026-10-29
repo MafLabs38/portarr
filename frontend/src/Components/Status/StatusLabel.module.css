@@ -1,0 +1,56 @@
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: var(--radiusPill);
+  background-color: var(--paperSunken);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.compact {
+  display: inline-flex;
+}
+
+.visuallyHidden {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.icon {
+  flex: none;
+}
+
+.reason {
+  overflow: hidden;
+  color: var(--inkMuted);
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.success {
+  color: var(--successColor);
+}
+
+.warning {
+  color: var(--warningColor);
+}
+
+.danger {
+  color: var(--dangerColor);
+}
+
+.info {
+  color: var(--infoColor);
+}
+
+.disabled,
+.inverse {
+  color: var(--disabledColor);
+}

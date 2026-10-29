@@ -6,12 +6,21 @@ import { defineConfig } from 'vite';
 const src = fileURLToPath(new URL('./src', import.meta.url));
 
 // Absolute imports from src (DESIGN.md §1.3): every top-level folder becomes an alias.
-const aliases = ['__mocks__', 'App', 'Components', 'Helpers', 'Styles', 'System', 'Utilities', 'typings'].map(
-  (folder) => ({
-    find: new RegExp(`^${folder}(/|$)`),
-    replacement: `${src}/${folder}$1`,
-  }),
-);
+const aliases = [
+  '__mocks__',
+  'App',
+  'Apps',
+  'Components',
+  'Helpers',
+  'Styles',
+  'System',
+  'Utilities',
+  'Workloads',
+  'typings',
+].map((folder) => ({
+  find: new RegExp(`^${folder}(/|$)`),
+  replacement: `${src}/${folder}$1`,
+}));
 
 export default defineConfig({
   root: fileURLToPath(new URL('.', import.meta.url)),
@@ -22,8 +31,9 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // PORTARR_API: where the backend runs (e.g. a dotnet watch on another port).
     proxy: {
-      '/api': 'http://localhost:8484',
+      '/api': process.env.PORTARR_API ?? 'http://localhost:8484',
     },
   },
   build: {
