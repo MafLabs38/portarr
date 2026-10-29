@@ -168,7 +168,7 @@ public sealed partial class IconService : IIconService
                 return null;
             }
 
-            body.Write(chunk, 0, read);
+            await body.WriteAsync(chunk.AsMemory(0, read), cancellationToken);
         }
 
         return body.ToArray();
