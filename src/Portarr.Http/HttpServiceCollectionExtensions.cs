@@ -113,7 +113,7 @@ public static class HttpServiceCollectionExtensions
             headers.XContentTypeOptions = "nosniff";
             headers["Referrer-Policy"] = "no-referrer";
             headers.ContentSecurityPolicy =
-                "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+                "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
             await next(context);
         });
 

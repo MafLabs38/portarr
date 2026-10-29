@@ -5,6 +5,20 @@ import { expect, test } from '@playwright/test';
 const webUrl = new URL(process.env.E2E_WEB_URL ?? 'http://localhost:8080');
 
 test.describe('Launcher and workloads', { tag: '@smoke' }, () => {
+  // The security headers must never break the UI: any CSP violation fails the test that caused it.
+  let cspViolations: string[] = [];
+  test.beforeEach(({ page }) => {
+    cspViolations = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error' && message.text().includes('Content Security Policy')) {
+        cspViolations.push(message.text().slice(0, 200));
+      }
+    });
+  });
+  test.afterEach(() => {
+    expect(cspViolations).toEqual([]);
+  });
+
   test('apps are grouped by stack with container state and healthcheck', async ({ page }) => {
     await page.goto('/');
 
