@@ -95,7 +95,7 @@ public sealed class DockerHttpClientFactory : IDisposable
         }
 
         // A base path is kept (the Portarr reader serves the Docker API under /v1/docker/); a bare address stays at the root.
-        var path = url.AbsolutePath.EndsWith('/') ? url.AbsolutePath : url.AbsolutePath + '/';
+        var path = url.AbsolutePath.EndsWith('/') ? url.AbsolutePath : url.AbsolutePath + Path.AltDirectorySeparatorChar;
         var builder = new UriBuilder(url) { Scheme = url.Scheme == "tcp" ? "http" : url.Scheme, Path = path };
         if (url.Scheme == "tcp" && url.IsDefaultPort)
         {

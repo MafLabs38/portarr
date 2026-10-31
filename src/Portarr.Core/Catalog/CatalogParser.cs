@@ -407,7 +407,7 @@ public static partial class CatalogParser
             }
 
             // A trailing slash makes the reader's own path a base: the routes are resolved under it, whatever it is.
-            var baseUrl = url.AbsolutePath.EndsWith('/') ? url : new Uri(url.GetLeftPart(UriPartial.Path) + '/');
+            var baseUrl = url.AbsolutePath.EndsWith('/') ? url : new Uri(url.GetLeftPart(UriPartial.Path) + Path.AltDirectorySeparatorChar);
             return (new DockerEndpoint(new Uri(baseUrl, "v1/docker/"), variable), new HostMetricsEndpoint(new Uri(baseUrl, "v1/host"), variable));
         }
 
