@@ -32,7 +32,7 @@ public readonly record struct HostMachineKey(string EnvironmentId, string Machin
 /// server's pod proxy to the node_exporter pod of the node, on <c>ApiServerPort</c>
 /// (<c>/api/v1/namespaces/&lt;ns&gt;/pods/&lt;pod&gt;:&lt;port&gt;/proxy/metrics</c>).
 /// </summary>
-public sealed record HostMetricsTarget(CatalogEnvironment Environment, string MachineId, Uri? Url, int? ApiServerPort = null)
+public sealed record HostMetricsTarget(CatalogEnvironment Environment, string MachineId, Uri? Url, int? ApiServerPort = null, string? ConfigurationError = null)
 {
     public HostMachineKey Key => new(Environment.Id, MachineId);
 }

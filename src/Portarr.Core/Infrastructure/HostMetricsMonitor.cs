@@ -143,8 +143,10 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
                 {
                     NodeExporterAccess.Url => new HostMetricsTarget(environment, node.Id, route.Url),
                     NodeExporterAccess.ApiServer => new HostMetricsTarget(environment, node.Id, null, nodeExporter.Port),
-                    NodeExporterAccess.Direct when IsReachableAddress(node.Address) && node.Address is { } address
-                        => new HostMetricsTarget(environment, node.Id, new UriBuilder(Uri.UriSchemeHttp, address, nodeExporter.Port, "/metrics").Uri),
+                    NodeExporterAccess.Direct when node.Address is { } address
+                        => IsReachableAddress(address)
+                            ? new HostMetricsTarget(environment, node.Id, new UriBuilder(Uri.UriSchemeHttp, address, nodeExporter.Port, "/metrics").Uri)
+                            : new HostMetricsTarget(environment, node.Id, null, null, InvalidAddress),
                     _ => null,
                 };
                 if (target is not null)
@@ -161,7 +163,7 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
     /// A node address worth connecting to: a node that reports a loopback, link-local or unspecified address (or a name that is not an address
     /// or a host name) would make Portarr read itself or its own network neighbours, so it is skipped.
     /// </summary>
-    internal static bool IsReachableAddress(string? address)
+    internal static bool IsReachableAddress(string address)
     {
         if (string.IsNullOrWhiteSpace(address))
         {
@@ -170,6 +172,7 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
 
         if (IPAddress.TryParse(address, out var ip))
         {
+            ip = ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip;
             return !IPAddress.IsLoopback(ip) && !ip.Equals(IPAddress.Any) && !ip.Equals(IPAddress.IPv6Any) && !ip.IsIPv6LinkLocal && !IsIPv4LinkLocal(ip);
         }
 
@@ -181,6 +184,9 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
         var bytes = ip.GetAddressBytes();
         return bytes.Length == 4 && bytes[0] == 169 && bytes[1] == 254;
     }
+
+    /// <summary>The reason code of a node whose reported address is not one Portarr reads (D-32): use <c>nodeExporter.nodes</c> for it.</summary>
+    internal const string InvalidAddress = "invalid-address";
 
     private void StartDueReads(CancellationToken stoppingToken)
     {
@@ -196,7 +202,7 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
             foreach (var target in targets)
             {
                 var source = _sources.FirstOrDefault(s => s.Supports(target));
-                if (source is null || _running.ContainsKey(target.Key) || (_schedule.TryGetValue(target.Key, out var schedule) && schedule.Due > now))
+                if ((source is null && target.ConfigurationError is null) || _running.ContainsKey(target.Key) || (_schedule.TryGetValue(target.Key, out var schedule) && schedule.Due > now))
                 {
                     continue;
                 }
@@ -209,14 +215,19 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
     }
 
     /// <summary>Reads one machine and stores the result; never throws (a failure is stored as a reason code).</summary>
-    private async Task ReadAsync(IHostMetricsSource source, HostMetricsTarget target, CancellationToken cancellationToken)
+    private async Task ReadAsync(IHostMetricsSource? source, HostMetricsTarget target, CancellationToken cancellationToken)
     {
         await Task.Yield();
         try
         {
-            if (source.GetConfigurationError(target) is { Length: > 0 } configurationError)
+            if ((target.ConfigurationError ?? source?.GetConfigurationError(target)) is { Length: > 0 } configurationError)
             {
                 Store(target.Key, null, configurationError);
+                return;
+            }
+
+            if (source is null)
+            {
                 return;
             }
 

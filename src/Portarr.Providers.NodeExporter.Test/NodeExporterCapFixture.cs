@@ -23,8 +23,11 @@ public sealed class NodeExporterCapFixture
     public async Task should_still_read_an_answer_just_under_the_cap()
     {
         var sampler = new NodeExporterSampler();
-        var filler = string.Concat(Enumerable.Repeat("# a comment line that the parser skips\n", 1000));
-        var text = $"{filler}node_memory_MemTotal_bytes 1000\nnode_memory_MemAvailable_bytes 400\n";
+        var tail = "node_memory_MemTotal_bytes 1000\nnode_memory_MemAvailable_bytes 400\n";
+        const string Comment = "# a comment line that the parser skips\n";
+        var lines = (int)((NodeExporterSampler.MaxCharacters - tail.Length) / Comment.Length) - 1;
+        var text = string.Concat(Enumerable.Repeat(Comment, lines)) + tail;
+        text.Length.Should().BeInRange((int)NodeExporterSampler.MaxCharacters - 2 * Comment.Length, (int)NodeExporterSampler.MaxCharacters);
 
         var reading = await sampler.ReadAsync(Key, new MemoryStream(System.Text.Encoding.UTF8.GetBytes(text)), TestContext.Current.CancellationToken);
 

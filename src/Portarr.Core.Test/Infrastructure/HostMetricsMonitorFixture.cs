@@ -165,15 +165,35 @@ public sealed class HostMetricsMonitorFixture
         catalog.Errors.Should().BeEmpty();
         var infrastructure = new Dictionary<string, EnvironmentMetrics>
         {
-            ["cluster"] = new("cluster", [Node("home", "10.0.0.21"), Node("behind-tunnel", "10.0.0.22"), Node("elsewhere", null), Node("no-address", null), Node("disabled", "10.0.0.23")], new Dictionary<string, WorkloadUsageSample>(), Now, null),
+            ["cluster"] = new("cluster", [Node("home", "10.0.0.21"), Node("behind-tunnel", "10.0.0.22"), Node("elsewhere", null), Node("no-address", null), Node("disabled", "10.0.0.23"), Node("looped", "127.0.0.1")], new Dictionary<string, WorkloadUsageSample>(), Now, null),
         };
 
         var targets = HostMetricsMonitor.ResolveTargets(catalog.Catalog, infrastructure);
 
-        targets.Select(t => (t.MachineId, t.Url?.ToString(), t.ApiServerPort)).Should().Equal(
-            ("home", "http://10.0.0.21:9100/metrics", null),
-            ("behind-tunnel", null, 9100),
-            ("elsewhere", "http://10.0.0.30:9100/metrics", null));
+        targets.Select(t => (t.MachineId, t.Url?.ToString(), t.ApiServerPort, t.ConfigurationError)).Should().Equal(
+            ("home", "http://10.0.0.21:9100/metrics", null, null),
+            ("behind-tunnel", null, 9100, null),
+            ("elsewhere", "http://10.0.0.30:9100/metrics", null, null),
+            ("looped", null, null, HostMetricsMonitor.InvalidAddress));
+    }
+
+    [Fact]
+    public async Task should_show_a_node_with_an_address_it_will_not_read_as_a_reason_not_as_a_missing_card()
+    {
+        UseCatalog("""
+            environments:
+              - { id: cluster, kubernetes: { server: "https://10.0.0.20:6443", nodeExporter: { access: direct } } }
+            """);
+        _infrastructure.Current.Returns(new Dictionary<string, EnvironmentMetrics>
+        {
+            ["cluster"] = new("cluster", [Node("looped", "127.0.0.1")], new Dictionary<string, WorkloadUsageSample>(), Now, null),
+        });
+        var monitor = Monitor();
+
+        await monitor.SampleAsync(TestContext.Current.CancellationToken);
+
+        monitor.Current[new HostMachineKey("cluster", "looped")].Error.Should().Be(HostMetricsMonitor.InvalidAddress);
+        await _source.DidNotReceive().ReadAsync(Arg.Any<HostMetricsTarget>(), Arg.Any<CancellationToken>());
     }
 
     private int Reads() => _source.ReceivedCalls().Count(call => call.GetMethodInfo().Name == nameof(IHostMetricsSource.ReadAsync));
