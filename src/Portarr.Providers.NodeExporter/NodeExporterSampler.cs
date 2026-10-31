@@ -28,7 +28,8 @@ public sealed class NodeExporterSampler
     /// <summary>Parses a scrape of <paramref name="key"/> (streamed, never buffered whole) and measures it against the previous one.</summary>
     public async Task<HostReading> ReadAsync(HostMachineKey key, Stream metrics, CancellationToken cancellationToken)
     {
-        using var reader = new StreamReader(metrics);
+        // The cap counts the bytes read (after any decompression): a line that never ends cannot fill the memory before it is counted.
+        using var reader = new StreamReader(new CappedStream(metrics, MaxCharacters));
         var counters = await NodeExporterParser.ParseAsync(reader, MaxCharacters, cancellationToken);
         return Next(key, counters);
     }
