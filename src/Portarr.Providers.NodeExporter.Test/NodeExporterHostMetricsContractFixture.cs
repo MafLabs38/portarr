@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using Microsoft.Extensions.Configuration;
 using NSubstitute;
 using Portarr.Core.Catalog;
 using Portarr.Core.Infrastructure;
@@ -20,7 +21,7 @@ public sealed class NodeExporterHostMetricsContractFixture : HostMetricsSourceCo
         var environment = new CatalogEnvironment("server-1", "Server 1", null);
 
         return new HostMetricsHarness(
-            new NodeExporterHostMetricsSource(factory),
+            new NodeExporterHostMetricsSource(factory, new ConfigurationBuilder().Build()),
             new HostMetricsTarget(environment, "server-1", new Uri("http://10.0.0.10:9100/metrics")),
             new HostMetricsTarget(environment, "server-1", null, 9100),
             served => text = served,

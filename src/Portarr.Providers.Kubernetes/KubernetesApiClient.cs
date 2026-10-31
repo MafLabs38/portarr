@@ -10,6 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Portarr.Core.Catalog;
 using Portarr.Core.Configuration;
+using Portarr.Core.Workloads;
 
 namespace Portarr.Providers.Kubernetes;
 
@@ -21,7 +22,7 @@ namespace Portarr.Providers.Kubernetes;
 public sealed class KubernetesApiClient : IDisposable
 {
     /// <summary>Reason codes of a declared but unusable cluster, shown as not connected.</summary>
-    public const string TokenMissing = "token-missing";
+    public const string TokenMissing = ReasonCodes.TokenMissing;
     public const string CaMissing = "ca-missing";
     public const string CaInvalid = "ca-invalid";
 

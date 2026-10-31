@@ -19,7 +19,7 @@ public sealed class GitHubRepositorySource : ICodeRepositorySource
 
     public static readonly Uri ApiBaseAddress = new("https://api.github.com/");
 
-    public const string TokenMissing = "token-missing";
+    public const string TokenMissing = ReasonCodes.TokenMissing;
 
     /// <summary>Pages read per list (100 items each): repositories of an owner, alerts of a repository.</summary>
     private const int MaxPages = 10;

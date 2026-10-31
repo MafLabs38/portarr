@@ -10,6 +10,9 @@ public static class ReasonCodes
     public const string Unreachable = "unreachable";
     public const string InvalidResponse = "invalid-response";
 
+    /// <summary>The environment is declared, but the variable that holds its token is empty (not a failure of the call).</summary>
+    public const string TokenMissing = "token-missing";
+
     public static string From(Exception exception)
     {
         return exception switch

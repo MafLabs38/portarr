@@ -32,6 +32,10 @@ environments:
   - { id: server-1, name: Server 1, docker: { url: "http://server-1:2375" } }
 ```
 
+## Behind a proxy that asks for a token
+
+`docker.url` may carry a base path (a reverse proxy serving the API under `/docker/`), and `docker.tokenEnv` names the environment variable that holds a bearer token to send with every request. The variable must start with `PORTARR_READER_`: a catalog can be edited through the API, and only that namespace is ever sent to a catalog URL ([the reader](reader.md), D-102). When the variable is empty the machine is shown as `token-missing` instead of being read anonymously. For a machine with a [reader](reader.md), declare `reader:` instead: it sets both.
+
 ## Local Docker
 
 When Portarr runs on the Docker host itself, it can use `unix:///var/run/docker.sock` directly, but avoid it outside a disposable test setup: mounting the socket with `:ro` does not restrict the Docker API. Whoever holds the socket can start a privileged container, so a direct mount gives root-equivalent access to the host. Run the socket proxy next to Portarr instead (`docker: { url: "http://socket-proxy:2375" }` on a private Docker network).

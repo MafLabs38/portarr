@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Portarr.Core.Catalog;
 
 namespace Portarr.Providers.Docker.Test;
@@ -7,7 +8,7 @@ public sealed class DockerWorkloadSourceInputFixture : IDisposable
 {
     private static readonly CatalogEnvironment Environment = new("e", "E", new DockerEndpoint(new Uri("http://127.0.0.1:1")));
 
-    private readonly DockerHttpClientFactory _clients = new();
+    private readonly DockerHttpClientFactory _clients = new(new ConfigurationBuilder().Build());
 
     public void Dispose() => _clients.Dispose();
 
@@ -27,6 +28,8 @@ public sealed class DockerWorkloadSourceInputFixture : IDisposable
     [InlineData("tcp://socket-proxy", "http://socket-proxy:2375/")]
     [InlineData("tcp://socket-proxy:2376", "http://socket-proxy:2376/")]
     [InlineData("unix:///var/run/docker.sock", "http://docker/")]
+    [InlineData("http://reader:8485/v1/docker/", "http://reader:8485/v1/docker/")]
+    [InlineData("http://reader:8485/v1/docker", "http://reader:8485/v1/docker/")]
     public void should_target_the_endpoint_of_each_scheme(string endpoint, string expected)
     {
         using var client = DockerHttpClientFactory.Create(new Uri(endpoint));

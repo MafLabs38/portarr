@@ -49,6 +49,18 @@ public sealed class HostMetricsMonitorFixture
     }
 
     [Fact]
+    public async Task should_show_a_configuration_error_as_its_reason_without_reading_the_agent()
+    {
+        _source.GetConfigurationError(Arg.Any<HostMetricsTarget>()).Returns("token-missing");
+        var monitor = Monitor();
+
+        await monitor.SampleAsync(TestContext.Current.CancellationToken);
+
+        monitor.Current[Machine].Error.Should().Be("token-missing");
+        await _source.DidNotReceive().ReadAsync(Arg.Any<HostMetricsTarget>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task should_keep_the_last_reading_with_the_reason_when_the_agent_fails_and_back_off_before_asking_again()
     {
         var monitor = Monitor();

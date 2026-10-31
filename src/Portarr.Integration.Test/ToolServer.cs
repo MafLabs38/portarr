@@ -17,6 +17,9 @@ public sealed class ToolServer : IDisposable
     /// <summary>Every request the tool received so far, as <c>METHOD /path</c>.</summary>
     public IReadOnlyList<string> Calls => _server.LogEntries.Select(e => $"{e.RequestMessage?.Method} {e.RequestMessage?.Path}").ToList();
 
+    /// <summary>Every request the tool received so far, as the full URL with its query string.</summary>
+    public IReadOnlyList<string> Urls => _server.LogEntries.Select(e => e.RequestMessage?.Url ?? string.Empty).ToList();
+
     /// <summary>The <c>Authorization</c> header of every request (empty when there was none).</summary>
     public IReadOnlyList<string> Authorizations => _server.LogEntries
         .Select(e => e.RequestMessage?.Headers is { } headers && headers.TryGetValue("Authorization", out var values) ? values.FirstOrDefault() ?? string.Empty : string.Empty)

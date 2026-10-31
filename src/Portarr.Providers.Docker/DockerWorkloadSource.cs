@@ -24,6 +24,12 @@ public sealed partial class DockerWorkloadSource : IWorkloadSource
         return environment.Docker is not null;
     }
 
+    /// <summary>A reason code when the endpoint asks for a token that the environment does not have (the Portarr reader does, D-100).</summary>
+    public string? GetConfigurationError(CatalogEnvironment environment)
+    {
+        return environment.Docker is { TokenVariable: not null } endpoint && _clients.TokenOf(endpoint) is null ? ReasonCodes.TokenMissing : null;
+    }
+
     public async Task<IReadOnlyList<Workload>> ListAsync(CatalogEnvironment environment, CancellationToken cancellationToken)
     {
         using var timeout = Timeout(TimeSpan.FromSeconds(10), cancellationToken);
