@@ -88,6 +88,8 @@ jobs:
           cache: yarn
       - run: yarn install --frozen-lockfile
       - run: yarn test --coverage
+      # The chat's agent runner (agent/) has its own tests, on Node's runner.
+      - run: yarn test:agent
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-frontend

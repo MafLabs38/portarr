@@ -1,16 +1,32 @@
+/* A full-height column pinned under the header (like the *arr sidebars): the menu scrolls inside it, the portal
+   badge stays at the bottom of the visible window whatever the page or the menu length. */
 .sidebar {
+  position: sticky;
+  top: var(--headerHeight);
   display: flex;
   flex: 0 0 var(--sidebarWidth);
   flex-direction: column;
-  gap: 4px;
+  align-self: flex-start;
+  box-sizing: border-box;
+  height: calc(100vh - var(--headerHeight));
   padding: 16px 12px;
   border-right: var(--borderWidth) solid var(--hairline);
   background-color: var(--paperWarm);
 }
 
+.menu {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  gap: 4px;
+}
+
 .link,
 .activeLink {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
@@ -31,20 +47,30 @@
   color: var(--inkOnAccent);
 }
 
-/* Small screens: the menu becomes a horizontal bar under the header. */
+/* Small screens: the menu becomes a horizontal bar under the header; the badge (its logo) ends the bar, outside the
+   scrolling menu so it never covers an entry. */
 @media (width <= 768px) {
   .sidebar {
+    position: static;
     flex: none;
     flex-direction: row;
-    overflow-x: auto;
+    align-items: center;
+    align-self: stretch;
+    height: auto;
     padding: 8px 12px;
+    gap: 8px;
     border-right: none;
     border-bottom: var(--borderWidth) solid var(--hairline);
   }
 
+  .menu {
+    flex-direction: row;
+    min-width: 0;
+    overflow: auto hidden;
+  }
+
   .link,
   .activeLink {
-    flex: none;
     padding: 8px 12px;
   }
 }

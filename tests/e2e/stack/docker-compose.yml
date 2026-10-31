@@ -26,14 +26,29 @@ services:
     command: ['sh', '-c', 'echo starting; echo fatal error >&2; exit 1']
     restart: 'no'
 
+  # Stands in for the chat's agent runner (D-89): it only answers the list of agents, so the chat panel opens and no
+  # model is ever called.
+  tools:
+    image: wiremock/wiremock:3.13.1
+    command: ['--disable-banner']
+    volumes:
+      - ./wiremock:/home/wiremock:ro
+
   portarr:
     build:
       context: ../../..
     depends_on:
       - socket-proxy
       - web
+      - tools
     environment:
       PORTARR__CATALOGFILE: /catalog/catalog.yaml
+      # The Identity card only offers its form when the catalog can be written (the specs never save anything).
+      PORTARR__CATALOG__WRITABLE: 'true'
+      # Required while the catalog is writable (a throwaway; the specs never use it).
+      PORTARR__APIKEY: e2e-e2e-e2e-e2e-e2e-e2e-e2e-e2e-e2e
+      PORTARR__AGENT__URL: http://tools:8080
+      PORTARR__AGENT__SECRET: e2e-e2e-e2e-e2e-e2e-e2e-e2e-e2e-e2e
     ports:
       - '8484:8484'
     volumes:

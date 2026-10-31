@@ -7,8 +7,8 @@ namespace Portarr.Core.Catalog.Editing;
 
 /// <summary>
 /// One catalog edit as the audit log keeps it (D-85): when, through which channel and from which address, what
-/// (operation, section, id), the versions before and after and a summary of the changes. Never a key, never the
-/// values themselves.
+/// (operation, section, id), the versions before and after and a summary of the changes; <c>Via</c> names the
+/// built-in chat conversation when the edit came from it (D-89). Never a key, never the values themselves.
 /// </summary>
 public sealed record CatalogAuditEntry(
     DateTimeOffset At,
@@ -19,7 +19,8 @@ public sealed record CatalogAuditEntry(
     string Id,
     string VersionBefore,
     string VersionAfter,
-    IReadOnlyList<string> Changes);
+    IReadOnlyList<string> Changes,
+    string? Via = null);
 
 public interface ICatalogAuditLog
 {

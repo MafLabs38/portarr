@@ -1,0 +1,193 @@
+using System.Text;
+using System.Xml;
+
+namespace Portarr.Core.Portal;
+
+/// <summary>What a logo file is, once inspected: the extension it must carry and the content type it is served with.</summary>
+public sealed record LogoFormat(string Extension, string ContentType);
+
+/// <summary>
+/// The rules for the portal's logo (D-91): where it may live (a relative path inside the catalog folder), which
+/// formats it may have (png, webp, svg), how big it may be and whether the bytes are really what the extension says.
+/// One place, shared by the catalog parser, the upload and the service that serves the file.
+/// </summary>
+public static class PortalLogo
+{
+    /// <summary>Same limit as an icon (D-47): a logo is small.</summary>
+    public const long MaxBytes = 1024 * 1024;
+
+    public const int MaxPathLength = 200;
+    public const int MaxNameLength = 40;
+
+    /// <summary>The folder next to the catalog that uploads write to.</summary>
+    public const string Folder = "branding";
+
+    private const string SvgNamespace = "http://www.w3.org/2000/svg";
+
+    private static readonly LogoFormat Png = new("png", "image/png");
+    private static readonly LogoFormat WebP = new("webp", "image/webp");
+    private static readonly LogoFormat Svg = new("svg", "image/svg+xml");
+    private static readonly LogoFormat[] Formats = [Png, WebP, Svg];
+    private static readonly byte[] PngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+    /// <summary>The formats a logo may have, by extension (png, webp, svg).</summary>
+    public static IReadOnlyList<string> Extensions { get; } = Formats.Select(f => f.Extension).ToList();
+
+    /// <summary>The format an extension (with or without its dot, any case) stands for, or null.</summary>
+    public static LogoFormat? FormatOfExtension(string extension)
+    {
+        var name = extension.TrimStart('.');
+        return Formats.FirstOrDefault(f => string.Equals(f.Extension, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>The name of the infrastructure: text on one line, at most <see cref="MaxNameLength"/> characters. Null when valid.</summary>
+    public static string? ValidateName(string name)
+    {
+        if (name.Length > MaxNameLength)
+        {
+            return $"name must be at most {MaxNameLength} characters.";
+        }
+
+        return name.Any(char.IsControl) ? "name must be one line of text." : null;
+    }
+
+    /// <summary>
+    /// A logo path as the catalog states it: relative to the catalog folder, forward slashes, no <c>..</c>, no
+    /// absolute or drive path, no hidden file, and png, webp or svg. Null when valid.
+    /// </summary>
+    public static string? ValidatePath(string path)
+    {
+        if (path.Length > MaxPathLength)
+        {
+            return $"logo must be at most {MaxPathLength} characters.";
+        }
+
+        if (path.StartsWith('/') || path.StartsWith('~') || path.Contains('\\', StringComparison.Ordinal) || path.Contains(':', StringComparison.Ordinal) || path.Any(char.IsControl))
+        {
+            return "logo must be a path relative to the catalog folder, with forward slashes (branding/logo.png).";
+        }
+
+        if (path.Split('/').Any(segment => segment.Length == 0 || segment.StartsWith('.')))
+        {
+            return "logo must stay inside the catalog folder: no '..', no empty or hidden path segment.";
+        }
+
+        return FormatOfExtension(Path.GetExtension(path)) is null ? $"logo must be a {string.Join(", ", Extensions)} file." : null;
+    }
+
+    /// <summary>
+    /// The full path of a logo inside <paramref name="catalogFolder"/>, or null when the path is not valid, leaves the
+    /// folder (also through a link) or is not a file.
+    /// </summary>
+    public static string? Resolve(string catalogFolder, string path)
+    {
+        if (ValidatePath(path) is not null)
+        {
+            return null;
+        }
+
+        var root = Path.GetFullPath(catalogFolder);
+        var full = Path.GetFullPath(Path.Combine(root, path));
+        if (!IsInside(root, full) || !File.Exists(full))
+        {
+            return null;
+        }
+
+        // A link must not lead out of the folder either.
+        var target = new FileInfo(full).ResolveLinkTarget(returnFinalTarget: true);
+        return target is null || IsInside(root, target.FullName) ? full : null;
+    }
+
+    /// <summary>
+    /// Checks the bytes of a logo against its extension: the signature of a png or a webp, or a well-formed svg without
+    /// script, event handler or embedded foreign content. Returns the format, or the reason it is refused.
+    /// </summary>
+    public static (LogoFormat? Format, string? Error) Inspect(ReadOnlySpan<byte> content, string extension)
+    {
+        var expected = FormatOfExtension(extension);
+        if (expected is null)
+        {
+            return (null, $"The file must be a {string.Join(", ", Extensions)} image.");
+        }
+
+        if (content.Length == 0 || content.Length > MaxBytes)
+        {
+            return (null, $"The image must be between 1 byte and {MaxBytes / 1024} KiB.");
+        }
+
+        return HasValidContent(expected, content) ? (expected, null) : (null, $"The file is not a valid {expected.Extension} image.");
+    }
+
+    private static bool HasValidContent(LogoFormat expected, ReadOnlySpan<byte> content)
+    {
+        if (expected == Png)
+        {
+            return content.StartsWith(PngSignature);
+        }
+
+        if (expected == WebP)
+        {
+            return content.Length > 12 && content[..4].SequenceEqual("RIFF"u8) && content[8..12].SequenceEqual("WEBP"u8);
+        }
+
+        return IsSafeSvg(content);
+    }
+
+    private static bool IsInside(string root, string full)
+    {
+        return full.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+    }
+
+    private static bool IsSafeSvg(ReadOnlySpan<byte> content)
+    {
+        var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null, MaxCharactersInDocument = MaxBytes };
+        try
+        {
+            using var reader = XmlReader.Create(new MemoryStream(content.ToArray()), settings);
+            var root = true;
+            while (reader.Read())
+            {
+                if (reader.NodeType != XmlNodeType.Element)
+                {
+                    continue;
+                }
+
+                if ((root && (reader.LocalName != "svg" || reader.NamespaceURI != SvgNamespace)) || IsActive(reader))
+                {
+                    return false;
+                }
+
+                root = false;
+            }
+
+            return !root;
+        }
+        catch (XmlException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>An element that can run code or load content: a script, a foreign object, an event handler, a script link.</summary>
+    private static bool IsActive(XmlReader element)
+    {
+        if (element.LocalName is "script" or "foreignObject")
+        {
+            return true;
+        }
+
+        for (var more = element.MoveToFirstAttribute(); more; more = element.MoveToNextAttribute())
+        {
+            var value = element.Value.TrimStart();
+            if (element.LocalName.StartsWith("on", StringComparison.OrdinalIgnoreCase)
+                || value.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase)
+                || value.StartsWith("data:text/html", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        element.MoveToElement();
+        return false;
+    }
+}

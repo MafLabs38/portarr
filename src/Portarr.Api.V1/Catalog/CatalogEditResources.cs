@@ -1,6 +1,8 @@
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using FluentValidation;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Portarr.Core.Catalog;
 using Portarr.Core.Catalog.Editing;
 
@@ -31,7 +33,8 @@ public sealed record CatalogAuditEntryResource(
     string Id,
     string VersionBefore,
     string VersionAfter,
-    IReadOnlyList<string> Changes);
+    IReadOnlyList<string> Changes,
+    string? Via = null);
 
 public sealed class CatalogItemRequestValidator : AbstractValidator<CatalogItemRequest>
 {
@@ -73,12 +76,37 @@ public static partial class CatalogEditMapper
 
     public static CatalogAuditEntryResource ToResource(this CatalogAuditEntry entry)
     {
-        return new CatalogAuditEntryResource(entry.At, entry.Channel, entry.Client, entry.Operation, entry.Section, entry.Id, entry.VersionBefore, entry.VersionAfter, entry.Changes);
+        return new CatalogAuditEntryResource(entry.At, entry.Channel, entry.Client, entry.Operation, entry.Section, entry.Id, entry.VersionBefore, entry.VersionAfter, entry.Changes, entry.Via);
     }
 
     public static CatalogEditResource ToResource(this CatalogEditResult result)
     {
         return new CatalogEditResource(result.Status.ToString().ToLowerInvariant(), result.Version, result.Changes);
+    }
+
+    /// <summary>The HTTP answer to an edit's outcome, the same for every endpoint that edits the catalog.</summary>
+    public static IActionResult ToActionResult(this ControllerBase controller, CatalogEditResult result, string section, string id)
+    {
+        var detail = string.Join(" ", result.Errors);
+        return result.Status switch
+        {
+            CatalogEditStatus.Applied or CatalogEditStatus.Unchanged => controller.Ok(result.ToResource()),
+            CatalogEditStatus.Invalid => controller.ValidationProblem(new ValidationProblemDetails(result.ToErrors(section, id)) { Extensions = { ["version"] = result.Version } }),
+            CatalogEditStatus.NotFound => controller.Problem(title: "Not found", detail: detail, statusCode: StatusCodes.Status404NotFound),
+            CatalogEditStatus.ReadOnly => controller.Problem(title: "Catalog read-only", detail: detail, statusCode: StatusCodes.Status403Forbidden),
+            _ => Conflict(controller, result),
+        };
+    }
+
+    private static ObjectResult Conflict(ControllerBase controller, CatalogEditResult result)
+    {
+        var problem = controller.ProblemDetailsFactory.CreateProblemDetails(
+            controller.HttpContext,
+            StatusCodes.Status409Conflict,
+            result.Status == CatalogEditStatus.Conflict ? "Version mismatch" : "Already exists",
+            detail: string.Join(" ", result.Errors));
+        problem.Extensions["version"] = result.Version;
+        return new ObjectResult(problem) { StatusCode = StatusCodes.Status409Conflict };
     }
 
     /// <summary>
@@ -87,6 +115,11 @@ public static partial class CatalogEditMapper
     /// </summary>
     public static string PathOf(string error, string section, string id)
     {
+        if (section == CatalogSections.Portal)
+        {
+            return PortalPathOf(error);
+        }
+
         var match = OwnerPattern().Match(error);
         if (!match.Success)
         {
@@ -102,6 +135,13 @@ public static partial class CatalogEditMapper
         var words = match.Groups["rest"].Value.Split(' ', 3);
         var field = words.Length > 1 && FieldPattern().IsMatch(words[0]) && (FieldFollowers.Contains(words[1]) || words[1].StartsWith('\'')) ? words[0] : null;
         return field is null ? path : $"{path}.{field}";
+    }
+
+    /// <summary><c>portal.logo</c> for "portal: logo must be…", else <c>portal</c>.</summary>
+    private static string PortalPathOf(string error)
+    {
+        var field = error.StartsWith("portal: ", StringComparison.Ordinal) ? error["portal: ".Length..].Split(' ', 2)[0] : null;
+        return field is not null && FieldPattern().IsMatch(field) ? $"portal.{field}" : CatalogSections.Portal;
     }
 
     /// <summary>The parser's errors grouped by field path, for a validation problem.</summary>

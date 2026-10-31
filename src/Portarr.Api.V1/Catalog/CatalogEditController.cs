@@ -228,26 +228,6 @@ public sealed class CatalogEditController : ControllerBase
     {
         var actor = new CatalogActor(Channel, HttpContext.Connection.RemoteIpAddress?.ToString());
         var result = await _editor.EditAsync(new CatalogEdit(section, id, operation, version, actor, change), cancellationToken);
-        var detail = string.Join(" ", result.Errors);
-
-        return result.Status switch
-        {
-            CatalogEditStatus.Applied or CatalogEditStatus.Unchanged => Ok(result.ToResource()),
-            CatalogEditStatus.Invalid => ValidationProblem(new ValidationProblemDetails(result.ToErrors(section, id)) { Extensions = { ["version"] = result.Version } }),
-            CatalogEditStatus.NotFound => Problem(title: "Not found", detail: detail, statusCode: StatusCodes.Status404NotFound),
-            CatalogEditStatus.ReadOnly => Problem(title: "Catalog read-only", detail: detail, statusCode: StatusCodes.Status403Forbidden),
-            _ => Conflict(result),
-        };
-    }
-
-    private ObjectResult Conflict(CatalogEditResult result)
-    {
-        var problem = ProblemDetailsFactory.CreateProblemDetails(
-            HttpContext,
-            StatusCodes.Status409Conflict,
-            result.Status == CatalogEditStatus.Conflict ? "Version mismatch" : "Already exists",
-            detail: string.Join(" ", result.Errors));
-        problem.Extensions["version"] = result.Version;
-        return new ObjectResult(problem) { StatusCode = StatusCodes.Status409Conflict };
+        return this.ToActionResult(result, section, id);
     }
 }

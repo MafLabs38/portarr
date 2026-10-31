@@ -14,6 +14,7 @@ using Portarr.Core.Icons;
 using Portarr.Core.Infrastructure;
 using Portarr.Core.Instrumentation;
 using Portarr.Core.Maintenance;
+using Portarr.Core.Portal;
 using Portarr.Core.Status;
 using Portarr.Core.SystemInfo;
 using Portarr.Core.Workloads;
@@ -78,6 +79,7 @@ public static class CoreServiceCollectionExtensions
             client.MaxResponseContentBufferSize = IconService.MaxIconBytes;
         });
         services.AddSingleton<IIconService, IconService>();
+        services.AddSingleton<IPortalService, PortalService>();
 
         return services;
     }

@@ -107,9 +107,10 @@ public static partial class CatalogParser
             var gitHub = BuildGitHub(document.Sources?.GitHub);
             var links = BuildLinks(document.Links ?? [], environments);
             var providers = BuildProviders(document.Providers ?? [], environmentsById, appIds);
+            var portal = BuildPortal(document.Portal);
 
             return _errors.Count == 0
-                ? new CatalogParseResult(new Catalog(environments, stacks, apps, data, gitHub, links, providers), [])
+                ? new CatalogParseResult(new Catalog(environments, stacks, apps, data, gitHub, links, providers, portal), [])
                 : new CatalogParseResult(Catalog.Empty, _errors);
         }
 

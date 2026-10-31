@@ -44,7 +44,12 @@ export default function CatalogAuditCard({ status }: Readonly<{ status: Assistan
               </code>
               <span className={styles.description}>{entry.changes.join(' · ')}</span>
               <span className={styles.meta}>
-                {translate('CatalogEditMeta', { channel: entry.channel, age: formatAge(entry.at) })}
+                {translate('CatalogEditMeta', {
+                  channel: entry.via?.startsWith('chat')
+                    ? translate('CatalogEditViaChat', { channel: entry.channel })
+                    : entry.channel,
+                  age: formatAge(entry.at),
+                })}
               </span>
             </li>
           ))}

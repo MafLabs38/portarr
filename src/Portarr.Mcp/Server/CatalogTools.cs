@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Portarr.Core.Catalog.Editing;
+using Portarr.Core.Portal;
 
 namespace Portarr.Mcp.Server;
 
@@ -14,6 +15,9 @@ public sealed record CatalogWriteAnswer(string Status, string Version, IReadOnly
 /// <summary>A catalog item as the file holds it, or, without an id, the ids of the section; with the version to send back.</summary>
 public sealed record CatalogItemAnswer(string Version, string Section, string? Id, JsonObject? Item, IReadOnlyList<string>? Ids);
 
+/// <summary>The identity of the portal (D-91) with the catalog version to send back, the logos the branding folder already holds and the colors of the badge texts.</summary>
+public sealed record PortalAnswer(string Version, string Name, string? Logo, IReadOnlyList<string> LogoFiles, string? LogoProblem, string NameColor, string VersionColor);
+
 /// <summary>
 /// The catalog write tools of the MCP server (D-86), registered only with <c>PORTARR__MCP__WRITETOOLS=true</c> and
 /// effective only with <c>PORTARR__CATALOG__WRITABLE=true</c>. They change Portarr's description of the fleet (the
@@ -21,19 +25,27 @@ public sealed record CatalogItemAnswer(string Version, string Section, string? I
 /// and audit (channel <c>mcp</c>). Every write takes the version read from <c>get_catalog_item</c> or the last write.
 /// </summary>
 [McpServerToolType]
-public sealed class CatalogTools
+public sealed partial class CatalogTools
 {
     private const string Channel = "mcp";
+
+    /// <summary>
+    /// Sent by the agent runner (D-89): <c>chat:&lt;conversation id&gt;</c>, kept in the audit as <c>via</c>. Informative
+    /// only (any client holding the MCP key could send it); anything not shaped like an origin is ignored.
+    /// </summary>
+    public const string OriginHeader = "X-Portarr-Origin";
 
     private const string ItemShape = "The item as JSON with the keys of the catalog file (docs/catalog.md), its id included.";
     private const string VersionHelp = "The catalog version from get_catalog_item or the previous write; a stale version is refused.";
 
     private readonly ICatalogEditor _editor;
+    private readonly IPortalService _portal;
     private readonly IHttpContextAccessor _httpContext;
 
-    public CatalogTools(ICatalogEditor editor, IHttpContextAccessor httpContext)
+    public CatalogTools(ICatalogEditor editor, IPortalService portal, IHttpContextAccessor httpContext)
     {
         _editor = editor;
+        _portal = portal;
         _httpContext = httpContext;
     }
 
@@ -54,6 +66,45 @@ public sealed class CatalogTools
         var item = await _editor.GetItemAsync(section, id, cancellationToken)
             ?? throw new McpException($"No {section} item '{id}'. Ids: {string.Join(", ", await IdsAsync(section, cancellationToken))}.");
         return new CatalogItemAnswer(item.Version, section, id, item.Item, null);
+    }
+
+    [McpServerTool(Name = "get_portal", Title = "Read the portal's identity", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Reads the identity shown in the sidebar: the name of the infrastructure, the logo the catalog declares (a path in the branding folder), the logo files already in that folder, the colors of the name and of the version (a hex color or a theme token name) and the version to send with set_portal.")]
+    public async Task<PortalAnswer> GetPortalAsync(CancellationToken cancellationToken = default)
+    {
+        var identity = _portal.Get();
+        return new PortalAnswer(await _editor.GetVersionAsync(cancellationToken), identity.Name, identity.Logo, _portal.ListBranding(), identity.LogoProblem, identity.Colors.Name, identity.Colors.Version);
+    }
+
+    [McpServerTool(Name = "set_portal", Title = "Set the portal's identity", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Sets the name of the infrastructure, the logo and/or the colors of the name and of the version shown in the sidebar. The logo must be one of the files already in the branding folder (get_portal lists them); uploading an image is done by the operator in the UI. Omit a value to keep it, send an empty one to go back to Portarr's own.")]
+    public Task<CatalogWriteAnswer> SetPortalAsync(
+        [Description(VersionHelp)] string version,
+        [Description("The name of the infrastructure, at most 40 characters; empty for Portarr's own.")] string? name = null,
+        [Description("A path from get_portal's logoFiles (branding/logo.png); empty for Portarr's own logo.")] string? logo = null,
+        [Description("The color of the name: a hex color (#rgb or #rrggbb) or one of accent, accentDeep, secondary, ink, inkSoft, inkMuted; empty for the accent (Portarr's yellow).")] string? nameColor = null,
+        [Description("The color of the version, same values as nameColor.")] string? versionColor = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (name is null && logo is null && nameColor is null && versionColor is null)
+        {
+            throw new McpException("Give a name, a logo, a color, or several.");
+        }
+
+        foreach (var (field, color) in new[] { ("nameColor", nameColor), ("versionColor", versionColor) })
+        {
+            if (!string.IsNullOrWhiteSpace(color) && !PortalColor.IsValid(color.Trim()))
+            {
+                throw new McpException(PortalColor.Validate(field, color.Trim())!);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(logo) && !_portal.ListBranding().Contains(logo.Trim(), StringComparer.Ordinal))
+        {
+            throw new McpException($"logo must be one of the files in the branding folder: {string.Join(", ", _portal.ListBranding())}. The operator uploads new images in System, Status.");
+        }
+
+        return EditAsync(CatalogSections.Portal, CatalogSections.Portal, "set-portal", version, CatalogEdits.SetPortal(name, logo, nameColor, versionColor), cancellationToken);
     }
 
     [McpServerTool(Name = "upsert_app", Title = "Create or replace an app", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
@@ -135,6 +186,15 @@ public sealed class CatalogTools
         return EditAsync(section, id, "set-notes", version, CatalogEdits.SetNotes(section, id, notes, machine), cancellationToken);
     }
 
+    /// <summary>The origin an MCP client declares, when it looks like one (<c>chat</c> or <c>chat:&lt;id&gt;</c>); otherwise null.</summary>
+    public static string? OriginOf(string? header)
+    {
+        return header is { Length: > 0 and <= 80 } && OriginPattern().IsMatch(header) ? header : null;
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex("^[a-z][a-z-]{0,15}(:[A-Za-z0-9-]{1,64})?$")]
+    private static partial System.Text.RegularExpressions.Regex OriginPattern();
+
     private static void CheckSection(string section)
     {
         if (!CatalogSections.All.Contains(section))
@@ -166,7 +226,8 @@ public sealed class CatalogTools
 
     private async Task<CatalogWriteAnswer> EditAsync(string section, string id, string operation, string version, Func<JsonObject?, JsonObject?> change, CancellationToken cancellationToken)
     {
-        var actor = new CatalogActor(Channel, _httpContext.HttpContext?.Connection.RemoteIpAddress?.ToString());
+        var context = _httpContext.HttpContext;
+        var actor = new CatalogActor(Channel, context?.Connection.RemoteIpAddress?.ToString(), OriginOf(context?.Request.Headers[OriginHeader].ToString()));
         var result = await _editor.EditAsync(new CatalogEdit(section, id, operation, version, actor, change), cancellationToken);
         if (!result.Succeeded)
         {

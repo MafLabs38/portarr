@@ -89,7 +89,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
             return Refused(CatalogEditStatus.ReadOnly, string.Empty, "The catalog is read-only: set PORTARR__CATALOG__WRITABLE=true to edit it through Portarr.");
         }
 
-        if (!CatalogSections.All.Contains(edit.Section))
+        if (!CatalogSections.All.Contains(edit.Section) && edit.Section != CatalogSections.Portal)
         {
             return Refused(CatalogEditStatus.Invalid, string.Empty, $"section must be one of {string.Join(", ", CatalogSections.All)}.");
         }
@@ -133,7 +133,9 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
                 return new CatalogEditResult(CatalogEditStatus.Unchanged, version, [], []);
             }
 
-            result = CatalogTextEditor.Apply(text, edit.Section, edit.Id, next).Text;
+            result = (edit.Section == CatalogSections.Portal
+                ? CatalogTextEditor.ApplySetting(text, edit.Section, next)
+                : CatalogTextEditor.Apply(text, edit.Section, edit.Id, next)).Text;
         }
         catch (CatalogEditException exception)
         {
@@ -154,7 +156,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
         var after = CatalogVersion.Of(result);
         var changes = Describe(current, next);
         await _auditLog.AppendAsync(
-            new CatalogAuditEntry(_timeProvider.GetUtcNow(), edit.Actor.Channel, edit.Actor.Client, edit.Operation, edit.Section, edit.Id, version, after, changes),
+            new CatalogAuditEntry(_timeProvider.GetUtcNow(), edit.Actor.Channel, edit.Actor.Client, edit.Operation, edit.Section, edit.Id, version, after, changes, edit.Actor.Via),
             cancellationToken);
         LogEdited(edit.Operation, edit.Section, edit.Id, edit.Actor.Channel, string.Join("; ", changes));
 
@@ -205,9 +207,28 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
 
     private static JsonObject? FindItem(string text, string section, string id)
     {
+        if (section == CatalogSections.Portal)
+        {
+            return Setting(text, section);
+        }
+
         var item = Section(text, section)?.Children.OfType<YamlMappingNode>()
             .FirstOrDefault(m => m.Children.Any(c => c.Key is YamlScalarNode { Value: "id" } && c.Value is YamlScalarNode v && v.Value == id));
         return item is null ? null : (JsonObject)YamlNodes.ToJson(item)!;
+    }
+
+    /// <summary>A top-level mapping that is not a list (<c>portal:</c>) as JSON, or null.</summary>
+    private static JsonObject? Setting(string text, string key)
+    {
+        var stream = new YamlStream();
+        stream.Load(new StringReader(text));
+        if (stream.Documents.Count == 0 || stream.Documents[0].RootNode is not YamlMappingNode root)
+        {
+            return null;
+        }
+
+        var node = root.Children.FirstOrDefault(p => p.Key is YamlScalarNode { } k && k.Value == key).Value;
+        return node is YamlMappingNode ? YamlNodes.ToJson(node) as JsonObject : null;
     }
 
     private async Task<(string Text, bool Bom)> ReadFileAsync(CancellationToken cancellationToken)

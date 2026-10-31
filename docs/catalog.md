@@ -97,6 +97,30 @@ apps:
     urls: [{ href: "https://wiki.homelab.example" }]
 ```
 
+## Identity of the portal
+
+```yaml
+portal:
+  name: Homelab                 # shown at the bottom of the menu; default "Portarr"
+  logo: branding/logo.png       # relative to the catalog folder; default: Portarr's own logo
+  colors:                       # colors of the two texts; default: Portarr's accent (the yellow of its logo)
+    name: "#ffc145"             # a hex color, quoted (an unquoted # starts a YAML comment)...
+    version: inkMuted           # ...or a theme token name
+```
+
+Every key is optional (D-91). The sidebar shows, straight on its background (no card) and always pinned at the bottom of the visible window, the name, the logo and the version of the running Portarr. The image alone is clipped to rounded corners, without a border: a transparent PNG looks unchanged, a square image has no harsh corners.
+
+- `name`: one line, at most 40 characters.
+- `logo`: a path **inside the folder of the catalog**, with forward slashes: no `..`, no absolute or drive path, no hidden file or folder, no link leading out of the folder. PNG, WebP or SVG, at most 1 MiB, and really that format (an SVG with a script, an event handler or a `foreignObject` is refused). A logo that cannot be used falls back to Portarr's own, and System, Status says why. An SVG is served with the same strict policy as icons (`default-src 'none'; sandbox`).
+- `colors.name`, `colors.version`: `#rgb`, `#rrggbb`, or a theme token name: `accent` (default), `accentDeep`, `secondary`, `ink`, `inkSoft`, `inkMuted`. Nothing else is accepted (no `rgb()`, no `url()`, no other CSS); an invalid value is a catalog error.
+- Change it by hand, in System, Status (Identity card: name, colors, upload; needs [catalog writes](#editing-through-the-api) and the API key), through `PUT /api/v1/portal` (`name` and/or `colors: { name, version }`; an empty value goes back to the default) and `PUT /api/v1/portal/logo` (multipart field `file`, stored in `branding/` next to the catalog, the previous file of that name kept as `.bak-<timestamp>`), or through the MCP tools `get_portal` and `set_portal` (`name`, `logo` chosen among the files already in `branding/`, `nameColor`, `versionColor`). `GET /api/v1/portal` returns `colors` resolved (accent where the catalog says nothing).
+
+```bash
+curl -s -X PUT localhost:8484/api/v1/portal -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' -d '{"name":"Homelab"}'
+curl -s -X PUT localhost:8484/api/v1/portal -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' -d '{"colors":{"name":"#ffc145","version":"inkMuted"}}'
+curl -s -X PUT localhost:8484/api/v1/portal/logo -H "X-Api-Key: $KEY" -F file=@logo.png
+```
+
 ## HTTP checks
 
 Every **web** app with a URL is checked by default (D-50): `GET` on its public URL, else its LAN URL (declared or derived), every 60 s with a 10 s timeout. Up on 2xx and 3xx: redirects are not followed, so an SSO login redirect means the app answers. `check:` overrides it per app, `check: false` turns it off; a service or desktop app is only checked when it declares `check:`.
@@ -304,7 +328,7 @@ curl -s -X PUT localhost:8484/api/v1/catalog/apps/blog/notes -H "X-Api-Key: $KEY
   -H 'Content-Type: application/json' -d '{"version":"3f2a…","notes":"Built by CI."}'
 ```
 
-- Endpoints: `GET|PUT|DELETE /api/v1/catalog/{section}/{id}`, `POST /api/v1/catalog/{section}`, `PUT /api/v1/catalog/{section}/{id}/notes`, `PUT|DELETE /api/v1/catalog/environments/{id}/machines/{name}`, `GET /api/v1/catalog/audit`; sections `environments`, `stacks`, `apps`, `data`, `links`, `providers`. Items are JSON with the keys of the file. Reading one item and the audit need the API key too (they show the connectors' addresses and who changed what); they answer even when writes are off. Reference at `/docs`.
+- Endpoints: `GET|PUT|DELETE /api/v1/catalog/{section}/{id}`, `POST /api/v1/catalog/{section}`, `PUT /api/v1/catalog/{section}/{id}/notes`, `PUT|DELETE /api/v1/catalog/environments/{id}/machines/{name}`, `GET /api/v1/catalog/audit`; the identity has its own ([Identity of the portal](#identity-of-the-portal)); sections `environments`, `stacks`, `apps`, `data`, `links`, `providers`. Items are JSON with the keys of the file. Reading one item and the audit need the API key too (they show the connectors' addresses and who changed what); they answer even when writes are off. Reference at `/docs`.
 - **Versions**: every write sends the version it read; if the file changed since (by hand, by another client), the write is refused with 409 and the current version. Writes are serialized.
 - **Validation**: the whole resulting file goes through the parser; an error is a 400 whose `errors` are keyed by field path (`apps[blog].check.url`) and the file is not touched.
 - **What changes in the file**: only what differs. A changed value is rewritten in place, a new key or item is added after the last one with the file's indentation and style (an item of a list written `- { … }` is written that way), a removed one loses its lines; comments and formatting elsewhere stay. Limits: a comment *inside* a rewritten node is lost (a flow item is rewritten whole; a list whose order changed is rewritten), and a comment line above a removed item stays.
