@@ -1,5 +1,5 @@
 /** The theme tokens a badge color may name (D-91); the same list as the server's. */
-const TOKENS = ['accent', 'accentDeep', 'secondary', 'ink', 'inkSoft', 'inkMuted'];
+const TOKENS = new Set(['accent', 'accentDeep', 'secondary', 'ink', 'inkSoft', 'inkMuted']);
 
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
@@ -14,5 +14,5 @@ export function portalColorToCss(value: string | undefined): string {
     return value;
   }
 
-  return `var(--${value && TOKENS.includes(value) ? value : DEFAULT_PORTAL_COLOR})`;
+  return `var(--${value && TOKENS.has(value) ? value : DEFAULT_PORTAL_COLOR})`;
 }
