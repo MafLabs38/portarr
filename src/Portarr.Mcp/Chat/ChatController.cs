@@ -1,11 +1,15 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Portarr.Core.Accounts;
 using Portarr.Http;
+using Portarr.Http.Authentication;
 
 namespace Portarr.Mcp.Chat;
 
@@ -27,10 +31,14 @@ public sealed record ChatCancelRequest;
 
 /// <summary>
 /// The built-in chat (D-89): a proxy to the optional <c>portarr-agent</c> runner, which runs an agent CLI whose only
-/// tool is Portarr's own MCP server (D-87, D-88). Off (404) without <c>PORTARR__AGENT__URL</c>. Until accounts exist
-/// (C2), whoever can open Portarr can use the chat and approve its catalog edits, like the rest of the UI.
+/// tool is Portarr's own MCP server (D-87, D-88). Off (404) without <c>PORTARR__AGENT__URL</c>. Per user since accounts
+/// (V7, D-98): it needs <c>chat.use</c>, a conversation belongs to the user who created it (list, read, send, cancel,
+/// events and delete are the owner's; user managers also list every conversation and look after those without an owner),
+/// approving a change needs <c>catalog.write</c>, and each message carries a short-lived token so the agent's MCP calls
+/// run as the user.
 /// </summary>
 [ApiController]
+[Authorize(Policy = Permissions.ChatUse)]
 [Route("api/v1/assistant/chat")]
 public sealed partial class ChatController : ControllerBase
 {
@@ -38,12 +46,14 @@ public sealed partial class ChatController : ControllerBase
 
     private readonly AgentRunnerClient _runner;
     private readonly AgentOptions _options;
+    private readonly IChatAccess _access;
     private readonly ILogger<ChatController> _logger;
 
-    public ChatController(AgentRunnerClient runner, IOptions<AgentOptions> options, ILogger<ChatController> logger)
+    public ChatController(AgentRunnerClient runner, IOptions<AgentOptions> options, IChatAccess access, ILogger<ChatController> logger)
     {
         _runner = runner;
         _options = options.Value;
+        _access = access;
         _logger = logger;
     }
 
@@ -83,7 +93,31 @@ public sealed partial class ChatController : ControllerBase
     /// <summary>The conversations, latest first.</summary>
     [HttpGet("conversations")]
     [EndpointSummary("The chat's conversations, latest first.")]
-    public Task<IActionResult> ListAsync(CancellationToken cancellationToken) => ForwardAsync(HttpMethod.Get, "v1/conversations", null, cancellationToken);
+    public async Task<IActionResult> ListAsync(CancellationToken cancellationToken)
+    {
+        var result = await ForwardAsync(HttpMethod.Get, "v1/conversations", null, cancellationToken);
+        if (result is not ContentResult { StatusCode: StatusCodes.Status200OK, Content: { } json } || JsonNode.Parse(json) is not JsonArray all)
+        {
+            return result;
+        }
+
+        // Only the user's own conversations; a user manager sees every one, with its owner.
+        var owners = await _access.ListAsync(cancellationToken);
+        var manager = User.HasPermission(Permissions.UsersManage);
+        var visible = new JsonArray();
+        foreach (var item in all.OfType<JsonObject>().ToList())
+        {
+            owners.TryGetValue(item["id"]?.GetValue<string>() ?? string.Empty, out var owner);
+            if (manager || (owner?.UserId is { } ownerId && ownerId == User.UserId()))
+            {
+                all.Remove(item);
+                item["owner"] = owner?.OwnerName;
+                visible.Add(item);
+            }
+        }
+
+        return new ContentResult { StatusCode = StatusCodes.Status200OK, Content = visible.ToJsonString(), ContentType = "application/json" };
+    }
 
     [HttpPost("conversations")]
     [EndpointSummary("Starts a conversation with an agent and a model.")]
@@ -94,58 +128,93 @@ public sealed partial class ChatController : ControllerBase
             return Task.FromResult<IActionResult>(Invalid("agent and model are short lowercase names; title is 200 characters at most."));
         }
 
-        return ForwardAsync(HttpMethod.Post, "v1/conversations", request, cancellationToken);
+        return CreateConversationAsync(request, cancellationToken);
+    }
+
+    private async Task<IActionResult> CreateConversationAsync(ChatConversationRequest request, CancellationToken cancellationToken)
+    {
+        var result = await ForwardAsync(HttpMethod.Post, "v1/conversations", request, cancellationToken);
+        if (result is ContentResult { StatusCode: StatusCodes.Status201Created, Content: { } json }
+            && JsonNode.Parse(json)?["id"]?.GetValue<string>() is { } id
+            && User.UserId() is { } userId)
+        {
+            await _access.RegisterAsync(id, userId, User.Identity?.Name ?? string.Empty, cancellationToken);
+        }
+
+        return result;
     }
 
     /// <summary>A conversation with its stored events (the history the panel shows).</summary>
     [HttpGet("conversations/{id}")]
     [EndpointSummary("A conversation and its history.")]
-    public Task<IActionResult> GetConversationAsync(string id, CancellationToken cancellationToken) =>
-        IdPattern().IsMatch(id) ? ForwardAsync(HttpMethod.Get, $"v1/conversations/{id}", null, cancellationToken) : Task.FromResult<IActionResult>(NotFound());
+    public async Task<IActionResult> GetConversationAsync(string id, CancellationToken cancellationToken) =>
+        await OwnsAsync(id, cancellationToken) ? await ForwardAsync(HttpMethod.Get, $"v1/conversations/{id}", null, cancellationToken) : NotFound();
 
     [HttpDelete("conversations/{id}")]
     [EndpointSummary("Deletes a conversation (its process stops).")]
-    public Task<IActionResult> DeleteAsync(string id, CancellationToken cancellationToken) =>
-        IdPattern().IsMatch(id) ? ForwardAsync(HttpMethod.Delete, $"v1/conversations/{id}", null, cancellationToken) : Task.FromResult<IActionResult>(NotFound());
+    public async Task<IActionResult> DeleteAsync(string id, CancellationToken cancellationToken)
+    {
+        if (!await OwnsAsync(id, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        var result = await ForwardAsync(HttpMethod.Delete, $"v1/conversations/{id}", null, cancellationToken);
+        if (result is StatusCodeResult { StatusCode: < 300 })
+        {
+            await _access.ForgetAsync(id, cancellationToken);
+        }
+
+        return result;
+    }
 
     /// <summary>Sends the operator's message; the answer arrives on the event stream.</summary>
     /// <response code="409">A turn is running.</response>
     /// <response code="429">Too many conversations are running at once.</response>
     [HttpPost("conversations/{id}/messages")]
     [EndpointSummary("Sends a message; the answer arrives on the event stream.")]
-    public Task<IActionResult> SendAsync(string id, [FromBody] ChatMessageRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> SendAsync(string id, [FromBody] ChatMessageRequest request, CancellationToken cancellationToken)
     {
-        if (!IdPattern().IsMatch(id))
+        if (!await OwnsAsync(id, cancellationToken))
         {
-            return Task.FromResult<IActionResult>(NotFound());
+            return NotFound();
         }
 
         if (string.IsNullOrWhiteSpace(request.Text) || request.Text.Length > MaxMessageLength || !ValidName(request.Model))
         {
-            return Task.FromResult<IActionResult>(Invalid($"text is 1 to {MaxMessageLength} characters; model a short lowercase name."));
+            return Invalid($"text is 1 to {MaxMessageLength} characters; model a short lowercase name.");
         }
 
-        return ForwardAsync(HttpMethod.Post, $"v1/conversations/{id}/messages", request, cancellationToken);
+        // The agent reaches the MCP server as this user: a token tied to the user and the conversation, instead of the
+        // shared key. A caller that is not a user account (an environment key) sends none: the runner falls back to its key.
+        var token = User.UserId() is { } userId && _options.Enabled ? await _access.MintTokenAsync(userId, id, cancellationToken) : null;
+        return await ForwardAsync(HttpMethod.Post, $"v1/conversations/{id}/messages", new { request.Text, request.Model, McpToken = token }, cancellationToken);
     }
 
     /// <summary>Approves or rejects a catalog write the agent proposes.</summary>
     [HttpPost("conversations/{id}/permissions/{requestId}")]
     [EndpointSummary("Approves or rejects a change the agent proposes.")]
-    public Task<IActionResult> AnswerAsync(string id, string requestId, [FromBody] ChatPermissionRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> AnswerAsync(string id, string requestId, [FromBody] ChatPermissionRequest request, CancellationToken cancellationToken)
     {
-        if (!IdPattern().IsMatch(id) || !RequestIdPattern().IsMatch(requestId))
+        if (!RequestIdPattern().IsMatch(requestId) || !await OwnsAsync(id, cancellationToken))
         {
-            return Task.FromResult<IActionResult>(NotFound());
+            return NotFound();
         }
 
-        return ForwardAsync(HttpMethod.Post, $"v1/conversations/{id}/permissions/{requestId}", request, cancellationToken);
+        // Every card is a change to the catalog: approving one is writing it. Rejecting is always allowed.
+        if (request.Approve && !User.HasPermission(Permissions.CatalogWrite))
+        {
+            return Problem(title: "Not allowed", detail: "Approving a change needs the catalog.write permission.", statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        return await ForwardAsync(HttpMethod.Post, $"v1/conversations/{id}/permissions/{requestId}", request, cancellationToken);
     }
 
     /// <summary>Stops the running turn; pending writes are rejected.</summary>
     [HttpPost("conversations/{id}/cancel")]
     [EndpointSummary("Stops the running turn.")]
-    public Task<IActionResult> CancelAsync(string id, [FromBody] ChatCancelRequest request, CancellationToken cancellationToken) =>
-        IdPattern().IsMatch(id) ? ForwardAsync(HttpMethod.Post, $"v1/conversations/{id}/cancel", request, cancellationToken) : Task.FromResult<IActionResult>(NotFound());
+    public async Task<IActionResult> CancelAsync(string id, [FromBody] ChatCancelRequest request, CancellationToken cancellationToken) =>
+        await OwnsAsync(id, cancellationToken) ? await ForwardAsync(HttpMethod.Post, $"v1/conversations/{id}/cancel", request, cancellationToken) : NotFound();
 
     /// <summary>The conversation's events as server-sent events: the stored history after <c>after</c>, then live ones.</summary>
     /// <remarks>Each event carries its sequence number as the SSE id: EventSource resumes from it after a reconnect.</remarks>
@@ -155,7 +224,7 @@ public sealed partial class ChatController : ControllerBase
     [EndpointSummary("The conversation's events, as server-sent events.")]
     public async Task StreamAsync(string id, [FromQuery] int after, [FromHeader(Name = "Last-Event-ID")] string? lastEventId, CancellationToken cancellationToken)
     {
-        if (!_options.Enabled || !IdPattern().IsMatch(id))
+        if (!_options.Enabled || !await OwnsAsync(id, cancellationToken))
         {
             Response.StatusCode = StatusCodes.Status404NotFound;
             return;
@@ -200,6 +269,13 @@ public sealed partial class ChatController : ControllerBase
     }
 
     private static bool ValidName(string? value) => value is null || NamePattern().IsMatch(value);
+
+    /// <summary>
+    /// Whether the conversation exists for this user: a well-formed id and the user's own conversation (or an ownerless
+    /// one, for a user manager). Everything else is a 404, never a 403: another user's conversation is not revealed.
+    /// </summary>
+    private async Task<bool> OwnsAsync(string id, CancellationToken cancellationToken) =>
+        IdPattern().IsMatch(id) && await _access.CanAccessAsync(id, User.UserId(), User.HasPermission(Permissions.UsersManage), cancellationToken);
 
     private ObjectResult Invalid(string detail) => Problem(detail, statusCode: StatusCodes.Status400BadRequest);
 

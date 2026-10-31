@@ -9,26 +9,21 @@ export function usePortal() {
   return useApiQuery<Portal>({ path });
 }
 
-/** Catalog writes are keyed until Portarr has accounts (D-85): the key is typed, used once, never stored. */
-const keyHeader = ({ apiKey }: { apiKey: string }) => ({ 'X-Api-Key': apiKey });
-
 /** Only what is given is sent: a missing name or color stays as it is in the catalog, an empty one goes back to the default. */
 export function useSetPortal() {
-  return useApiMutation<{ name?: string; colors?: Partial<PortalColors>; apiKey: string }, unknown>({
+  return useApiMutation<{ name?: string; colors?: Partial<PortalColors> }, unknown>({
     path,
     method: 'PUT',
     invalidate: [path],
-    headers: keyHeader,
     serialize: ({ name, colors }) => JSON.stringify({ name, colors }),
   });
 }
 
 export function useUploadPortalLogo() {
-  return useApiMutation<{ file: File; apiKey: string }, unknown>({
+  return useApiMutation<{ file: File }, unknown>({
     path: `${path}/logo`,
     method: 'PUT',
     invalidate: [path],
-    headers: keyHeader,
     serialize: ({ file }) => {
       const form = new FormData();
       form.append('file', file);

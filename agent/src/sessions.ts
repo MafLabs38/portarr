@@ -145,8 +145,12 @@ export class SessionManager {
     await this.store.remove(id);
   }
 
-  /** Sends the operator's message; the answer arrives as events. 409 while a turn runs. */
-  send(id: string, text: string, model?: string): void {
+  /**
+   * Sends the operator's message; the answer arrives as events. 409 while a turn runs. `mcpToken` is the token Portarr
+   * minted for the user who sends it (V7): a process started now uses it as its MCP key, so Portarr's tools run as that
+   * user; without it the shared key applies (older Portarr, or a caller that is not a user).
+   */
+  send(id: string, text: string, model?: string, mcpToken?: string): void {
     const conversation = this.require(id);
     const adapter = this.adapter(conversation.agent);
     if (!adapter.available()) {
@@ -166,7 +170,7 @@ export class SessionManager {
     if (!conversation.title) {
       conversation.title = titleOf(text);
     }
-    const active = current ?? this.spawn(conversation, adapter);
+    const active = current ?? this.spawn(conversation, adapter, mcpToken);
     active.busy = true;
     active.lastActive = Date.now();
     this.emit(id, { type: 'user', text });
@@ -259,10 +263,10 @@ export class SessionManager {
     }
   }
 
-  private spawn(conversation: Conversation, adapter: AgentAdapter): Active {
+  private spawn(conversation: Conversation, adapter: AgentAdapter, mcpToken?: string): Active {
     this.makeRoom();
     const mcpConfigFile = join(this.options.runDir, `${conversation.id}.${randomUUID()}.mcp.json`);
-    this.writeMcpConfig(conversation.id, mcpConfigFile);
+    this.writeMcpConfig(conversation.id, mcpConfigFile, mcpToken);
     const sessionId = conversation.agentSessionId ? undefined : randomUUID();
     if (sessionId) {
       conversation.agentSessionId = sessionId;
@@ -312,14 +316,17 @@ export class SessionManager {
     return active;
   }
 
-  /** The MCP configuration of one process: Portarr's `/mcp`, its key, and the origin the audit records (D-89). */
-  private writeMcpConfig(conversationId: string, file: string): void {
+  /** The MCP configuration of one process: Portarr's `/mcp`, its key or the user's token, and the origin the audit records (D-89). */
+  private writeMcpConfig(conversationId: string, file: string, mcpToken?: string): void {
     const config = {
       mcpServers: {
         [serverName]: {
           type: 'http',
           url: this.options.portarrMcpUrl,
-          headers: { 'X-Api-Key': this.options.portarrMcpKey, 'X-Portarr-Origin': `chat:${conversationId}` },
+          headers: {
+            'X-Api-Key': mcpToken ?? this.options.portarrMcpKey,
+            'X-Portarr-Origin': `chat:${conversationId}`,
+          },
         },
       },
     };

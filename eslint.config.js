@@ -26,7 +26,7 @@ export default tseslint.config(
           groups: [
             ['^\\u0000'],
             ['^@?\\w'],
-            ['^(__mocks__|App|Apps|Assistant|Chat|Components|Helpers|Styles|System|Utilities|Workloads|typings)(/|$)'],
+            ['^(__mocks__|Account|App|Apps|Assistant|Auth|Chat|Components|Helpers|Settings|Styles|System|Utilities|Workloads|typings)(/|$)'],
             ['^\\.'],
           ],
         },

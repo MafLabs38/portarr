@@ -27,7 +27,7 @@ The four tabs answer four questions; the assistant asks them all, mixes them and
 | An MCP server inside Portarr (official C# SDK), Streamable HTTP at `/mcp`, stateless | stdio transport, a separate binary; prompts; subscriptions and change notifications |
 | Seven read-only tools over the views the pages show (fleet, Infrastructure, Data, Maintenance) | Any tool that acts (start, stop, restart, open a PR): out of scope (D-31) |
 | Two Markdown resources: the infrastructure knowledge base and the glossary, generated on each read | Issues, events and history (they come with V5 Overview / V6 Notifications); logs; long-term metrics (Prometheus, V8) |
-| Off by default; one shared API key until accounts exist (C2) | Scoped read-only API keys and roles (C2, §11.2); OAuth for MCP clients |
+| Off by default; keyed (per-user API keys since V7, D-97; the shared key is deprecated) | OAuth for MCP clients (D-99, step 2) |
 | An **Assistant** page: server state, how to connect, knowledge preview | An assistant chat inside Portarr: [V6](V6-chat.md), through an optional agent runner; Portarr itself never calls an LLM |
 
 ## Design
@@ -66,13 +66,13 @@ The live window is described as now, lowest and highest point: the chart in word
 
 ### Security model (D-70)
 
-- **Off by default.** `PORTARR__MCP__ENABLED=true` maps `/mcp`. Startup fails when it is on without `PORTARR__MCP__APIKEY` of at least 32 characters (`openssl rand -hex 32`).
+- **Off by default.** `PORTARR__MCP__ENABLED=true` maps `/mcp`. Since V7 (D-97) a call needs a per-user API key (Account, API keys), the chat runner's token, or the deprecated `PORTARR__MCP__APIKEY` (optional, at least 32 characters when set; acts as the `system` principal, Admin). Each tool needs the permission of the page it mirrors (D-98).
 - **API key** in `X-Api-Key` or `Authorization: Bearer`; SHA-256 of both sides compared with `CryptographicOperations.FixedTimeEquals` (no content or length timing leak). Missing or wrong: **401** with `WWW-Authenticate: Bearer realm="portarr-mcp"`. The key is never returned (`/api/v1/assistant` only says whether one is set) and never logged.
 - **Rate limit**: 120 requests per minute per client address (forwarded only from trusted proxies), counted before authentication so wrong keys are throttled too; then **429**.
 - **No secrets in answers**: URLs lose credentials, query and fragment (`SafeUrl`); workload labels, environment variables, Docker and Kubernetes endpoints and token variable names are never part of a tool output; failures are reason codes; catalog errors are a count.
 - **Read-only**: every tool is annotated `readOnlyHint`, `idempotentHint`, `!destructiveHint`, `!openWorldHint`, and only reads memory: a call reaches no connector.
 - **Off means absent**: `/mcp` and `/.well-known/*` are plain 404 (POST: 405), never the UI, so an MCP client probing for OAuth metadata gets a clean answer.
-- Exposure: like the rest of Portarr until C2, the endpoint belongs on a trusted network or behind the reverse proxy. Scoped read-only API keys (C2) replace the shared key.
+- Exposure: the endpoint is behind the same sign-in model as the rest of Portarr: per-user keys, read-only or full, never beyond the owner's role (V7).
 
 ### Write tools and environment knowledge (D-83 to D-86)
 

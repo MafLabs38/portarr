@@ -20,7 +20,8 @@ public sealed record CatalogAuditEntry(
     string VersionBefore,
     string VersionAfter,
     IReadOnlyList<string> Changes,
-    string? Via = null);
+    string? Via = null,
+    string? User = null);
 
 public interface ICatalogAuditLog
 {

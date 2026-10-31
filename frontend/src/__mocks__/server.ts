@@ -4,6 +4,7 @@ import { setupServer } from 'msw/node';
 import type App from 'typings/App';
 import type AssistantStatus from 'typings/Assistant';
 import type { CatalogAuditEntry, Knowledge } from 'typings/Assistant';
+import type { AuthStatus, Me } from 'typings/Auth';
 import type CatalogStatus from 'typings/CatalogStatus';
 import type DataReport from 'typings/Data';
 import type { InfrastructureEnvironment } from 'typings/Infrastructure';
@@ -33,6 +34,33 @@ export const portal: Portal = {
   writable: false,
   colors: { name: 'accent', version: 'accent' },
 };
+
+export const allPermissions = [
+  'apps.view',
+  'infrastructure.view',
+  'data.view',
+  'maintenance.view',
+  'assistant.view',
+  'chat.use',
+  'catalog.write',
+  'system.view',
+  'settings.manage',
+  'users.manage',
+  'secrets.view',
+];
+
+/** The signed-in user of most tests: an administrator. A test of another role overrides `/auth/me`. */
+export const me: Me = {
+  id: 1,
+  username: 'admin',
+  displayName: 'Ada Admin',
+  role: 'Admin',
+  permissions: allPermissions,
+  avatarUrl: null,
+  authMethod: 'cookie',
+};
+
+export const authStatus: AuthStatus = { setupRequired: false, name: 'Homelab', logoUrl: null };
 
 const healthy = { status: 'Healthy', reason: 'Running' } as const;
 const down = { status: 'Down', reason: 'Exited (1) 2 minutes ago' } as const;
@@ -723,6 +751,8 @@ export function resetMockState() {
 }
 
 export const handlers = [
+  http.get('/api/v1/auth/status', () => HttpResponse.json(authStatus)),
+  http.get('/api/v1/auth/me', () => HttpResponse.json(me)),
   http.get('/api/v1/system/status', () => HttpResponse.json(systemStatus)),
   http.get('/api/v1/portal', () => HttpResponse.json(portal)),
   http.get('/api/v1/apps', () => HttpResponse.json(apps)),

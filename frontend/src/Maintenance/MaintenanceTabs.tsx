@@ -5,7 +5,7 @@ import styles from './MaintenanceTabs.module.css';
 export interface TabDefinition {
   id: string;
   label: string;
-  count: number;
+  count?: number;
 }
 
 interface MaintenanceTabsProps {
@@ -57,7 +57,7 @@ export default function MaintenanceTabs({ tabs, selected, onSelect, children }: 
             type="button"
           >
             {tab.label}
-            <span className={styles.count}>{tab.count}</span>
+            {tab.count === undefined ? null : <span className={styles.count}>{tab.count}</span>}
           </button>
         ))}
       </div>

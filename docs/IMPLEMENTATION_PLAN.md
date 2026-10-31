@@ -153,7 +153,7 @@ Once the fleet is observable, the operator will want to act on it. That is **not
 | PR | Content | Features | Key tests |
 |---|---|---|---|
 | **C1 Host and persistence** | Configuration (file + `PORTARR__*`), logging, SQLite/PostgreSQL database, migrations, database backup and restore, `/health/live` and `/ready`, `/metrics` | F-SYS-01/04/05/06, NF-07/08 | Migrations replayed on both databases; restoring a backup |
-| **C2 Authentication and roles** | Local accounts, generic OIDC, Admin / Operator / Observer / Guest roles, scoped API keys, audit log | F-SET-05, §11.2 | Role × endpoint matrix in integration; E2E local login + OIDC (containerized Keycloak) |
+| **C2 Authentication and roles** | Local accounts, generic OIDC, Admin / Operator / Observer / Guest roles, scoped API keys, audit log. **Step 1 pulled forward as V7** ([verticals/V7-accounts.md](verticals/V7-accounts.md), D-92 to D-98, sandbox): local accounts, permission-based roles (built-in and custom), per-user API keys, per-user chat and MCP, audit, Users & Auth. **Step 2 (planned, D-99)**: generic OIDC, group or claim → role mapping, trusted-header mode | F-SET-05, §11.2 | Role × endpoint matrix in integration; E2E local login + OIDC (containerized Keycloak) |
 | **C3 Frontend shell** | `Page`, `PageHeader`, `PageSidebar`, `PageToolbar`, `PageContent*`, dark/light themes + `data-color-impaired`, `translate()`, routing, API client (TanStack Query), `SignalRListener`, base components (DESIGN §4.1) | F-SET-06, NF-09/10 | Vitest + axe on every component; visual regression of the shell |
 | **C4 Provider framework** | Equivalent of `ThingiProvider`: definitions, `[FieldDefinition]` schema, CRUD, *Test* action, secret encryption, per-provider health status; Settings → Providers UI (cards, generated Add/Edit); **contract suites** per capability | §7, F-SET-02 | Generated form tested from a schema; secret never returned by the API |
 | **C5 Domain and engine** | Environment / Runtime / Workload / App / Stack / Check / Issue / Event; status engine (roles, viability, anti-flapping); event bus; command queue and scheduled tasks; System → Health / Tasks / Events | §4, §5, F-SYS-02/03 | The bulk of the project's unit tests |
@@ -210,7 +210,7 @@ Each row is a PR (or a stack). The listed tests come on top of the generic DoD.
 | Blocks | Question to settle |
 |---|---|
 | P0.1 | ✅ License, data access, test stack decided (D-27 to D-29); language (Q-02) |
-| C2 | Final roles (Q-04), what an Observer sees (Q-46) |
+| C2 | ~~Final roles (Q-04)~~ settled for now by V7 (D-93); what an Observer sees (Q-46) |
 | V3 | ✅ SWAG/nginx first, chained proxies (D-42) |
 | V6 | ✅ Alerts evaluated by the tools (D-37) |
 | V7 | ✅ Unraid first (D-40) |

@@ -10,8 +10,8 @@ interface ConnectCardProps {
 }
 
 /**
- * How to plug an assistant in. The key is never shown: the operator pastes the value they set in
- * PORTARR__MCP__APIKEY in place of the placeholder.
+ * How to plug an assistant in. The key is never shown: the operator pastes
+ * an API key of theirs (Account, API keys) in place of the placeholder.
  */
 export default function ConnectCard({ endpoint, headerName }: Readonly<ConnectCardProps>) {
   const key = translate('ApiKeyPlaceholder');

@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Portarr.Core.Accounts;
 using Portarr.Core.Backups;
 using Portarr.Core.Catalog;
 using Portarr.Core.Catalog.Editing;
@@ -80,6 +82,25 @@ public static class CoreServiceCollectionExtensions
         });
         services.AddSingleton<IIconService, IconService>();
         services.AddSingleton<IPortalService, PortalService>();
+
+        // Local accounts, roles and per-user keys (V7).
+        services.AddOptions<AuthOptions>()
+            .Bind(configuration.GetSection(AuthOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsValidator>();
+        services.AddSingleton<AccountStore>();
+        services.AddSingleton<IAuthAuditLog, AuthAuditLog>();
+        services.AddSingleton<IAccountService>(provider => new AccountService(
+            provider.GetRequiredService<AccountStore>(),
+            provider.GetRequiredService<IAuthAuditLog>(),
+            provider.GetRequiredService<IOptions<AuthOptions>>(),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ILogger<AccountService>>()));
+        services.AddSingleton<IAccountBootstrap, AccountBootstrap>();
+        services.AddSingleton<ISystemApiKeySource, ApiKeySource>();
+        services.AddSingleton<IApiKeyService, ApiKeyService>();
+        services.AddSingleton<IChatAccess, ChatAccess>();
+        services.AddSingleton<IAvatarService, AvatarService>();
 
         return services;
     }

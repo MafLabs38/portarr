@@ -12,7 +12,7 @@
 |---|---|
 | An optional `portarr-agent` container ([`agent/`](../../agent/)) running Claude Code headless, one process per active conversation | Other CLIs (Codex, Gemini CLI…): one adapter each, same interface |
 | Portarr's MCP server as the only tool; reads run, writes wait for the operator | Any other tool: shell, files, web, other MCP servers |
-| A proxy in Portarr (`/api/v1/assistant/chat`), off without `PORTARR__AGENT__URL` | Per-user conversations and roles (C2) |
+| A proxy in Portarr (`/api/v1/assistant/chat`), off without `PORTARR__AGENT__URL` | Per-user conversations and roles: done in V7 (D-98) |
 | A side panel: history, Markdown answers, collapsible tool calls, permission cards, paste-friendly prompt, agent and model, Stop, usage | Attachments, images, voice in the browser |
 
 ## Design
@@ -62,8 +62,8 @@ The runner's policy (`agent/src/policy.ts`): `mcp__portarr__get_*`, `list_*`, `f
 
 ## Security limits
 
-- Until accounts exist (C2), whoever can open Portarr can use the chat and approve its catalog edits, like the rest of the UI: keep Portarr on a trusted network or behind the reverse proxy's SSO. The chat writes only through the MCP key Portarr already trusts, and only the catalog (D-31).
-- `X-Portarr-Origin` is informative: any client holding the MCP key could send it.
+- Per user since V7 (D-98): the chat needs `chat.use`, a conversation belongs to its creator and approving a change needs `catalog.write`. (Before accounts, whoever could open Portarr could use the chat and approve its catalog edits, like the rest of the UI: keep Portarr on a trusted network or behind the reverse proxy's SSO. The chat writes only through the user's own MCP token, and only the catalog (D-31).)
+- `X-Portarr-Origin` is informative: any client holding a key could send it. With a chat token (D-98) the audit's `via` comes from the token, which is authoritative.
 - The agent sees what Portarr's tools return (the fleet as the pages show it); tool results kept in the history are shortened to 1500 characters. The model provider receives the conversation.
 - The approval card shows the arguments the CLI will send; approving sends them unchanged (the runner never edits them).
 

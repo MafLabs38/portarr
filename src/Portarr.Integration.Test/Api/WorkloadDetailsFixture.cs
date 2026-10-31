@@ -115,7 +115,7 @@ public sealed class WorkloadDetailsFixture : IAsyncDisposable
             FakeWorkloadSource.Container("server-1", "jellyfin"),
             FakeWorkloadSource.Container("server-1", "watchtower"),
         ];
-        _client = _factory.CreateClient();
+        _client = await _factory.CreateSignedInClientAsync();
         await _factory.Services.GetRequiredService<IWorkloadInventory>().RefreshAsync(TestContext.Current.CancellationToken);
     }
 }

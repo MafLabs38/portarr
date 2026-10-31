@@ -55,8 +55,8 @@ public sealed class McpFixture : IAsyncLifetime
         var post = await client.SendAsync(Rpc("initialize", Initialize, Key), TestContext.Current.CancellationToken);
         var get = await client.GetAsync("/mcp", TestContext.Current.CancellationToken);
 
-        // Like any unknown path: POST is refused by the GET-only UI fallback, GET is not the UI.
-        post.StatusCode.Should().Be(HttpStatusCode.MethodNotAllowed);
+        // Plain 404s for everyone, never the UI and never a sign-in request.
+        post.StatusCode.Should().Be(HttpStatusCode.NotFound);
         get.StatusCode.Should().Be(HttpStatusCode.NotFound);
         (await client.GetAsync("/.well-known/oauth-protected-resource", TestContext.Current.CancellationToken)).StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -93,7 +93,7 @@ public sealed class McpFixture : IAsyncLifetime
     [Fact]
     public async Task should_report_its_state_to_the_ui_without_the_key()
     {
-        using var client = _enabled.CreateClient();
+        using var client = await _enabled.CreateSignedInClientAsync();
 
         var body = await client.GetStringAsync("/api/v1/assistant", TestContext.Current.CancellationToken);
 

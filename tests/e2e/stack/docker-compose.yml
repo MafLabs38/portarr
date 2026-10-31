@@ -47,6 +47,9 @@ services:
       PORTARR__CATALOG__WRITABLE: 'true'
       # Required while the catalog is writable (a throwaway; the specs never use it).
       PORTARR__APIKEY: e2e-e2e-e2e-e2e-e2e-e2e-e2e-e2e-e2e
+      # The first administrator, created unattended (the specs sign in as this user, tests/e2e/global-setup.ts).
+      PORTARR__AUTH__ADMINUSER: e2e-admin
+      PORTARR__AUTH__ADMINPASSWORDFILE: /run/e2e/admin-password
       PORTARR__AGENT__URL: http://tools:8080
       PORTARR__AGENT__SECRET: e2e-e2e-e2e-e2e-e2e-e2e-e2e-e2e-e2e
     ports:
@@ -54,6 +57,14 @@ services:
     volumes:
       - portarr-config:/config
       - ./catalog.yaml:/catalog/catalog.yaml:ro
+    configs:
+      - source: admin-password
+        target: /run/e2e/admin-password
+
+# A throwaway for a throwaway stack; the specs read the same value (tests/e2e/global-setup.ts).
+configs:
+  admin-password:
+    content: e2e-throwaway-passphrase
 
 volumes:
   portarr-config:

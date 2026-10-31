@@ -1,8 +1,10 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
+using Portarr.Core.Accounts;
 using Portarr.Core.Catalog;
 using Portarr.Core.Configuration;
 using Portarr.Core.Status;
@@ -12,6 +14,7 @@ using Portarr.Http;
 namespace Portarr.Api.V1.Workloads;
 
 [ApiController]
+[Authorize(Policy = Permissions.InfrastructureView)]
 [Route("api/v1")]
 public sealed class WorkloadsController : ControllerBase
 {

@@ -66,7 +66,7 @@ public sealed class FleetFixture : IAsyncLifetime
             FakeWorkloadSource.Container("server-1", "watchtower"),
         ];
         _factory.Workloads.Unreachable.Add("server-2");
-        _client = _factory.CreateClient();
+        _client = await _factory.CreateSignedInClientAsync();
         await _factory.Services.GetRequiredService<IWorkloadInventory>().RefreshAsync(TestContext.Current.CancellationToken);
     }
 

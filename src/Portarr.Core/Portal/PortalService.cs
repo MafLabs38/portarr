@@ -131,7 +131,7 @@ public sealed partial class PortalService : IPortalService
         {
             // The file may have replaced one of the same name while the catalog stays as it was: the upload is audited by itself.
             await _auditLog.AppendAsync(
-                new CatalogAuditEntry(_timeProvider.GetUtcNow(), actor.Channel, actor.Client, "upload-logo", CatalogSections.Portal, CatalogSections.Portal, version, edit.Version, [$"logo: {relative} written ({content.Length} bytes)"], actor.Via),
+                new CatalogAuditEntry(_timeProvider.GetUtcNow(), actor.Channel, actor.Client, "upload-logo", CatalogSections.Portal, CatalogSections.Portal, version, edit.Version, [$"logo: {relative} written ({content.Length} bytes)"], actor.Via, actor.User),
                 cancellationToken);
         }
 

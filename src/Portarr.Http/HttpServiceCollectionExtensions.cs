@@ -8,8 +8,10 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Portarr.Common;
+using Portarr.Core.Accounts;
 using Portarr.Core.Configuration;
 using Portarr.Core.Datastore;
+using Portarr.Http.Authentication;
 using Prometheus;
 
 namespace Portarr.Http;
@@ -20,6 +22,11 @@ public static class HttpServiceCollectionExtensions
     public const string LogStreamsPolicyName = "log-streams";
     public const string UsagePolicyName = "usage";
     public const string CatalogWritesPolicyName = "catalog-writes";
+
+    /// <summary>Sign-in, first-run setup and password changes (V7): few attempts per client and per minute.</summary>
+    public const string LoginPolicyName = "login";
+
+    public const int LoginAttemptsPerMinute = 10;
 
     /// <summary>Catalog edits per client and per minute: an assistant describing a fleet makes a few dozen.</summary>
     public const int CatalogWritesPerMinute = 30;
@@ -36,6 +43,7 @@ public static class HttpServiceCollectionExtensions
     public static IMvcBuilder AddPortarrHttp(this IServiceCollection services)
     {
         services.AddProblemDetails();
+        services.AddPortarrAuthentication();
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -54,6 +62,11 @@ public static class HttpServiceCollectionExtensions
             options.AddPolicy(UsagePolicyName, context => RateLimitPartition.GetFixedWindowLimiter(
                 ClientKey(context),
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromSeconds(10), QueueLimit = 0 }));
+
+            // Passwords are guessed here: the lockout of an account is not enough against one client trying many accounts.
+            options.AddPolicy(LoginPolicyName, context => RateLimitPartition.GetFixedWindowLimiter(
+                ClientKey(context),
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = LoginAttemptsPerMinute, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 
             // Catalog edits (D-85), counted before the key is checked: wrong keys are limited too.
             options.AddPolicy(CatalogWritesPolicyName, context => RateLimitPartition.GetFixedWindowLimiter(
@@ -147,8 +160,9 @@ public static class HttpServiceCollectionExtensions
     /// </summary>
     public static IEndpointRouteBuilder MapPortarrHealthChecks(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
-        endpoints.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains(ReadyTag) });
+        // Probes are anonymous: the orchestrator holds no account.
+        endpoints.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
+        endpoints.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains(ReadyTag) }).AllowAnonymous();
 
         return endpoints;
     }
@@ -164,7 +178,9 @@ public static class HttpServiceCollectionExtensions
             .Set(1);
 
         app.UseHttpMetrics();
-        app.MapMetrics();
+
+        // A scraper presents an API key of a role that holds system.view.
+        app.MapMetrics().RequireAuthorization(Permissions.SystemView);
 
         return app;
     }
@@ -176,7 +192,11 @@ public static class HttpServiceCollectionExtensions
     /// </summary>
     public static WebApplication MapPortarrFrontendFallback(this WebApplication app)
     {
-        app.MapFallbackToFile("{**path:regex(^(?!(api|health|metrics|mcp|openapi|docs|\\.well-known)(/|$)).*$)}", "index.html");
+        // An MCP client probing for OAuth metadata gets a plain 404 (no OAuth here), never a 401 or the UI.
+        app.Map("/.well-known/{**rest}", () => Results.NotFound()).AllowAnonymous();
+
+        // The UI's files are public: the page itself shows the login screen (the data behind it is not).
+        app.MapFallbackToFile("{**path:regex(^(?!(api|health|metrics|mcp|openapi|docs|\\.well-known)(/|$)).*$)}", "index.html").AllowAnonymous();
 
         return app;
     }

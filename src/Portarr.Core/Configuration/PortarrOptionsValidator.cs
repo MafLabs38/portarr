@@ -26,9 +26,10 @@ public sealed class PortarrOptionsValidator : IValidateOptions<PortarrOptions>
             failures.Add($"TrustedProxies entry '{entry}' must be an IP address or a CIDR network such as 10.0.0.0/24 (PORTARR__TRUSTEDPROXIES).");
         }
 
-        if (options.Catalog.Writable && (options.ApiKey is null || options.ApiKey.Trim().Length < ApiKeys.MinimumLength))
+        // Deprecated since accounts (V7, D-97): optional now (users hold their own keys), but strong when set.
+        if (!string.IsNullOrWhiteSpace(options.ApiKey) && options.ApiKey.Trim().Length < ApiKeys.MinimumLength)
         {
-            failures.Add($"ApiKey must be at least {ApiKeys.MinimumLength} characters when Catalog:Writable is true (PORTARR__APIKEY, e.g. openssl rand -hex 32).");
+            failures.Add($"ApiKey must be at least {ApiKeys.MinimumLength} characters when set (PORTARR__APIKEY, e.g. openssl rand -hex 32); it is deprecated: use per-user API keys.");
         }
 
         if (options.Catalog.Backups is < 0 or > 1000)

@@ -1,0 +1,109 @@
+/* Forms of the account and settings pages (the *arr Settings pattern: label above, help under the field). */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  color: var(--inkMuted);
+  font-weight: 700;
+}
+
+.input {
+  padding: 6px 12px;
+  border: var(--borderWidth) solid var(--hairline);
+  border-radius: var(--radiusMedium);
+  background-color: var(--paperSunken);
+  color: var(--ink);
+  font: inherit;
+}
+
+.input:focus-visible {
+  outline: var(--borderWidth) solid var(--accent);
+  outline-offset: 2px;
+}
+
+.help {
+  margin: 0;
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--inkSoft);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.save,
+.secondary,
+.danger {
+  padding: 6px 18px;
+  border: var(--borderWidth) solid var(--accent);
+  border-radius: var(--radiusSmall);
+  background-color: var(--accent);
+  box-shadow: var(--shadowButton);
+  color: var(--inkOnAccent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondary {
+  border-color: var(--hairlineStrong);
+  background-color: var(--paperCard);
+  box-shadow: none;
+  color: var(--ink);
+}
+
+.danger {
+  border-color: var(--dangerColor);
+  background-color: var(--paperCard);
+  box-shadow: none;
+  color: var(--dangerColor);
+}
+
+.save:focus-visible,
+.secondary:focus-visible,
+.danger:focus-visible {
+  outline: var(--borderWidth) solid var(--ink);
+  outline-offset: 2px;
+}
+
+.save:disabled,
+.secondary:disabled,
+.danger:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.save:active:not(:disabled) {
+  box-shadow: var(--shadowPressed);
+  transform: translateY(3px);
+}
+
+.saved {
+  color: var(--successColor);
+  font-weight: 700;
+}
+
+.error {
+  margin: 0;
+  color: var(--dangerColor);
+  font-weight: 700;
+}

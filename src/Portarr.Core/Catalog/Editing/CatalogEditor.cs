@@ -156,7 +156,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
         var after = CatalogVersion.Of(result);
         var changes = Describe(current, next);
         await _auditLog.AppendAsync(
-            new CatalogAuditEntry(_timeProvider.GetUtcNow(), edit.Actor.Channel, edit.Actor.Client, edit.Operation, edit.Section, edit.Id, version, after, changes, edit.Actor.Via),
+            new CatalogAuditEntry(_timeProvider.GetUtcNow(), edit.Actor.Channel, edit.Actor.Client, edit.Operation, edit.Section, edit.Id, version, after, changes, edit.Actor.Via, edit.Actor.User),
             cancellationToken);
         LogEdited(edit.Operation, edit.Section, edit.Id, edit.Actor.Channel, string.Join("; ", changes));
 

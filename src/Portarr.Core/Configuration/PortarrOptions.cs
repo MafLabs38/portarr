@@ -25,9 +25,12 @@ public sealed class PortarrOptions
     /// <summary>The operator's logos: a <c>branding</c> folder next to the catalog (D-91).</summary>
     public string BrandingFolder => Path.Combine(Path.GetDirectoryName(Path.GetFullPath(EffectiveCatalogFile))!, "branding");
 
+    /// <summary>User avatars (V7, D-95): an <c>avatars</c> folder in the data folder, not next to the catalog (they are not the operator's description of the fleet).</summary>
+    public string AvatarsFolder => Path.Combine(DataFolder, "avatars");
+
     /// <summary>
-    /// Live logs of workloads that no catalog app declares. Off by default: until authentication
-    /// exists (C2), anyone who reaches Portarr can read the logs it serves.
+    /// Live logs of workloads that no catalog app declares. Off by default: anyone whose role may view the
+    /// infrastructure can read the logs it serves.
     /// </summary>
     public bool LogsOfAllWorkloads { get; set; }
 
@@ -46,8 +49,9 @@ public sealed class PortarrOptions
     public CatalogOptions Catalog { get; set; } = new();
 
     /// <summary>
-    /// The key API writes require until Portarr has accounts (C2): <c>PORTARR__APIKEY</c>, sent as <c>X-Api-Key</c>
-    /// or <c>Authorization: Bearer</c>. Never returned by the API, never logged.
+    /// Deprecated bootstrap key (V7, D-97): <c>PORTARR__APIKEY</c>, sent as <c>X-Api-Key</c> or <c>Authorization: Bearer</c>,
+    /// acts as the built-in <c>system</c> principal with Admin permissions; per-user API keys replace it. Never returned by
+    /// the API, never logged.
     /// </summary>
     public string? ApiKey { get; set; }
 

@@ -4,8 +4,10 @@ using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Http;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using Portarr.Core.Accounts;
 using Portarr.Core.Catalog.Editing;
 using Portarr.Core.Portal;
+using Portarr.Http.Authentication;
 
 namespace Portarr.Mcp.Server;
 
@@ -56,6 +58,7 @@ public sealed partial class CatalogTools
         [Description("The item's id; omit to list the ids of the section.")] string? id = null,
         CancellationToken cancellationToken = default)
     {
+        Require();
         CheckSection(section);
         if (id is null)
         {
@@ -86,6 +89,7 @@ public sealed partial class CatalogTools
         [Description("The color of the version, same values as nameColor.")] string? versionColor = null,
         CancellationToken cancellationToken = default)
     {
+        Require();
         if (name is null && logo is null && nameColor is null && versionColor is null)
         {
             throw new McpException("Give a name, a logo, a color, or several.");
@@ -222,12 +226,19 @@ public sealed partial class CatalogTools
         return EditAsync(section, id, "upsert", version, CatalogEdits.Upsert(id, value), cancellationToken);
     }
 
+    /// <summary>Every catalog tool changes (or reads for a change) the catalog: it needs <c>catalog.write</c>, as the API does.</summary>
+    private void Require() => McpAccess.Require(_httpContext, Permissions.CatalogWrite);
+
     private Task<IReadOnlyList<string>> IdsAsync(string section, CancellationToken cancellationToken) => _editor.GetIdsAsync(section, cancellationToken);
 
     private async Task<CatalogWriteAnswer> EditAsync(string section, string id, string operation, string version, Func<JsonObject?, JsonObject?> change, CancellationToken cancellationToken)
     {
+        Require();
         var context = _httpContext.HttpContext;
-        var actor = new CatalogActor(Channel, context?.Connection.RemoteIpAddress?.ToString(), OriginOf(context?.Request.Headers[OriginHeader].ToString()));
+
+        // A chat token names its conversation: that is the truth. The header is only a hint from other clients.
+        var via = context?.User.FindFirst(PortarrClaims.Conversation)?.Value is { } conversation ? $"chat:{conversation}" : OriginOf(context?.Request.Headers[OriginHeader].ToString());
+        var actor = new CatalogActor(Channel, context?.Connection.RemoteIpAddress?.ToString(), via, context?.User.Identity?.Name);
         var result = await _editor.EditAsync(new CatalogEdit(section, id, operation, version, actor, change), cancellationToken);
         if (!result.Succeeded)
         {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+import usePermissions from 'Auth/usePermissions';
 import useApiMutation from 'Helpers/Hooks/useApiMutation';
 import useApiQuery from 'Helpers/Hooks/useApiQuery';
 import type ChatStatus from 'typings/Chat';
@@ -10,7 +11,9 @@ const conversationsPath = `${base}/conversations`;
 
 /** Whether the chat is on (PORTARR__AGENT__URL), and its agents and models. */
 export function useChatStatus() {
-  return useApiQuery<ChatStatus>({ path: base, staleTime: 60_000 });
+  // Only roles with chat.use ask: the others would get a 403 (V7).
+  const { can } = usePermissions();
+  return useApiQuery<ChatStatus>({ path: base, staleTime: 60_000, enabled: can('chat.use') });
 }
 
 export function useConversations(enabled: boolean) {
