@@ -40,7 +40,7 @@ public sealed partial class BackupMonitor : BackgroundService, IBackupMonitor
 
     // Reasons that say the tool is declared but not set up on the environment (a missing connector, a missing
     // credential, token or cluster CA): the operator must configure it. Any other reason is a tool that failed.
-    private static readonly HashSet<string> NotSetUpReasons = [NoConnector, "credentials-missing", "token-missing", "ca-missing", "ca-invalid"];
+    private static readonly HashSet<string> NotSetUpReasons = [NoConnector, "credentials-missing", ReasonCodes.TokenMissing, "ca-missing", "ca-invalid"];
 
     public static readonly TimeSpan Interval = TimeSpan.FromMinutes(1);
 

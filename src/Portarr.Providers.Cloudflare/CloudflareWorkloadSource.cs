@@ -20,7 +20,7 @@ public sealed partial class CloudflareWorkloadSource : IWorkloadSource
     public static readonly Uri ApiBaseAddress = new("https://api.cloudflare.com/client/v4/");
 
     /// <summary>Reason codes of a declared but unusable environment, shown as not connected.</summary>
-    public const string TokenMissing = "token-missing";
+    public const string TokenMissing = ReasonCodes.TokenMissing;
     public const string AccountInvalid = "account-invalid";
 
     /// <summary>Pages projects are paginated; a homelab account never has this many pages.</summary>

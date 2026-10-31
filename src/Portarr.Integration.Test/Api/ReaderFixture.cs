@@ -77,11 +77,17 @@ public sealed class ReaderFixture : IAsyncLifetime
             return;
         }
 
-        _client.Dispose();
-        await _factory.DisposeAsync();
-        await _reader.DisposeAsync();
-        _docker.Dispose();
-        Directory.Delete(_proc, recursive: true);
+        try
+        {
+            _client.Dispose();
+            await _factory.DisposeAsync();
+            await _reader.DisposeAsync();
+        }
+        finally
+        {
+            _docker.Dispose();
+            Directory.Delete(_proc, recursive: true);
+        }
     }
 
     [Fact(Skip = "PORTARR_READER_BIN does not name the reader binary", SkipUnless = nameof(ReaderProcess.Available), SkipType = typeof(ReaderProcess))]

@@ -313,6 +313,8 @@ fn assert_golden(name: &str, actual: &str) {
     let path = fixtures().join(name);
     if std::env::var("UPDATE_GOLDEN").is_ok() {
         fs::write(&path, actual).unwrap();
+        // A regeneration run is never a passing run: the files are reviewed in the diff and the .NET test reads them.
+        panic!("{name} was regenerated: run the tests again without UPDATE_GOLDEN");
     }
     assert_eq!(
         actual,
@@ -567,7 +569,7 @@ fn an_odd_container_name_never_reaches_docker() {
     let reader = Reader::with(&fake);
     let long = "a".repeat(300);
 
-    for name in ["..", "%2e%2e", "a%2Fb", "-lead", "_lead", "name%20with%20space", "x;y", long.as_str()] {
+    for name in ["..", "%2e%2e", "a%2Fb", "-lead", "_lead", "name%20with%20space", "x;y", "we%62", long.as_str()] {
         for action in ["json", "stats", "logs"] {
             let status = reader.get(&format!("/v1/docker/containers/{name}/{action}")).status;
             assert!(status == 400 || status == 404, "{name}/{action}: {status}");

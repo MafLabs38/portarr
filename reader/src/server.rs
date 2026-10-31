@@ -30,24 +30,22 @@ const MAX_IN_FLIGHT: usize = 128;
 /// the host metrics Portarr reads every second are never starved by log viewers.
 const MAX_FOLLOWED: usize = 32;
 
-static FOLLOWED: AtomicUsize = AtomicUsize::new(0);
-
-/// One of the [`MAX_FOLLOWED`] places, given back when the log stream ends (or the request is dropped).
-struct FollowSlot;
+/// One of the [`MAX_FOLLOWED`] places of a server, given back when the log stream ends (or the request is dropped).
+struct FollowSlot(Arc<AtomicUsize>);
 
 impl FollowSlot {
-    fn take() -> Option<FollowSlot> {
-        if FOLLOWED.fetch_add(1, Ordering::SeqCst) >= MAX_FOLLOWED {
-            FOLLOWED.fetch_sub(1, Ordering::SeqCst);
+    fn take(taken: &Arc<AtomicUsize>) -> Option<FollowSlot> {
+        if taken.fetch_add(1, Ordering::SeqCst) >= MAX_FOLLOWED {
+            taken.fetch_sub(1, Ordering::SeqCst);
             return None;
         }
-        Some(FollowSlot)
+        Some(FollowSlot(Arc::clone(taken)))
     }
 }
 
 impl Drop for FollowSlot {
     fn drop(&mut self) {
-        FOLLOWED.fetch_sub(1, Ordering::SeqCst);
+        self.0.fetch_sub(1, Ordering::SeqCst);
     }
 }
 
@@ -68,6 +66,7 @@ struct Context {
     proc_path: String,
     sys_path: String,
     host_name: String,
+    followed: Arc<AtomicUsize>,
 }
 
 pub struct RunningServer {
@@ -103,6 +102,7 @@ pub fn start(options: Options) -> io::Result<RunningServer> {
         proc_path: options.proc_path,
         sys_path: options.sys_path,
         host_name,
+        followed: Arc::new(AtomicUsize::new(0)),
     });
     let in_flight = Arc::new(AtomicUsize::new(0));
 
@@ -246,7 +246,7 @@ fn logs(context: &Context, name: &str, query: &str) -> Outcome {
     match log_query(query) {
         Ok(log_query) => {
             let slot = if log_query.follow {
-                match FollowSlot::take() {
+                match FollowSlot::take(&context.followed) {
                     Some(slot) => Some(slot),
                     None => return Outcome::Reply(error(503, "Too many followed logs at once.")),
                 }
@@ -420,10 +420,12 @@ mod tests {
 
     #[test]
     fn followed_logs_have_a_limited_number_of_places_that_come_back() {
-        let places: Vec<_> = (0..MAX_FOLLOWED).map(|_| FollowSlot::take().expect("a place")).collect();
-        assert!(FollowSlot::take().is_none());
+        let taken = Arc::new(AtomicUsize::new(0));
+        let places: Vec<_> = (0..MAX_FOLLOWED).map(|_| FollowSlot::take(&taken).expect("a place")).collect();
+        assert!(FollowSlot::take(&taken).is_none());
+        assert!(FollowSlot::take(&Arc::new(AtomicUsize::new(0))).is_some(), "another server has its own places");
         drop(places);
-        assert!(FollowSlot::take().is_some());
+        assert!(FollowSlot::take(&taken).is_some());
     }
 
     #[test]

@@ -45,7 +45,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
-      - "8485:8485"   # reachable from Portarr only (firewall, or a private network)
+      - "10.0.0.10:8485:8485"   # the machine's private address only: plain HTTP, the token travels in clear
 ```
 
 The image holds the reader and nothing else (no shell, no package manager, no libc), and runs as a non-root user. Its health check is the binary itself (`/portarr-reader --healthcheck`), so `docker ps` shows it as healthy. It reads the machine's counters from the container's own `/proc`, which the kernel reports for the whole host, and the CPU temperature from `/sys/class/hwmon` when the machine has a sensor.

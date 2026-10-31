@@ -59,15 +59,21 @@ public static partial class CatalogParser
     [GeneratedRegex("^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")]
     private static partial Regex RepositoryPattern();
 
-    private const string HttpScheme = "http";
-    private const string HttpsScheme = "https";
-
     [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]{0,127}$")]
     private static partial Regex VariableNamePattern();
+
+    private const string HttpScheme = "http";
+    private const string HttpsScheme = "https";
 
     /// <summary>The namespace of the variables that hold a reader's token: the only ones a catalog may ask Portarr to send to a URL.</summary>
     private const string ReaderTokenPrefix = "PORTARR_READER_";
 
+    /// <summary>Where the reader serves the Docker API and the host metrics (<c>route()</c> in <c>reader/src/server.rs</c>), under its base URL.</summary>
+    private const string ReaderDockerPath = "v1/docker/";
+
+    private const string ReaderHostPath = "v1/host";
+
+    // Must match ReaderTokenPrefix.
     [GeneratedRegex("^PORTARR_READER_[A-Za-z0-9_]{1,100}$")]
     private static partial Regex ReaderTokenVariablePattern();
 
@@ -408,7 +414,7 @@ public static partial class CatalogParser
 
             // A trailing slash makes the reader's own path a base: the routes are resolved under it, whatever it is.
             var baseUrl = url.AbsolutePath.EndsWith('/') ? url : new Uri(url.GetLeftPart(UriPartial.Path) + Path.AltDirectorySeparatorChar);
-            return (new DockerEndpoint(new Uri(baseUrl, "v1/docker/"), variable), new HostMetricsEndpoint(new Uri(baseUrl, "v1/host"), variable));
+            return (new DockerEndpoint(new Uri(baseUrl, ReaderDockerPath), variable), new HostMetricsEndpoint(new Uri(baseUrl, ReaderHostPath), variable));
         }
 
         /// <summary>

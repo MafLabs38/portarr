@@ -12,4 +12,4 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
-      - "8485:8485"
+      - "10.0.0.10:8485:8485"                           # the machine's private address only: the reader speaks plain HTTP and its token travels in clear

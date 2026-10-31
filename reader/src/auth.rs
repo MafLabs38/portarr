@@ -34,7 +34,7 @@ fn presented<'a>(authorization: Option<&'a str>, api_key: Option<&'a str>) -> Op
         if value.len() > 7 && value.is_char_boundary(7) && value[..7].eq_ignore_ascii_case("bearer ") {
             return Some(value[7..].trim());
         }
-        if value.eq_ignore_ascii_case("bearer") || value.len() == 7 && value.eq_ignore_ascii_case("bearer ") {
+        if value.trim_end().eq_ignore_ascii_case("bearer") {
             return Some("");
         }
     }
