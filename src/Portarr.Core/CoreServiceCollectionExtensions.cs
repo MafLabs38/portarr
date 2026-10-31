@@ -2,9 +2,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Portarr.Core.Backups;
 using Portarr.Core.Catalog;
 using Portarr.Core.Checks;
 using Portarr.Core.Configuration;
+using Portarr.Core.Data;
 using Portarr.Core.Datastore;
 using Portarr.Core.Datastore.Migration;
 using Portarr.Core.Icons;
@@ -48,6 +50,10 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IHostMetricsMonitor>(provider => provider.GetRequiredService<HostMetricsMonitor>());
         services.AddHostedService(provider => provider.GetRequiredService<HostMetricsMonitor>());
 
+        services.AddSingleton<BackupMonitor>();
+        services.AddSingleton<IBackupMonitor>(provider => provider.GetRequiredService<BackupMonitor>());
+        services.AddHostedService(provider => provider.GetRequiredService<BackupMonitor>());
+        services.AddSingleton<IDataService, DataService>();
 
         services.AddSingleton<MaintenanceMonitor>();
         services.AddSingleton<IMaintenanceMonitor>(provider => provider.GetRequiredService<MaintenanceMonitor>());

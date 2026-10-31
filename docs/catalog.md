@@ -1,6 +1,6 @@
 # The catalog (`catalog.yaml`)
 
-The catalog declares what you run: **environments**, **stacks** and **apps** and the **code sources** you make apps from. Workloads (containers, pods, Pages projects, Workers) are never declared: Portarr discovers them and links them to apps through selectors (spec §4.2).
+The catalog declares what you run: **environments**, **stacks** and **apps**, plus the **data you follow** (and which backup tools should protect it) and the **code sources** you make apps from. Workloads (containers, pods, Pages projects, Workers) are never declared: Portarr discovers them and links them to apps through selectors (spec §4.2).
 
 - Location: `<data folder>/catalog.yaml` (`/config/catalog.yaml` in the image), or `PORTARR__CATALOGFILE`.
 - Reloaded as soon as the file is saved. A broken edit keeps the last valid catalog; the errors are shown on the Apps page and at `GET /api/v1/catalog/status`.
@@ -13,6 +13,7 @@ environments:
     address: 10.0.0.10                # LAN address: LAN links are built from published ports
     docker: { url: "http://socket-proxy:2375" }   # or unix:///var/run/docker.sock
     hostMetrics: { nodeExporter: "http://10.0.0.10:9100/metrics" }   # host agent, read every second (D-72)
+    backrest: { url: "http://10.0.0.10:9898", userEnv: BACKREST_USER, passwordEnv: BACKREST_PASSWORD }   # backup tool of this machine (D-80)
   - id: cdn
     name: Cloudflare
     runtime: cloudflare               # Pages projects and Workers (connectors/cloudflare.md)
@@ -161,6 +162,53 @@ A machine with a host agent shows its host values first; one whose agent cannot 
 ## Kubernetes selectors
 
 A pod name changes on every rollout (`shop-web-7c4b9d-x2k8p`): match pods by what stays (D-56). `match:` takes `namespace`, `app` (the pod's `app` label), `namePrefix` and `name`; every key given must match, and one of `app`, `namePrefix` or `name` is required. `namespace`, `app` and `namePrefix` are only for `kubernetes@…` workloads.
+
+## Data
+
+The data you follow, so the **Data** page can tell whether you could get your state back (D-77). It is declarative, like apps: **only what is listed here appears**, nothing is discovered. Portarr runs no backup; each target names the job of an existing tool that should produce the copy, and Portarr compares that with what the tool reports ([verticals/V3-data-backups.md](verticals/V3-data-backups.md), companions: [Backrest](companions.md#backrest), [K8up](companions.md#k8up)).
+
+```yaml
+environments:
+  - id: server-1
+    docker: { url: "http://10.0.0.10:2375" }
+    backrest:                              # the Backrest of this machine (optional, one per Docker or launcher-only environment)
+      url: "http://10.0.0.10:9898"         # no credentials in the URL
+      userEnv: BACKREST_USER               # names of environment variables, never the credentials; both or neither
+      passwordEnv: BACKREST_PASSWORD
+
+data:
+  - id: shop-db                            # required, unique
+    app: shop                              # required: an app id
+    name: Shop database                    # default: the id
+    kind: postgresql                       # required, free: postgresql, mariadb, influxdb, vault, sqlite-app-config, volume, files, cluster-state…
+    where:                                 # required environment; the rest is informative (not checked against the inventory)
+      environment: cluster
+      namespace: shop
+      workload: shop-db-0                  # container, pod or StatefulSet
+      claim: data-shop-db-0                # PersistentVolumeClaim
+      path: /var/lib/postgresql/data       # or a host path
+    importance: critical                   # required: critical | important | comfort
+    maxAge: 12h                            # optional: overrides the importance's loss window (30m, 24h, 7d)
+    targets:                               # required: the copies expected
+      local:                               # on the premises (the array)
+        cronjob: shop/db-dump              # a Kubernetes CronJob: <namespace>/<name>
+      offsite:                             # in a bucket (B2, S3)
+        k8up: { schedule: shop/offsite, item: data-shop-db-0 }   # a K8up Schedule, optionally narrowed to one claim
+        # backrest: { plan: shop-db-offsite }                    # a Backrest plan (environment: of the data, or environment: <id>)
+        # manual: "2026-01-31T03:00:00Z"                         # your own copy: true, or the date of the last one
+```
+
+- **Importance** is the accepted loss window: a copy whose newest success is older than the window (plus one hour of grace) is late. **critical** 24 h, **important** 7 days, **comfort** 30 days; `maxAge` overrides it.
+- **Targets**: `local` and `offsite`; at least one. A target you leave out is a copy you do not want (the page shows it "not followed"). A target with no source (`offsite: {}` or `offsite:`) is a copy you want and nothing produces yet: the page flags it **Missing**.
+- **Sources** of a target (any mix; one proving a recent copy is enough):
+  - `backrest: { plan: <id>, environment?: <id> }`: a plan of the Backrest declared on that environment (the data's own by default; it must be a machine, not a cluster). A plan writes to one repository, so one copy is one plan.
+  - `k8up: { schedule: <namespace>/<name>, item?: <text>, environment?: <id> }`: a K8up Schedule of a Kubernetes environment. `item` narrows the Schedule to the snapshots whose path contains it (a claim name), so a Schedule that backs up a whole namespace proves *this* claim.
+  - `cronjob: <namespace>/<name>`: a Kubernetes CronJob (needs `get, list` on `cronjobs` and `jobs`, see [connectors/kubernetes.md](connectors/kubernetes.md)).
+  - `manual: true | "<ISO 8601 date>"`: a copy you make yourself; Portarr cannot read it. With a date it is judged against the window, without one it stays Unknown.
+- A source whose tool is not configured yet (no `backrest:` on the environment) is allowed: the copy is Not set up (`no-connector`) until the tool is deployed, which lets you declare the policy before the tools exist.
+- Validation is strict: unknown app or environment, missing importance, kind or target, a K8up or CronJob source on a machine, a Backrest source on a cluster, a malformed duration or date, and `backrest:` credentials that are not variable names are catalog errors naming the entry. The former `backups:` section is gone: migrate each job to the `targets` of the data it covers.
+
+States, per copy and per asset: **Protected**, **Waiting for first run** (the job exists and has not run yet), **Unknown** (the tool cannot be read), **Not set up** (the tool is not configured on the environment), **Late**, **Failed**, **Missing** (D-79).
 
 ## Code sources
 

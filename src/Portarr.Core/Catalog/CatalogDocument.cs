@@ -12,6 +12,8 @@ internal sealed class CatalogDocument
 
     public List<AppDocument>? Apps { get; set; }
 
+    public List<DataDocument>? Data { get; set; }
+
     public SourcesDocument? Sources { get; set; }
 }
 
@@ -41,6 +43,87 @@ internal sealed class GitHubDocument
     public bool? Archived { get; set; }
 }
 
+/// <summary>A followed data asset (D-77); see <see cref="DataAssetDefinition"/>.</summary>
+internal sealed class DataDocument
+{
+    public string? Id { get; set; }
+
+    public string? Name { get; set; }
+
+    /// <summary>The id of the app this data belongs to.</summary>
+    public string? App { get; set; }
+
+    public string? Kind { get; set; }
+
+    public DataWhereDocument? Where { get; set; }
+
+    /// <summary>critical, important or comfort.</summary>
+    public string? Importance { get; set; }
+
+    /// <summary>The accepted loss window (<c>30m</c>, <c>24h</c>, <c>7d</c>); the importance sets a default.</summary>
+    public string? MaxAge { get; set; }
+
+    /// <summary>Per target (<c>local</c>, <c>offsite</c>): the sources that should prove the copy exists. A key with no value declares a copy nothing produces yet.</summary>
+    public Dictionary<string, TargetDocument?>? Targets { get; set; }
+}
+
+internal sealed class DataWhereDocument
+{
+    public string? Environment { get; set; }
+
+    public string? Namespace { get; set; }
+
+    /// <summary>Container, pod or StatefulSet name.</summary>
+    public string? Workload { get; set; }
+
+    public string? Claim { get; set; }
+
+    public string? Path { get; set; }
+}
+
+/// <summary>The sources of one target: any of them proving a recent copy is enough.</summary>
+internal sealed class TargetDocument
+{
+    public BackrestSourceDocument? Backrest { get; set; }
+
+    public K8upSourceDocument? K8up { get; set; }
+
+    /// <summary><c>namespace/name</c> of a Kubernetes CronJob.</summary>
+    public string? Cronjob { get; set; }
+
+    /// <summary>Your own copy, outside any tool: <c>true</c>, or the date of the last one (ISO 8601).</summary>
+    public string? Manual { get; set; }
+}
+
+internal sealed class BackrestSourceDocument
+{
+    public string? Plan { get; set; }
+
+    /// <summary>The environment running Backrest; the data's own environment when omitted.</summary>
+    public string? Environment { get; set; }
+}
+
+internal sealed class K8upSourceDocument
+{
+    /// <summary><c>namespace/name</c> of the K8up Schedule.</summary>
+    public string? Schedule { get; set; }
+
+    /// <summary>Narrows the schedule to this data: a part of the snapshot path (the claim name).</summary>
+    public string? Item { get; set; }
+
+    public string? Environment { get; set; }
+}
+
+/// <summary>The Backrest of an environment (D-80); the credentials are variable names.</summary>
+internal sealed class BackrestDocument
+{
+    public string? Url { get; set; }
+
+    public string? UserEnv { get; set; }
+
+    public string? PasswordEnv { get; set; }
+}
+
 internal sealed class EnvironmentDocument
 {
     public string? Id { get; set; }
@@ -63,6 +146,9 @@ internal sealed class EnvironmentDocument
 
     /// <summary>The host agent of a Docker host (D-72).</summary>
     public HostMetricsDocument? HostMetrics { get; set; }
+
+    /// <summary>The Backrest running on this machine (D-80).</summary>
+    public BackrestDocument? Backrest { get; set; }
 }
 
 internal sealed class HostMetricsDocument

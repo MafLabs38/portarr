@@ -1,0 +1,78 @@
+using Portarr.Core.Data;
+
+namespace Portarr.Core.Test.Data;
+
+/// <summary>The next firing of a cron expression, as backup tools write theirs (UTC).</summary>
+public sealed class CronScheduleFixture
+{
+    private static readonly DateTimeOffset Now = new(2026, 1, 31, 12, 30, 0, TimeSpan.Zero);
+
+    [Theory]
+    [InlineData("0 3 * * *", "2026-02-01T03:00:00Z")]
+    [InlineData("45 12 * * *", "2026-01-31T12:45:00Z")]
+    [InlineData("30 12 * * *", "2026-02-01T12:30:00Z")]
+    [InlineData("*/15 * * * *", "2026-01-31T12:45:00Z")]
+    [InlineData("0 */6 * * *", "2026-01-31T18:00:00Z")]
+    [InlineData("0 1,13 * * *", "2026-01-31T13:00:00Z")]
+    [InlineData("0 9-11 * * *", "2026-02-01T09:00:00Z")]
+    [InlineData("5/20 14 * * *", "2026-01-31T14:05:00Z")]
+    [InlineData("0 0 1 * *", "2026-02-01T00:00:00Z")]
+    [InlineData("0 0 * * 1", "2026-02-02T00:00:00Z")]
+    [InlineData("0 0 * * mon", "2026-02-02T00:00:00Z")]
+    [InlineData("0 0 * * 7", "2026-02-01T00:00:00Z")]
+    [InlineData("0 0 15 mar *", "2026-03-15T00:00:00Z")]
+    [InlineData("@hourly", "2026-01-31T13:00:00Z")]
+    [InlineData("@daily", "2026-02-01T00:00:00Z")]
+    [InlineData("@weekly", "2026-02-01T00:00:00Z")]
+    [InlineData("@monthly", "2026-02-01T00:00:00Z")]
+    [InlineData("@yearly", "2027-01-01T00:00:00Z")]
+    public void should_find_the_next_firing(string expression, string expected)
+    {
+        CronSchedule.NextAfter(expression, Now).Should().Be(DateTimeOffset.Parse(expected, System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public void should_fire_on_either_day_field_when_both_are_restricted()
+    {
+        // The 1st of the month or a Monday: Monday 2 February comes after the 1st, which is a Sunday.
+        CronSchedule.NextAfter("0 0 1 2 1", Now).Should().Be(new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero));
+        CronSchedule.NextAfter("0 0 3 2 1", Now).Should().Be(new DateTimeOffset(2026, 2, 2, 0, 0, 0, TimeSpan.Zero));
+    }
+
+    [Fact]
+    public void should_read_the_time_in_utc()
+    {
+        var local = new DateTimeOffset(2026, 1, 31, 23, 30, 0, TimeSpan.FromHours(2));
+
+        CronSchedule.NextAfter("0 22 * * *", local).Should().Be(new DateTimeOffset(2026, 1, 31, 22, 0, 0, TimeSpan.Zero));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("disabled")]
+    [InlineData("every 2 d")]
+    [InlineData("0 3 * *")]
+    [InlineData("0 3 * * * *")]
+    [InlineData("61 3 * * *")]
+    [InlineData("0 24 * * *")]
+    [InlineData("0 0 0 * *")]
+    [InlineData("0 0 * 13 *")]
+    [InlineData("0 0 * * 8")]
+    [InlineData("*/0 * * * *")]
+    [InlineData("a-b * * * *")]
+    [InlineData("5-1 * * * *")]
+    [InlineData("1-2-3 * * * *")]
+    [InlineData("0 0 * * foo")]
+    public void should_have_no_next_firing_for_text_that_is_not_a_cron_expression(string? expression)
+    {
+        CronSchedule.NextAfter(expression, Now).Should().BeNull();
+    }
+
+    [Fact]
+    public void should_give_up_on_a_date_that_never_comes()
+    {
+        CronSchedule.NextAfter("0 0 31 2 *", Now).Should().BeNull("the 31st of February does not exist");
+    }
+}

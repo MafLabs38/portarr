@@ -3,23 +3,27 @@ using Portarr.Core.Workloads;
 namespace Portarr.Core.Catalog;
 
 /// <summary>
-/// What the operator declared: environments, stacks and apps (spec §4) and the code sources the Maintenance page
-/// scans (D-64). Workloads are never declared; apps point at them through selectors.
+/// What the operator declared: environments, stacks and apps (spec §4), the data followed (D-77) and the code
+/// sources the Maintenance page scans (D-64). Workloads are never declared; apps point at them through selectors.
 /// </summary>
 public sealed record Catalog(
     IReadOnlyList<CatalogEnvironment> Environments,
     IReadOnlyList<CatalogStack> Stacks,
     IReadOnlyList<CatalogApp> Apps,
+    IReadOnlyList<DataAssetDefinition>? Data = null,
     GitHubSource? GitHub = null)
 {
     public static Catalog Empty { get; } = new([], [], []);
+
+    public IReadOnlyList<DataAssetDefinition> DataAssets => Data ?? [];
 }
 
 /// <summary>
 /// A host, a cluster or a hosting account. <c>Address</c> is its LAN address, used to build LAN URLs from
 /// published ports (D-46). At most one connector endpoint is set: <c>Docker</c>, <c>Cloudflare</c> or <c>Kubernetes</c>.
 /// <c>Host</c> is the environment this one runs on as a VM (D-59): the hypervisor's dashboard counts it as a guest.
-/// <c>HostMetrics</c> is the host agent of its single machine (a Docker host, D-72).
+/// <c>HostMetrics</c> is the host agent of its single machine (a Docker host, D-72). <c>Backrest</c> is the
+/// backup tool running on it (D-80).
 /// </summary>
 public sealed record CatalogEnvironment(
     string Id,
@@ -29,7 +33,8 @@ public sealed record CatalogEnvironment(
     CloudflareAccount? Cloudflare = null,
     KubernetesCluster? Kubernetes = null,
     string? Host = null,
-    HostMetricsEndpoint? HostMetrics = null)
+    HostMetricsEndpoint? HostMetrics = null,
+    BackrestEndpoint? Backrest = null)
 {
     /// <summary>
     /// The environment a machine of this environment is a VM on: its node's entry in <c>nodeHosts</c>, else the

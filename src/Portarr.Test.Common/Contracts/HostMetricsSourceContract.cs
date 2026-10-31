@@ -5,21 +5,6 @@ using Xunit;
 
 namespace Portarr.Test.Common.Contracts;
 
-/// <summary>How a fake tool fails when it is asked to.</summary>
-public enum ToolFault
-{
-    None,
-
-    /// <summary>The tool answers 403: the account lacks the permission.</summary>
-    Refused,
-
-    /// <summary>Nothing answers.</summary>
-    Unreachable,
-}
-
-/// <summary>A request the connector sent to the tool.</summary>
-public sealed record RecordedRequest(HttpMethod Method, string Path);
-
 /// <summary>A connector wired to a fake host agent: it serves whatever text it is given, or fails.</summary>
 public sealed record HostMetricsHarness(
     IHostMetricsSource Source,

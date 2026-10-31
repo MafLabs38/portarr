@@ -20,11 +20,11 @@ Two halves of one question, "what is vulnerable, outdated or late?":
 | Links between repositories and catalog apps: `repository:` on an app, an image's OCI source label, a GHCR or Docker Hub image named like a scanned repository | Declared versions read from the IaC and drift (F-UPD-04 "declared", Q-27); the IaC file to change (F-UPD-02) |
 | Registry connector (anonymous, GET and HEAD only): Docker Hub, GHCR, lscr.io, Quay, any OCI registry; tags, their dates and digests when cheap | Private registries (a pull token per registry), Helm charts, host OS packages (Q-26) |
 | Image verdicts for running Docker containers and Kubernetes pods: up to date, behind (patch / minor / major / build), rebuilt (floating tag moved), floating (cannot tell), unknown (with the reason) | Per-app tag filters and ignored versions (F-UPD-01 rules); release notes links; end of life of runtimes (F-UPD-06, endoflife.date); deployment detection (F-UPD-05) |
-| **Maintenance** page after Infrastructure: a summary, "what needs attention" across both halves, two sub-tabs *My code* and *Deployed images* | Issues and notifications (V5, V6); the "update" badge on app tiles; a timeline of releases |
+| **Maintenance** page after Data: a summary, "what needs attention" across both halves, two sub-tabs *My code* and *Deployed images* | Issues and notifications (V5, V6); the "update" badge on app tiles; a timeline of releases |
 
 ## UI proposal (D-67)
 
-One page, `/maintenance`, sidebar entry **Maintenance** after Infrastructure, three blocks:
+One page, `/maintenance`, sidebar entry **Maintenance** after Data, three blocks:
 
 1. **Summary tiles**, two groups. *My code*: repositories (and how many are deployed), critical and high alerts, medium and low alerts, Dependabot off (n/N), CI failing. *Deployed images*: running images, up to date, behind, major updates, cannot tell.
 2. **Needs attention**: one line per kind of finding, worst first, each naming what it concerns as links (the repository's GitHub page, the failing CI run): critical/high vulnerabilities and leaked secrets (danger); CI failing, images with a new major version, Dependabot alerts off (warning); minor/patch updates, rebuilt floating tags, medium/low/quality alerts, code scanning off, Dependabot pull requests waiting, images that cannot be checked (info). Mixing both halves here is the point: the operator reads one list, then drills down.
