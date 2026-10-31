@@ -10,7 +10,7 @@ namespace Portarr.Providers.Kubernetes;
 /// per repository and path. Targets K8up v2.16 (Helm chart 4.10). Needs <c>get, list</c> on <c>schedules</c>,
 /// <c>backups</c> and <c>snapshots</c> of the <c>k8up.io</c> group; the Snapshots are optional.
 /// </summary>
-public sealed class KubernetesK8upBackupSource : IBackupSource
+public sealed class KubernetesK8UpBackupSource : IBackupSource
 {
     private const string ScheduleKind = "Schedule";
     private const string Completed = "Completed";
@@ -21,7 +21,7 @@ public sealed class KubernetesK8upBackupSource : IBackupSource
 
     private readonly KubernetesApiClient _client;
 
-    public KubernetesK8upBackupSource(KubernetesApiClient client)
+    public KubernetesK8UpBackupSource(KubernetesApiClient client)
     {
         _client = client;
     }
@@ -42,22 +42,22 @@ public sealed class KubernetesK8upBackupSource : IBackupSource
         }
 
         // A 404 is a cluster without the K8up CRDs: nothing to read, not an error.
-        var schedules = await _client.ListAsync(cluster, "apis/k8up.io/v1/schedules", KubernetesJsonContext.Default.ObjectListK8upSchedule, cancellationToken) ?? [];
+        var schedules = await _client.ListAsync(cluster, "apis/k8up.io/v1/schedules", KubernetesJsonContext.Default.ObjectListK8UpSchedule, cancellationToken) ?? [];
         if (schedules.Count == 0)
         {
             return [];
         }
 
-        var backups = await _client.ListAsync(cluster, "apis/k8up.io/v1/backups", KubernetesJsonContext.Default.ObjectListK8upBackup, cancellationToken) ?? [];
+        var backups = await _client.ListAsync(cluster, "apis/k8up.io/v1/backups", KubernetesJsonContext.Default.ObjectListK8UpBackup, cancellationToken) ?? [];
         var snapshots = await ReadSnapshotsAsync(cluster, cancellationToken);
         return schedules.Select(schedule => ToJob(schedule, backups, snapshots)).ToList();
     }
 
-    private async Task<IReadOnlyList<K8upSnapshot>> ReadSnapshotsAsync(KubernetesCluster cluster, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<K8UpSnapshot>> ReadSnapshotsAsync(KubernetesCluster cluster, CancellationToken cancellationToken)
     {
         try
         {
-            return await _client.ListAsync(cluster, "apis/k8up.io/v1/snapshots", KubernetesJsonContext.Default.ObjectListK8upSnapshot, cancellationToken) ?? [];
+            return await _client.ListAsync(cluster, "apis/k8up.io/v1/snapshots", KubernetesJsonContext.Default.ObjectListK8UpSnapshot, cancellationToken) ?? [];
         }
         catch (HttpRequestException exception) when (exception.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.Unauthorized)
         {
@@ -65,7 +65,7 @@ public sealed class KubernetesK8upBackupSource : IBackupSource
         }
     }
 
-    internal static BackupJob ToJob(K8upSchedule schedule, IReadOnlyList<K8upBackup> backups, IReadOnlyList<K8upSnapshot> snapshots)
+    internal static BackupJob ToJob(K8UpSchedule schedule, IReadOnlyList<K8UpBackup> backups, IReadOnlyList<K8UpSnapshot> snapshots)
     {
         var ns = schedule.Metadata.Namespace;
         var name = schedule.Metadata.Name;
@@ -107,7 +107,7 @@ public sealed class KubernetesK8upBackupSource : IBackupSource
     }
 
     /// <summary>A finished Backup: when, and whether it succeeded. A running one is not an outcome.</summary>
-    private static (DateTimeOffset At, bool Succeeded)? Outcome(K8upBackup backup)
+    private static (DateTimeOffset At, bool Succeeded)? Outcome(K8UpBackup backup)
     {
         var conditions = backup.Status?.Conditions ?? [];
         var preBackup = conditions.FirstOrDefault(c => c.Type == PreBackupPodReady);
@@ -123,7 +123,7 @@ public sealed class KubernetesK8upBackupSource : IBackupSource
     }
 
     /// <summary>The repository string K8up records in its Snapshots (<c>s3:endpoint/bucket</c>, <c>b2:bucket:path</c>, a local path); null when it cannot be rebuilt (operator-wide defaults).</summary>
-    internal static string? RepositoryOf(K8upBackend? backend)
+    internal static string? RepositoryOf(K8UpBackend? backend)
     {
         if (backend?.S3 is { Endpoint: { Length: > 0 } endpoint, Bucket: { Length: > 0 } bucket })
         {
@@ -139,7 +139,7 @@ public sealed class KubernetesK8upBackupSource : IBackupSource
     }
 
     /// <summary>The kind of repository, for the page: never its address or bucket.</summary>
-    internal static string KindOf(K8upBackend? backend) => backend switch
+    internal static string KindOf(K8UpBackend? backend) => backend switch
     {
         { S3: not null } => "s3",
         { B2: not null } => "b2",

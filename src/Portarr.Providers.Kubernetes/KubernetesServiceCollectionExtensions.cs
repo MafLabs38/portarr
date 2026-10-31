@@ -13,7 +13,7 @@ public static class KubernetesServiceCollectionExtensions
         services.AddSingleton<IWorkloadSource, KubernetesWorkloadSource>();
         services.AddSingleton<IInfrastructureSource, KubernetesInfrastructureSource>();
         services.AddSingleton<IBackupSource, KubernetesCronJobBackupSource>();
-        services.AddSingleton<IBackupSource, KubernetesK8upBackupSource>();
+        services.AddSingleton<IBackupSource, KubernetesK8UpBackupSource>();
         services.AddSingleton<IHostMetricsSource, KubernetesNodeExporterSource>();
 
         return services;

@@ -128,9 +128,9 @@ public sealed class KubernetesBackupSourceFixture : IDisposable
     [InlineData("""{ "s3": { } }""", null)]
     public void should_rebuild_the_repository_string_k8up_records_in_its_snapshots(string backend, string? expected)
     {
-        var parsed = System.Text.Json.JsonSerializer.Deserialize<K8upBackend>(backend, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        var parsed = System.Text.Json.JsonSerializer.Deserialize<K8UpBackend>(backend, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
 
-        KubernetesK8upBackupSource.RepositoryOf(parsed).Should().Be(expected);
+        KubernetesK8UpBackupSource.RepositoryOf(parsed).Should().Be(expected);
     }
 
     public void Dispose()
@@ -144,7 +144,7 @@ public sealed class KubernetesBackupSourceFixture : IDisposable
 
     private KubernetesCronJobBackupSource Cron() => new(Client());
 
-    private KubernetesK8upBackupSource K8up() => new(Client());
+    private KubernetesK8UpBackupSource K8up() => new(Client());
 
     private KubernetesApiClient Client(string? token = "test-token")
     {

@@ -100,54 +100,54 @@ internal sealed record BatchJobStatus(
 
 // K8up (k8up.io/v1, operator v2.16, chart 4.10): Schedule, Backup and Snapshot custom resources.
 
-internal sealed record K8upSchedule(
+internal sealed record K8UpSchedule(
     [property: JsonPropertyName("metadata")] ObjectMetadata Metadata,
-    [property: JsonPropertyName("spec")] K8upScheduleSpec? Spec);
+    [property: JsonPropertyName("spec")] K8UpScheduleSpec? Spec);
 
-internal sealed record K8upScheduleSpec(
-    [property: JsonPropertyName("backup")] K8upBackupSchedule? Backup,
-    [property: JsonPropertyName("backend")] K8upBackend? Backend);
+internal sealed record K8UpScheduleSpec(
+    [property: JsonPropertyName("backup")] K8UpBackupSchedule? Backup,
+    [property: JsonPropertyName("backend")] K8UpBackend? Backend);
 
-internal sealed record K8upBackupSchedule(
+internal sealed record K8UpBackupSchedule(
     [property: JsonPropertyName("schedule")] string? Schedule,
-    [property: JsonPropertyName("backend")] K8upBackend? Backend);
+    [property: JsonPropertyName("backend")] K8UpBackend? Backend);
 
 /// <summary>Where a schedule writes; only the kind and the identifiers that form restic's repository string are read, never a secret reference.</summary>
-internal sealed record K8upBackend(
-    [property: JsonPropertyName("s3")] K8upS3? S3,
-    [property: JsonPropertyName("b2")] K8upB2? B2,
-    [property: JsonPropertyName("local")] K8upLocal? Local,
+internal sealed record K8UpBackend(
+    [property: JsonPropertyName("s3")] K8UpS3? S3,
+    [property: JsonPropertyName("b2")] K8UpB2? B2,
+    [property: JsonPropertyName("local")] K8UpLocal? Local,
     [property: JsonPropertyName("gcs")] JsonElement? Gcs,
     [property: JsonPropertyName("azure")] JsonElement? Azure,
     [property: JsonPropertyName("swift")] JsonElement? Swift,
     [property: JsonPropertyName("rest")] JsonElement? Rest);
 
-internal sealed record K8upS3(
+internal sealed record K8UpS3(
     [property: JsonPropertyName("endpoint")] string? Endpoint,
     [property: JsonPropertyName("bucket")] string? Bucket);
 
-internal sealed record K8upB2(
+internal sealed record K8UpB2(
     [property: JsonPropertyName("bucket")] string? Bucket,
     [property: JsonPropertyName("path")] string? Path);
 
-internal sealed record K8upLocal([property: JsonPropertyName("mountPath")] string? MountPath);
+internal sealed record K8UpLocal([property: JsonPropertyName("mountPath")] string? MountPath);
 
 /// <summary>A K8up Backup: its <c>Completed</c> condition says whether it succeeded or failed.</summary>
-internal sealed record K8upBackup(
+internal sealed record K8UpBackup(
     [property: JsonPropertyName("metadata")] ObjectMetadata Metadata,
-    [property: JsonPropertyName("status")] K8upStatus? Status);
+    [property: JsonPropertyName("status")] K8UpStatus? Status);
 
-internal sealed record K8upStatus(
+internal sealed record K8UpStatus(
     [property: JsonPropertyName("started")] bool? Started,
     [property: JsonPropertyName("finished")] bool? Finished,
     [property: JsonPropertyName("conditions")] IReadOnlyList<Condition>? Conditions);
 
 /// <summary>A restic snapshot K8up keeps in the cluster after a backup: id, date, paths and repository.</summary>
-internal sealed record K8upSnapshot(
+internal sealed record K8UpSnapshot(
     [property: JsonPropertyName("metadata")] ObjectMetadata Metadata,
-    [property: JsonPropertyName("spec")] K8upSnapshotSpec? Spec);
+    [property: JsonPropertyName("spec")] K8UpSnapshotSpec? Spec);
 
-internal sealed record K8upSnapshotSpec(
+internal sealed record K8UpSnapshotSpec(
     [property: JsonPropertyName("id")] string? Id,
     [property: JsonPropertyName("date")] DateTimeOffset? Date,
     [property: JsonPropertyName("paths")] IReadOnlyList<string>? Paths,
@@ -226,7 +226,7 @@ internal sealed record ContainerMetrics(
 [JsonSerializable(typeof(CronJob))]
 [JsonSerializable(typeof(ObjectList<CronJob>))]
 [JsonSerializable(typeof(ObjectList<BatchJob>))]
-[JsonSerializable(typeof(ObjectList<K8upSchedule>))]
-[JsonSerializable(typeof(ObjectList<K8upBackup>))]
-[JsonSerializable(typeof(ObjectList<K8upSnapshot>))]
+[JsonSerializable(typeof(ObjectList<K8UpSchedule>))]
+[JsonSerializable(typeof(ObjectList<K8UpBackup>))]
+[JsonSerializable(typeof(ObjectList<K8UpSnapshot>))]
 internal sealed partial class KubernetesJsonContext : JsonSerializerContext;
