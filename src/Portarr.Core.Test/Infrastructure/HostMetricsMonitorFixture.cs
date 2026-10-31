@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Portarr.Core.Catalog;
 using Portarr.Core.Infrastructure;
+using Portarr.Core.Workloads;
 
 namespace Portarr.Core.Test.Infrastructure;
 
@@ -174,7 +175,7 @@ public sealed class HostMetricsMonitorFixture
             ("home", "http://10.0.0.21:9100/metrics", null, null),
             ("behind-tunnel", null, 9100, null),
             ("elsewhere", "http://10.0.0.30:9100/metrics", null, null),
-            ("looped", null, null, HostMetricsMonitor.InvalidAddress));
+            ("looped", null, null, ReasonCodes.InvalidAddress));
     }
 
     [Fact]
@@ -192,7 +193,7 @@ public sealed class HostMetricsMonitorFixture
 
         await monitor.SampleAsync(TestContext.Current.CancellationToken);
 
-        monitor.Current[new HostMachineKey("cluster", "looped")].Error.Should().Be(HostMetricsMonitor.InvalidAddress);
+        monitor.Current[new HostMachineKey("cluster", "looped")].Error.Should().Be(ReasonCodes.InvalidAddress);
         await _source.DidNotReceive().ReadAsync(Arg.Any<HostMetricsTarget>(), Arg.Any<CancellationToken>());
     }
 

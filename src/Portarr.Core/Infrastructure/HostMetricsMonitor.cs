@@ -159,29 +159,25 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
             NodeExporterAccess.Direct when node.Address is { } address
                 => IsReachableAddress(address)
                     ? new HostMetricsTarget(environment, node.Id, new UriBuilder(Uri.UriSchemeHttp, address, nodeExporter.Port, "/metrics").Uri)
-                    : new HostMetricsTarget(environment, node.Id, null, null, InvalidAddress),
+                    : new HostMetricsTarget(environment, node.Id, null, null, ReasonCodes.InvalidAddress),
             _ => null,
         };
     }
 
     /// <summary>
-    /// A node address worth connecting to: a node that reports a loopback, link-local or unspecified address (or a name that is not an address
-    /// or a host name) would make Portarr read itself or its own network neighbours, so it is skipped.
+    /// A node address worth connecting to: an IP literal (a node's InternalIP always is) that is not loopback, link-local or unspecified.
+    /// Such an address would make Portarr read itself or its own network neighbours; a name is refused too, since it is resolved at
+    /// connect time and could then point anywhere.
     /// </summary>
     internal static bool IsReachableAddress(string address)
     {
-        if (string.IsNullOrWhiteSpace(address))
+        if (!IPAddress.TryParse(address, out var ip))
         {
             return false;
         }
 
-        if (IPAddress.TryParse(address, out var ip))
-        {
-            ip = ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip;
-            return !IPAddress.IsLoopback(ip) && !ip.Equals(IPAddress.Any) && !ip.Equals(IPAddress.IPv6Any) && !ip.IsIPv6LinkLocal && !IsIPv4LinkLocal(ip);
-        }
-
-        return Uri.CheckHostName(address) == UriHostNameType.Dns && !address.Equals("localhost", StringComparison.OrdinalIgnoreCase);
+        ip = ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip;
+        return !IPAddress.IsLoopback(ip) && !ip.Equals(IPAddress.Any) && !ip.Equals(IPAddress.IPv6Any) && !ip.IsIPv6LinkLocal && !IsIPv4LinkLocal(ip);
     }
 
     private static bool IsIPv4LinkLocal(IPAddress ip)
@@ -189,9 +185,6 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
         var bytes = ip.GetAddressBytes();
         return bytes.Length == 4 && bytes[0] == 169 && bytes[1] == 254;
     }
-
-    /// <summary>The reason code of a node whose reported address is not one Portarr reads (D-32): use <c>nodeExporter.nodes</c> for it.</summary>
-    internal const string InvalidAddress = "invalid-address";
 
     private void StartDueReads(CancellationToken stoppingToken)
     {
@@ -231,6 +224,7 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
                 return;
             }
 
+            // Unreachable by construction (StartDueReads only starts a target that has a source or a configuration error): guards the nullable.
             if (source is null)
             {
                 return;

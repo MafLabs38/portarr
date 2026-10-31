@@ -5,17 +5,23 @@ public sealed class CappedStreamFixture
 {
     private const int Limit = 10;
 
-    [Fact]
-    public async Task should_let_exactly_the_limit_through_and_fail_on_one_byte_more()
+    [Theory]
+    [InlineData(Limit, false)]
+    [InlineData(Limit + 1, true)]
+    public async Task should_fail_only_beyond_the_limit(int size, bool fails)
     {
-        await using var atLimit = new CappedStream(new MemoryStream(new byte[Limit]), Limit);
-        await using var over = new CappedStream(new MemoryStream(new byte[Limit + 1]), Limit);
+        await using var capped = new CappedStream(new MemoryStream(new byte[size]), Limit);
 
-        var passing = () => atLimit.CopyToAsync(Stream.Null, TestContext.Current.CancellationToken);
-        var failing = () => over.CopyToAsync(Stream.Null, TestContext.Current.CancellationToken);
+        var copy = () => capped.CopyToAsync(Stream.Null, TestContext.Current.CancellationToken);
 
-        await passing.Should().NotThrowAsync();
-        await failing.Should().ThrowAsync<InvalidDataException>();
+        if (fails)
+        {
+            await copy.Should().ThrowAsync<InvalidDataException>();
+        }
+        else
+        {
+            await copy.Should().NotThrowAsync();
+        }
     }
 
     [Fact]
@@ -27,5 +33,17 @@ public sealed class CappedStreamFixture
         var read = () => capped.Read(buffer, 0, buffer.Length);
 
         read.Should().Throw<InvalidDataException>();
+    }
+
+    [Fact]
+    public async Task should_add_up_the_reads_of_the_array_overload()
+    {
+        await using var capped = new CappedStream(new MemoryStream(new byte[Limit + 1]), Limit);
+        var buffer = new byte[6];
+
+        (await capped.ReadAsync(buffer, 0, 6, TestContext.Current.CancellationToken)).Should().Be(6);
+        var second = () => capped.ReadAsync(buffer, 0, 5, TestContext.Current.CancellationToken);
+
+        await second.Should().ThrowAsync<InvalidDataException>("6 + 5 bytes exceed the limit of 10");
     }
 }

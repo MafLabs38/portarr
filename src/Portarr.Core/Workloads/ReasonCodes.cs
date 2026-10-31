@@ -13,6 +13,9 @@ public static class ReasonCodes
     /// <summary>The environment is declared, but the variable that holds its token is empty (not a failure of the call).</summary>
     public const string TokenMissing = "token-missing";
 
+    /// <summary>A node reports an address Portarr will not read (not an IP, or a loopback or link-local one): use <c>nodeExporter.nodes</c> for it.</summary>
+    public const string InvalidAddress = "invalid-address";
+
     public static string From(Exception exception)
     {
         return exception switch

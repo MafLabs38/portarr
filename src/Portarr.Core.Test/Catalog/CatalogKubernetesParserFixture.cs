@@ -30,6 +30,15 @@ public sealed class CatalogKubernetesParserFixture
     }
 
     [Fact]
+    public void should_accept_allow_insecure_on_an_https_server_unchanged()
+    {
+        var cluster = Parse("environments: [{ id: cluster, kubernetes: { server: \"https://10.0.0.10:6443\", allowInsecure: true } }]").Environments[0].Kubernetes!;
+
+        cluster.Server.Should().Be(new Uri("https://10.0.0.10:6443"));
+        cluster.AllowInsecure.Should().BeTrue();
+    }
+
+    [Fact]
     public void should_default_the_token_variable_and_infer_the_runtime()
     {
         var cluster = Parse("environments: [{ id: cluster, kubernetes: { server: \"https://10.0.0.10:6443\" } }]").Environments[0].Kubernetes!;

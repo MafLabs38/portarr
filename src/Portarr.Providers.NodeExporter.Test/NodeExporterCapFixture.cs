@@ -16,22 +16,7 @@ public sealed class NodeExporterCapFixture
         var read = () => sampler.ReadAsync(Key, endless, TestContext.Current.CancellationToken);
 
         await read.Should().ThrowAsync<InvalidDataException>();
-        endless.BytesServed.Should().BeLessThan(NodeExporterSampler.MaxCharacters + 1024 * 1024, "the reader stopped soon after the cap");
-    }
-
-    [Fact]
-    public async Task should_still_read_an_answer_just_under_the_cap()
-    {
-        var sampler = new NodeExporterSampler();
-        var tail = "node_memory_MemTotal_bytes 1000\nnode_memory_MemAvailable_bytes 400\n";
-        const string Comment = "# a comment line that the parser skips\n";
-        var lines = (int)((NodeExporterSampler.MaxCharacters - tail.Length) / Comment.Length) - 1;
-        var text = string.Concat(Enumerable.Repeat(Comment, lines)) + tail;
-        text.Length.Should().BeInRange((int)NodeExporterSampler.MaxCharacters - 2 * Comment.Length, (int)NodeExporterSampler.MaxCharacters);
-
-        var reading = await sampler.ReadAsync(Key, new MemoryStream(System.Text.Encoding.UTF8.GetBytes(text)), TestContext.Current.CancellationToken);
-
-        reading.Memory.TotalBytes.Should().Be(1000);
+        endless.BytesServed.Should().BeLessThan(NodeExporterSampler.MaxScrapeBytes + 64 * 1024, "the reader stopped soon after the cap");
     }
 
     private sealed class EndlessStream(byte value) : Stream

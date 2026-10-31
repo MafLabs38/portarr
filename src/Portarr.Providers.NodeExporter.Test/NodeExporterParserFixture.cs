@@ -95,6 +95,6 @@ public sealed class NodeExporterParserFixture
 
     private static Task<NodeExporterCounters> ParseAsync(string text)
     {
-        return NodeExporterParser.ParseAsync(new StringReader(text), NodeExporterSampler.MaxCharacters, TestContext.Current.CancellationToken);
+        return NodeExporterParser.ParseAsync(new StringReader(text), NodeExporterSampler.MaxScrapeBytes, TestContext.Current.CancellationToken);
     }
 }

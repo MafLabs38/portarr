@@ -58,6 +58,23 @@ public sealed class CheckSchedulerFixture : CoreTest<CheckScheduler>
     }
 
     [Fact]
+    public async Task should_let_a_cancellation_through_and_record_nothing()
+    {
+        using var cancelled = new CancellationTokenSource();
+        Mocker.Get<IHttpCheckRunner>().RunAsync(Target, Arg.Any<CheckDefinition>(), Arg.Any<CancellationToken>())
+            .Returns<CheckResult>(_ =>
+            {
+                cancelled.Cancel();
+                throw new OperationCanceledException(cancelled.Token);
+            });
+
+        var run = () => Subject.RunDueAsync(cancelled.Token);
+
+        await run.Should().ThrowAsync<OperationCanceledException>();
+        Mocker.Get<ICheckStore>().Get("app").Should().BeNull();
+    }
+
+    [Fact]
     public async Task should_record_a_failed_check_when_the_runner_throws_instead_of_cancelling_the_tick()
     {
         Mocker.Get<IHttpCheckRunner>().RunAsync(Target, Arg.Any<CheckDefinition>(), Arg.Any<CancellationToken>())

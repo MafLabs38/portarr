@@ -26,7 +26,6 @@ type Outcome = { saved: true } | { error: string };
  * catalog file, which needs the catalog.write permission (V7, D-92); with writes off, or without the permission, the
  * card says so.
  */
-
 export default function Identity() {
   const { data } = usePortal();
   const { can } = usePermissions();

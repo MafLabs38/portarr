@@ -99,7 +99,7 @@ public static class StatusResolver
     public static readonly TimeSpan CertificateWarning = TimeSpan.FromDays(14);
 
     /// <summary>
-    /// Status of a check from its latest result: Down when it failed (or its certificate expired),
+    /// Status of a check from its latest result: Down when it failed (or its certificate expired), Unknown when Portarr could not run it,
     /// Degraded when its certificate expires within <see cref="CertificateWarning"/> (D-52).
     /// </summary>
     public static ResolvedStatus ForCheck(CheckResult? latest, DateTimeOffset now)
@@ -107,6 +107,12 @@ public static class StatusResolver
         if (latest is null)
         {
             return new(HealthStatus.Unknown, "Not checked yet");
+        }
+
+        if (latest.Error == CheckErrors.CheckFailed)
+        {
+            // Portarr's own fault: the app is not known to be down, so it is not shown as down.
+            return new(HealthStatus.Unknown, "Portarr could not run this check");
         }
 
         if (latest.Error is not null)
