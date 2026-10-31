@@ -17,24 +17,22 @@ export default function CoreBars({ cores, machineName }: Readonly<CoreBarsProps>
 
   return (
     <ul aria-label={translate('CoresOf', { name: machineName })} className={styles.cores}>
-      {cores
-        .map((load, index) => ({ cpu: index, load }))
-        .map(({ cpu: index, load }) => {
-          const value = `${Math.round(load)} %`;
-          return (
-            // A core is its cpu number: cpu 0…N never reorder.
-            <li className={styles.core} key={`cpu-${index}`}>
-              <span className={styles.name}>{translate('CoreName', { index })}</span>
-              <ProgressBar
-                label={translate('CoreOf', { index, name: machineName })}
-                progress={load / 100}
-                size="small"
-                valueText={value}
-              />
-              <span className={styles.value}>{value}</span>
-            </li>
-          );
-        })}
+      {cores.map((load, index) => {
+        const value = `${Math.round(load)} %`;
+        return (
+          // A core is its cpu number: cpu 0…N never reorder.
+          <li className={styles.core} key={`cpu-${index}`}>
+            <span className={styles.name}>{translate('CoreName', { index })}</span>
+            <ProgressBar
+              label={translate('CoreOf', { index, name: machineName })}
+              progress={load / 100}
+              size="small"
+              valueText={value}
+            />
+            <span className={styles.value}>{value}</span>
+          </li>
+        );
+      })}
     </ul>
   );
 }

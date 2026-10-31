@@ -18,13 +18,14 @@ const errorKeys: Record<number, string> = {
   409: 'IdentityStale',
 };
 
+/** The result of the last save: it worked, or the translation key of why it did not. */
+type Outcome = { saved: true } | { error: string };
+
 /**
  * The identity of the portal (D-91): the name and the logo shown at the bottom of the menu. Changing them writes the
  * catalog file, which needs the catalog.write permission (V7, D-92); with writes off, or without the permission, the
  * card says so.
  */
-/** The result of the last save: it worked, or the translation key of why it did not. */
-type Outcome = { saved: true } | { error: string };
 
 export default function Identity() {
   const { data } = usePortal();
