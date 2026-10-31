@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Portarr.Core.Workloads;
 
 namespace Portarr.Providers.Docker.Test;
@@ -8,7 +9,7 @@ namespace Portarr.Providers.Docker.Test;
 public sealed class DockerWorkloadSourceFixture : IClassFixture<DockerHost>, IDisposable
 {
     private readonly DockerHost _host;
-    private readonly DockerHttpClientFactory _clients = new();
+    private readonly DockerHttpClientFactory _clients = new(new ConfigurationBuilder().Build());
 
     public DockerWorkloadSourceFixture(DockerHost host)
     {

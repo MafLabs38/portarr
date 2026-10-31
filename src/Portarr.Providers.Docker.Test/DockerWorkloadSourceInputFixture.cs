@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Portarr.Core.Catalog;
 
 namespace Portarr.Providers.Docker.Test;
@@ -7,7 +8,7 @@ public sealed class DockerWorkloadSourceInputFixture : IDisposable
 {
     private static readonly CatalogEnvironment Environment = new("e", "E", new DockerEndpoint(new Uri("http://127.0.0.1:1")));
 
-    private readonly DockerHttpClientFactory _clients = new();
+    private readonly DockerHttpClientFactory _clients = new(new ConfigurationBuilder().Build());
 
     public void Dispose() => _clients.Dispose();
 

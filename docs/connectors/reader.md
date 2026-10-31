@@ -30,11 +30,14 @@ It reads far less than node_exporter (only what Portarr uses), so it answers muc
 
 ## Install
 
+The example below is also in [`deploy/companions/reader/`](../../deploy/companions/reader/docker-compose.yml).
+
 ```yaml
 services:
   portarr-reader:
     image: ghcr.io/<owner>/portarr-reader:<tag>   # pin a version
     restart: unless-stopped
+    hostname: server-1   # what /v1/info reports; without it, the container's id
     environment:
       PORTARR_READER_TOKEN: ${PORTARR_READER_TOKEN}   # 32 characters or more: openssl rand -hex 32
     group_add:
@@ -52,7 +55,7 @@ The image holds the reader and nothing else (no shell, no package manager, no li
 | `PORTARR_READER_TOKEN` | required | The bearer token Portarr must present. At least 32 characters; the reader does not start without it. |
 | `PORTARR_READER_DOCKER` | `unix:///var/run/docker.sock` | The Docker Engine API to read: a socket, or the plain `http://` URL of a read-only [socket proxy](docker.md) if you prefer not to mount the socket (HTTPS is not supported). |
 | `PORTARR_READER_URLS` | `http://0.0.0.0:8485` | Where it listens (`http://+:8485` is read as every interface). |
-| `PORTARR_READER_HOSTNAME` | the machine's host name | The name reported by `/v1/info`. |
+| `PORTARR_READER_HOSTNAME` | the kernel's host name | The name reported by `/v1/info`. In a container that is the container's id: set `hostname:` (or this variable). |
 | `PORTARR_READER_PROCPATH` | `/proc` | Where the host's `/proc` is, if you mount it elsewhere (for example `/host/proc` to read the host's counters from inside a container that has its own). |
 | `PORTARR_READER_SYSPATH` | `/sys` | The same for `/sys` (the CPU temperature only). |
 

@@ -25,9 +25,9 @@ public sealed class DockerHttpClientFactory : IDisposable
 
     private readonly Dictionary<(Uri Url, string? TokenVariable), HttpClient> _clients = [];
     private readonly Lock _lock = new();
-    private readonly IConfiguration? _configuration;
+    private readonly IConfiguration _configuration;
 
-    public DockerHttpClientFactory(IConfiguration? configuration = null)
+    public DockerHttpClientFactory(IConfiguration configuration)
     {
         _configuration = configuration;
     }
@@ -35,7 +35,7 @@ public sealed class DockerHttpClientFactory : IDisposable
     /// <summary>The bearer token the endpoint asks for, from its environment variable; null when it asks for none or the variable is empty.</summary>
     public string? TokenOf(DockerEndpoint endpoint)
     {
-        return endpoint.TokenVariable is { } variable && _configuration?[variable] is { Length: > 0 } token ? token : null;
+        return endpoint.TokenVariable is { } variable && _configuration[variable] is { Length: > 0 } token ? token : null;
     }
 
     public HttpClient Get(DockerEndpoint endpoint)

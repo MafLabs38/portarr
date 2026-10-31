@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using Microsoft.Extensions.Configuration;
 using Portarr.Core.Infrastructure;
+using Portarr.Core.Workloads;
 
 namespace Portarr.Providers.NodeExporter;
 
@@ -17,9 +18,9 @@ public sealed class NodeExporterHostMetricsSource : IHostMetricsSource
 
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly NodeExporterSampler _sampler = new();
-    private readonly IConfiguration? _configuration;
+    private readonly IConfiguration _configuration;
 
-    public NodeExporterHostMetricsSource(IHttpClientFactory httpClientFactory, IConfiguration? configuration = null)
+    public NodeExporterHostMetricsSource(IHttpClientFactory httpClientFactory, IConfiguration configuration)
     {
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
@@ -30,12 +31,10 @@ public sealed class NodeExporterHostMetricsSource : IHostMetricsSource
         return target.Url is not null;
     }
 
-    public const string TokenMissing = "token-missing";
-
     /// <summary><c>token-missing</c> when the environment's own endpoint declares a token whose variable is empty (the reader's, D-100).</summary>
     public string? GetConfigurationError(HostMetricsTarget target)
     {
-        return DeclaredVariable(target) is { } variable && string.IsNullOrEmpty(_configuration?[variable]) ? TokenMissing : null;
+        return DeclaredVariable(target) is { } variable && string.IsNullOrEmpty(_configuration[variable]) ? ReasonCodes.TokenMissing : null;
     }
 
     public async Task<HostReading> ReadAsync(HostMetricsTarget target, CancellationToken cancellationToken)
@@ -64,7 +63,7 @@ public sealed class NodeExporterHostMetricsSource : IHostMetricsSource
             return null;
         }
 
-        return _configuration?[variable] is { Length: > 0 } token
+        return _configuration[variable] is { Length: > 0 } token
             ? token
             : throw new HttpRequestException($"The token variable {variable} is not set.", null, HttpStatusCode.Unauthorized);
     }

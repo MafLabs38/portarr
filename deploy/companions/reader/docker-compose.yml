@@ -1,0 +1,15 @@
+# The Portarr reader (D-100, D-102): one read-only container per machine, for its containers and its host metrics.
+# See docs/connectors/reader.md. Pin a version, and keep the port reachable from Portarr only.
+services:
+  portarr-reader:
+    image: ghcr.io/<owner>/portarr-reader:<tag>
+    restart: unless-stopped
+    hostname: server-1                                  # what /v1/info reports (the container's own name is its id)
+    environment:
+      PORTARR_READER_TOKEN: ${PORTARR_READER_TOKEN}     # 32 characters or more: openssl rand -hex 32
+    group_add:
+      - "${DOCKER_GID}"                                 # the group that owns /var/run/docker.sock: stat -c %g /var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "8485:8485"

@@ -19,8 +19,6 @@ public sealed partial class DockerWorkloadSource : IWorkloadSource
         _clients = clients;
     }
 
-    public const string TokenMissing = "token-missing";
-
     public bool Supports(CatalogEnvironment environment)
     {
         return environment.Docker is not null;
@@ -29,7 +27,7 @@ public sealed partial class DockerWorkloadSource : IWorkloadSource
     /// <summary>A reason code when the endpoint asks for a token that the environment does not have (the Portarr reader does, D-100).</summary>
     public string? GetConfigurationError(CatalogEnvironment environment)
     {
-        return environment.Docker is { TokenVariable: not null } endpoint && _clients.TokenOf(endpoint) is null ? TokenMissing : null;
+        return environment.Docker is { TokenVariable: not null } endpoint && _clients.TokenOf(endpoint) is null ? ReasonCodes.TokenMissing : null;
     }
 
     public async Task<IReadOnlyList<Workload>> ListAsync(CatalogEnvironment environment, CancellationToken cancellationToken)

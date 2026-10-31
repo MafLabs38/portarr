@@ -6,7 +6,7 @@ Generic deployment examples live in [`deploy/companions/`](../deploy/companions/
 
 | Capability | Companion | Portarr reads |
 |---|---|---|
-| One container per machine: its containers and its host metrics | [The Portarr reader](connectors/reader.md) (`portarr-reader`, optional, shipped with Portarr) | `/v1/docker/` and `/v1/host`, every second |
+| One container per machine: its containers and its host metrics | [The Portarr reader](connectors/reader.md) (`portarr-reader`, optional, shipped with Portarr; [compose example](../deploy/companions/reader/docker-compose.yml)) | `/v1/docker/` and `/v1/host`, every second |
 | Host metrics (CPU per core, I/O wait, memory, swap) | [node_exporter](#node_exporter) | `/metrics`, every second |
 | Backups of hosts and VMs | [Backrest](#backrest) | plans and their last backups (its API) |
 | Backups in Kubernetes | [K8up](#k8up) | `Schedule`, `Backup` and `Snapshot` resources |
