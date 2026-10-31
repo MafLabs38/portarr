@@ -205,6 +205,10 @@ Each row is a PR (or a stack). The listed tests come on top of the generic DoD.
 
 ---
 
+### The agent (before further connectors)
+
+Decided 2026-10-31, after the consolidation: adding a machine must be one container and one URL ([ADR 0010](adr/0010-optional-read-only-agent.md), D-100, D-101). It comes before new connectors and before the non-web apps. Slices A1 (agent, image, provider), A2 (`agent:` catalog key and the "Add environment" screen), A3 (Kubernetes in-cluster authentication and one install manifest), A4 (migration notes); A1 is shippable alone. Each slice is a small pull request reviewed on its own.
+
 ## 5. Blocking prerequisites
 
 | Blocks | Question to settle |
