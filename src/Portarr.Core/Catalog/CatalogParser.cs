@@ -255,7 +255,7 @@ public static partial class CatalogParser
                 return null;
             }
 
-            if (Uri.TryCreate(document.Url, UriKind.Absolute, out var url) && url.Scheme is "unix" or "http" or "https" or "tcp")
+            if (Uri.TryCreate(document.Url, UriKind.Absolute, out var url) && url.Scheme is "unix" or Uri.UriSchemeHttp or Uri.UriSchemeHttps or "tcp")
             {
                 return TryTokenVariable(environmentId, "docker.tokenEnv", document.TokenEnv, out var variable) ? new DockerEndpoint(url, variable) : null;
             }
@@ -303,7 +303,7 @@ public static partial class CatalogParser
             }
 
             var cluster = document.Kubernetes;
-            if (!Uri.TryCreate(cluster?.Server, UriKind.Absolute, out var server) || server.Scheme is not ("https" or "http") || server.UserInfo.Length > 0)
+            if (!Uri.TryCreate(cluster?.Server, UriKind.Absolute, out var server) || server.Scheme is not (Uri.UriSchemeHttps or Uri.UriSchemeHttp) || server.UserInfo.Length > 0)
             {
                 _errors.Add($"Environment '{environmentId}': kubernetes.server must be the API server URL (e.g. https://10.0.0.10:6443), without credentials.");
                 return null;
@@ -390,7 +390,7 @@ public static partial class CatalogParser
             }
 
             var reader = document.Reader;
-            if (!Uri.TryCreate(reader.Url, UriKind.Absolute, out var url) || url.Scheme is not ("http" or "https") || url.UserInfo.Length > 0 || url.Query.Length > 0 || url.Fragment.Length > 0)
+            if (!Uri.TryCreate(reader.Url, UriKind.Absolute, out var url) || url.Scheme is not (Uri.UriSchemeHttp or Uri.UriSchemeHttps) || url.UserInfo.Length > 0 || url.Query.Length > 0 || url.Fragment.Length > 0)
             {
                 _errors.Add($"Environment '{environmentId}': reader.url must be the reader's address (e.g. http://10.0.0.10:8485, or https://proxy.homelab.example/reader-1 behind a reverse proxy), without credentials, query or fragment.");
                 return null;
@@ -404,7 +404,7 @@ public static partial class CatalogParser
             }
 
             // A trailing slash makes the reader's own path a base: the routes are resolved under it, whatever it is.
-            var baseUrl = url.AbsolutePath.EndsWith('/') ? url : new Uri(url.GetLeftPart(UriPartial.Path) + "/");
+            var baseUrl = url.AbsolutePath.EndsWith('/') ? url : new Uri(url.GetLeftPart(UriPartial.Path) + '/');
             return (new DockerEndpoint(new Uri(baseUrl, "v1/docker/"), variable), new HostMetricsEndpoint(new Uri(baseUrl, "v1/host"), variable));
         }
 
@@ -490,7 +490,7 @@ public static partial class CatalogParser
         /// <summary>An http(s) URL without credentials: read with GET only, so it must not carry a secret.</summary>
         private static Uri? MetricsUrl(string? value)
         {
-            return Uri.TryCreate(value?.Trim(), UriKind.Absolute, out var url) && url.Scheme is "http" or "https" && url.UserInfo.Length == 0 ? url : null;
+            return Uri.TryCreate(value?.Trim(), UriKind.Absolute, out var url) && url.Scheme is Uri.UriSchemeHttp or Uri.UriSchemeHttps && url.UserInfo.Length == 0 ? url : null;
         }
 
         private List<CatalogApp> BuildApps(List<AppDocument> documents, Dictionary<string, CatalogEnvironment> environments)
@@ -632,7 +632,7 @@ public static partial class CatalogParser
             var errors = _errors.Count;
 
             Uri? url = null;
-            if (body.Url is not null && (!Uri.TryCreate(body.Url, UriKind.Absolute, out url) || url.Scheme is not ("http" or "https") || url.UserInfo.Length > 0))
+            if (body.Url is not null && (!Uri.TryCreate(body.Url, UriKind.Absolute, out url) || url.Scheme is not (Uri.UriSchemeHttp or Uri.UriSchemeHttps) || url.UserInfo.Length > 0))
             {
                 _errors.Add($"App '{appId}': check.url '{Redact(body.Url)}' must be an absolute http(s) URL without credentials.");
             }
@@ -710,7 +710,7 @@ public static partial class CatalogParser
 
             foreach (var document in documents)
             {
-                if (!Uri.TryCreate(document.Href, UriKind.Absolute, out var href) || href.Scheme is not ("http" or "https"))
+                if (!Uri.TryCreate(document.Href, UriKind.Absolute, out var href) || href.Scheme is not (Uri.UriSchemeHttp or Uri.UriSchemeHttps))
                 {
                     _errors.Add($"App '{appId}': url '{Redact(document.Href)}' must be an absolute http(s) URL.");
                     continue;
