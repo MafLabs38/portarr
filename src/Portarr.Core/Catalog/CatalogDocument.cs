@@ -191,7 +191,7 @@ internal sealed class TargetDocument
 {
     public BackrestSourceDocument? Backrest { get; set; }
 
-    public K8upSourceDocument? K8up { get; set; }
+    public K8UpSourceDocument? K8up { get; set; }
 
     /// <summary><c>namespace/name</c> of a Kubernetes CronJob.</summary>
     public string? Cronjob { get; set; }
@@ -208,7 +208,7 @@ internal sealed class BackrestSourceDocument
     public string? Environment { get; set; }
 }
 
-internal sealed class K8upSourceDocument
+internal sealed class K8UpSourceDocument
 {
     /// <summary><c>namespace/name</c> of the K8up Schedule.</summary>
     public string? Schedule { get; set; }

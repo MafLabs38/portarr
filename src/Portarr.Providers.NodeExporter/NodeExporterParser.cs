@@ -118,22 +118,23 @@ internal static class NodeExporterParser
                 _temperature = Math.Max(_temperature ?? double.MinValue, sample.Value);
             }
         }
-    }
 
-    private static string? MemoryField(string name)
-    {
-        if (!name.StartsWith(MemoryPrefix, StringComparison.Ordinal) || !name.EndsWith("_bytes", StringComparison.Ordinal))
+
+        private static string? MemoryField(string name)
         {
-            return null;
+            if (!name.StartsWith(MemoryPrefix, StringComparison.Ordinal) || !name.EndsWith("_bytes", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            var field = name[MemoryPrefix.Length..^"_bytes".Length];
+            return MemoryFields.Contains(field) ? field : null;
         }
 
-        var field = name[MemoryPrefix.Length..^"_bytes".Length];
-        return MemoryFields.Contains(field) ? field : null;
-    }
-
-    private static bool IsCpuChip(string? chip)
-    {
-        return chip is not null && CpuChips.Any(c => chip.Contains(c, StringComparison.OrdinalIgnoreCase));
+        private static bool IsCpuChip(string? chip)
+        {
+            return chip is not null && CpuChips.Any(c => chip.Contains(c, StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     /// <summary>A sample line: <c>name{label="value",…} value [timestamp]</c>.</summary>
