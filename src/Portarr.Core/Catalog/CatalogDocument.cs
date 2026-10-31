@@ -313,6 +313,9 @@ internal sealed class KubernetesDocument
     /// <summary>Cluster CA certificate (PEM), relative to the catalog folder.</summary>
     public string? CaFile { get; set; }
 
+    /// <summary>Accepts an <c>http://</c> API server (the token travels in clear): a lab or a test only.</summary>
+    public bool AllowInsecure { get; set; }
+
     /// <summary>Per node name, the environment the node is a VM on (D-59); overrides the environment's <c>host</c>.</summary>
     public Dictionary<string, string>? NodeHosts { get; set; }
 
