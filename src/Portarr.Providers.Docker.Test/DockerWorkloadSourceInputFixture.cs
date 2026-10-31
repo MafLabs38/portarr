@@ -27,6 +27,8 @@ public sealed class DockerWorkloadSourceInputFixture : IDisposable
     [InlineData("tcp://socket-proxy", "http://socket-proxy:2375/")]
     [InlineData("tcp://socket-proxy:2376", "http://socket-proxy:2376/")]
     [InlineData("unix:///var/run/docker.sock", "http://docker/")]
+    [InlineData("http://reader:8485/v1/docker/", "http://reader:8485/v1/docker/")]
+    [InlineData("http://reader:8485/v1/docker", "http://reader:8485/v1/docker/")]
     public void should_target_the_endpoint_of_each_scheme(string endpoint, string expected)
     {
         using var client = DockerHttpClientFactory.Create(new Uri(endpoint));

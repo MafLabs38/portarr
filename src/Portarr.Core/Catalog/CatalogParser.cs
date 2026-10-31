@@ -59,8 +59,17 @@ public static partial class CatalogParser
     [GeneratedRegex("^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")]
     private static partial Regex RepositoryPattern();
 
+    private const string HttpScheme = "http";
+    private const string HttpsScheme = "https";
+
     [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]{0,127}$")]
     private static partial Regex VariableNamePattern();
+
+    /// <summary>The namespace of the variables that hold a reader's token: the only ones a catalog may ask Portarr to send to a URL.</summary>
+    private const string ReaderTokenPrefix = "PORTARR_READER_";
+
+    [GeneratedRegex("^PORTARR_READER_[A-Za-z0-9_]{1,100}$")]
+    private static partial Regex ReaderTokenVariablePattern();
 
     /// <summary>A Kubernetes namespace: a DNS label.</summary>
     [GeneratedRegex("^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$")]
@@ -131,7 +140,13 @@ public static partial class CatalogParser
                     continue;
                 }
 
-                var docker = BuildDocker(id, document.Docker);
+                var reader = BuildReader(id, document);
+                if (document.Reader is not null && reader is null)
+                {
+                    continue;
+                }
+
+                var docker = reader?.Docker ?? BuildDocker(id, document.Docker);
                 var cloudflare = BuildCloudflare(id, document);
                 var kubernetes = BuildKubernetes(id, document);
 
@@ -148,7 +163,7 @@ public static partial class CatalogParser
                     cloudflare,
                     kubernetes,
                     string.IsNullOrWhiteSpace(document.Host) ? null : document.Host.Trim(),
-                    BuildHostMetrics(id, document, docker),
+                    reader?.HostMetrics ?? BuildHostMetrics(id, document, docker),
                     BuildBackrest(id, document, kubernetes is null && cloudflare is null),
                     BuildNotes($"Environment '{id}'", document.Notes),
                     BuildAccess($"Environment '{id}'", "access", document.Access),
@@ -243,9 +258,9 @@ public static partial class CatalogParser
                 return null;
             }
 
-            if (Uri.TryCreate(document.Url, UriKind.Absolute, out var url) && url.Scheme is "unix" or "http" or "https" or "tcp")
+            if (Uri.TryCreate(document.Url, UriKind.Absolute, out var url) && url.Scheme is "unix" or HttpScheme or HttpsScheme or "tcp")
             {
-                return new DockerEndpoint(url);
+                return TryTokenVariable(environmentId, "docker.tokenEnv", document.TokenEnv, out var variable) ? new DockerEndpoint(url, variable) : null;
             }
 
             _errors.Add($"Environment '{environmentId}': docker.url must be unix:///path/to/docker.sock or http(s)://host:port.");
@@ -291,7 +306,7 @@ public static partial class CatalogParser
             }
 
             var cluster = document.Kubernetes;
-            if (!Uri.TryCreate(cluster?.Server, UriKind.Absolute, out var server) || server.Scheme is not ("https" or "http") || server.UserInfo.Length > 0)
+            if (!Uri.TryCreate(cluster?.Server, UriKind.Absolute, out var server) || server.Scheme is not (HttpsScheme or HttpScheme) || server.UserInfo.Length > 0)
             {
                 _errors.Add($"Environment '{environmentId}': kubernetes.server must be the API server URL (e.g. https://10.0.0.10:6443), without credentials.");
                 return null;
@@ -350,7 +365,66 @@ public static partial class CatalogParser
                 return null;
             }
 
-            return new HostMetricsEndpoint(url);
+            return TryTokenVariable(environmentId, "hostMetrics.tokenEnv", document.HostMetrics.TokenEnv, out var variable) ? new HostMetricsEndpoint(url, variable) : null;
+        }
+
+        /// <summary>
+        /// <c>reader:</c> (D-100, D-101): the Portarr reader of a machine, one address and one token variable, read as the
+        /// Docker window at <c>/v1/docker/</c> and the node_exporter text at <c>/v1/host</c>. It replaces <c>docker</c> and
+        /// <c>hostMetrics</c>: declaring both is an error that names them.
+        /// </summary>
+        private (DockerEndpoint Docker, HostMetricsEndpoint HostMetrics)? BuildReader(string environmentId, EnvironmentDocument document)
+        {
+            if (document.Reader is null)
+            {
+                return null;
+            }
+
+            if (document.Docker is not null || document.HostMetrics is not null)
+            {
+                _errors.Add($"Environment '{environmentId}': reader replaces docker and hostMetrics; declare the reader, or docker and hostMetrics, not both.");
+                return null;
+            }
+
+            if (document.Runtime is not null and not RuntimeNames.Docker)
+            {
+                _errors.Add($"Environment '{environmentId}': a {document.Runtime} environment cannot declare a reader (it reads Docker hosts).");
+                return null;
+            }
+
+            var reader = document.Reader;
+            if (!Uri.TryCreate(reader.Url, UriKind.Absolute, out var url) || url.Scheme is not (HttpScheme or HttpsScheme) || url.UserInfo.Length > 0 || url.Query.Length > 0 || url.Fragment.Length > 0)
+            {
+                _errors.Add($"Environment '{environmentId}': reader.url must be the reader's address (e.g. http://10.0.0.10:8485, or https://proxy.homelab.example/reader-1 behind a reverse proxy), without credentials, query or fragment.");
+                return null;
+            }
+
+            var variable = reader.TokenEnv?.Trim();
+            if (string.IsNullOrEmpty(variable) || !ReaderTokenVariablePattern().IsMatch(variable))
+            {
+                _errors.Add($"Environment '{environmentId}': reader.tokenEnv must be the name of the environment variable holding the reader's token, starting with {ReaderTokenPrefix} (e.g. {ReaderTokenPrefix}SERVER_1), never the token itself.");
+                return null;
+            }
+
+            // A trailing slash makes the reader's own path a base: the routes are resolved under it, whatever it is.
+            var baseUrl = url.AbsolutePath.EndsWith('/') ? url : new Uri(url.GetLeftPart(UriPartial.Path) + '/');
+            return (new DockerEndpoint(new Uri(baseUrl, "v1/docker/"), variable), new HostMetricsEndpoint(new Uri(baseUrl, "v1/host"), variable));
+        }
+
+        /// <summary>
+        /// An optional <c>tokenEnv</c> on <c>docker:</c> or <c>hostMetrics:</c>: absent is fine, present must be a variable of the reader
+        /// namespace, never a token and never another secret of the process (the catalog can be edited by someone who must not read them).
+        /// </summary>
+        private bool TryTokenVariable(string environmentId, string key, string? value, out string? variable)
+        {
+            variable = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            if (variable is null || ReaderTokenVariablePattern().IsMatch(variable))
+            {
+                return true;
+            }
+
+            _errors.Add($"Environment '{environmentId}': {key} must be the name of an environment variable starting with {ReaderTokenPrefix} (e.g. {ReaderTokenPrefix}SERVER_1), never the token itself.");
+            return false;
         }
 
         /// <summary>
@@ -419,7 +493,7 @@ public static partial class CatalogParser
         /// <summary>An http(s) URL without credentials: read with GET only, so it must not carry a secret.</summary>
         private static Uri? MetricsUrl(string? value)
         {
-            return Uri.TryCreate(value?.Trim(), UriKind.Absolute, out var url) && url.Scheme is "http" or "https" && url.UserInfo.Length == 0 ? url : null;
+            return Uri.TryCreate(value?.Trim(), UriKind.Absolute, out var url) && url.Scheme is HttpScheme or HttpsScheme && url.UserInfo.Length == 0 ? url : null;
         }
 
         private List<CatalogApp> BuildApps(List<AppDocument> documents, Dictionary<string, CatalogEnvironment> environments)
@@ -561,7 +635,7 @@ public static partial class CatalogParser
             var errors = _errors.Count;
 
             Uri? url = null;
-            if (body.Url is not null && (!Uri.TryCreate(body.Url, UriKind.Absolute, out url) || url.Scheme is not ("http" or "https") || url.UserInfo.Length > 0))
+            if (body.Url is not null && (!Uri.TryCreate(body.Url, UriKind.Absolute, out url) || url.Scheme is not (HttpScheme or HttpsScheme) || url.UserInfo.Length > 0))
             {
                 _errors.Add($"App '{appId}': check.url '{Redact(body.Url)}' must be an absolute http(s) URL without credentials.");
             }
@@ -639,7 +713,7 @@ public static partial class CatalogParser
 
             foreach (var document in documents)
             {
-                if (!Uri.TryCreate(document.Href, UriKind.Absolute, out var href) || href.Scheme is not ("http" or "https"))
+                if (!Uri.TryCreate(document.Href, UriKind.Absolute, out var href) || href.Scheme is not (HttpScheme or HttpsScheme))
                 {
                     _errors.Add($"App '{appId}': url '{Redact(document.Href)}' must be an absolute http(s) URL.");
                     continue;

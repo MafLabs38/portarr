@@ -12,6 +12,12 @@ public interface IHostMetricsSource
     bool Supports(HostMetricsTarget target);
 
     /// <summary>
+    /// A reason code when the machine's agent cannot be read yet (a token is declared but its variable is empty), checked before
+    /// every read: it is shown as that reason, like a workload source's configuration error (D-32), without calling the agent.
+    /// </summary>
+    string? GetConfigurationError(HostMetricsTarget target) => null;
+
+    /// <summary>
     /// Reads the machine once. The CPU is measured between two reads: the first read of a target (or the
     /// first after its counters went backwards, e.g. a reboot) has no CPU yet. Throws when the agent cannot be read.
     /// </summary>

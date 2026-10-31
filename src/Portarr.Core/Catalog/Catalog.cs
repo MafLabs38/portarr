@@ -98,8 +98,11 @@ public sealed record KubernetesCluster(
     IReadOnlyDictionary<string, string>? NodeHosts = null,
     KubernetesNodeExporter? NodeExporter = null);
 
-/// <summary>The node_exporter of a single machine (D-72): its <c>/metrics</c> URL, read every second.</summary>
-public sealed record HostMetricsEndpoint(Uri NodeExporter);
+/// <summary>
+/// The node_exporter of a single machine (D-72): its <c>/metrics</c> URL, read every second. <c>TokenVariable</c> names the
+/// environment variable holding a bearer token when something in front of it asks for one (the Portarr reader does, D-100).
+/// </summary>
+public sealed record HostMetricsEndpoint(Uri NodeExporter, string? TokenVariable = null);
 
 /// <summary>How a node's node_exporter is reached (D-72).</summary>
 public enum NodeExporterAccess
@@ -145,8 +148,12 @@ public sealed record KubernetesNodeExporter(
     }
 }
 
-/// <summary>Docker Engine API endpoint: <c>unix:///var/run/docker.sock</c> or <c>http://host:2375</c> (socket proxy).</summary>
-public sealed record DockerEndpoint(Uri Url);
+/// <summary>
+/// Docker Engine API endpoint: <c>unix:///var/run/docker.sock</c> or <c>http://host:2375</c> (socket proxy). <c>TokenVariable</c>
+/// names the environment variable holding a bearer token when something in front of Docker asks for one (the Portarr reader
+/// does, D-100): never the token itself.
+/// </summary>
+public sealed record DockerEndpoint(Uri Url, string? TokenVariable = null);
 
 /// <summary>
 /// A Cloudflare account (D-53). <c>TokenVariable</c> names the environment variable holding the API

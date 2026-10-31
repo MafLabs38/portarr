@@ -188,6 +188,12 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
         await Task.Yield();
         try
         {
+            if (source.GetConfigurationError(target) is { Length: > 0 } configurationError)
+            {
+                Store(target.Key, null, configurationError);
+                return;
+            }
+
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(ReadTimeout);
             var reading = await source.ReadAsync(target, timeout.Token);

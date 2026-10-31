@@ -1,6 +1,6 @@
 # 0010 — An optional, read-only Portarr agent as the simple way to connect a machine
 
-- **Status**: accepted (the open questions below carry a provisional answer, to confirm when the first slice is reviewed)
+- **Status**: superseded by [0011](0011-reader-speaking-the-existing-protocols.md) in what it decides about the component's name, API and connector; its context and the decision to add an optional read-only component stand
 - **Date**: 2026-10-31
 - **Spec**: D-100, D-101; resolves Q-20, amends D-30, D-38, D-72
 
