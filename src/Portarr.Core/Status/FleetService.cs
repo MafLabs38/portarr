@@ -1,14 +1,25 @@
 using Portarr.Core.Catalog;
+using Portarr.Core.Checks;
 using Portarr.Core.Workloads;
 
 namespace Portarr.Core.Status;
 
-public sealed record AppWorkloadView(string EnvironmentId, string Name, MemberRole Role, Workload? Workload, ResolvedStatus Status);
+/// <summary>
+/// A workload of an app. <c>Name</c> is the matched workload's name, else what the selector looks for.
+/// <c>Runtime</c> is its environment's connector kind (docker, cloudflare, kubernetes…).
+/// </summary>
+public sealed record AppWorkloadView(string EnvironmentId, string Name, MemberRole Role, Workload? Workload, ResolvedStatus Status, string Runtime = RuntimeNames.Docker);
 
 /// <summary>A declared URL, or a LAN URL derived from a published port (<c>Derived</c>).</summary>
 public sealed record AppUrlView(string Label, Uri Href, UrlScope Scope, bool Derived);
 
-/// <summary>An app joined with its workloads. <c>Icon</c> is the declared one, or one guessed from the first container image (D-47).</summary>
+/// <summary>
+/// The check of an app: its definition, the URL it probes (the check URL, else the public URL, else the
+/// LAN URL) and its results so far. <c>Status</c> is the check's own status, before the critical rule.
+/// </summary>
+public sealed record AppCheckView(CheckDefinition Definition, Uri Target, CheckState? State, ResolvedStatus Status);
+
+/// <summary>An app joined with its workloads and its check. <c>Icon</c> is the declared one, or one guessed from the first container image (D-47).</summary>
 public sealed record AppView(
     CatalogApp App,
     ResolvedStatus Status,
@@ -16,7 +27,8 @@ public sealed record AppView(
     MemberRole? Role,
     IReadOnlyList<AppWorkloadView> Workloads,
     IReadOnlyList<AppUrlView> Urls,
-    string? Icon);
+    string? Icon,
+    AppCheckView? Check = null);
 
 public sealed record StackMemberView(StackMember Member, string AppName, ResolvedStatus Status);
 
@@ -40,11 +52,15 @@ public sealed class FleetService : IFleetService
 
     private readonly ICatalogService _catalogService;
     private readonly IWorkloadInventory _inventory;
+    private readonly ICheckStore _checks;
+    private readonly TimeProvider _timeProvider;
 
-    public FleetService(ICatalogService catalogService, IWorkloadInventory inventory)
+    public FleetService(ICatalogService catalogService, IWorkloadInventory inventory, ICheckStore checks, TimeProvider timeProvider)
     {
         _catalogService = catalogService;
         _inventory = inventory;
+        _checks = checks;
+        _timeProvider = timeProvider;
     }
 
     public IReadOnlyList<AppView> GetApps()
@@ -79,7 +95,7 @@ public sealed class FleetService : IFleetService
             .SelectMany(inventory => inventory.Workloads.Select(workload => new WorkloadView(
                 workload,
                 inventory.Reachable ? StatusResolver.ForWorkload(workload) : new ResolvedStatus(HealthStatus.Unknown, $"{inventory.EnvironmentId} unreachable"),
-                apps.Where(app => app.Workloads.Any(s => s.EnvironmentId == workload.EnvironmentId && s.Name == workload.Name)).Select(app => app.Id).ToList(),
+                apps.Where(app => app.Workloads.Any(s => s.Matches(workload))).Select(app => app.Id).ToList(),
                 !inventory.Reachable)))
             .OrderBy(view => view.Workload.EnvironmentId, StringComparer.Ordinal)
             .ThenBy(view => view.Workload.Name, StringComparer.Ordinal)
@@ -115,31 +131,63 @@ public sealed class FleetService : IFleetService
         return urls;
     }
 
-    private static List<AppView> BuildApps(Catalog.Catalog catalog, IReadOnlyDictionary<string, EnvironmentInventory> inventory)
+    private List<AppView> BuildApps(Catalog.Catalog catalog, IReadOnlyDictionary<string, EnvironmentInventory> inventory)
     {
-        return catalog.Apps.Select(app => BuildAppView(app, catalog, inventory)).ToList();
+        var now = _timeProvider.GetUtcNow();
+        return catalog.Apps.Select(app => BuildAppView(app, catalog, inventory, now)).ToList();
     }
 
-    private static AppView BuildAppView(CatalogApp app, Catalog.Catalog catalog, IReadOnlyDictionary<string, EnvironmentInventory> inventory)
+    /// <summary>The URL a check probes: its own, else the first public URL, else the first LAN URL (D-50).</summary>
+    private AppCheckView? BuildCheck(CatalogApp app, List<AppUrlView> urls, DateTimeOffset now)
+    {
+        if (app.Check is null)
+        {
+            return null;
+        }
+
+        var target = app.Check.Url
+            ?? urls.Find(url => url.Scope == UrlScope.Public)?.Href
+            ?? urls.Find(url => url.Scope == UrlScope.Lan)?.Href;
+        if (target is null)
+        {
+            return null;
+        }
+
+        // Results of a previous target or definition describe another check.
+        var state = _checks.Get(app.Id);
+        if (state is not null && (state.Target != target || state.Definition != app.Check))
+        {
+            state = null;
+        }
+
+        return new AppCheckView(app.Check, target, state, StatusResolver.ForCheck(state?.Latest, now));
+    }
+
+    private AppView BuildAppView(CatalogApp app, Catalog.Catalog catalog, IReadOnlyDictionary<string, EnvironmentInventory> inventory, DateTimeOffset now)
     {
         var matches = app.Workloads.Select(selector =>
         {
             var environmentInventory = inventory.GetValueOrDefault(selector.EnvironmentId);
-            var workload = environmentInventory?.Workloads.FirstOrDefault(w => w.Name == selector.Name);
+            var workload = selector.Pick(environmentInventory?.Workloads ?? []);
             return (selector, environmentInventory, workload);
         }).ToList();
 
         var workloadViews = matches.Select(m => new AppWorkloadView(
             m.selector.EnvironmentId,
-            m.selector.Name,
+            m.workload?.Name ?? m.selector.Description,
             m.selector.Role,
             m.workload,
-            StatusResolver.ForSelector(m.selector, m.environmentInventory, m.workload))).ToList();
+            StatusResolver.ForSelector(m.selector, m.environmentInventory, m.workload),
+            catalog.Environments.FirstOrDefault(e => e.Id == m.selector.EnvironmentId)?.Runtime ?? RuntimeNames.None)).ToList();
 
         var stack = catalog.Stacks.FirstOrDefault(s => s.Members.Any(member => member.AppId == app.Id));
         var role = stack?.Members.First(member => member.AppId == app.Id).Role;
         var icon = app.Icon ?? workloadViews.Select(w => w.Workload).OfType<Workload>().Select(w => IconNames.FromImage(w.Image)).FirstOrDefault();
 
-        return new AppView(app, StatusResolver.ForApp(matches), stack, role, workloadViews, BuildUrls(app, workloadViews, catalog), icon);
+        var urls = BuildUrls(app, workloadViews, catalog);
+        var check = BuildCheck(app, urls, now);
+        var status = StatusResolver.ForApp(matches, check);
+
+        return new AppView(app, status, stack, role, workloadViews, urls, icon, check);
     }
 }

@@ -3,6 +3,9 @@ using Portarr.Core.Workloads;
 
 namespace Portarr.Providers.Docker;
 
+/// <summary>Cumulative CPU counters of a container sample: its own CPU time and the host's, in nanoseconds.</summary>
+internal sealed record CpuCounters(ulong Total, ulong System);
+
 internal static class DockerMapper
 {
     private const string ComposeProjectLabel = "com.docker.compose.project";
@@ -22,7 +25,18 @@ internal static class DockerMapper
             DateTimeOffset.FromUnixTimeSeconds(container.Created),
             labels.GetValueOrDefault(ComposeProjectLabel),
             labels,
-            ToPublishedPorts(container.Ports ?? []));
+            ToPublishedPorts(container.Ports ?? []),
+            Mounts: ToMounts(container.Mounts ?? []));
+    }
+
+    /// <summary>Bind mounts and named volumes; tmpfs and pipes hold no data that survives the container.</summary>
+    public static IReadOnlyList<WorkloadMount> ToMounts(IReadOnlyList<ContainerMount> mounts)
+    {
+        return mounts
+            .Select(mount => (mount.Type, Source: mount.Type == "volume" ? mount.Name : mount.Source, mount.Destination))
+            .Where(mount => mount.Type is "bind" or "volume" && !string.IsNullOrEmpty(mount.Source) && !string.IsNullOrEmpty(mount.Destination))
+            .Select(mount => new WorkloadMount(mount.Type == "volume" ? MountKind.Volume : MountKind.Bind, mount.Source!, mount.Destination!))
+            .ToList();
     }
 
     /// <summary>Docker lists a port once per address family (0.0.0.0 and ::): keep one entry per mapping.</summary>
@@ -75,6 +89,30 @@ internal static class DockerMapper
         var memory = Math.Max(0, (stats.MemoryStats.Usage ?? 0) - cache);
 
         return new WorkloadUsage(Math.Round(cores, 3), memory, stats.MemoryStats.Limit);
+    }
+
+    /// <summary>
+    /// Usage from a one-shot stats sample (no <c>precpu_stats</c>): CPU is measured against the previous
+    /// sample of the same container, so the first one has no CPU value. When the engine ignored one-shot and
+    /// sent its own previous sample, that one is used.
+    /// </summary>
+    public static (WorkloadUsage Usage, double? CpuCores, CpuCounters Counters) ToSampledUsage(ContainerStats stats, CpuCounters? previous)
+    {
+        var usage = ToUsage(stats);
+        var counters = new CpuCounters(stats.CpuStats.CpuUsage.TotalUsage, stats.CpuStats.SystemCpuUsage ?? 0);
+        if (stats.PreCpuStats.SystemCpuUsage is > 0)
+        {
+            return (usage, usage.CpuCores, counters);
+        }
+
+        if (previous is null || counters.System <= previous.System || counters.Total < previous.Total)
+        {
+            // First sample, or the counters were reset (container restarted): no interval to measure.
+            return (usage, null, counters);
+        }
+
+        var cores = (double)(counters.Total - previous.Total) / (counters.System - previous.System) * (stats.CpuStats.OnlineCpus ?? 1);
+        return (usage with { CpuCores = Math.Round(cores, 3) }, Math.Round(cores, 3), counters);
     }
 
     /// <summary>Splits "2026-10-28T15:11:52.196383829Z message" into its timestamp and text.</summary>

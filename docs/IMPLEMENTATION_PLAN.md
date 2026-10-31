@@ -75,6 +75,63 @@ Phase 0 Foundations ─► Phase 1 Core (C1 → C7) ─► v0.1
 
 This order follows the spec's roadmap (§13). It may be adjusted after each release, based on dogfooding.
 
+#### Maintainer priorities (2026-10-30)
+
+Dogfooding reordered the roadmap around four tabs, each answering one question of the operator:
+
+| Tab | Question | Verticals |
+|---|---|---|
+| **Apps** | "Where is everything I use, and does it work?" | V1 (done), V2 checks |
+| **Infrastructure** | "Is any machine struggling, and what consumes it?" | V2 (one page: live CPU and memory per machine, then per container or pod; Kubernetes pulled forward from V4) |
+| **Data** | "If everything crashes, can I get my state back?" | V10 + V11, merged and pulled forward |
+| **Maintenance** | "What is vulnerable, outdated or late in my fleet?" | V12, pulled forward |
+
+Resulting order after V2: **V10/V11 Data and backups → V12 Maintenance → V16 AI → the rest** (V3 Routes, V5 Overview, V6 Notifications…).
+
+- **Data and backups** (V10 + V11): which databases and volumes exist, which are backed up, by which scheduled job, to which destination (local RAID array, S3), and when it last succeeded; everything that is *not* backed up is listed first. Portarr observes and reports (D-43); it does not run backups.
+- **Maintenance** (V12): Dependabot and code scanning alerts across the operator's repositories, container images with a newer version, end-of-life runtimes, all in one view.
+- **V16 AI** (new, resolves Q-32): an MCP server and a knowledge base so that an AI assistant can learn the infrastructure and what is happening on it (inventory, statuses, issues, history). Read-only by default; any action stays out of scope until decided (D-31). First slice: seven read-only tools over the existing views, two Markdown resources (infrastructure map, glossary), endpoint off by default behind an API key, Assistant page; issues and history come with V5 Overview and V6.
+- **Apps layout** (new, small): the operator arranges the Apps page (columns, order and placement of stacks) instead of a fixed sequence.
+
+#### Accepted plan after the demos (2026-10-31)
+
+Portarr is a tool that uses other tools: each capability names **one recommended companion tool**, documented in [companions.md](companions.md) (what it is for, how to install and configure it, what Portarr reads from it), with generic deployment examples in `deploy/companions/` (Compose and Kubernetes manifests). The maintainer's own IaC deploys them where they are needed.
+
+| Capability | Companion tool | Portarr reads |
+|---|---|---|
+| Host metrics (CPU per core, iowait, memory, swap) | **node_exporter** (container on Docker hosts, DaemonSet on Kubernetes) | `/metrics` every second, pushed live to the browser |
+| Container and pod usage | Docker Engine API (socket proxy), metrics-server | stats, metrics.k8s.io |
+| Backups of hosts and Docker VMs | **Backrest** (restic): plans, schedules, database dump hooks, local array + S3 repositories | its API: plans, last run, result, snapshots |
+| Backups in Kubernetes | **K8up** (restic operator): schedules, PVC backups, annotation-based database dumps | its custom resources |
+| Code and images | GitHub API, OCI registries | alerts, releases, tags |
+| AI assistants | Portarr's own MCP server; agent CLIs in the optional `portarr-agent` container | — |
+
+Steps, each accepted in the sandbox before the next:
+
+1. **Infrastructure on host truth**: node_exporter read every second and streamed (SSE), overall load as the host sees it, per-core bars, iowait, swap bar, Unraid-like memory ring; node_exporter DaemonSet in Kubernetes so nodes are live too.
+2. **Maintenance**: clickable summary chips (filters), "updated N min ago" and a refresh action.
+3. **API documentation**: OpenAPI document and an interactive reference page (`/docs`).
+4. **Declarative data**: the operator declares in the catalog which apps' data are followed, their importance (accepted loss window) and their targets (local, S3); Portarr compares this policy with what the backup tools report. Backrest and K8up connectors; their deployment in the maintainer's IaC.
+5. **Writable catalog**: the catalog file stays the source of truth (D-44); the API edits it (validated, atomic write, previous version kept, comments preserved). The model gains descriptive knowledge for AI assistants: notes, access (how to reach a machine, never secrets), network links (e.g. a WireGuard tunnel between two nodes), external providers. MCP write tools, enabled separately and audited. If the single file grows too large, it may be split into several files; a database is not planned.
+6. **Built-in chat**: an optional `portarr-agent` container runs an agent CLI headless (Claude Code first, through an adapter so other CLIs can follow); a React side panel reproduces an IDE chat (history, paste, model and agent choice, tool calls). Its only tool is Portarr's MCP server: it describes and edits Portarr's configuration with the operator's confirmation; it has no shell and no access to the machines.
+
+#### The constellation (noted 2026-10-31)
+
+Portarr is the first of three products that plug into each other through their APIs and MCP servers, each with one job:
+
+| Product | Job | Relation to Portarr |
+|---|---|---|
+| **Portarr** | See and describe: the fleet, its apps, data and maintenance | — |
+| **Orchestratarr** (below) | Act: orchestrate agents that fix, update and verify | reads Portarr's findings, acts through its own powers |
+| **A memory product** (name to be chosen) | Remember: a long-term knowledge base for people and AI assistants (notes, decisions, runbooks, session summaries), searchable by meaning | registered in Portarr as a companion; Portarr's MCP server points assistants to it, so any assistant connected to Portarr finds the operator's memory too |
+
+The memory product replaces today's ad-hoc setup (a Markdown wiki, a vector store and a document database that were never maintained as one project). Portarr does not store that memory (D-03): it links to it.
+
+#### Future product: Orchestratarr (noted, not planned)
+
+Once the fleet is observable, the operator will want to act on it. That is **not Portarr's job** (D-31): a separate brick, plugged into Portarr's API, would run an **orchestrator agent** with real powers, coordinating worker agents to fix a vulnerable dependency, update a container, repair an application, and verify that nothing regressed — automated maintenance for a growing number of apps. Portarr provides the knowledge and the findings (Maintenance, Data, Infrastructure); Orchestratarr acts.
+
+
 ---
 
 ## 2. Phase 0 — Foundations

@@ -1,3 +1,4 @@
+import type { AppCheck } from './Check';
 import type Status from './Status';
 
 export interface AppUrl {
@@ -16,6 +17,8 @@ export interface AppStack {
 
 export interface AppWorkload {
   environmentId: string;
+  /** Connector kind of its environment: docker, cloudflare or none. */
+  runtime: string;
   name: string;
   role: 'critical' | 'optional';
   found: boolean;
@@ -36,4 +39,6 @@ export default interface App {
   stack: AppStack | null;
   status: Status;
   workloads: AppWorkload[];
+  /** Null: the app is not monitored (not a web app, no URL, or `check: false`). */
+  check: AppCheck | null;
 }

@@ -12,7 +12,15 @@ internal sealed record ContainerSummary(
     [property: JsonPropertyName("Status")] string Status,
     [property: JsonPropertyName("Created")] long Created,
     [property: JsonPropertyName("Labels")] IReadOnlyDictionary<string, string>? Labels,
-    [property: JsonPropertyName("Ports")] IReadOnlyList<ContainerPort>? Ports = null);
+    [property: JsonPropertyName("Ports")] IReadOnlyList<ContainerPort>? Ports = null,
+    [property: JsonPropertyName("Mounts")] IReadOnlyList<ContainerMount>? Mounts = null);
+
+/// <summary>A mount of a listed container: <c>Type</c> bind, volume, tmpfs…; <c>Name</c> is set for volumes.</summary>
+internal sealed record ContainerMount(
+    [property: JsonPropertyName("Type")] string? Type,
+    [property: JsonPropertyName("Name")] string? Name,
+    [property: JsonPropertyName("Source")] string? Source,
+    [property: JsonPropertyName("Destination")] string? Destination);
 
 internal sealed record ContainerPort(
     [property: JsonPropertyName("IP")] string? Ip,
@@ -43,6 +51,12 @@ internal sealed record MemoryStats(
     [property: JsonPropertyName("limit")] long? Limit,
     [property: JsonPropertyName("stats")] IReadOnlyDictionary<string, long>? Stats);
 
+/// <summary>Subset of <c>GET /info</c>: the host's capacity (a socket proxy needs <c>INFO=1</c>).</summary>
+internal sealed record DockerInfo(
+    [property: JsonPropertyName("NCPU")] int? NCpu,
+    [property: JsonPropertyName("MemTotal")] long? MemTotal);
+
+[JsonSerializable(typeof(DockerInfo))]
 [JsonSerializable(typeof(List<ContainerSummary>))]
 [JsonSerializable(typeof(ContainerInspect))]
 [JsonSerializable(typeof(ContainerStats))]

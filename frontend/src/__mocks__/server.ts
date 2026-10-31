@@ -3,6 +3,7 @@ import { setupServer } from 'msw/node';
 
 import type App from 'typings/App';
 import type CatalogStatus from 'typings/CatalogStatus';
+import type { InfrastructureEnvironment } from 'typings/Infrastructure';
 import type Stack from 'typings/Stack';
 import type SystemStatus from 'typings/SystemStatus';
 import type Workload from 'typings/Workload';
@@ -39,6 +40,7 @@ export const apps: App[] = [
     workloads: [
       {
         environmentId: 'server-1',
+        runtime: 'docker',
         name: 'sonarr',
         role: 'critical',
         found: true,
@@ -48,6 +50,19 @@ export const apps: App[] = [
         status: healthy,
       },
     ],
+    check: {
+      url: 'https://sonarr.homelab.example/',
+      critical: true,
+      status: { status: 'Healthy', reason: 'HTTP 302 in 12 ms' },
+      latest: {
+        at: '2026-01-01T12:00:00Z',
+        up: true,
+        statusCode: 302,
+        latencyMs: 12,
+        error: null,
+        certificateExpiresAt: null,
+      },
+    },
   },
   {
     id: 'recyclarr',
@@ -62,6 +77,7 @@ export const apps: App[] = [
     workloads: [
       {
         environmentId: 'server-1',
+        runtime: 'docker',
         name: 'recyclarr',
         role: 'critical',
         found: true,
@@ -71,6 +87,7 @@ export const apps: App[] = [
         status: down,
       },
     ],
+    check: null,
   },
   {
     id: 'docs',
@@ -81,8 +98,21 @@ export const apps: App[] = [
     tags: [],
     urls: [{ label: 'docs.homelab.example', href: 'https://docs.homelab.example/', scope: 'public', derived: false }],
     stack: null,
-    status: { status: 'Unknown', reason: 'Not linked to a workload' },
+    status: { status: 'Down', reason: 'HTTP 502' },
     workloads: [],
+    check: {
+      url: 'https://docs.homelab.example/',
+      critical: true,
+      status: { status: 'Down', reason: 'HTTP 502' },
+      latest: {
+        at: '2026-01-01T12:00:00Z',
+        up: false,
+        statusCode: 502,
+        latencyMs: 30,
+        error: 'http-502',
+        certificateExpiresAt: null,
+      },
+    },
   },
 ];
 
@@ -150,9 +180,13 @@ function container(name: string, status: Workload['status'], appIds: string[]): 
     statusText: status.reason,
     createdAt: '2026-01-01T12:00:00Z',
     composeProject: 'media',
+    namespace: null,
+    node: null,
     appIds,
     status,
     stale: false,
+    supportsUsage: true,
+    supportsLogs: true,
   };
 }
 
@@ -163,6 +197,70 @@ export const workloads: Workload[] = [
     ...container('grafana', { status: 'Unknown', reason: 'server-2 unreachable' }, []),
     environmentId: 'server-2',
     stale: true,
+  },
+];
+
+/** Server 1 is a Docker host whose usage is the sum of its containers; Server 2 is unreachable. */
+export const infrastructure: InfrastructureEnvironment[] = [
+  {
+    id: 'server-1',
+    name: 'Server 1',
+    runtime: 'docker',
+    sampledAt: '2026-01-01T12:00:00Z',
+    error: null,
+    intervalSeconds: 3,
+    resolutionSeconds: null,
+    windowSeconds: 600,
+    machines: [
+      {
+        id: 'server-1',
+        name: 'Server 1',
+        kind: 'docker-host',
+        roles: [],
+        ready: null,
+        cpuCapacityCores: 8,
+        memoryCapacityBytes: 17_179_869_184,
+        cpuCores: 1.2,
+        memoryBytes: 4_294_967_296,
+        scope: 'containers',
+        history: [
+          { at: '2026-01-01T11:59:54Z', cpuCores: null, memoryBytes: 4_000_000_000, guestCpuCores: null },
+          { at: '2026-01-01T11:59:57Z', cpuCores: 0.8, memoryBytes: 4_100_000_000, guestCpuCores: null },
+          { at: '2026-01-01T12:00:00Z', cpuCores: 1.2, memoryBytes: 4_294_967_296, guestCpuCores: null },
+        ],
+        workloads: [
+          { id: '0123456789absonarr', cpuCores: 1.1, memoryBytes: 1_073_741_824 },
+          { id: '0123456789abrecyclarr', cpuCores: null, memoryBytes: null },
+        ],
+        host: null,
+        guests: [],
+      },
+    ],
+    unplaced: [],
+  },
+  {
+    id: 'server-2',
+    name: 'Server 2',
+    runtime: 'docker',
+    sampledAt: null,
+    error: 'timeout',
+    intervalSeconds: 3,
+    resolutionSeconds: null,
+    windowSeconds: 600,
+    machines: [],
+    unplaced: [],
+  },
+  {
+    id: 'nas',
+    name: 'NAS',
+    runtime: 'none',
+    sampledAt: null,
+    error: null,
+    intervalSeconds: 3,
+    resolutionSeconds: null,
+    windowSeconds: 600,
+    machines: [],
+    unplaced: [],
   },
 ];
 
@@ -179,6 +277,7 @@ export const handlers = [
   http.get('/api/v1/catalog/status', () => HttpResponse.json(catalogStatus)),
   http.get('/api/v1/environments', () => HttpResponse.json(environments)),
   http.get('/api/v1/workloads', () => HttpResponse.json(workloads)),
+  http.get('/api/v1/infrastructure', () => HttpResponse.json(infrastructure)),
   http.get('/api/v1/workloads/:environmentId/:name', ({ params }) => {
     const workload = workloads.find((w) => w.environmentId === params.environmentId && w.name === params.name);
     return workload ? HttpResponse.json(workload) : new HttpResponse(null, { status: 404 });

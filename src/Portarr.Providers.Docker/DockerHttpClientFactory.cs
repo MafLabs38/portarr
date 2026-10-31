@@ -18,6 +18,7 @@ public sealed class DockerHttpClientFactory : IDisposable
     /// <summary>
     /// Base address of Unix socket clients: the host name is ignored on a Unix socket, but HTTP needs one.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "S5332:Using http protocol is insecure. Use https instead.", Justification = "Placeholder base address of a Unix domain socket: nothing leaves the machine.")]
     private const string UnixSocketBaseAddress = "http://docker/";
 
     private readonly Dictionary<Uri, HttpClient> _clients = [];

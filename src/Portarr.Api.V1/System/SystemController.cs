@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Portarr.Core.SystemInfo;
 
@@ -14,7 +15,9 @@ public sealed class SystemController : ControllerBase
         _systemStatusService = systemStatusService;
     }
 
+    /// <summary>Version, runtime, database engine, data folder and uptime of this Portarr.</summary>
     [HttpGet("status")]
+    [ProducesResponseType<SystemStatusResource>(StatusCodes.Status200OK)]
     public async Task<SystemStatusResource> GetStatusAsync(CancellationToken cancellationToken)
     {
         var status = await _systemStatusService.GetStatusAsync(cancellationToken);

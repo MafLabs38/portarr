@@ -1,6 +1,11 @@
 namespace Portarr.Core.Workloads;
 
-/// <summary>A running unit discovered by a connector (spec §4.1); never declared by hand.</summary>
+/// <summary>
+/// A running unit discovered by a connector (spec §4.1); never declared by hand. <c>Namespace</c> and
+/// <c>Node</c> are set by orchestrators (Kubernetes): the pod's namespace and the node it runs on.
+/// <c>Mounts</c> are its persistent storage (bind mounts, named volumes, PersistentVolumeClaims), which
+/// tells where its data lives.
+/// </summary>
 public sealed record Workload(
     string EnvironmentId,
     string Id,
@@ -12,9 +17,36 @@ public sealed record Workload(
     DateTimeOffset CreatedAt,
     string? ComposeProject,
     IReadOnlyDictionary<string, string> Labels,
-    IReadOnlyList<PublishedPort>? Ports = null)
+    IReadOnlyList<PublishedPort>? Ports = null,
+    string? Namespace = null,
+    string? Node = null,
+    IReadOnlyList<WorkloadMount>? Mounts = null)
 {
     public IReadOnlyList<PublishedPort> PublishedPorts => Ports ?? [];
+
+    public IReadOnlyList<WorkloadMount> StorageMounts => Mounts ?? [];
+}
+
+/// <summary>
+/// Persistent storage mounted into a workload. <c>Source</c> is the host path (bind, host path), the volume
+/// name or the claim name; <c>Destination</c> the path inside the container. <c>CapacityBytes</c> is the size
+/// requested for a claim, when the connector knows it (a StatefulSet's volume claim template).
+/// </summary>
+public sealed record WorkloadMount(MountKind Kind, string Source, string Destination, long? CapacityBytes = null);
+
+public enum MountKind
+{
+    /// <summary>A host directory or file (<c>-v /srv/app:/config</c>).</summary>
+    Bind,
+
+    /// <summary>A named Docker volume.</summary>
+    Volume,
+
+    /// <summary>A Kubernetes PersistentVolumeClaim.</summary>
+    Claim,
+
+    /// <summary>A Kubernetes hostPath volume.</summary>
+    HostPath,
 }
 
 /// <summary>A container port published on the host (<c>-p 8080:80</c>: public 8080, private 80).</summary>

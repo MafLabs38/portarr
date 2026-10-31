@@ -76,13 +76,13 @@ The application **actually runs** and is driven through its public API, as in `S
 |---|---|
 | `WebApplicationFactory` | In-memory Portarr host, HTTP and SignalR client |
 | **Testcontainers for .NET** | Real services: PostgreSQL, Docker (socket-proxy + sample containers), **k3s** (K3s module), Prometheus, Loki, Trivy, MinIO (S3) |
-| **WireMock.Net** | Third-party APIs that cannot be containerized or have paid quotas: GitHub, registries, endoflife.date, hypervisor APIs, SMTP (or MailHog/Mailpit in a container) |
+| **WireMock.Net** | Third-party APIs that cannot be containerized or have paid quotas: the Kubernetes API, node_exporter, the Docker `/info` endpoint, GitHub, registries, endoflife.date, hypervisor APIs, SMTP (or MailHog/Mailpit in a container). `ToolServer` in `Portarr.Integration.Test` wraps it: the connector under test runs with its real HTTP stack, on SQLite, with no Docker |
 
 ### 3.1 Integration test families
 
 1. **Persistence**: each FluentMigrator migration is replayed on an empty database **and** on the previous version's database. The whole persistence suite runs on **SQLite and PostgreSQL** (CI matrix), like the *arr apps.
 2. **API**: one fixture per resource (`/api/v1/apps`, `/stacks`, `/providers`, `/system/status`…). HTTP status codes, validation, role-based authorization, API key, pagination.
-3. **Capability contract**: for each capability (`Inventory`, `State`, `Logs.Live`, `Metrics`…), an **abstract test suite** that every provider must pass (`MetricsProviderContract<TProvider>`). Adding a provider = inheriting from the suite and supplying its test environment. This is what guarantees that the abstraction holds.
+3. **Capability contract**: for each capability (`Inventory`, `State`, `Logs.Live`, `Metrics`…), an **abstract test suite** that every provider must pass. Adding a provider = inheriting from the suite and supplying its fake tool. This is what guarantees that the abstraction holds. The suites live in `Portarr.Test.Common/Contracts/`: `HostMetricsSourceContract` (node_exporter over HTTP and through the Kubernetes pod proxy). The other capabilities still need theirs (workload inventory and logs, code repositories, image registries).
 4. **Real provider**: each provider against its containerized service.
    - Docker: start an `unhealthy` container, verify state, live logs and provenance labels.
    - k3s: deploy a pod in `CrashLoopBackOff`.
@@ -180,3 +180,13 @@ yarn stryker run                                                # mutation testi
 ```
 
 > Integration and E2E tests start containers and are CPU-intensive. On a small machine, prefer CI, or limit the test process's resources.
+
+### Playwright against a running instance (no image build)
+
+The E2E stack builds Portarr's image, which is too heavy for a small machine. The specs depend only on data any catalog has, so they also run against a running instance, a dev sandbox for instance:
+
+```bash
+PORTARR_URL=http://localhost:5174 yarn e2e --project=chromium --workers=1 specs/infrastructure.spec.ts   # …and the other specs
+```
+
+The specs of `launcher-and-workloads.spec.ts` and `logging-and-metrics.spec.ts` name the stack's own containers and only pass on the E2E stack; `/health` needs the API port (`PORTARR_URL` pointing at the Vite dev proxy answers the frontend instead).

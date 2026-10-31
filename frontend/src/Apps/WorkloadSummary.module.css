@@ -6,33 +6,3 @@
   max-width: 100%;
   font-size: var(--fontSizeMeta);
 }
-
-.line {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 100%;
-  font-weight: 800;
-}
-
-.value {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ok {
-  color: var(--successColor);
-}
-
-.bad {
-  color: var(--dangerColor);
-}
-
-.warn {
-  color: var(--warningColor);
-}
-
-.muted {
-  color: var(--inkMuted);
-}

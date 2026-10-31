@@ -53,6 +53,17 @@ yarn install && yarn start                   # UI on http://localhost:5173 (prox
 
 All commands (tests, lint, e2e) are listed in [CLAUDE.md](CLAUDE.md#commands).
 
+## API
+
+Everything the UI shows is served by a REST API under `/api/v1`, documented by Portarr itself:
+
+| URL | Content |
+|---|---|
+| `/docs/` | Interactive reference ([Scalar](https://scalar.com)): browse the endpoints, read the models, try a request |
+| `/openapi/v1.json` | The [OpenAPI](https://www.openapis.org) document, for generators and tools |
+
+Both are also linked from **System → Status**. The reference is served from the Portarr image (no CDN, no request to a third party) and has its own Content-Security-Policy, the only exception to the strict global one ([D-76](docs/SPEC.md)). In development, `yarn start` proxies `/openapi` and `/docs` to the backend.
+
 ## Security notice
 
 Portarr has **no authentication yet** (planned). Anyone who reaches it can see your inventory and the live logs of the containers your catalog declares. Keep it on your LAN or put it behind an authenticating reverse proxy (SSO, basic auth) before exposing it.

@@ -1,0 +1,51 @@
+.track {
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  border-radius: var(--radiusPill);
+  background-color: var(--paperSunken);
+}
+
+.small {
+  height: 5px;
+}
+
+.medium {
+  height: 15px;
+}
+
+.large {
+  height: 20px;
+}
+
+.bar {
+  flex-shrink: 0;
+  height: 100%;
+  border-radius: var(--radiusPill);
+}
+
+.cpu {
+  background-color: var(--secondary);
+}
+
+.memory {
+  background-color: var(--purple);
+}
+
+.guests {
+  background-color: var(--pink);
+}
+
+.swap {
+  background-color: var(--warningColor);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bar {
+    transition: width 0.4s ease;
+  }
+}
+
+.track > .bar + .bar {
+  border-radius: 0 var(--radiusPill) var(--radiusPill) 0;
+}

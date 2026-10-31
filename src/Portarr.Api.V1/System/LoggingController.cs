@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Portarr.Core.Instrumentation;
@@ -18,13 +19,19 @@ public sealed class LoggingController : ControllerBase
         _validator = validator;
     }
 
+    /// <summary>The minimum level Portarr logs at.</summary>
     [HttpGet]
+    [ProducesResponseType<LoggingResource>(StatusCodes.Status200OK)]
     public LoggingResource Get()
     {
         return new LoggingResource(_logLevelService.Current.ToString());
     }
 
+    /// <summary>Changes the log level, immediately and across restarts.</summary>
+    /// <response code="400">The level is not one of the known levels.</response>
     [HttpPut]
+    [ProducesResponseType<LoggingResource>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<LoggingResource>> UpdateAsync(LoggingResource resource, CancellationToken cancellationToken)
     {
         var validation = await _validator.ValidateAsync(resource, cancellationToken);

@@ -5,18 +5,21 @@ import type App from 'typings/App';
 import translate from 'Utilities/String/translate';
 
 import styles from './AppPoster.module.css';
+import CheckSummary from './CheckSummary';
 import { pickUrl, resolveScope, useUrlModeStore } from './urlMode';
 import WorkloadSummary from './WorkloadSummary';
 
 interface AppPosterProps {
   app: App;
+  /** When the apps were fetched: certificate expiry is counted from there. */
+  now: number;
 }
 
 /**
  * A launcher tile (F-CAT-01): a web app opens its URL for the current network (D-46); desktop apps
- * and services are not launchable. The frame color is the app status (D-45).
+ * and services are not launchable. The frame color is the app status (D-45), which includes its HTTP check (V2).
  */
-export default function AppPoster({ app }: Readonly<AppPosterProps>) {
+export default function AppPoster({ app, now }: Readonly<AppPosterProps>) {
   const mode = useUrlModeStore((state) => state.mode);
   const mainUrl = pickUrl(app.urls, resolveScope(mode, globalThis.location.hostname));
   const otherUrls = app.urls.filter((url) => url !== mainUrl);
@@ -50,7 +53,11 @@ export default function AppPoster({ app }: Readonly<AppPosterProps>) {
           )}
         </div>
       )}
-      <WorkloadSummary workloads={app.workloads} />
+      {/* Container, healthcheck, then the HTTP check; an app without workloads shows its check alone. */}
+      <div className={styles.summary}>
+        <WorkloadSummary workloads={app.workloads} />
+        {app.check || app.type === 'web' ? <CheckSummary check={app.check} now={now} /> : null}
+      </div>
       {otherUrls.length > 0 ? (
         <div className={styles.links}>
           {otherUrls.map((url) => (

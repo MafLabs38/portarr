@@ -63,7 +63,7 @@ export default function AppsIndex() {
               </header>
               <div className={styles.grid}>
                 {members.map((app) => (
-                  <AppPoster app={app} key={app.id} />
+                  <AppPoster app={app} key={app.id} now={apps.dataUpdatedAt} />
                 ))}
               </div>
             </section>
@@ -78,7 +78,7 @@ export default function AppsIndex() {
             ) : null}
             <div className={styles.grid}>
               {ungrouped.map((app) => (
-                <AppPoster app={app} key={app.id} />
+                <AppPoster app={app} key={app.id} now={apps.dataUpdatedAt} />
               ))}
             </div>
           </section>

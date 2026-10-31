@@ -9,7 +9,8 @@ public sealed record EnvironmentInventory(
     bool Reachable,
     string? Error,
     IReadOnlyList<Workload> Workloads,
-    DateTimeOffset? RefreshedAt);
+    DateTimeOffset? RefreshedAt,
+    bool NotConfigured = false);
 
 public interface IWorkloadInventory
 {
@@ -83,6 +84,12 @@ public sealed partial class WorkloadInventory : BackgroundService, IWorkloadInve
             return null;
         }
 
+        var configurationError = source.GetConfigurationError(environment);
+        if (!string.IsNullOrEmpty(configurationError))
+        {
+            return new EnvironmentInventory(environment.Id, false, configurationError, [], null, NotConfigured: true);
+        }
+
         try
         {
             var workloads = await source.ListAsync(environment, cancellationToken);
@@ -95,19 +102,8 @@ public sealed partial class WorkloadInventory : BackgroundService, IWorkloadInve
 
             // Keep the last known workloads so the UI can show what was there, flagged as stale.
             var previous = Current.GetValueOrDefault(environment.Id);
-            return new EnvironmentInventory(environment.Id, false, ReasonCode(exception), previous?.Workloads ?? [], previous?.RefreshedAt);
+            return new EnvironmentInventory(environment.Id, false, ReasonCodes.From(exception), previous?.Workloads ?? [], previous?.RefreshedAt);
         }
-    }
-
-    private static string ReasonCode(Exception exception)
-    {
-        return exception switch
-        {
-            TaskCanceledException or TimeoutException => "timeout",
-            HttpRequestException { StatusCode: { } status } => $"http-{(int)status}",
-            HttpRequestException or IOException => "unreachable",
-            _ => "invalid-response",
-        };
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Inventory refresh failed")]

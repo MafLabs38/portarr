@@ -1,16 +1,13 @@
-import type { LucideIcon } from 'lucide-react';
-
 import * as icons from 'Helpers/Props/icons';
 import type { AppWorkload } from 'typings/App';
 import translate from 'Utilities/String/translate';
 
+import SummaryLine, { type Tone } from './SummaryLine';
 import styles from './WorkloadSummary.module.css';
 
 interface WorkloadSummaryProps {
   workloads: AppWorkload[];
 }
-
-type Tone = 'ok' | 'bad' | 'warn' | 'muted';
 
 // Docker appends the healthcheck to the status; it has its own line on the tile (D-45).
 const healthSuffixes = [' (healthy)', ' (unhealthy)', ' (health: starting)'];
@@ -18,7 +15,7 @@ const healthSuffixes = [' (healthy)', ' (unhealthy)', ' (health: starting)'];
 // "Up 3 hours (healthy)" → "Up 3 hours". Plain suffix checks: no regex backtracking on Docker's text.
 function stateText(workload: AppWorkload): string {
   if (!workload.found) {
-    return translate('ContainerNotFound');
+    return translate(workload.runtime === 'cloudflare' ? 'DeploymentNotFound' : 'ContainerNotFound');
   }
   const text = workload.statusText ?? workload.state ?? '';
   const suffix = healthSuffixes.find((s) => text.endsWith(s));
@@ -39,24 +36,6 @@ function describe(workload: AppWorkload): string {
 }
 
 const healthTone: Record<string, Tone> = { healthy: 'ok', unhealthy: 'bad', starting: 'warn', none: 'muted' };
-
-interface LineProps {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-  tone: Tone;
-  title?: string;
-}
-
-// Icon instead of a text label, so the value keeps the tile's width; the label stays accessible.
-function Line({ icon: Icon, label, value, tone, title }: Readonly<LineProps>) {
-  return (
-    <div className={`${styles.line} ${styles[tone]}`} title={title ?? `${label}: ${value}`}>
-      <Icon aria-label={label} role="img" size={13} strokeWidth={2.5} />
-      <span className={styles.value}>{value}</span>
-    </div>
-  );
-}
 
 /** Several workloads: unhealthy first, then starting, then healthy; none means no healthcheck at all. */
 function healthSummary(workloads: AppWorkload[]): { tone: Tone; value: string } {
@@ -86,17 +65,19 @@ export default function WorkloadSummary({ workloads }: Readonly<WorkloadSummaryP
   const [only] = workloads;
   if (workloads.length === 1 && only) {
     const health = only.health ?? 'none';
+    // A CDN deployment has no container healthcheck: the HTTP check line says whether it answers.
+    const container = only.runtime !== 'cloudflare';
     return (
       <div className={styles.summary}>
-        <Line
-          icon={icons.CONTAINER}
-          label={translate('Container')}
+        <SummaryLine
+          icon={container ? icons.CONTAINER : icons.DEPLOYMENT}
+          label={translate(container ? 'Container' : 'Deployment')}
           title={only.statusText ?? undefined}
           tone={stateTone(only)}
           value={stateText(only)}
         />
-        {only.found ? (
-          <Line
+        {only.found && container ? (
+          <SummaryLine
             icon={icons.HEALTHCHECK}
             label={translate('Healthcheck')}
             tone={healthTone[health] ?? 'muted'}
@@ -113,13 +94,13 @@ export default function WorkloadSummary({ workloads }: Readonly<WorkloadSummaryP
 
   return (
     <div className={styles.summary} title={details}>
-      <Line
+      <SummaryLine
         icon={icons.CONTAINER}
         label={translate('Containers')}
         tone={up === workloads.length ? 'ok' : 'bad'}
         value={translate('ContainersUp', { up, total: workloads.length })}
       />
-      <Line icon={icons.HEALTHCHECK} label={translate('Healthcheck')} tone={health.tone} value={health.value} />
+      <SummaryLine icon={icons.HEALTHCHECK} label={translate('Healthcheck')} tone={health.tone} value={health.value} />
     </div>
   );
 }

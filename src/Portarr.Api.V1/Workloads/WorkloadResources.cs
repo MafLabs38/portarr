@@ -6,7 +6,8 @@ namespace Portarr.Api.V1.Workloads;
 
 /// <summary>
 /// An environment. <c>Connection</c>: connected, unreachable, pending (not polled yet) or
-/// not-connected (no connector declared, D-32). <c>Error</c> is a reason code, never a raw message.
+/// not-connected (no connector declared, or declared but not configured yet: <c>Error</c> says why, D-32).
+/// <c>Error</c> is a reason code, never a raw message. <c>Runtime</c>: docker, cloudflare, kubernetes or none.
 /// </summary>
 public sealed record EnvironmentResource(
     string Id,
@@ -17,6 +18,10 @@ public sealed record EnvironmentResource(
     int Workloads,
     DateTimeOffset? RefreshedAt);
 
+/// <summary>
+/// A workload. <c>Namespace</c> and <c>Node</c> are set on Kubernetes pods. <c>SupportsUsage</c> and
+/// <c>SupportsLogs</c>: whether its connector serves them (Docker both, Kubernetes usage, Cloudflare neither).
+/// </summary>
 public sealed record WorkloadResource(
     string EnvironmentId,
     string Id,
@@ -27,9 +32,13 @@ public sealed record WorkloadResource(
     string StatusText,
     DateTimeOffset CreatedAt,
     string? ComposeProject,
+    string? Namespace,
+    string? Node,
     IReadOnlyList<string> AppIds,
     StatusResource Status,
-    bool Stale);
+    bool Stale,
+    bool SupportsUsage,
+    bool SupportsLogs);
 
 public sealed record WorkloadUsageResource(double CpuCores, long MemoryBytes, long? MemoryLimitBytes);
 
@@ -37,7 +46,9 @@ public sealed record LogLineResource(DateTimeOffset? Timestamp, string Stream, s
 
 public static class WorkloadResourceMapper
 {
-    public static WorkloadResource ToResource(this WorkloadView view)
+    /// <param name="view">The workload.</param>
+    /// <param name="source">Its environment's connector, if any.</param>
+    public static WorkloadResource ToResource(this WorkloadView view, IWorkloadSource? source)
     {
         var workload = view.Workload;
 
@@ -51,9 +62,13 @@ public static class WorkloadResourceMapper
             workload.StatusText,
             workload.CreatedAt,
             workload.ComposeProject,
+            workload.Namespace,
+            workload.Node,
             view.AppIds,
             StatusResource.From(view.Status),
-            view.Stale);
+            view.Stale,
+            source?.SupportsUsage ?? false,
+            source?.SupportsLogs ?? false);
     }
 
     public static LogLineResource ToResource(this LogLine line)

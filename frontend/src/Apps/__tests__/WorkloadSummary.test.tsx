@@ -6,6 +6,7 @@ import type { AppWorkload } from 'typings/App';
 function workload(name: string, overrides: Partial<AppWorkload>): AppWorkload {
   return {
     environmentId: 'server-1',
+    runtime: 'docker',
     name,
     role: 'critical',
     found: true,

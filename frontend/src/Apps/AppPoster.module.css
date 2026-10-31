@@ -65,6 +65,15 @@ a.launch:focus-visible .name {
   font-weight: 700;
 }
 
+.summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  font-size: var(--fontSizeMeta);
+}
+
 .links {
   display: flex;
   flex-wrap: wrap;

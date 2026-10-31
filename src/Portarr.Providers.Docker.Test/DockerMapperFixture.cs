@@ -108,4 +108,51 @@ public sealed class DockerMapperFixture
     {
         DockerMapper.ParseLogLine(LogStream.Stdout, "plain text").Should().Be(new LogLine(null, LogStream.Stdout, "plain text"));
     }
+
+    [Fact]
+    public void should_measure_one_shot_cpu_against_the_previous_sample_and_none_on_the_first()
+    {
+        static ContainerStats OneShot(ulong total, ulong system) => new(
+            new CpuStats(new CpuUsage(total), system, 4),
+            new CpuStats(new CpuUsage(0), null, null),
+            new MemoryStats(200, 1_000, null));
+
+        var (_, first, counters) = DockerMapper.ToSampledUsage(OneShot(1_000, 10_000), null);
+        var (usage, second, _) = DockerMapper.ToSampledUsage(OneShot(1_500, 12_000), counters);
+
+        first.Should().BeNull("one sample gives no interval");
+        second.Should().Be(1, "500 of 2000 host nanoseconds on 4 CPUs is one core");
+        usage.MemoryBytes.Should().Be(200);
+    }
+
+    [Fact]
+    public void should_restart_the_measure_when_the_counters_were_reset()
+    {
+        var stats = new ContainerStats(new CpuStats(new CpuUsage(100), 20_000, 4), new CpuStats(new CpuUsage(0), null, null), new MemoryStats(1, null, null));
+
+        DockerMapper.ToSampledUsage(stats, new CpuCounters(5_000, 10_000)).CpuCores.Should().BeNull();
+    }
+
+    [Fact]
+    public void should_use_the_engine_previous_sample_when_it_ignored_one_shot()
+    {
+        var stats = new ContainerStats(new CpuStats(new CpuUsage(1_500), 10_000, 4), new CpuStats(new CpuUsage(1_000), 9_000, 4), new MemoryStats(1, null, null));
+
+        DockerMapper.ToSampledUsage(stats, null).CpuCores.Should().Be(2);
+    }
+
+    [Fact]
+    public void should_keep_bind_mounts_and_named_volumes_only()
+    {
+        var mounts = DockerMapper.ToMounts(
+        [
+            new ContainerMount("bind", null, "/srv/app/config", "/config"),
+            new ContainerMount("volume", "app-db-data", "/var/lib/docker/volumes/app-db-data/_data", "/var/lib/postgresql/data"),
+            new ContainerMount("tmpfs", null, null, "/run"),
+        ]);
+
+        mounts.Should().Equal(
+            new WorkloadMount(MountKind.Bind, "/srv/app/config", "/config"),
+            new WorkloadMount(MountKind.Volume, "app-db-data", "/var/lib/postgresql/data"));
+    }
 }

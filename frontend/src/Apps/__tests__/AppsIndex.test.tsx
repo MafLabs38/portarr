@@ -99,4 +99,14 @@ describe('AppsIndex', () => {
     expect(await screen.findByText('Ahoy! No apps on board yet.')).toBeInTheDocument();
     expect(screen.getByText(/Declare your environments, stacks and apps in catalog\.yaml/)).toBeInTheDocument();
   });
+
+  it('shows the HTTP check on the tile, alone for an app without workloads, and flags unmonitored web apps', async () => {
+    renderWithProviders(<AppsIndex />);
+
+    const sonarr = await screen.findByRole('article', { name: 'Sonarr' });
+    expect(within(sonarr).getByText('302 · 12 ms')).toBeInTheDocument();
+    const docs = screen.getByRole('article', { name: 'Docs' });
+    expect(within(docs).getByText('HTTP 502')).toBeInTheDocument();
+    expect(within(screen.getByRole('article', { name: 'Recyclarr' })).queryByText('Not monitored')).toBeNull();
+  });
 });

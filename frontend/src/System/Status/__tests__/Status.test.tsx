@@ -16,6 +16,13 @@ describe('Status', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Status' })).toBeInTheDocument();
   });
 
+  it('links to the API reference and the OpenAPI document served by the backend', () => {
+    renderWithProviders(<Status />);
+
+    expect(screen.getByRole('link', { name: 'API reference' })).toHaveAttribute('href', '/docs/');
+    expect(screen.getByRole('link', { name: 'OpenAPI document' })).toHaveAttribute('href', '/openapi/v1.json');
+  });
+
   it('sets the browser tab title', () => {
     renderWithProviders(<Status />);
 

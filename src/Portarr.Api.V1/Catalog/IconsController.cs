@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Portarr.Core.Icons;
 
@@ -14,12 +15,18 @@ public sealed class IconsController : ControllerBase
         _iconService = iconService;
     }
 
-    /// <summary>
-    /// An app icon by name (D-47). Third-party SVGs are served with a policy that forbids scripts
+    /// <summary>An app icon by name (D-47).</summary>
+    /// <remarks>
+    /// Third-party SVGs are served with a policy that forbids scripts
     /// and styles, so opening one directly cannot run code in Portarr's origin. The policy only
     /// applies to an icon opened as a document: inside an img tag, an SVG is styled as usual.
-    /// </summary>
+    /// </remarks>
+    /// <response code="200">The image (SVG, PNG, WebP…).</response>
+    /// <response code="404">No such icon.</response>
     [HttpGet("{name}")]
+    [Produces("image/svg+xml", "image/png", "image/webp", "image/jpeg")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAsync(string name, CancellationToken cancellationToken)
     {
         var icon = await _iconService.GetAsync(name, cancellationToken);
