@@ -19,15 +19,15 @@ internal sealed class CappedStream(Stream inner, long limit) : Stream
         set => throw new NotSupportedException();
     }
 
+    public override int Read(byte[] buffer, int offset, int count)
+    {
+        return Count(inner.Read(buffer, offset, count));
+    }
+
     public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
         var read = await inner.ReadAsync(buffer, cancellationToken);
         return Count(read);
-    }
-
-    public override int Read(byte[] buffer, int offset, int count)
-    {
-        return Count(inner.Read(buffer, offset, count));
     }
 
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)

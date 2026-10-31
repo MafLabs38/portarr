@@ -138,18 +138,7 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
 
             foreach (var node in (infrastructure.GetValueOrDefault(environment.Id)?.Machines ?? []).Select(machine => machine.Machine))
             {
-                var route = nodeExporter.RouteOf(node.Id);
-                HostMetricsTarget? target = route.Access switch
-                {
-                    NodeExporterAccess.Url => new HostMetricsTarget(environment, node.Id, route.Url),
-                    NodeExporterAccess.ApiServer => new HostMetricsTarget(environment, node.Id, null, nodeExporter.Port),
-                    NodeExporterAccess.Direct when node.Address is { } address
-                        => IsReachableAddress(address)
-                            ? new HostMetricsTarget(environment, node.Id, new UriBuilder(Uri.UriSchemeHttp, address, nodeExporter.Port, "/metrics").Uri)
-                            : new HostMetricsTarget(environment, node.Id, null, null, InvalidAddress),
-                    _ => null,
-                };
-                if (target is not null)
+                if (NodeTarget(environment, nodeExporter, node) is { } target)
                 {
                     targets.Add(target);
                 }
@@ -157,6 +146,22 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
         }
 
         return targets;
+    }
+
+    /// <summary>Where one node of a cluster is read, by the access route the catalog gives it; none when it is not read.</summary>
+    private static HostMetricsTarget? NodeTarget(CatalogEnvironment environment, KubernetesNodeExporter nodeExporter, MachineSample node)
+    {
+        var route = nodeExporter.RouteOf(node.Id);
+        return route.Access switch
+        {
+            NodeExporterAccess.Url => new HostMetricsTarget(environment, node.Id, route.Url),
+            NodeExporterAccess.ApiServer => new HostMetricsTarget(environment, node.Id, null, nodeExporter.Port),
+            NodeExporterAccess.Direct when node.Address is { } address
+                => IsReachableAddress(address)
+                    ? new HostMetricsTarget(environment, node.Id, new UriBuilder(Uri.UriSchemeHttp, address, nodeExporter.Port, "/metrics").Uri)
+                    : new HostMetricsTarget(environment, node.Id, null, null, InvalidAddress),
+            _ => null,
+        };
     }
 
     /// <summary>
