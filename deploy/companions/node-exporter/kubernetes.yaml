@@ -26,8 +26,9 @@ spec:
       labels:
         app.kubernetes.io/name: node-exporter
     spec:
+      # hostNetwork: the node's own network counters and its address on port 9100 (the node's IP is what Portarr reads). No hostPID:
+      # the default collectors read the node's counters through the mounted /host/proc, not through its process table.
       hostNetwork: true
-      hostPID: true
       dnsPolicy: ClusterFirstWithHostNet
       automountServiceAccountToken: false
       priorityClassName: system-node-critical
@@ -55,8 +56,8 @@ spec:
               containerPort: 9100
               hostPort: 9100
           resources:
-            requests: { cpu: 20m, memory: 32Mi }
-            limits: { cpu: 200m, memory: 64Mi }
+            requests: { cpu: 20m, memory: 32Mi, ephemeral-storage: 16Mi }
+            limits: { cpu: 200m, memory: 64Mi, ephemeral-storage: 64Mi }
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
