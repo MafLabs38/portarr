@@ -14,3 +14,4 @@ An accepted ADR is never edited to change its decision: a new ADR supersedes it.
 | [0007](0007-text-level-catalog-editing.md) | Text-level catalog editing: comments kept, only changed nodes re-emitted | D-83 |
 | [0008](0008-headless-agent-cli-behind-an-adapter.md) | A headless agent CLI behind an adapter, not a terminal | D-87, D-88 |
 | [0009](0009-local-accounts-and-permission-based-roles.md) | Local accounts, cookie session and permission-based roles | D-92 to D-99 |
+| [0010](0010-optional-read-only-agent.md) | An optional, read-only Portarr agent as the simple way to connect a machine | D-100, D-101 |
