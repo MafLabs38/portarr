@@ -99,14 +99,14 @@ export function mergeHost(
   windowSeconds: number,
 ): HostMetrics | null {
   const streamed = reads ?? [];
-  const last = streamed[streamed.length - 1];
+  const last = streamed.at(-1);
   const base = snapshot ?? (last ? { ...last, history: [] } : null);
   if (!base) {
     return null;
   }
 
   const history = [...base.history];
-  let lastAt = history[history.length - 1]?.at ?? '';
+  let lastAt = history.at(-1)?.at ?? '';
   for (const read of streamed) {
     if (read.sampledAt !== null && read.error === null && read.sampledAt > lastAt) {
       history.push({

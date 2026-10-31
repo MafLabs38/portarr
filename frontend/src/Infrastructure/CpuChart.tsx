@@ -1,5 +1,3 @@
-import 'Components/Chart/chartSetup';
-
 import type { ChartData, ChartDataset, ChartOptions } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 
@@ -37,7 +35,7 @@ type Point = { x: number; y: number | null };
  * redraw every second stays cheap.
  */
 export default function CpuChart({ points, percent, windowSeconds, extra, label }: Readonly<CpuChartProps>) {
-  const end = points.length > 0 ? Date.parse(points[points.length - 1]?.at ?? '') : 0;
+  const end = points.length > 0 ? Date.parse(points.at(-1)?.at ?? '') : 0;
   const line = themeColor('--secondary');
   const grid = themeColor('--hairline');
   const ink = themeColor('--inkMuted');

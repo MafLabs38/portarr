@@ -32,7 +32,7 @@ export default function useHostStream(): HostStream {
       return undefined;
     }
 
-    let timer: number | undefined;
+    let timer: ReturnType<typeof globalThis.setTimeout> | undefined;
     const flush = () => {
       timer = undefined;
       const batch = pending.current;
@@ -53,12 +53,12 @@ export default function useHostStream(): HostStream {
       const read = JSON.parse(event.data) as HostMetrics;
       const key = hostKey(read.environmentId, read.machineId);
       pending.current.set(key, [...(pending.current.get(key) ?? []), read]);
-      timer ??= window.setTimeout(flush, flushDelayMs);
+      timer ??= globalThis.setTimeout(flush, flushDelayMs);
     });
 
     return () => {
       source.close();
-      window.clearTimeout(timer);
+      globalThis.clearTimeout(timer);
     };
   }, []);
 

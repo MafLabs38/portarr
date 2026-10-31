@@ -1,5 +1,3 @@
-import 'Components/Chart/chartSetup';
-
 import type { ChartData, ChartOptions } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
 

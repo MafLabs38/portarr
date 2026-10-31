@@ -20,8 +20,8 @@ export default function LiveIndicator({ at, expectedSeconds }: Readonly<LiveIndi
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
-    return () => window.clearInterval(timer);
+    const timer = globalThis.setInterval(() => setNow(Date.now()), 1_000);
+    return () => globalThis.clearInterval(timer);
   }, []);
 
   if (at === null) {
