@@ -36,6 +36,7 @@ public sealed class CatalogKubernetesParserFixture
 
         cluster.TokenVariable.Should().Be("K8S_TOKEN");
         cluster.CaFile.Should().BeNull();
+        cluster.AllowInsecure.Should().BeFalse();
     }
 
     [Theory]
