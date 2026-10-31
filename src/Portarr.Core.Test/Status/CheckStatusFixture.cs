@@ -28,6 +28,12 @@ public sealed class CheckStatusFixture
         StatusResolver.ForCheck(Passed() with { Error = error }, Now).Should().Be(new ResolvedStatus(HealthStatus.Down, reason));
     }
 
+    [Fact]
+    public void should_be_unknown_not_down_when_portarr_could_not_run_the_check()
+    {
+        StatusResolver.ForCheck(Passed() with { Error = CheckErrors.CheckFailed }, Now).Should().Be(new ResolvedStatus(HealthStatus.Unknown, "Portarr could not run this check"));
+    }
+
     [Theory]
     [InlineData(6.5, HealthStatus.Degraded, "Certificate expires in 6 days")]
     [InlineData(0.5, HealthStatus.Degraded, "Certificate expires today")]

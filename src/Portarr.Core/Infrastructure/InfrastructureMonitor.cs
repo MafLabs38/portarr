@@ -242,30 +242,34 @@ public sealed partial class InfrastructureMonitor : BackgroundService, IInfrastr
         }
 
         var guests = GuestsOf(environment.Id, catalog);
-        return machines.Select(machine =>
+        var guestCpu = guests.Where(g => g.CpuCores is not null).Select(g => g.CpuCores!.Value).ToList();
+        double? guestCpuTotal = guestCpu.Count > 0 ? Math.Round(guestCpu.Sum(), 3) : null;
+        return machines.Select(machine => Record(history, machine, environment, now, guests, guestCpuTotal)).ToList();
+    }
+
+    /// <summary>One machine: its new point when one is due, the history pruned to the live window, and its view.</summary>
+    private static MachineView Record(Dictionary<string, Queue<MachinePoint>> history, MachineSample machine, CatalogEnvironment environment, DateTimeOffset now, List<GuestMachine> guests, double? guestCpuTotal)
+    {
+        if (!history.TryGetValue(machine.Id, out var points))
         {
-            if (!history.TryGetValue(machine.Id, out var points))
-            {
-                points = new Queue<MachinePoint>();
-                history[machine.Id] = points;
-            }
+            points = new Queue<MachinePoint>();
+            history[machine.Id] = points;
+        }
 
-            var at = machine.MeasuredAt ?? now;
+        var at = machine.MeasuredAt ?? now;
 
-            // metrics.k8s.io refreshes every ~15 s: polling faster must not invent points (nor interpolate).
-            if (points.Count == 0 || points.Last().At < at)
-            {
-                var guestCpu = guests.Where(g => g.CpuCores is not null).Select(g => g.CpuCores!.Value).ToList();
-                points.Enqueue(new MachinePoint(at, machine.CpuCores, machine.MemoryBytes, guestCpu.Count > 0 ? Math.Round(guestCpu.Sum(), 3) : null));
-            }
+        // metrics.k8s.io refreshes every ~15 s: polling faster must not invent points (nor interpolate).
+        if (points.Count == 0 || points.Last().At < at)
+        {
+            points.Enqueue(new MachinePoint(at, machine.CpuCores, machine.MemoryBytes, guestCpuTotal));
+        }
 
-            while (points.Count > Capacity || (points.Count > 0 && points.Peek().At < now - Window))
-            {
-                points.Dequeue();
-            }
+        while (points.Count > Capacity || (points.Count > 0 && points.Peek().At < now - Window))
+        {
+            points.Dequeue();
+        }
 
-            return new MachineView(machine, points.ToArray(), environment.HostOf(machine.Id), guests.Count > 0 ? guests : null);
-        }).ToList();
+        return new MachineView(machine, points.ToArray(), environment.HostOf(machine.Id), guests.Count > 0 ? guests : null);
     }
 
     /// <summary>

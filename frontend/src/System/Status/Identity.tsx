@@ -18,6 +18,9 @@ const errorKeys: Record<number, string> = {
   409: 'IdentityStale',
 };
 
+/** The result of the last save: it worked, or the translation key of why it did not. */
+type Outcome = { saved: true } | { error: string };
+
 /**
  * The identity of the portal (D-91): the name and the logo shown at the bottom of the menu. Changing them writes the
  * catalog file, which needs the catalog.write permission (V7, D-92); with writes off, or without the permission, the
@@ -29,11 +32,11 @@ export default function Identity() {
   const setPortal = useSetPortal();
   const uploadLogo = useUploadPortalLogo();
   const fileInput = useRef<HTMLInputElement>(null);
-  const [name, setNameText] = useState<string | null>(null);
+  const [name, setName] = useState<string | null>(null);
   const [nameColor, setNameColor] = useState<string | null>(null);
   const [versionColor, setVersionColor] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [outcome, setOutcome] = useState<'saved' | string | null>(null);
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
 
   if (!data) {
     return <Card title={translate('Identity')}>{translate('Loading')}</Card>;
@@ -64,12 +67,12 @@ export default function Identity() {
           fileInput.current.value = '';
         }
       }
-      setNameText(null);
+      setName(null);
       setNameColor(null);
       setVersionColor(null);
-      setOutcome('saved');
+      setOutcome({ saved: true });
     } catch (error) {
-      setOutcome(errorKeys[error instanceof ApiError ? error.status : 0] ?? 'IdentitySaveFailed');
+      setOutcome({ error: errorKeys[error instanceof ApiError ? error.status : 0] ?? 'IdentitySaveFailed' });
     }
   };
 
@@ -91,7 +94,7 @@ export default function Identity() {
               className={styles.input}
               id="identity-name"
               maxLength={40}
-              onChange={(event: ChangeEvent<HTMLInputElement>) => setNameText(event.target.value)}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setName(event.target.value)}
               type="text"
               value={current}
             />
@@ -152,13 +155,11 @@ export default function Identity() {
             <button className={styles.save} disabled={!changed || pending} type="submit">
               {translate('Save')}
             </button>
-            {outcome === 'saved' ? (
-              <span className={styles.saved} role="status">
-                {translate('IdentitySaved')}
-              </span>
+            {outcome && 'saved' in outcome ? (
+              <output className={styles.saved}>{translate('IdentitySaved')}</output>
             ) : null}
           </div>
-          {outcome && outcome !== 'saved' ? <p role="alert">{translate(outcome)}</p> : null}
+          {outcome && 'error' in outcome ? <p role="alert">{translate(outcome.error)}</p> : null}
         </form>
       ) : (
         <p className={styles.help}>{translate(data.writable ? 'IdentityNotAllowed' : 'IdentityReadOnly')}</p>

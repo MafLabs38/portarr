@@ -21,17 +21,37 @@ public sealed class CatalogKubernetesParserFixture
     }
 
     [Fact]
+    public void should_accept_a_plain_http_api_server_only_when_asked_for_explicitly()
+    {
+        var cluster = Parse("environments: [{ id: cluster, kubernetes: { server: \"http://10.0.0.10:8080\", allowInsecure: true } }]").Environments[0].Kubernetes!;
+
+        cluster.Server.Should().Be(new Uri("http://10.0.0.10:8080"));
+        cluster.AllowInsecure.Should().BeTrue();
+    }
+
+    [Fact]
+    public void should_accept_allow_insecure_on_an_https_server_unchanged()
+    {
+        var cluster = Parse("environments: [{ id: cluster, kubernetes: { server: \"https://10.0.0.10:6443\", allowInsecure: true } }]").Environments[0].Kubernetes!;
+
+        cluster.Server.Should().Be(new Uri("https://10.0.0.10:6443"));
+        cluster.AllowInsecure.Should().BeTrue();
+    }
+
+    [Fact]
     public void should_default_the_token_variable_and_infer_the_runtime()
     {
         var cluster = Parse("environments: [{ id: cluster, kubernetes: { server: \"https://10.0.0.10:6443\" } }]").Environments[0].Kubernetes!;
 
         cluster.TokenVariable.Should().Be("K8S_TOKEN");
         cluster.CaFile.Should().BeNull();
+        cluster.AllowInsecure.Should().BeFalse();
     }
 
     [Theory]
     [InlineData("runtime: kubernetes", "kubernetes.server must be the API server URL")]
     [InlineData("kubernetes: { server: \"https://admin:secret@10.0.0.10:6443\" }", "without credentials")]
+    [InlineData("kubernetes: { server: \"http://10.0.0.10:8080\" }", "must be https")]
     [InlineData("kubernetes: { server: \"https://10.0.0.10:6443\", tokenEnv: \"eyJhbGciOi.token\" }", "never the token itself")]
     [InlineData("kubernetes: { server: \"https://10.0.0.10:6443\", caFile: \" \" }", "kubernetes.caFile")]
     [InlineData("runtime: docker\n    kubernetes: { server: \"https://10.0.0.10:6443\" }", "a docker environment cannot declare kubernetes")]

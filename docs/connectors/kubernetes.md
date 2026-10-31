@@ -69,6 +69,8 @@ apps:
       - { runtime: kubernetes@cluster, match: { namespace: shop, app: shop-web } }
 ```
 
+`server` must be an `https://` URL, since the token travels in every request (D-103). A lab or a test without TLS can add `allowInsecure: true` to accept `http://`; never do that for a real cluster. An existing catalog with an `http://` server must add it (or move to https) when it upgrades: the environment is otherwise refused with a clear error.
+
 The CA is the `certificate-authority-data` of your kubeconfig, base64-decoded (`… | base64 -d > cluster-ca.crt`): it is a public certificate, never the client key. It is the only root trusted for this server, and the host name is checked against it. Without `caFile`, the system trust store is used.
 
 Until the token variable is set and the CA file is readable, the environment is shown as **not connected** with the reason (`token-missing`, `ca-missing`, `ca-invalid`); the rest of the catalog keeps working (D-32).

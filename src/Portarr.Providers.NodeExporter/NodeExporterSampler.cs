@@ -18,8 +18,8 @@ namespace Portarr.Providers.NodeExporter;
 /// </summary>
 public sealed class NodeExporterSampler
 {
-    /// <summary>Largest scrape read, in characters: a large host answers a few hundred kB; more is not node_exporter.</summary>
-    public const long MaxCharacters = 8 * 1024 * 1024;
+    /// <summary>Largest scrape read, in bytes (the stream cap, which also holds against an endless line or a decompression bomb) and in characters (the parser's): a large host answers a few hundred kB; more is not node_exporter.</summary>
+    public const long MaxScrapeBytes = 8 * 1024 * 1024;
 
     private static readonly (double? Cpu, double? Iowait, IReadOnlyList<double>? Cores) NoRates = (null, null, null);
 
@@ -28,8 +28,9 @@ public sealed class NodeExporterSampler
     /// <summary>Parses a scrape of <paramref name="key"/> (streamed, never buffered whole) and measures it against the previous one.</summary>
     public async Task<HostReading> ReadAsync(HostMachineKey key, Stream metrics, CancellationToken cancellationToken)
     {
-        using var reader = new StreamReader(metrics);
-        var counters = await NodeExporterParser.ParseAsync(reader, MaxCharacters, cancellationToken);
+        // The cap counts the bytes read (after any decompression): a line that never ends cannot fill the memory before it is counted.
+        using var reader = new StreamReader(new CappedStream(metrics, MaxScrapeBytes));
+        var counters = await NodeExporterParser.ParseAsync(reader, MaxScrapeBytes, cancellationToken);
         return Next(key, counters);
     }
 

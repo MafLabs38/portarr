@@ -66,7 +66,7 @@ or with ufw: `ufw allow from 10.0.0.5 to any port 9100 proto tcp` (and no other 
 
 ### In Kubernetes
 
-Run it as a **DaemonSet**, one pod per node, with `hostNetwork` (it answers at the node's InternalIP), `hostPID`, the host's `/proc`, `/sys` and `/` read-only, a non-root user, all capabilities dropped and small resource limits ([`deploy/companions/node-exporter/kubernetes.yaml`](../deploy/companions/node-exporter/kubernetes.yaml)). Add a toleration for every taint of your nodes (control plane, dedicated nodes), or those nodes stay without an exporter.
+Run it as a **DaemonSet**, one pod per node, with `hostNetwork` (it answers at the node's InternalIP), the host's `/proc`, `/sys` and `/` read-only, a non-root user, all capabilities dropped and small resource limits ([`deploy/companions/node-exporter/kubernetes.yaml`](../deploy/companions/node-exporter/kubernetes.yaml)). Add a toleration for every taint of your nodes (control plane, dedicated nodes), or those nodes stay without an exporter.
 
 Portarr reads each node at its InternalIP. A node it cannot reach (a cloud worker behind a VPN tunnel, a node on another network) can be read **through the API server**: Portarr finds the node_exporter pod running on that node (it lists the pods of the exporter's namespace, which its read-only ServiceAccount may already do) and the API server proxies `GET /api/v1/namespaces/monitoring/pods/<pod>:9100/proxy/metrics` to it. That needs one more rule, **in the exporter's namespace only**:
 

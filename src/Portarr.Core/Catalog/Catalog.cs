@@ -90,13 +90,15 @@ public static class RuntimeNames
 /// ServiceAccount token, never the token itself. <c>CaFile</c> is the cluster CA certificate (PEM), relative
 /// to the catalog folder or absolute; without it the system trust store is used. <c>NodeHosts</c> maps a node
 /// name to the environment the node is a VM on (D-59). <c>NodeExporter</c> says where each node's node_exporter is read (D-72).
+/// <c>AllowInsecure</c> accepts a plain-http <c>Server</c>: the ServiceAccount token then travels in clear, so it is for a lab or a test only.
 /// </summary>
 public sealed record KubernetesCluster(
     Uri Server,
     string TokenVariable,
     string? CaFile,
     IReadOnlyDictionary<string, string>? NodeHosts = null,
-    KubernetesNodeExporter? NodeExporter = null);
+    KubernetesNodeExporter? NodeExporter = null,
+    bool AllowInsecure = false);
 
 /// <summary>
 /// The node_exporter of a single machine (D-72): its <c>/metrics</c> URL, read every second. <c>TokenVariable</c> names the

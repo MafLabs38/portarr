@@ -147,6 +147,8 @@ const en: Record<string, string> = {
   'Reason_ca-missing': 'the cluster CA file is missing',
   'Reason_invalid-response': 'unexpected response',
   Reason_timeout: 'timed out',
+  'Reason_check-failed': 'Portarr could not run this check',
+  'Reason_invalid-address': 'the node reports an address Portarr will not read (set nodeExporter.nodes)',
   'Reason_token-missing': 'the token environment variable is not set',
   Reason_unreachable: 'connection refused or host down',
   Resources: 'Resources',

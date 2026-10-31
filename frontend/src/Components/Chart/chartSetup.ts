@@ -8,7 +8,7 @@ Chart.register(ArcElement, CategoryScale, Filler, LinearScale, LineElement, Poin
  * (DESIGN.md §6: no hard-coded colors). Read at render time, so a theme switch applies on the next render.
  */
 export function themeColor(token: string): string {
-  if (typeof window === 'undefined') {
+  if (globalThis.window === undefined) {
     return '';
   }
 

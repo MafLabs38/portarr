@@ -1,6 +1,6 @@
 # node_exporter on every node of a cluster: Portarr's host agent (docs/companions.md#node_exporter).
-# One pod per node, on the node's network (port 9100 at its InternalIP) and PID namespace, with the host's
-# /proc, /sys and / mounted read-only. Tolerates control-plane taints; add your own taints' tolerations.
+# One pod per node, on the node's network (port 9100 at its InternalIP), with the host's /proc, /sys and /
+# mounted read-only. Tolerates control-plane taints; add your own taints' tolerations.
 # Port 9100 has no authentication: restrict it to Portarr's host (firewall, or a NetworkPolicy-aware CNI).
 # A node Portarr cannot reach is read through the API server's pod proxy: grant its ServiceAccount `get` on
 # `pods/proxy` in this namespace only (Role + RoleBinding in docs/companions.md#in-kubernetes).
@@ -26,8 +26,9 @@ spec:
       labels:
         app.kubernetes.io/name: node-exporter
     spec:
+      # hostNetwork: the node's own network counters and its address on port 9100 (the node's IP is what Portarr reads). No hostPID:
+      # the default collectors read the node's counters through the mounted /host/proc, not through its process table.
       hostNetwork: true
-      hostPID: true
       dnsPolicy: ClusterFirstWithHostNet
       automountServiceAccountToken: false
       priorityClassName: system-node-critical
@@ -55,8 +56,8 @@ spec:
               containerPort: 9100
               hostPort: 9100
           resources:
-            requests: { cpu: 20m, memory: 32Mi }
-            limits: { cpu: 200m, memory: 64Mi }
+            requests: { cpu: 20m, memory: 32Mi, ephemeral-storage: 16Mi }
+            limits: { cpu: 200m, memory: 64Mi, ephemeral-storage: 64Mi }
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

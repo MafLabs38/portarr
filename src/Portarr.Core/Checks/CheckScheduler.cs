@@ -59,13 +59,30 @@ public sealed partial class CheckScheduler : BackgroundService
         var options = new ParallelOptions { MaxDegreeOfParallelism = MaxConcurrency, CancellationToken = cancellationToken };
         await Parallel.ForEachAsync(due, options, async (item, token) =>
         {
-            var result = await _runner.RunAsync(item.Check.Target, item.Check.Definition, token);
+            var result = await ProbeAsync(item.Check, token);
             _store.Record(item.AppId, item.Check.Target, item.Check.Definition, result);
-            if (!result.Up)
+            if (!result.Up && result.Error != CheckErrors.CheckFailed)
             {
                 LogCheckFailed(item.AppId, result.Error!);
             }
         });
+    }
+
+    /// <summary>
+    /// One probe. The runner reports the failures it knows as a result; anything else it throws (a bug, an exception it does not map) is
+    /// recorded as a failed check (Portarr's fault, not the app's), never allowed to cancel the other checks of the tick.
+    /// </summary>
+    private async Task<CheckResult> ProbeAsync(AppCheckView check, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _runner.RunAsync(check.Target, check.Definition, cancellationToken);
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            LogProbeThrew(exception);
+            return new CheckResult(_timeProvider.GetUtcNow(), null, null, CheckErrors.CheckFailed, null);
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -88,6 +105,9 @@ public sealed partial class CheckScheduler : BackgroundService
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Check run failed")]
     private partial void LogTickFailed(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "A check threw instead of reporting a result")]
+    private partial void LogProbeThrew(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Check of {AppId} failed: {Reason}")]
     private partial void LogCheckFailed(string appId, string reason);

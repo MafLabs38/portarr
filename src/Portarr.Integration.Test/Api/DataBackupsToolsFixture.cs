@@ -52,7 +52,7 @@ public sealed class DataBackupsToolsFixture : IAsyncLifetime
             environments:
               - { id: server-1, name: Server 1, docker: { url: "http://socket-proxy:2375" }, backrest: { url: "{{_backrest.Url}}", userEnv: BACKREST_USER, passwordEnv: BACKREST_PASSWORD } }
               - { id: server-2, name: Server 2, docker: { url: "http://socket-proxy-2:2375" } }
-              - { id: cluster, name: Cluster, kubernetes: { server: "{{_cluster.Url}}", tokenEnv: CLUSTER_TOKEN } }
+              - { id: cluster, name: Cluster, kubernetes: { server: "{{_cluster.Url}}", allowInsecure: true, tokenEnv: CLUSTER_TOKEN } }
             apps:
               - { id: shop, name: Shop }
               - { id: media, name: Media }
