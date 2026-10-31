@@ -89,7 +89,7 @@ public static partial class CatalogParser
     [GeneratedRegex("^[a-z][a-z0-9]*(-[a-z0-9]+)*$")]
     private static partial Regex KindPattern();
 
-    private sealed class Builder
+    private sealed partial class Builder
     {
         private readonly List<string> _errors = [];
 
@@ -105,9 +105,11 @@ public static partial class CatalogParser
             var stacks = BuildStacks(document.Stacks ?? [], appDocuments, appIds);
             var data = BuildData(document.Data ?? [], environmentsById, appIds);
             var gitHub = BuildGitHub(document.Sources?.GitHub);
+            var links = BuildLinks(document.Links ?? [], environments);
+            var providers = BuildProviders(document.Providers ?? [], environmentsById, appIds);
 
             return _errors.Count == 0
-                ? new CatalogParseResult(new Catalog(environments, stacks, apps, data, gitHub), [])
+                ? new CatalogParseResult(new Catalog(environments, stacks, apps, data, gitHub, links, providers), [])
                 : new CatalogParseResult(Catalog.Empty, _errors);
         }
 
@@ -146,7 +148,10 @@ public static partial class CatalogParser
                     kubernetes,
                     string.IsNullOrWhiteSpace(document.Host) ? null : document.Host.Trim(),
                     BuildHostMetrics(id, document, docker),
-                    BuildBackrest(id, document, kubernetes is null && cloudflare is null)));
+                    BuildBackrest(id, document, kubernetes is null && cloudflare is null),
+                    BuildNotes($"Environment '{id}'", document.Notes),
+                    BuildAccess($"Environment '{id}'", "access", document.Access),
+                    BuildMachines(id, document.Machines)));
             }
 
             ValidateHosts(result);
@@ -449,7 +454,8 @@ public static partial class CatalogParser
                     BuildUrls(id, document.Urls ?? []),
                     BuildSelectors(id, document.Workloads ?? [], environments),
                     BuildCheck(id, type, document.Check),
-                    BuildRepository(id, document.Repository)));
+                    BuildRepository(id, document.Repository),
+                    BuildNotes($"App '{id}'", document.Notes)));
             }
 
             return result;
@@ -776,7 +782,7 @@ public static partial class CatalogParser
                     members.Add(new StackMember(app.Id!, MemberRole.Critical));
                 }
 
-                result.Add(new CatalogStack(id, document.Name ?? id, document.Description, members));
+                result.Add(new CatalogStack(id, document.Name ?? id, document.Description, members, BuildNotes($"Stack '{id}'", document.Notes)));
             }
 
             // An app has one stack: its role and its place in the launcher must not be ambiguous.

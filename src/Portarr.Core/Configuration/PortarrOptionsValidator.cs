@@ -26,6 +26,16 @@ public sealed class PortarrOptionsValidator : IValidateOptions<PortarrOptions>
             failures.Add($"TrustedProxies entry '{entry}' must be an IP address or a CIDR network such as 10.0.0.0/24 (PORTARR__TRUSTEDPROXIES).");
         }
 
+        if (options.Catalog.Writable && (options.ApiKey is null || options.ApiKey.Trim().Length < ApiKeys.MinimumLength))
+        {
+            failures.Add($"ApiKey must be at least {ApiKeys.MinimumLength} characters when Catalog:Writable is true (PORTARR__APIKEY, e.g. openssl rand -hex 32).");
+        }
+
+        if (options.Catalog.Backups is < 0 or > 1000)
+        {
+            failures.Add("Catalog:Backups must be between 0 and 1000 (PORTARR__CATALOG__BACKUPS).");
+        }
+
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
 }

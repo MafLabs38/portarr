@@ -10,6 +10,7 @@ const aliases = [
   '__mocks__',
   'App',
   'Apps',
+  'Assistant',
   'Components',
   'Data',
   'Helpers',
@@ -35,9 +36,11 @@ export default defineConfig({
   server: {
     port: 5173,
     // PORTARR_API: where the backend runs (e.g. a dotnet watch on another port).
+    // /mcp: the MCP endpoint (V5), so the address shown on the Assistant page also works in development.
     // /openapi and /docs: the OpenAPI document and its interactive reference (F-API-01), served by the backend.
     proxy: {
       '/api': process.env.PORTARR_API ?? 'http://localhost:8484',
+      '/mcp': process.env.PORTARR_API ?? 'http://localhost:8484',
       '/openapi': process.env.PORTARR_API ?? 'http://localhost:8484',
       '/docs': process.env.PORTARR_API ?? 'http://localhost:8484',
     },

@@ -1,0 +1,178 @@
+using System.ComponentModel;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Http;
+using ModelContextProtocol;
+using ModelContextProtocol.Server;
+using Portarr.Core.Catalog.Editing;
+
+namespace Portarr.Mcp.Server;
+
+/// <summary>An edit's outcome: <c>applied</c> or <c>unchanged</c>, the catalog's new version (send it with the next edit) and what changed.</summary>
+public sealed record CatalogWriteAnswer(string Status, string Version, IReadOnlyList<string> Changes);
+
+/// <summary>A catalog item as the file holds it, or, without an id, the ids of the section; with the version to send back.</summary>
+public sealed record CatalogItemAnswer(string Version, string Section, string? Id, JsonObject? Item, IReadOnlyList<string>? Ids);
+
+/// <summary>
+/// The catalog write tools of the MCP server (D-86), registered only with <c>PORTARR__MCP__WRITETOOLS=true</c> and
+/// effective only with <c>PORTARR__CATALOG__WRITABLE=true</c>. They change Portarr's description of the fleet (the
+/// catalog file), never the infrastructure (D-31), through the same editor as the API: same validation, versions
+/// and audit (channel <c>mcp</c>). Every write takes the version read from <c>get_catalog_item</c> or the last write.
+/// </summary>
+[McpServerToolType]
+public sealed class CatalogTools
+{
+    private const string Channel = "mcp";
+
+    private const string ItemShape = "The item as JSON with the keys of the catalog file (docs/catalog.md), its id included.";
+    private const string VersionHelp = "The catalog version from get_catalog_item or the previous write; a stale version is refused.";
+
+    private readonly ICatalogEditor _editor;
+    private readonly IHttpContextAccessor _httpContext;
+
+    public CatalogTools(ICatalogEditor editor, IHttpContextAccessor httpContext)
+    {
+        _editor = editor;
+        _httpContext = httpContext;
+    }
+
+    [McpServerTool(Name = "get_catalog_item", Title = "Read a catalog item", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Reads the catalog file before changing it: one item exactly as written (keys of the catalog file), or without an id the ids of the section; always the version to send with a write.")]
+    public async Task<CatalogItemAnswer> GetCatalogItemAsync(
+        [Description("environments, stacks, apps, data, links or providers.")] string section,
+        [Description("The item's id; omit to list the ids of the section.")] string? id = null,
+        CancellationToken cancellationToken = default)
+    {
+        CheckSection(section);
+        if (id is null)
+        {
+            var version = await _editor.GetVersionAsync(cancellationToken);
+            return new CatalogItemAnswer(version, section, null, null, await IdsAsync(section, cancellationToken));
+        }
+
+        var item = await _editor.GetItemAsync(section, id, cancellationToken)
+            ?? throw new McpException($"No {section} item '{id}'. Ids: {string.Join(", ", await IdsAsync(section, cancellationToken))}.");
+        return new CatalogItemAnswer(item.Version, section, id, item.Item, null);
+    }
+
+    [McpServerTool(Name = "upsert_app", Title = "Create or replace an app", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Creates or replaces an app of the catalog: id, name, type (web, desktop, service), icon, description, urls, workloads, check, repository, notes.")]
+    public Task<CatalogWriteAnswer> UpsertAppAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
+        UpsertAsync(CatalogSections.Apps, item, version, cancellationToken);
+
+    [McpServerTool(Name = "remove_app", Title = "Remove an app", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Removes an app from the catalog (refused while a stack, a data asset or a provider still names it).")]
+    public Task<CatalogWriteAnswer> RemoveAppAsync([Description("The app id.")] string id, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
+        EditAsync(CatalogSections.Apps, id, "remove", version, CatalogEdits.Remove(CatalogSections.Apps, id), cancellationToken);
+
+    [McpServerTool(Name = "upsert_stack", Title = "Create or replace a stack", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Creates or replaces a stack: id, name, description, members ([{ app, role: critical|optional }]), notes. Members kept in order keep their comments in the file.")]
+    public Task<CatalogWriteAnswer> UpsertStackAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
+        UpsertAsync(CatalogSections.Stacks, item, version, cancellationToken);
+
+    [McpServerTool(Name = "upsert_environment", Title = "Create or replace an environment", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Creates or replaces an environment (a host, a cluster, a hosting account): id, name, address, host (its hypervisor), connector (docker, cloudflare, kubernetes), notes, access ({ ssh: { alias, host, port, user, key (file name only), jump }, consoles: [{ label, href }], notes }) and machines ([{ name, notes, access }]). Read it first: the connector settings must be kept.")]
+    public Task<CatalogWriteAnswer> UpsertEnvironmentAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
+        UpsertAsync(CatalogSections.Environments, item, version, cancellationToken);
+
+    [McpServerTool(Name = "upsert_machine", Title = "Describe a machine", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Creates or replaces what is known about one machine of an environment (a cluster node, a VPS): notes and access. Never a password or a key: name the key file.")]
+    public Task<CatalogWriteAnswer> UpsertMachineAsync(
+        [Description("The environment id.")] string environment,
+        [Description("The machine's host or node name.")] string name,
+        [Description("{ notes, access: { ssh: { alias, host, port, user, key, jump }, consoles: [{ label, href }], notes } }")] JsonElement machine,
+        [Description(VersionHelp)] string version,
+        CancellationToken cancellationToken = default) =>
+        EditAsync(CatalogSections.Environments, environment, "upsert-machine", version, CatalogEdits.UpsertMachine(environment, name, Object(machine, "machine")), cancellationToken);
+
+    [McpServerTool(Name = "upsert_data_asset", Title = "Create or replace a data asset", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Creates or replaces a followed data asset: id, name, app, kind, where ({ environment, namespace, workload, claim, path }), importance (critical, important, comfort), maxAge, targets ({ local: {…}, offsite: {…} } with backrest, k8up, cronjob or manual sources).")]
+    public Task<CatalogWriteAnswer> UpsertDataAssetAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
+        UpsertAsync(CatalogSections.Data, item, version, cancellationToken);
+
+    [McpServerTool(Name = "add_link", Title = "Add a network link", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Adds a network link between two environments or machines: id, from, to (environment ids, machine names or environment/machine), kind (wireguard-tunnel, vpn, lan, peering, ssh-tunnel, other), name, network (CIDR), notes (e.g. which side initiates, the port).")]
+    public Task<CatalogWriteAnswer> AddLinkAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default)
+    {
+        var value = Object(item, "item");
+        var id = IdOf(value);
+        return EditAsync(CatalogSections.Links, id, "add", version, CatalogEdits.Add(CatalogSections.Links, id, value), cancellationToken);
+    }
+
+    [McpServerTool(Name = "upsert_provider", Title = "Create or replace a provider", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Creates or replaces an external provider or account: id, name, kind (cdn, paas, dns, registrar, cloud, vps, storage, backup, email, git, registry, monitoring, other), console (URL), account (a name or e-mail hint, never a credential), usedBy (app and environment ids), notes.")]
+    public Task<CatalogWriteAnswer> UpsertProviderAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
+        UpsertAsync(CatalogSections.Providers, item, version, cancellationToken);
+
+    [McpServerTool(Name = "remove_catalog_item", Title = "Remove a catalog item", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Removes a stack, environment, data asset, link or provider (refused while something else names it).")]
+    public Task<CatalogWriteAnswer> RemoveItemAsync(
+        [Description("environments, stacks, apps, data, links or providers.")] string section,
+        [Description("The item's id.")] string id,
+        [Description(VersionHelp)] string version,
+        CancellationToken cancellationToken = default)
+    {
+        CheckSection(section);
+        return EditAsync(section, id, "remove", version, CatalogEdits.Remove(section, id), cancellationToken);
+    }
+
+    [McpServerTool(Name = "set_notes", Title = "Set notes", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Sets the free Markdown notes of an environment, a machine of an environment, a stack, an app, a link or a provider; empty clears them. Notes are for people and assistants: what it is for, quirks, how it is wired. Never secrets.")]
+    public Task<CatalogWriteAnswer> SetNotesAsync(
+        [Description("environments, stacks, apps, links or providers.")] string section,
+        [Description("The item's id.")] string id,
+        [Description("Markdown, at most 8000 characters; empty to clear.")] string notes,
+        [Description(VersionHelp)] string version,
+        [Description("For an environment: the machine the notes are about (created when absent).")] string? machine = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!CatalogSections.WithNotes.Contains(section))
+        {
+            throw new McpException($"section must be one of {string.Join(", ", CatalogSections.WithNotes)}.");
+        }
+
+        return EditAsync(section, id, "set-notes", version, CatalogEdits.SetNotes(section, id, notes, machine), cancellationToken);
+    }
+
+    private static void CheckSection(string section)
+    {
+        if (!CatalogSections.All.Contains(section))
+        {
+            throw new McpException($"section must be one of {string.Join(", ", CatalogSections.All)}.");
+        }
+    }
+
+    private static JsonObject Object(JsonElement element, string name)
+    {
+        return element.ValueKind == JsonValueKind.Object
+            ? JsonObject.Create(element)!
+            : throw new McpException($"{name} must be a JSON object.");
+    }
+
+    private static string IdOf(JsonObject item)
+    {
+        return item["id"]?.ToString() is { Length: > 0 } id ? id : throw new McpException("item.id is required: lowercase letters, digits and dashes.");
+    }
+
+    private Task<CatalogWriteAnswer> UpsertAsync(string section, JsonElement item, string version, CancellationToken cancellationToken)
+    {
+        var value = Object(item, "item");
+        var id = IdOf(value);
+        return EditAsync(section, id, "upsert", version, CatalogEdits.Upsert(id, value), cancellationToken);
+    }
+
+    private Task<IReadOnlyList<string>> IdsAsync(string section, CancellationToken cancellationToken) => _editor.GetIdsAsync(section, cancellationToken);
+
+    private async Task<CatalogWriteAnswer> EditAsync(string section, string id, string operation, string version, Func<JsonObject?, JsonObject?> change, CancellationToken cancellationToken)
+    {
+        var actor = new CatalogActor(Channel, _httpContext.HttpContext?.Connection.RemoteIpAddress?.ToString());
+        var result = await _editor.EditAsync(new CatalogEdit(section, id, operation, version, actor, change), cancellationToken);
+        if (!result.Succeeded)
+        {
+            throw new McpException($"{result.Status}: {string.Join(" ", result.Errors)} (catalog version {result.Version})");
+        }
+
+        return new CatalogWriteAnswer(result.Status.ToString().ToLowerInvariant(), result.Version, result.Changes);
+    }
+}

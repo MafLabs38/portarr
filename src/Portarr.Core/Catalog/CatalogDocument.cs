@@ -15,6 +15,89 @@ internal sealed class CatalogDocument
     public List<DataDocument>? Data { get; set; }
 
     public SourcesDocument? Sources { get; set; }
+
+    /// <summary>Network links between environments and machines (D-84).</summary>
+    public List<LinkDocument>? Links { get; set; }
+
+    /// <summary>External providers and accounts (D-84).</summary>
+    public List<ProviderDocument>? Providers { get; set; }
+}
+
+/// <summary>See <see cref="CatalogLink"/>.</summary>
+internal sealed class LinkDocument
+{
+    public string? Id { get; set; }
+
+    public string? From { get; set; }
+
+    public string? To { get; set; }
+
+    public string? Kind { get; set; }
+
+    public string? Name { get; set; }
+
+    /// <summary>The link's address range, e.g. 10.0.0.0/24.</summary>
+    public string? Network { get; set; }
+
+    public string? Notes { get; set; }
+}
+
+/// <summary>See <see cref="CatalogProvider"/>.</summary>
+internal sealed class ProviderDocument
+{
+    public string? Id { get; set; }
+
+    public string? Name { get; set; }
+
+    public string? Kind { get; set; }
+
+    public string? Console { get; set; }
+
+    /// <summary>Which account: a name or an e-mail hint, never a credential.</summary>
+    public string? Account { get; set; }
+
+    /// <summary>Ids of the apps and environments that depend on it.</summary>
+    public List<string>? UsedBy { get; set; }
+
+    public string? Notes { get; set; }
+}
+
+/// <summary>See <see cref="MachineAccess"/>.</summary>
+internal sealed class AccessDocument
+{
+    public SshDocument? Ssh { get; set; }
+
+    public List<UrlDocument>? Consoles { get; set; }
+
+    public string? Notes { get; set; }
+}
+
+internal sealed class SshDocument
+{
+    /// <summary>The alias of the operator's SSH config (<c>ssh server-1</c>), when they use one.</summary>
+    public string? Alias { get; set; }
+
+    public string? Host { get; set; }
+
+    public int? Port { get; set; }
+
+    public string? User { get; set; }
+
+    /// <summary>The key file's name or path, never its content.</summary>
+    public string? Key { get; set; }
+
+    /// <summary>The jump host (ProxyJump), by alias or name.</summary>
+    public string? Jump { get; set; }
+}
+
+/// <summary>See <see cref="MachineKnowledge"/>.</summary>
+internal sealed class MachineDocument
+{
+    public string? Name { get; set; }
+
+    public string? Notes { get; set; }
+
+    public AccessDocument? Access { get; set; }
 }
 
 /// <summary>Code sources scanned by the Maintenance page (D-64).</summary>
@@ -149,6 +232,15 @@ internal sealed class EnvironmentDocument
 
     /// <summary>The Backrest running on this machine (D-80).</summary>
     public BackrestDocument? Backrest { get; set; }
+
+    /// <summary>Free Markdown for people and AI assistants (D-84).</summary>
+    public string? Notes { get; set; }
+
+    /// <summary>How to reach this machine (D-84), never a secret.</summary>
+    public AccessDocument? Access { get; set; }
+
+    /// <summary>Knowledge about the machines of this environment, e.g. the nodes of a cluster (D-84).</summary>
+    public List<MachineDocument>? Machines { get; set; }
 }
 
 internal sealed class HostMetricsDocument
@@ -214,6 +306,8 @@ internal sealed class StackDocument
     public string? Description { get; set; }
 
     public List<MemberDocument>? Members { get; set; }
+
+    public string? Notes { get; set; }
 }
 
 internal sealed class MemberDocument
@@ -249,6 +343,8 @@ internal sealed class AppDocument
 
     /// <summary>The app's code repository, <c>owner/name</c> (D-65).</summary>
     public string? Repository { get; set; }
+
+    public string? Notes { get; set; }
 }
 
 /// <summary><c>check:</c> is either a boolean or a mapping; read by <see cref="CheckDocumentConverter"/>.</summary>

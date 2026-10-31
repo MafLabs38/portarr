@@ -11,11 +11,19 @@ public sealed record Catalog(
     IReadOnlyList<CatalogStack> Stacks,
     IReadOnlyList<CatalogApp> Apps,
     IReadOnlyList<DataAssetDefinition>? Data = null,
-    GitHubSource? GitHub = null)
+    GitHubSource? GitHub = null,
+    IReadOnlyList<CatalogLink>? Links = null,
+    IReadOnlyList<CatalogProvider>? Providers = null)
 {
     public static Catalog Empty { get; } = new([], [], []);
 
     public IReadOnlyList<DataAssetDefinition> DataAssets => Data ?? [];
+
+    /// <summary>Network links between environments and machines (D-84).</summary>
+    public IReadOnlyList<CatalogLink> NetworkLinks => Links ?? [];
+
+    /// <summary>External providers and accounts (D-84).</summary>
+    public IReadOnlyList<CatalogProvider> ExternalProviders => Providers ?? [];
 }
 
 /// <summary>
@@ -23,7 +31,8 @@ public sealed record Catalog(
 /// published ports (D-46). At most one connector endpoint is set: <c>Docker</c>, <c>Cloudflare</c> or <c>Kubernetes</c>.
 /// <c>Host</c> is the environment this one runs on as a VM (D-59): the hypervisor's dashboard counts it as a guest.
 /// <c>HostMetrics</c> is the host agent of its single machine (a Docker host, D-72). <c>Backrest</c> is the
-/// backup tool running on it (D-80).
+/// backup tool running on it (D-80). <c>Notes</c>, <c>Access</c> and <c>Machines</c> are what the operator knows
+/// about it, for people and AI assistants (D-84).
 /// </summary>
 public sealed record CatalogEnvironment(
     string Id,
@@ -34,7 +43,10 @@ public sealed record CatalogEnvironment(
     KubernetesCluster? Kubernetes = null,
     string? Host = null,
     HostMetricsEndpoint? HostMetrics = null,
-    BackrestEndpoint? Backrest = null)
+    BackrestEndpoint? Backrest = null,
+    string? Notes = null,
+    MachineAccess? Access = null,
+    IReadOnlyList<MachineKnowledge>? Machines = null)
 {
     /// <summary>
     /// The environment a machine of this environment is a VM on: its node's entry in <c>nodeHosts</c>, else the
@@ -132,7 +144,7 @@ public sealed record DockerEndpoint(Uri Url);
 /// </summary>
 public sealed record CloudflareAccount(string AccountId, string TokenVariable);
 
-public sealed record CatalogStack(string Id, string Name, string? Description, IReadOnlyList<StackMember> Members);
+public sealed record CatalogStack(string Id, string Name, string? Description, IReadOnlyList<StackMember> Members, string? Notes = null);
 
 public sealed record StackMember(string AppId, MemberRole Role);
 
@@ -142,7 +154,10 @@ public enum MemberRole
     Optional,
 }
 
-/// <summary>An app of the catalog. <c>Repository</c> is its code repository (<c>owner/name</c>), when declared (D-65).</summary>
+/// <summary>
+/// An app of the catalog. <c>Repository</c> is its code repository (<c>owner/name</c>), when declared (D-65).
+/// <c>Notes</c> is free Markdown for people and AI assistants (D-84).
+/// </summary>
 public sealed record CatalogApp(
     string Id,
     string Name,
@@ -153,7 +168,8 @@ public sealed record CatalogApp(
     IReadOnlyList<AppUrl> Urls,
     IReadOnlyList<WorkloadSelector> Workloads,
     CheckDefinition? Check = null,
-    string? Repository = null);
+    string? Repository = null,
+    string? Notes = null);
 
 public enum AppType
 {

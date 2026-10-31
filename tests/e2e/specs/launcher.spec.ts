@@ -26,6 +26,7 @@ test.describe('Apps launcher', { tag: '@smoke' }, () => {
       ['Infrastructure', /\/infrastructure$/],
       ['Data', /\/data$/],
       ['Maintenance', /\/maintenance$/],
+      ['Assistant', /\/assistant$/],
       ['System', /\/system\/status$/],
       ['Apps', /\/apps$/],
     ] as const) {

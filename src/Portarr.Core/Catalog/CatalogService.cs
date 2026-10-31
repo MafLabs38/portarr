@@ -5,7 +5,8 @@ using Portarr.Core.Configuration;
 
 namespace Portarr.Core.Catalog;
 
-public sealed record CatalogState(Catalog Catalog, string FilePath, bool FileExists, IReadOnlyList<string> Errors, DateTimeOffset? LoadedAt);
+/// <summary>The catalog in memory. <c>Version</c> identifies the file's text as last read (D-83): edits send it back.</summary>
+public sealed record CatalogState(Catalog Catalog, string FilePath, bool FileExists, IReadOnlyList<string> Errors, DateTimeOffset? LoadedAt, string? Version = null);
 
 public interface ICatalogService
 {
@@ -83,7 +84,15 @@ public sealed partial class CatalogService : ICatalogService, IHostedService, ID
                 return;
             }
 
-            var result = CatalogParser.Parse(await File.ReadAllTextAsync(_filePath, cancellationToken));
+            var text = await File.ReadAllTextAsync(_filePath, cancellationToken);
+            var version = Editing.CatalogVersion.Of(text);
+            if (_loaded && Current.FileExists && Current.Errors.Count == 0 && Current.Version == version)
+            {
+                // Same text: typically the watcher seeing a write of Portarr's own catalog editor, already loaded.
+                return;
+            }
+
+            var result = CatalogParser.Parse(text);
 
             // On errors, keep serving the previous valid catalog.
             Current = new CatalogState(
@@ -91,7 +100,8 @@ public sealed partial class CatalogService : ICatalogService, IHostedService, ID
                 _filePath,
                 true,
                 result.Errors,
-                _timeProvider.GetUtcNow());
+                _timeProvider.GetUtcNow(),
+                version);
 
             if (result.IsValid)
             {

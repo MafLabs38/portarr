@@ -8,7 +8,7 @@ public static class InfrastructureResourceBuilder
 {
     /// <summary>
     /// Every environment, in catalog order, with its machines, their live window of points (D-54) and their
-    /// workloads sorted by consumption.
+    /// workloads sorted by consumption. Shared by the REST API and the MCP server (V5), so both tell the same story.
     /// A machine with a host agent carries its reads (D-72), and a VM with one reports its whole load to its hypervisor.
     /// </summary>
     public static IReadOnlyList<InfrastructureEnvironmentResource> Build(

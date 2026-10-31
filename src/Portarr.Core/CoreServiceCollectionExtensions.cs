@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Portarr.Core.Backups;
 using Portarr.Core.Catalog;
+using Portarr.Core.Catalog.Editing;
 using Portarr.Core.Checks;
 using Portarr.Core.Configuration;
 using Portarr.Core.Data;
@@ -38,6 +39,8 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<CatalogService>();
         services.AddSingleton<ICatalogService>(provider => provider.GetRequiredService<CatalogService>());
         services.AddHostedService(provider => provider.GetRequiredService<CatalogService>());
+        services.AddSingleton<ICatalogAuditLog, CatalogAuditLog>();
+        services.AddSingleton<ICatalogEditor, CatalogEditor>();
         services.AddSingleton<WorkloadInventory>();
         services.AddSingleton<IWorkloadInventory>(provider => provider.GetRequiredService<WorkloadInventory>());
         services.AddHostedService(provider => provider.GetRequiredService<WorkloadInventory>());

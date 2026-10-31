@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Time.Testing;
+using Npgsql;
 using Portarr.Core.Checks;
 using Portarr.Core.Configuration;
 using Portarr.Core.Maintenance;
@@ -21,7 +22,7 @@ public sealed class PortarrFactory : WebApplicationFactory<Program>
     private readonly Action<IServiceCollection>? _configureServices;
 
     /// <param name="options">The test database and data folder.</param>
-    /// <param name="settings">More settings, as configuration keys (<c>LogsOfAllWorkloads</c>).</param>
+    /// <param name="settings">More settings, as configuration keys (<c>Mcp:Enabled</c>).</param>
     /// <param name="configureServices">Replaces services, e.g. a workload source reading a faked tool.</param>
     public PortarrFactory(PortarrOptions options, IReadOnlyDictionary<string, string?>? settings = null, Action<IServiceCollection>? configureServices = null)
     {
@@ -60,6 +61,20 @@ public sealed class PortarrFactory : WebApplicationFactory<Program>
 
             _configureServices?.Invoke(services);
         });
+    }
+
+    /// <summary>
+    /// Closes the connections of the host that just stopped: Npgsql keeps them in a pool for minutes, and a suite that
+    /// starts a host (with its own database) per fixture would otherwise exhaust the server's connections once it grows
+    /// ("53300: sorry, too many clients already").
+    /// </summary>
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if (disposing)
+        {
+            NpgsqlConnection.ClearAllPools();
+        }
     }
 
     private sealed class OkHandler : HttpMessageHandler

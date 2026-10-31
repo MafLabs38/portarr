@@ -21,7 +21,7 @@ public static class ApiV1ServiceCollectionExtensions
         mvc.Services.AddValidatorsFromAssemblyContaining(typeof(ApiV1ServiceCollectionExtensions), ServiceLifetime.Singleton);
 
         // Summaries come from the XML doc comments of the controllers. Only /api/v1 is documented: the health
-        // probes and /metrics have their own contracts.
+        // probes, /metrics and the MCP endpoint have their own contracts.
         mvc.Services.AddOpenApi("v1", options =>
         {
             options.ShouldInclude = description => description.RelativePath?.StartsWith("api/v1/", StringComparison.Ordinal) == true;
@@ -31,7 +31,7 @@ public static class ApiV1ServiceCollectionExtensions
                 {
                     Title = "Portarr API",
                     Version = "v1",
-                    Description = "Read API of the Portarr portal: apps, workloads, infrastructure, data and backups, maintenance. Portarr informs, the operator acts: the only writes are Portarr's own settings.",
+                    Description = "API of the Portarr portal: apps, workloads, infrastructure, data and backups, maintenance. Portarr informs, the operator acts: the only writes are Portarr's own settings and, when PORTARR__CATALOG__WRITABLE is on, edits of its catalog file (the description of the fleet, with the key of PORTARR__APIKEY), never the infrastructure.",
                 };
                 return Task.CompletedTask;
             });

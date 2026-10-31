@@ -1,0 +1,138 @@
+.lead {
+  max-width: 900px;
+  margin: 0 0 20px;
+  color: var(--inkSoft);
+  font-size: var(--fontSizeBody);
+}
+
+.cards {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.cards > * {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+.on {
+  color: var(--successColor);
+  font-weight: 800;
+}
+
+.off {
+  color: var(--inkMuted);
+  font-weight: 800;
+}
+
+.subheading {
+  margin: 18px 0 6px;
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.items li {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+  border-bottom: var(--borderWidth) solid var(--hairline);
+}
+
+.items li:last-child {
+  border-bottom: none;
+}
+
+.toolName {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.writeBadge {
+  padding: 0 8px;
+  border: var(--borderWidth) solid var(--warningColor);
+  border-radius: var(--radiusPill);
+  color: var(--warningColor);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+}
+
+.meta {
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+}
+
+.name {
+  font-family: var(--monoSpaceFontFamily);
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+}
+
+.description,
+.text {
+  color: var(--inkSoft);
+  font-size: var(--fontSizeBody);
+}
+
+.text {
+  margin: 0 0 8px;
+}
+
+.questions {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--inkSoft);
+  font-style: italic;
+}
+
+.knowledgeSection {
+  margin-top: 28px;
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-family: var(--displayFontFamily);
+  font-size: var(--fontSizeCardTitle);
+  font-weight: 600;
+}
+
+.heading svg {
+  color: var(--secondary);
+}
+
+.knowledge {
+  padding: 16px 20px;
+  border: var(--borderWidth) solid var(--hairline);
+  border-radius: var(--radiusLarge);
+  background-color: var(--paperCard);
+  box-shadow: var(--shadowCard);
+}
+
+.section {
+  border-top: var(--borderWidth) solid var(--hairline);
+}
+
+.summary {
+  padding: 10px 0;
+  font-family: var(--displayFontFamily);
+  font-size: var(--fontSizeBody);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.summary:focus-visible {
+  outline: var(--borderWidth) solid var(--accent);
+}

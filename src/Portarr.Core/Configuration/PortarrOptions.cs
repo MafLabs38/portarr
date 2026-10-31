@@ -39,6 +39,15 @@ public sealed class PortarrOptions
     public IReadOnlyList<string> TrustedProxyEntries =>
         (TrustedProxies ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
+    /// <summary>Editing the catalog through the API and the MCP write tools (D-83, D-85).</summary>
+    public CatalogOptions Catalog { get; set; } = new();
+
+    /// <summary>
+    /// The key API writes require until Portarr has accounts (C2): <c>PORTARR__APIKEY</c>, sent as <c>X-Api-Key</c>
+    /// or <c>Authorization: Bearer</c>. Never returned by the API, never logged.
+    /// </summary>
+    public string? ApiKey { get; set; }
+
     /// <summary>Community icon set, fetched once per icon and cached in the data folder.</summary>
     public Uri IconSourceUrl { get; set; } = new("https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/");
 
@@ -66,6 +75,18 @@ public sealed class PortarrOptions
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.Create),
             "Portarr");
     }
+}
+
+/// <summary>Section <c>Catalog</c>: <c>PORTARR__CATALOG__WRITABLE</c>, <c>PORTARR__CATALOG__BACKUPS</c>.</summary>
+public sealed class CatalogOptions
+{
+    public const int DefaultBackups = 10;
+
+    /// <summary>Off by default: the catalog is a file the operator owns (D-44); the API edits it only when asked to.</summary>
+    public bool Writable { get; set; }
+
+    /// <summary>How many previous versions are kept next to the catalog (<c>catalog.yaml.bak-&lt;timestamp&gt;</c>).</summary>
+    public int Backups { get; set; } = DefaultBackups;
 }
 
 public sealed class DatabaseOptions

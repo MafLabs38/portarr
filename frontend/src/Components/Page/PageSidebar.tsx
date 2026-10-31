@@ -18,6 +18,8 @@ const entries: Entry[] = [
   { to: '/infrastructure', label: 'Infrastructure', icon: icons.INFRASTRUCTURE },
   { to: '/data', label: 'Data', icon: icons.DATA },
   { to: '/maintenance', label: 'Maintenance', icon: icons.MAINTENANCE },
+  // Its own entry while the sidebar has no second level (C3): the same questions, asked from an AI (V5).
+  { to: '/assistant', label: 'Assistant', icon: icons.ASSISTANT },
   { to: '/system/status', label: 'System', icon: icons.SYSTEM },
 ];
 

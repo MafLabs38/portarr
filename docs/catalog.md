@@ -1,10 +1,11 @@
 # The catalog (`catalog.yaml`)
 
-The catalog declares what you run: **environments**, **stacks** and **apps**, plus the **data you follow** (and which backup tools should protect it) and the **code sources** you make apps from. Workloads (containers, pods, Pages projects, Workers) are never declared: Portarr discovers them and links them to apps through selectors (spec §4.2).
+The catalog declares what you run: **environments**, **stacks** and **apps**, plus the **data you follow** (and which backup tools should protect it), the **code sources** you make apps from, and **what you know** about the fleet for people and AI assistants: notes, how to reach each machine, network links and external providers ([Knowledge](#knowledge-for-people-and-assistants)). Workloads (containers, pods, Pages projects, Workers) are never declared: Portarr discovers them and links them to apps through selectors (spec §4.2).
 
 - Location: `<data folder>/catalog.yaml` (`/config/catalog.yaml` in the image), or `PORTARR__CATALOGFILE`.
 - Reloaded as soon as the file is saved. A broken edit keeps the last valid catalog; the errors are shown on the Apps page and at `GET /api/v1/catalog/status`.
 - Without a catalog, Portarr starts empty (D-32).
+- It can also be edited through the API and the MCP write tools, off by default ([Editing through the API](#editing-through-the-api)); the file stays the source of truth.
 
 ```yaml
 environments:
@@ -232,6 +233,82 @@ apps:
 
 - A repository is shown as **running in the fleet** when an app declares it in `repository:`, when a running image carries its URL in the OCI label `org.opencontainers.image.source`, or when a running image is named like it (`ghcr.io/example/shop`, Docker Hub `example/shop`). The others are listed as **not deployed here**.
 - Running images need no declaration: every running container and pod is checked against its registry ([connectors/registries.md](connectors/registries.md)).
+
+## Knowledge for people and assistants
+
+What you would tell a new colleague, or an AI assistant, about your fleet (D-84): what a machine is for, how to reach it, how machines are wired together, which external services you depend on. Portarr only describes it: it never connects with it. It feeds the Assistant's knowledge base (`portarr://knowledge/infrastructure`) and the MCP tool `get_environment_knowledge`.
+
+```yaml
+environments:
+  - id: server-1
+    name: Server 1
+    notes: |                             # free Markdown, at most 8000 characters
+      The hypervisor. Stop the array before a reboot.
+    access:                              # how to reach this machine (never a secret)
+      ssh: { alias: server-1, host: 10.0.0.10, port: 22, user: root, key: ~/.ssh/server-1, jump: bastion }
+      consoles: [{ label: Web UI, href: "https://server-1.homelab.example" }]
+      notes: From outside, through the VPN first.
+  - id: cluster
+    name: Cluster
+    runtime: kubernetes
+    kubernetes: { server: "https://10.0.0.20:6443", tokenEnv: K8S_TOKEN, nodeHosts: { node-1: server-1 } }
+    machines:                            # what you know about the machines of an environment (cluster nodes, VPS)
+      - name: node-2                     # the host or node name
+        notes: A VPS at a hosting provider; no Docker on it.
+        access: { ssh: { alias: node-2, user: ubuntu, key: id_ed25519 } }
+
+stacks:
+  - { id: web, name: Web, members: [{ app: blog }], notes: Public sites. }
+apps:
+  - { id: blog, name: Blog, notes: "Built by CI, deployed on push." }
+
+links:                                   # network links between environments or machines
+  - id: tunnel
+    from: node-1                         # an environment id, a machine name, or environment/machine
+    to: node-2
+    kind: wireguard-tunnel               # wireguard-tunnel | vpn | lan | peering | ssh-tunnel | other
+    name: wg0
+    network: 10.99.0.0/24                # optional, CIDR
+    notes: node-1 initiates (it is behind a NAT); node-2 listens on 51820/udp.
+
+providers:                               # external providers and accounts you use
+  - id: cdn
+    name: Example CDN
+    kind: cdn                            # cdn | paas | dns | registrar | cloud | vps | storage | backup | email | git | registry | monitoring | other
+    console: "https://dash.cdn.example"
+    account: ops@homelab.example         # which account: a name or an e-mail hint, never a credential
+    usedBy: [blog, cluster]              # app and environment ids
+    notes: Pages for the blog, DNS of homelab.example.
+```
+
+- `notes` exist on environments, machines, stacks, apps, links and providers.
+- `access.ssh` takes an `alias` (from your SSH config) or a `host`, and optionally `port`, `user`, `key` (the **name or path** of the key file) and `jump` (ProxyJump). Assistants are told `ssh <alias>`, or the full command line.
+- A machine name can be one of `machines`, or a node of `kubernetes.nodeHosts`; a link end that is a machine of several environments must be written `environment/machine`.
+- **No secrets**: a value that looks like one (a private key or a certificate, SSH key material, a well-known token format, `password=…`, credentials in a URL, a long random string) is a catalog error that names the field, never the value. Name the key file or the environment variable instead.
+
+## Editing through the API
+
+The catalog file stays the source of truth (D-44); Portarr can edit it for you, or for an assistant, instead of you editing YAML (D-83 to D-86). Off by default:
+
+| Setting | Effect |
+|---|---|
+| `PORTARR__CATALOG__WRITABLE=true` | Turns the write endpoints on. Requires `PORTARR__APIKEY` (at least 32 characters, e.g. `openssl rand -hex 32`). |
+| `PORTARR__APIKEY` | The key writes send in `X-Api-Key` (or `Authorization: Bearer`), until Portarr has accounts (C2). |
+| `PORTARR__CATALOG__BACKUPS` | Previous versions kept next to the catalog (`catalog.yaml.bak-<timestamp>`), default 10. |
+| `PORTARR__MCP__WRITETOOLS=true` | Adds the MCP write tools ([verticals/V5-ai-mcp.md](verticals/V5-ai-mcp.md)); they also need the catalog to be writable. |
+
+```bash
+curl -s localhost:8484/api/v1/catalog/status                               # → "version": "3f2a…", "writable": true
+curl -s localhost:8484/api/v1/catalog/apps/blog                            # the item as the file holds it, with the version
+curl -s -X PUT localhost:8484/api/v1/catalog/apps/blog/notes -H "X-Api-Key: $KEY" \
+  -H 'Content-Type: application/json' -d '{"version":"3f2a…","notes":"Built by CI."}'
+```
+
+- Endpoints: `GET|PUT|DELETE /api/v1/catalog/{section}/{id}`, `POST /api/v1/catalog/{section}`, `PUT /api/v1/catalog/{section}/{id}/notes`, `PUT|DELETE /api/v1/catalog/environments/{id}/machines/{name}`, `GET /api/v1/catalog/audit`; sections `environments`, `stacks`, `apps`, `data`, `links`, `providers`. Items are JSON with the keys of the file. Reading one item and the audit need the API key too (they show the connectors' addresses and who changed what); they answer even when writes are off. Reference at `/docs`.
+- **Versions**: every write sends the version it read; if the file changed since (by hand, by another client), the write is refused with 409 and the current version. Writes are serialized.
+- **Validation**: the whole resulting file goes through the parser; an error is a 400 whose `errors` are keyed by field path (`apps[blog].check.url`) and the file is not touched.
+- **What changes in the file**: only what differs. A changed value is rewritten in place, a new key or item is added after the last one with the file's indentation and style (an item of a list written `- { … }` is written that way), a removed one loses its lines; comments and formatting elsewhere stay. Limits: a comment *inside* a rewritten node is lost (a flow item is rewritten whole; a list whose order changed is rewritten), and a comment line above a removed item stays.
+- **Safety**: the file is written to a temporary file and renamed over the catalog (atomic); a catalog bind-mounted as a single file is rewritten in place instead. Each write keeps the previous version and is appended to `catalog.audit.jsonl` next to the catalog (when, channel `api` or `mcp`, client address, operation, item, versions before and after, which keys changed; never values or keys). 30 writes per minute per client.
 
 ## Icons
 

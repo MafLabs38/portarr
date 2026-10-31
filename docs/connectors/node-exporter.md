@@ -10,7 +10,7 @@ One `GET` of the `/metrics` URL per machine and second, `Accept-Encoding: gzip`,
 |---|---|
 | `node_cpu_seconds_total{cpu,mode}` | Load, I/O wait, load per core |
 | `node_memory_MemTotal_bytes`, `MemAvailable`, `MemFree` | Memory ring (required: without `MemTotal` and `MemAvailable` the read fails) |
-| `node_memory_Buffers_bytes`, `Cached`, `SReclaimable` | Kernel cache, informative (API) |
+| `node_memory_Buffers_bytes`, `Cached`, `SReclaimable` | Kernel cache, informative (MCP, API) |
 | `node_memory_SwapTotal_bytes`, `SwapFree` | Swap bar |
 | `node_load1` | Load average |
 | `node_hwmon_temp_celsius{chip}` | CPU temperature: the hottest sensor of a CPU chip (`coretemp`, `k10temp`, `zenpower`, `cpu_thermal`); disks and boards are ignored |

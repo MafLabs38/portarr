@@ -11,3 +11,4 @@ An accepted ADR is never edited to change its decision: a new ADR supersedes it.
 | [0004](0004-dapper-and-fluentmigrator.md) | Dapper + FluentMigrator for data access | D-28 |
 | [0005](0005-backend-test-stack.md) | xUnit v3, NSubstitute, AwesomeAssertions on Microsoft.Testing.Platform | D-29 |
 | [0006](0006-repository-layout.md) | Monorepo layout and one assembly per layer and per connector | D-35 |
+| [0007](0007-text-level-catalog-editing.md) | Text-level catalog editing: comments kept, only changed nodes re-emitted | D-83 |

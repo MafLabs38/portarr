@@ -1,0 +1,62 @@
+.markdown {
+  font-size: var(--fontSizeBody);
+  line-height: 1.6;
+}
+
+.heading {
+  margin: 16px 0 8px;
+  font-family: var(--displayFontFamily);
+  font-size: var(--fontSizeBody);
+  font-weight: 600;
+}
+
+.paragraph {
+  margin: 0 0 10px;
+  color: var(--inkSoft);
+}
+
+.list {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+.list .list {
+  margin-bottom: 0;
+}
+
+.code {
+  padding: 0 4px;
+  border-radius: var(--radiusSmall);
+  background-color: var(--paperSunken);
+  font-family: var(--monoSpaceFontFamily);
+  font-size: var(--fontSizeMeta);
+}
+
+.tableWrapper {
+  overflow-x: auto;
+  margin: 0 0 12px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fontSizeMeta);
+}
+
+.table th,
+.table td {
+  padding: 4px 8px;
+  border-bottom: var(--borderWidth) solid var(--hairline);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table th {
+  color: var(--inkMuted);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.markdown a {
+  color: var(--secondary);
+}
