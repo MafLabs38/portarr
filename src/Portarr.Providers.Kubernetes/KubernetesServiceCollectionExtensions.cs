@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Portarr.Core.Backups;
 using Portarr.Core.Infrastructure;
 using Portarr.Core.Workloads;
 
@@ -11,6 +12,8 @@ public static class KubernetesServiceCollectionExtensions
         services.AddSingleton<KubernetesApiClient>();
         services.AddSingleton<IWorkloadSource, KubernetesWorkloadSource>();
         services.AddSingleton<IInfrastructureSource, KubernetesInfrastructureSource>();
+        services.AddSingleton<IBackupSource, KubernetesCronJobBackupSource>();
+        services.AddSingleton<IBackupSource, KubernetesK8upBackupSource>();
         services.AddSingleton<IHostMetricsSource, KubernetesNodeExporterSource>();
 
         return services;

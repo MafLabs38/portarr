@@ -32,3 +32,16 @@ apps:
     name: Docs
     urls:
       - { href: 'https://docs.homelab.example' }
+
+# Followed data: what the Data page shows on this stack. A copy made by hand needs no backup tool; the off-site copy
+# is declared and nothing produces it yet.
+data:
+  - id: web-content
+    app: web
+    name: Web content
+    kind: files
+    importance: critical
+    where: { environment: e2e, workload: e2e-web }
+    targets:
+      local: { manual: true }
+      offsite: {}

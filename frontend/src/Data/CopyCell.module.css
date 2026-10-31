@@ -1,0 +1,49 @@
+.cell,
+.absent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.head {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  color: var(--secondary);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+}
+
+.meta {
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+}
+
+.failed {
+  color: var(--dangerColor);
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+}
+
+.sources {
+  margin: 0;
+  padding: 0;
+  color: var(--inkSoft);
+  font-size: var(--fontSizeMeta);
+  list-style: none;
+}
+
+.reason {
+  color: var(--warningColor);
+  font-weight: 700;
+}
+
+.absent {
+  padding: 4px 8px;
+  border: var(--borderWidth) dashed var(--hairlineStrong);
+  border-radius: var(--radiusSmall);
+  opacity: 0.8;
+}

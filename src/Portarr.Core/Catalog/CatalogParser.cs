@@ -73,6 +73,22 @@ public static partial class CatalogParser
     [GeneratedRegex("^(?<from>[1-5][0-9]{2})(-(?<to>[1-5][0-9]{2}))?$")]
     private static partial Regex StatusRangePattern();
 
+    /// <summary>A duration: <c>30m</c>, <c>24h</c>, <c>7d</c>.</summary>
+    [GeneratedRegex("^(?<value>[0-9]{1,4})(?<unit>[mhd])$")]
+    private static partial Regex EveryPattern();
+
+    /// <summary>A Backrest plan id.</summary>
+    [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")]
+    private static partial Regex PlanPattern();
+
+    /// <summary>A namespaced Kubernetes object: <c>namespace/name</c>.</summary>
+    [GeneratedRegex("^(?<namespace>[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)/(?<name>[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?)$")]
+    private static partial Regex NamespacedNamePattern();
+
+    /// <summary>A data kind: <c>postgresql</c>, <c>sqlite-app-config</c>.</summary>
+    [GeneratedRegex("^[a-z][a-z0-9]*(-[a-z0-9]+)*$")]
+    private static partial Regex KindPattern();
+
     private sealed class Builder
     {
         private readonly List<string> _errors = [];
@@ -87,10 +103,11 @@ public static partial class CatalogParser
             var appIds = apps.Select(a => a.Id).ToHashSet();
 
             var stacks = BuildStacks(document.Stacks ?? [], appDocuments, appIds);
+            var data = BuildData(document.Data ?? [], environmentsById, appIds);
             var gitHub = BuildGitHub(document.Sources?.GitHub);
 
             return _errors.Count == 0
-                ? new CatalogParseResult(new Catalog(environments, stacks, apps, gitHub), [])
+                ? new CatalogParseResult(new Catalog(environments, stacks, apps, data, gitHub), [])
                 : new CatalogParseResult(Catalog.Empty, _errors);
         }
 
@@ -128,7 +145,8 @@ public static partial class CatalogParser
                     cloudflare,
                     kubernetes,
                     string.IsNullOrWhiteSpace(document.Host) ? null : document.Host.Trim(),
-                    BuildHostMetrics(id, document, docker)));
+                    BuildHostMetrics(id, document, docker),
+                    BuildBackrest(id, document, kubernetes is null && cloudflare is null)));
             }
 
             ValidateHosts(result);
@@ -804,6 +822,254 @@ public static partial class CatalogParser
             }
 
             return members;
+        }
+
+        /// <summary>
+        /// <c>backrest:</c> (D-80) names the Backrest of a single machine (a Docker host or a launcher-only
+        /// environment): its URL and the variables holding the basic-auth credentials, never the credentials.
+        /// </summary>
+        private BackrestEndpoint? BuildBackrest(string environmentId, EnvironmentDocument document, bool singleMachine)
+        {
+            if (document.Backrest is null)
+            {
+                return null;
+            }
+
+            if (!singleMachine)
+            {
+                _errors.Add($"Environment '{environmentId}': backrest runs on a docker host (or an environment without connector), not on a kubernetes or cloudflare environment.");
+                return null;
+            }
+
+            if (MetricsUrl(document.Backrest.Url) is not { } url)
+            {
+                _errors.Add($"Environment '{environmentId}': backrest.url must be Backrest's address (e.g. http://10.0.0.10:9898), without credentials.");
+                return null;
+            }
+
+            var user = Blank(document.Backrest.UserEnv);
+            var password = Blank(document.Backrest.PasswordEnv);
+            if ((user is null) != (password is null) || (user is not null && !VariableNamePattern().IsMatch(user)) || (password is not null && !VariableNamePattern().IsMatch(password)))
+            {
+                _errors.Add($"Environment '{environmentId}': backrest.userEnv and passwordEnv must both name an environment variable (never the credentials themselves), or both be omitted when Backrest has no authentication.");
+                return null;
+            }
+
+            return new BackrestEndpoint(url, user, password);
+        }
+
+        /// <summary>
+        /// The data followed (D-77). Each asset belongs to a declared app, lives on a declared environment, has an
+        /// importance (which gives its accepted loss window unless <c>maxAge</c> overrides it) and at least one
+        /// target; a target names the sources that should prove the copy exists. Nothing is discovered.
+        /// </summary>
+        private List<DataAssetDefinition> BuildData(List<DataDocument> documents, Dictionary<string, CatalogEnvironment> environments, HashSet<string> appIds)
+        {
+            var result = new List<DataAssetDefinition>();
+
+            foreach (var (document, index) in documents.Select((d, i) => (d, i)))
+            {
+                var id = RequireId(document.Id, $"data[{index}]", result.Select(d => d.Id));
+                if (id is null)
+                {
+                    continue;
+                }
+
+                var errors = _errors.Count;
+                var app = Blank(document.App);
+                if (app is null || !appIds.Contains(app))
+                {
+                    _errors.Add($"Data '{id}': app '{app}' is not a declared app; every followed data belongs to an app.");
+                }
+
+                var kind = Blank(document.Kind) ?? string.Empty;
+                if (!KindPattern().IsMatch(kind))
+                {
+                    _errors.Add($"Data '{id}': kind is required, lowercase letters, digits and dashes (e.g. postgresql, sqlite-app-config, volume).");
+                }
+
+                var where = BuildWhere(id, document.Where, environments);
+                if (!Enum.TryParse(document.Importance, ignoreCase: true, out DataImportance importance) || !Enum.IsDefined(importance))
+                {
+                    _errors.Add($"Data '{id}': importance is required: critical, important or comfort.");
+                    importance = DataImportance.Important;
+                }
+
+                var maxAge = document.MaxAge is null ? DataPolicy.DefaultMaxAge(importance) : ParseEvery(id, "maxAge", document.MaxAge);
+                var targets = BuildTargets(id, document.Targets, where?.EnvironmentId, environments);
+
+                if (_errors.Count == errors && where is not null)
+                {
+                    result.Add(new DataAssetDefinition(id, Blank(document.Name) ?? id, app!, kind, where, importance, maxAge, targets));
+                }
+            }
+
+            return result;
+        }
+
+        private DataLocation? BuildWhere(string dataId, DataWhereDocument? where, Dictionary<string, CatalogEnvironment> environments)
+        {
+            var environment = Blank(where?.Environment);
+            if (environment is null || !environments.ContainsKey(environment))
+            {
+                _errors.Add($"Data '{dataId}': where.environment '{environment}' is not an environment of the catalog.");
+                return null;
+            }
+
+            return new DataLocation(environment, Blank(where!.Namespace), Blank(where.Workload), Blank(where.Claim), Blank(where.Path));
+        }
+
+        private TimeSpan ParseEvery(string dataId, string key, string value)
+        {
+            var match = EveryPattern().Match(value.Trim());
+            if (!match.Success || match.Groups["value"].Value.All(c => c == '0'))
+            {
+                _errors.Add($"Data '{dataId}': {key} '{value}' must be a duration such as 30m, 24h or 7d.");
+                return TimeSpan.Zero;
+            }
+
+            var amount = int.Parse(match.Groups["value"].Value, System.Globalization.CultureInfo.InvariantCulture);
+            return match.Groups["unit"].Value switch
+            {
+                "m" => TimeSpan.FromMinutes(amount),
+                "h" => TimeSpan.FromHours(amount),
+                _ => TimeSpan.FromDays(amount),
+            };
+        }
+
+        private List<DataTargetDefinition> BuildTargets(string dataId, Dictionary<string, TargetDocument?>? documents, string? dataEnvironment, Dictionary<string, CatalogEnvironment> environments)
+        {
+            var result = new List<DataTargetDefinition>();
+            if (documents is null or { Count: 0 })
+            {
+                _errors.Add($"Data '{dataId}': targets must name the copies expected: local, offsite, or both.");
+                return result;
+            }
+
+            foreach (var (name, document) in documents)
+            {
+                if (!Enum.TryParse<CopyTarget>(name, ignoreCase: true, out var target) || !Enum.IsDefined(target))
+                {
+                    _errors.Add($"Data '{dataId}': target '{name}' must be local or offsite.");
+                    continue;
+                }
+
+                var sources = new List<BackupSourceReference>();
+                AddSource(sources, BuildBackrestSource(dataId, name, document?.Backrest, dataEnvironment, environments));
+                AddSource(sources, BuildK8upSource(dataId, name, document?.K8up, dataEnvironment, environments));
+                AddSource(sources, BuildCronJobSource(dataId, name, document?.Cronjob, dataEnvironment, environments));
+                result.Add(new DataTargetDefinition(target, sources, BuildManual(dataId, name, document?.Manual)));
+            }
+
+            return result;
+        }
+
+        private static void AddSource(List<BackupSourceReference> sources, BackupSourceReference? source)
+        {
+            if (source is not null)
+            {
+                sources.Add(source);
+            }
+        }
+
+        private BackupSourceReference? BuildBackrestSource(string dataId, string target, BackrestSourceDocument? source, string? dataEnvironment, Dictionary<string, CatalogEnvironment> environments)
+        {
+            if (source is null)
+            {
+                return null;
+            }
+
+            var environment = SourceEnvironment(dataId, target, "backrest", source.Environment, dataEnvironment, environments, RuntimeNames.Kubernetes, forbidden: true);
+            var plan = Blank(source.Plan);
+            if (plan is null || !PlanPattern().IsMatch(plan))
+            {
+                _errors.Add($"Data '{dataId}': {target}.backrest.plan must be the id of a Backrest plan (letters, digits, dashes, underscores).");
+                return null;
+            }
+
+            return environment is null ? null : new BackupSourceReference(BackupSourceKinds.Backrest, environment, plan);
+        }
+
+        private BackupSourceReference? BuildK8upSource(string dataId, string target, K8upSourceDocument? source, string? dataEnvironment, Dictionary<string, CatalogEnvironment> environments)
+        {
+            if (source is null)
+            {
+                return null;
+            }
+
+            var environment = SourceEnvironment(dataId, target, "k8up", source.Environment, dataEnvironment, environments, RuntimeNames.Kubernetes, forbidden: false);
+            var schedule = Blank(source.Schedule);
+            if (schedule is null || !NamespacedNamePattern().IsMatch(schedule))
+            {
+                _errors.Add($"Data '{dataId}': {target}.k8up.schedule must be <namespace>/<schedule name>.");
+                return null;
+            }
+
+            return environment is null ? null : new BackupSourceReference(BackupSourceKinds.K8up, environment, schedule, Blank(source.Item));
+        }
+
+        private BackupSourceReference? BuildCronJobSource(string dataId, string target, string? value, string? dataEnvironment, Dictionary<string, CatalogEnvironment> environments)
+        {
+            var cronJob = Blank(value);
+            if (cronJob is null)
+            {
+                return null;
+            }
+
+            var environment = SourceEnvironment(dataId, target, "cronjob", null, dataEnvironment, environments, RuntimeNames.Kubernetes, forbidden: false);
+            if (!NamespacedNamePattern().IsMatch(cronJob))
+            {
+                _errors.Add($"Data '{dataId}': {target}.cronjob must be <namespace>/<cronjob name>.");
+                return null;
+            }
+
+            return environment is null ? null : new BackupSourceReference(BackupSourceKinds.CronJob, environment, cronJob);
+        }
+
+        /// <summary>
+        /// The environment a source is read on: the one named, else the data's own. A Kubernetes source needs a
+        /// Kubernetes environment; Backrest (<c>forbidden</c>) runs on a machine, never on a cluster.
+        /// </summary>
+        private string? SourceEnvironment(string dataId, string target, string tool, string? named, string? dataEnvironment, Dictionary<string, CatalogEnvironment> environments, string kubernetes, bool forbidden)
+        {
+            var id = Blank(named) ?? dataEnvironment;
+            if (id is null || !environments.TryGetValue(id, out var environment))
+            {
+                _errors.Add($"Data '{dataId}': {target}.{tool} environment '{id}' is not an environment of the catalog.");
+                return null;
+            }
+
+            if ((environment.Runtime == kubernetes) == forbidden)
+            {
+                _errors.Add(forbidden
+                    ? $"Data '{dataId}': {target}.{tool} is read on a machine's environment, not on '{id}' (a cluster): set environment on the source."
+                    : $"Data '{dataId}': {target}.{tool} is read on a kubernetes environment, '{id}' is not one: set environment on the source.");
+                return null;
+            }
+
+            return id;
+        }
+
+        private ManualCopy? BuildManual(string dataId, string target, string? value)
+        {
+            var text = Blank(value);
+            if (text is null || text.Equals("false", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            if (text.Equals("true", StringComparison.OrdinalIgnoreCase))
+            {
+                return new ManualCopy(null);
+            }
+
+            if (DateTimeOffset.TryParse(text, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var date))
+            {
+                return new ManualCopy(date.ToUniversalTime());
+            }
+
+            _errors.Add($"Data '{dataId}': {target}.manual must be true, or the date of your last copy in ISO 8601 (e.g. 2026-01-31T03:00:00Z).");
+            return null;
         }
 
         // Never echo credentials from a URL into an error message.

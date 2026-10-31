@@ -5,7 +5,7 @@ using WireMock.Server;
 namespace Portarr.Integration.Test;
 
 /// <summary>
-/// A third-party tool (the Kubernetes API, node_exporter, GitHub…) played by WireMock.Net over real HTTP on
+/// A third-party tool (Backrest, the Kubernetes API, node_exporter, GitHub…) played by WireMock.Net over real HTTP on
 /// a local port, so the connector under test runs with its real HTTP stack (TESTING.md §3). No Docker needed.
 /// </summary>
 public sealed class ToolServer : IDisposable
@@ -27,6 +27,14 @@ public sealed class ToolServer : IDisposable
     {
         _server.Given(Request.Create().WithPath(path).UsingMethod(method))
             .RespondWith(Response.Create().WithStatusCode(status).WithHeader("Content-Type", contentType).WithBody(body));
+        return this;
+    }
+
+    /// <summary>Answers a POST whose body contains <paramref name="bodyPart"/> (Connect protocol methods that share a path).</summary>
+    public ToolServer ServePost(string path, string bodyPart, string body)
+    {
+        _server.Given(Request.Create().WithPath(path).UsingPost().WithBody(new WireMock.Matchers.WildcardMatcher($"*{bodyPart}*")))
+            .RespondWith(Response.Create().WithStatusCode(200).WithHeader("Content-Type", "application/json").WithBody(body));
         return this;
     }
 

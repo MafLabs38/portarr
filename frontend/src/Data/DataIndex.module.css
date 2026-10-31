@@ -1,0 +1,59 @@
+.section {
+  margin-top: 20px;
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-family: var(--displayFontFamily);
+  font-size: var(--fontSizeCardTitle);
+  font-weight: 600;
+}
+
+.heading svg {
+  color: var(--secondary);
+}
+
+.count {
+  padding: 0 8px;
+  border-radius: var(--radiusPill);
+  background-color: var(--paperSunken);
+  color: var(--inkSoft);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+}
+
+.group {
+  margin-bottom: 14px;
+}
+
+.groupHeading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: var(--fontSizeMeta);
+}
+
+.appName {
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.muted {
+  color: var(--inkMuted);
+  font-size: var(--fontSizeBody);
+  font-weight: 700;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  border: var(--borderWidth) solid var(--hairline);
+  border-radius: var(--radiusMedium);
+  background-color: var(--paperCard);
+  box-shadow: var(--shadowCard);
+  list-style: none;
+}

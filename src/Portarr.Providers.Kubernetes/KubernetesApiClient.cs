@@ -28,6 +28,9 @@ public sealed class KubernetesApiClient : IDisposable
     /// <summary>Largest response read (a pod list of a large homelab cluster is a few MB).</summary>
     private const int MaxResponseBytes = 32 * 1024 * 1024;
 
+    private const int ListPageSize = 500;
+    private const int MaxListPages = 20;
+
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
 
     private readonly IConfiguration _configuration;
@@ -95,6 +98,32 @@ public sealed class KubernetesApiClient : IDisposable
 
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync(type, timeout.Token) ?? throw new InvalidDataException($"Empty answer from {path}.");
+    }
+
+    /// <summary>Every item of a list, across pages (<c>limit</c> and <c>continue</c>); null when the resource does not exist (404: CRD not installed).</summary>
+    internal async Task<IReadOnlyList<T>?> ListAsync<T>(KubernetesCluster cluster, string path, JsonTypeInfo<ObjectList<T>> type, CancellationToken cancellationToken)
+    {
+        var items = new List<T>();
+        string? next = null;
+        for (var page = 0; page < MaxListPages; page++)
+        {
+            var separator = path.Contains('?', StringComparison.Ordinal) ? '&' : '?';
+            var url = $"{path}{separator}limit={ListPageSize}" + (next is null ? string.Empty : $"&continue={Uri.EscapeDataString(next)}");
+            var list = await GetAsync(cluster, url, type, cancellationToken);
+            if (list is null)
+            {
+                return page == 0 ? null : items;
+            }
+
+            items.AddRange(list.Items);
+            next = list.Metadata?.Continue;
+            if (string.IsNullOrEmpty(next))
+            {
+                break;
+            }
+        }
+
+        return items;
     }
 
     /// <summary>

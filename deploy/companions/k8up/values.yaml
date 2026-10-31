@@ -1,0 +1,11 @@
+# Helm values for the K8up operator (chart k8up/k8up 4.10, operator v2.16). The defaults are fine to start:
+# every claim of a namespace that has a Schedule is backed up (exclude one with the annotation k8up.io/backup: "false"),
+# and the Snapshot resources Portarr reads are synchronized after each backup. Do not set BACKUP_GLOBAL_SKIP_SNAPSHOT_SYNC.
+#   helm repo add k8up-io https://k8up-io.github.io/k8up
+#   kubectl apply -f https://github.com/k8up-io/k8up/releases/download/k8up-4.10.1/k8up-crd.yaml --server-side
+#   helm install k8up k8up-io/k8up --namespace k8up --create-namespace --version 4.10.1 -f values.yaml
+# Documentation: docs/companions.md#k8up.
+replicaCount: 1
+resources:
+  requests: { cpu: 50m, memory: 128Mi }
+  limits: { memory: 256Mi }

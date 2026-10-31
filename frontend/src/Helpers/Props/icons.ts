@@ -9,6 +9,8 @@ export {
   FolderGit2 as CODE_REPOSITORY,
   Box as CONTAINER,
   Copy as COPY,
+  DatabaseBackup as DATA,
+  Database as DATABASE,
   TriangleAlert as DEGRADED,
   Cloud as DEPLOYMENT,
   Monitor as DESKTOP,

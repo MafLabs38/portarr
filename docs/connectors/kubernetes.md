@@ -4,7 +4,7 @@ Lists the **pods** of every namespace as workloads and the **nodes** as machines
 
 ## Read-only ServiceAccount
 
-Portarr needs `get` and `list` on pods and nodes, and on the metrics of both. One optional rule adds sizes: `list` on `apps/statefulsets` gives the size requested by StatefulSet claims; without it, sizes are unknown. Another optional rule reads a node's node_exporter through the API server: `get` on `pods/proxy` in the exporter's namespace only (a `Role`, see [companions](../companions.md#in-kubernetes)); never the cluster-wide `nodes/proxy`. Nothing else: no secrets, no PersistentVolumeClaims, no writes, no `exec`.
+Portarr needs `get` and `list` on pods and nodes, and on the metrics of both. Two optional rules add data (V3 Data and backups): `list` on `apps/statefulsets` gives the size requested by StatefulSet claims, and, for the Data page's backup sources (D-81), `get, list` on `batch/cronjobs` and `batch/jobs` (a `cronjob:` source: last success, last failed attempt) and on `schedules`, `backups` and `snapshots` of the `k8up.io` group (a `k8up:` source). Without them, sizes are unknown and the copies those sources should prove are Unknown with the reason `http-403`. One more optional rule reads a node's node_exporter through the API server: `get` on `pods/proxy` in the exporter's namespace only (a `Role`, see [companions](../companions.md#in-kubernetes)); never the cluster-wide `nodes/proxy`. Nothing else: no secrets, no PersistentVolumeClaims, no writes, no `exec`.
 
 ```yaml
 apiVersion: v1
@@ -24,6 +24,12 @@ rules:
   - apiGroups: [apps]                 # optional: claim sizes of StatefulSets
     resources: [statefulsets]
     verbs: [list]
+  - apiGroups: [batch]                # optional: backup jobs run as CronJobs (Data page)
+    resources: [cronjobs, jobs]
+    verbs: [get, list]
+  - apiGroups: [k8up.io]              # optional: K8up schedules, backups and snapshots (Data page)
+    resources: [schedules, backups, snapshots]
+    verbs: [get, list]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

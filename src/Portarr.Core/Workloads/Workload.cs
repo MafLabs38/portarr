@@ -4,7 +4,7 @@ namespace Portarr.Core.Workloads;
 /// A running unit discovered by a connector (spec §4.1); never declared by hand. <c>Namespace</c> and
 /// <c>Node</c> are set by orchestrators (Kubernetes): the pod's namespace and the node it runs on.
 /// <c>Mounts</c> are its persistent storage (bind mounts, named volumes, PersistentVolumeClaims), which
-/// tells where its data lives. <c>ImageDigest</c> is the registry digest of the running
+/// tells where its data lives (V3 Data and backups). <c>ImageDigest</c> is the registry digest of the running
 /// image when the runtime reports it (Kubernetes' <c>imageID</c>): it tells whether a floating tag moved (V4).
 /// </summary>
 public sealed record Workload(

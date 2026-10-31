@@ -1,0 +1,24 @@
+# What Portarr's read-only ServiceAccount needs to read the backups of a cluster: get and list, nothing else
+# (no Secrets, no write verb). Merge these rules into the ClusterRole Portarr already uses for its inventory.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: portarr-backups-reader
+rules:
+  - apiGroups: [k8up.io]
+    resources: [schedules, backups, snapshots]
+    verbs: [get, list]
+  - apiGroups: [batch]
+    resources: [cronjobs, jobs]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: portarr-backups-reader
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: portarr-backups-reader }
+subjects:
+  - { kind: ServiceAccount, name: portarr-reader, namespace: portarr }
