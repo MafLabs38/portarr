@@ -58,7 +58,7 @@ public sealed class CheckSchedulerFixture : CoreTest<CheckScheduler>
     }
 
     [Fact]
-    public async Task should_record_an_invalid_response_when_the_runner_throws_instead_of_cancelling_the_tick()
+    public async Task should_record_a_failed_check_when_the_runner_throws_instead_of_cancelling_the_tick()
     {
         Mocker.Get<IHttpCheckRunner>().RunAsync(Target, Arg.Any<CheckDefinition>(), Arg.Any<CancellationToken>())
             .Returns<CheckResult>(_ => throw new InvalidOperationException("a bug in a runner"));
@@ -66,6 +66,6 @@ public sealed class CheckSchedulerFixture : CoreTest<CheckScheduler>
         var run = () => Subject.RunDueAsync(TestContext.Current.CancellationToken);
 
         await run.Should().NotThrowAsync();
-        Mocker.Get<ICheckStore>().Get("app")!.History.Should().ContainSingle().Which.Error.Should().Be(CheckErrors.InvalidResponse);
+        Mocker.Get<ICheckStore>().Get("app")!.History.Should().ContainSingle().Which.Error.Should().Be(CheckErrors.CheckFailed);
     }
 }

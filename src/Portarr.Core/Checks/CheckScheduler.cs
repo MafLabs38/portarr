@@ -70,7 +70,7 @@ public sealed partial class CheckScheduler : BackgroundService
 
     /// <summary>
     /// One probe. The runner reports the failures it knows as a result; anything else it throws (a bug, an exception it does not map) is
-    /// recorded as an invalid response for this check, never allowed to cancel the other checks of the tick.
+    /// recorded as a failed check (Portarr's fault, not the app's), never allowed to cancel the other checks of the tick.
     /// </summary>
     private async Task<CheckResult> ProbeAsync(AppCheckView check, CancellationToken cancellationToken)
     {
@@ -81,7 +81,7 @@ public sealed partial class CheckScheduler : BackgroundService
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
             LogProbeThrew(exception);
-            return new CheckResult(_timeProvider.GetUtcNow(), null, null, CheckErrors.InvalidResponse, null);
+            return new CheckResult(_timeProvider.GetUtcNow(), null, null, CheckErrors.CheckFailed, null);
         }
     }
 

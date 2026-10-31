@@ -25,6 +25,9 @@ public static class CheckErrors
     public const string KeywordMissing = "keyword-missing";
     public const string InvalidResponse = "invalid-response";
 
+    /// <summary>Portarr's own check failed to run (a bug): not an answer of the app, so not blamed on it.</summary>
+    public const string CheckFailed = "check-failed";
+
     /// <summary><c>http-502</c>: a status outside the expected ones.</summary>
     public static string UnexpectedStatus(int statusCode) => $"http-{statusCode}";
 }
