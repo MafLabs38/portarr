@@ -131,7 +131,13 @@ public static partial class CatalogParser
                     continue;
                 }
 
-                var docker = BuildDocker(id, document.Docker);
+                var reader = BuildReader(id, document);
+                if (document.Reader is not null && reader is null)
+                {
+                    continue;
+                }
+
+                var docker = reader?.Docker ?? BuildDocker(id, document.Docker);
                 var cloudflare = BuildCloudflare(id, document);
                 var kubernetes = BuildKubernetes(id, document);
 
@@ -148,7 +154,7 @@ public static partial class CatalogParser
                     cloudflare,
                     kubernetes,
                     string.IsNullOrWhiteSpace(document.Host) ? null : document.Host.Trim(),
-                    BuildHostMetrics(id, document, docker),
+                    reader?.HostMetrics ?? BuildHostMetrics(id, document, docker),
                     BuildBackrest(id, document, kubernetes is null && cloudflare is null),
                     BuildNotes($"Environment '{id}'", document.Notes),
                     BuildAccess($"Environment '{id}'", "access", document.Access),
@@ -245,7 +251,7 @@ public static partial class CatalogParser
 
             if (Uri.TryCreate(document.Url, UriKind.Absolute, out var url) && url.Scheme is "unix" or "http" or "https" or "tcp")
             {
-                return new DockerEndpoint(url);
+                return TryTokenVariable(environmentId, "docker.tokenEnv", document.TokenEnv, out var variable) ? new DockerEndpoint(url, variable) : null;
             }
 
             _errors.Add($"Environment '{environmentId}': docker.url must be unix:///path/to/docker.sock or http(s)://host:port.");
@@ -350,7 +356,61 @@ public static partial class CatalogParser
                 return null;
             }
 
-            return new HostMetricsEndpoint(url);
+            return TryTokenVariable(environmentId, "hostMetrics.tokenEnv", document.HostMetrics.TokenEnv, out var variable) ? new HostMetricsEndpoint(url, variable) : null;
+        }
+
+        /// <summary>
+        /// <c>reader:</c> (D-100, D-101): the Portarr reader of a machine, one address and one token variable, read as the
+        /// Docker window at <c>/v1/docker/</c> and the node_exporter text at <c>/v1/host</c>. It replaces <c>docker</c> and
+        /// <c>hostMetrics</c>: declaring both is an error that names them.
+        /// </summary>
+        private (DockerEndpoint Docker, HostMetricsEndpoint HostMetrics)? BuildReader(string environmentId, EnvironmentDocument document)
+        {
+            if (document.Reader is null)
+            {
+                return null;
+            }
+
+            if (document.Docker is not null || document.HostMetrics is not null)
+            {
+                _errors.Add($"Environment '{environmentId}': reader replaces docker and hostMetrics; declare the reader, or docker and hostMetrics, not both.");
+                return null;
+            }
+
+            if (document.Runtime is not null and not RuntimeNames.Docker)
+            {
+                _errors.Add($"Environment '{environmentId}': a {document.Runtime} environment cannot declare a reader (it reads Docker hosts).");
+                return null;
+            }
+
+            var reader = document.Reader;
+            if (!Uri.TryCreate(reader.Url, UriKind.Absolute, out var url) || url.Scheme is not ("http" or "https") || url.UserInfo.Length > 0 || url.AbsolutePath != "/" || url.Query.Length > 0)
+            {
+                _errors.Add($"Environment '{environmentId}': reader.url must be the reader's address (e.g. http://10.0.0.10:8485), without credentials or a path.");
+                return null;
+            }
+
+            var variable = reader.TokenEnv?.Trim();
+            if (string.IsNullOrEmpty(variable) || !VariableNamePattern().IsMatch(variable))
+            {
+                _errors.Add($"Environment '{environmentId}': reader.tokenEnv must be the name of the environment variable holding the reader's token (e.g. PORTARR_READER_SERVER_1), never the token itself.");
+                return null;
+            }
+
+            return (new DockerEndpoint(new Uri(url, "v1/docker/"), variable), new HostMetricsEndpoint(new Uri(url, "v1/host"), variable));
+        }
+
+        /// <summary>An optional <c>tokenEnv</c>: absent is fine, present must be a variable name, never a token.</summary>
+        private bool TryTokenVariable(string environmentId, string key, string? value, out string? variable)
+        {
+            variable = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            if (variable is null || VariableNamePattern().IsMatch(variable))
+            {
+                return true;
+            }
+
+            _errors.Add($"Environment '{environmentId}': {key} must be the name of an environment variable, never the token itself.");
+            return false;
         }
 
         /// <summary>

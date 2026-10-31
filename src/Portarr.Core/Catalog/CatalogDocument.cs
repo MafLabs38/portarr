@@ -240,6 +240,9 @@ internal sealed class EnvironmentDocument
 
     public DockerDocument? Docker { get; set; }
 
+    /// <summary>The Portarr reader of this machine, in place of <c>docker</c> and <c>hostMetrics</c> (D-100, D-101).</summary>
+    public ReaderDocument? Reader { get; set; }
+
     public CloudflareDocument? Cloudflare { get; set; }
 
     public KubernetesDocument? Kubernetes { get; set; }
@@ -269,6 +272,9 @@ internal sealed class HostMetricsDocument
 {
     /// <summary>node_exporter's metrics URL, e.g. http://10.0.0.10:9100/metrics.</summary>
     public string? NodeExporter { get; set; }
+
+    /// <summary>The environment variable holding a bearer token, when something in front of node_exporter asks for one.</summary>
+    public string? TokenEnv { get; set; }
 }
 
 internal sealed class NodeExporterDocument
@@ -317,6 +323,20 @@ internal sealed class KubernetesDocument
 internal sealed class DockerDocument
 {
     public string? Url { get; set; }
+
+    /// <summary>The environment variable holding a bearer token, when something in front of Docker asks for one.</summary>
+    public string? TokenEnv { get; set; }
+}
+
+/// <summary>
+/// The Portarr reader of a machine (D-100): one URL and the variable holding its token, read as <c>docker:</c> and
+/// <c>hostMetrics:</c> (D-101).
+/// </summary>
+internal sealed class ReaderDocument
+{
+    public string? Url { get; set; }
+
+    public string? TokenEnv { get; set; }
 }
 
 internal sealed class StackDocument

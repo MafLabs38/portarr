@@ -22,6 +22,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Portarr.Host\Portarr.Host.csproj" />
+    <ProjectReference Include="..\Portarr.Reader\Portarr.Reader.csproj" />
     <ProjectReference Include="..\Portarr.Test.Common\Portarr.Test.Common.csproj" />
   </ItemGroup>
 </Project>

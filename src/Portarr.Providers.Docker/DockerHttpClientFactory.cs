@@ -1,4 +1,6 @@
+using System.Net.Http.Headers;
 using System.Net.Sockets;
+using Microsoft.Extensions.Configuration;
 using Portarr.Core.Catalog;
 
 namespace Portarr.Providers.Docker;
@@ -23,6 +25,18 @@ public sealed class DockerHttpClientFactory : IDisposable
 
     private readonly Dictionary<Uri, HttpClient> _clients = [];
     private readonly Lock _lock = new();
+    private readonly IConfiguration? _configuration;
+
+    public DockerHttpClientFactory(IConfiguration? configuration = null)
+    {
+        _configuration = configuration;
+    }
+
+    /// <summary>The bearer token the endpoint asks for, from its environment variable; null when it asks for none or the variable is empty.</summary>
+    public string? TokenOf(DockerEndpoint endpoint)
+    {
+        return endpoint.TokenVariable is { } variable && _configuration?[variable] is { Length: > 0 } token ? token : null;
+    }
 
     public HttpClient Get(DockerEndpoint endpoint)
     {
@@ -31,6 +45,11 @@ public sealed class DockerHttpClientFactory : IDisposable
             if (!_clients.TryGetValue(endpoint.Url, out var client))
             {
                 client = Create(endpoint.Url);
+                if (TokenOf(endpoint) is { } token)
+                {
+                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                }
+
                 _clients[endpoint.Url] = client;
             }
 
@@ -78,7 +97,9 @@ public sealed class DockerHttpClientFactory : IDisposable
             return new HttpClient(handler) { BaseAddress = new Uri(UnixSocketBaseAddress), Timeout = Timeout.InfiniteTimeSpan };
         }
 
-        var builder = new UriBuilder(url) { Scheme = url.Scheme == "tcp" ? "http" : url.Scheme, Path = "/" };
+        // A base path is kept (the Portarr reader serves the Docker API under /v1/docker/); a bare address stays at the root.
+        var path = url.AbsolutePath.EndsWith('/') ? url.AbsolutePath : url.AbsolutePath + "/";
+        var builder = new UriBuilder(url) { Scheme = url.Scheme == "tcp" ? "http" : url.Scheme, Path = path };
         if (url.Scheme == "tcp" && url.IsDefaultPort)
         {
             builder.Port = DefaultTcpPort;
