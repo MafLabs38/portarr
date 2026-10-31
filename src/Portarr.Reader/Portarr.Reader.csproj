@@ -3,5 +3,12 @@
     <AssemblyName>portarr-reader</AssemblyName>
     <RootNamespace>Portarr.Reader</RootNamespace>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- One reader runs on every machine: workstation, non-concurrent GC (the web SDK defaults to the server GC) keeps its memory small. -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>false</TieredPGO>
   </PropertyGroup>
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="7" />
+  </ItemGroup>
 </Project>

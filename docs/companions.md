@@ -6,10 +6,13 @@ Generic deployment examples live in [`deploy/companions/`](../deploy/companions/
 
 | Capability | Companion | Portarr reads |
 |---|---|---|
+| One container per machine: its containers and its host metrics | [The Portarr reader](connectors/reader.md) (`portarr-reader`, optional, shipped with Portarr) | `/v1/docker/` and `/v1/host`, every second |
 | Host metrics (CPU per core, I/O wait, memory, swap) | [node_exporter](#node_exporter) | `/metrics`, every second |
 | Backups of hosts and VMs | [Backrest](#backrest) | plans and their last backups (its API) |
 | Backups in Kubernetes | [K8up](#k8up) | `Schedule`, `Backup` and `Snapshot` resources |
 | Built-in chat (optional) | [Agent runner](#agent-runner) (`portarr-agent`) | — (it calls Portarr's MCP server) |
+
+The reader is the one component the product ships (D-100, amending D-38): it replaces the Docker socket proxy and node_exporter on a machine with a single container, and speaks the same two protocols, so everything below still applies to people who run those tools directly.
 
 Companions are read and never changed by Portarr (D-31): GET only, except Backrest, whose API takes POST for the two read calls Portarr makes.
 

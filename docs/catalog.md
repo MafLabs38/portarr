@@ -14,6 +14,8 @@ environments:
     address: 10.0.0.10                # LAN address: LAN links are built from published ports
     docker: { url: "http://socket-proxy:2375" }   # or unix:///var/run/docker.sock
     hostMetrics: { nodeExporter: "http://10.0.0.10:9100/metrics" }   # host agent, read every second (D-72)
+    # or, in place of the two lines above, one line for the Portarr reader of the machine (D-100, D-101):
+    # reader: { url: "http://10.0.0.10:8485", tokenEnv: PORTARR_READER_SERVER_1 }
     backrest: { url: "http://10.0.0.10:9898", userEnv: BACKREST_USER, passwordEnv: BACKREST_PASSWORD }   # backup tool of this machine (D-80)
   - id: cdn
     name: Cloudflare
@@ -176,6 +178,7 @@ On the Infrastructure page, the host's card then splits its memory into **Contai
 Docker sees only its containers and metrics-server only refreshes a node every ~15 s. A **node_exporter** on a machine gives Portarr the machine as its kernel sees it, every second: overall load, I/O wait, load per core, memory, swap and CPU temperature (D-72, [connectors/node-exporter.md](connectors/node-exporter.md); installation in [companions.md](companions.md#node_exporter)).
 
 - `hostMetrics: { nodeExporter: <URL> }` on a **Docker** environment: the `/metrics` URL of the host's node_exporter (`http` or `https`, no credentials in it).
+- `reader: { url, tokenEnv }` on a **Docker** environment: the [Portarr reader](connectors/reader.md) of the machine, in place of `docker` and `hostMetrics` (declaring both is an error). `url` is the reader's address, `tokenEnv` the name of the variable that holds its token. `docker` and `hostMetrics` also accept an optional `tokenEnv` for a proxy that asks for a bearer token.
 - `kubernetes.nodeExporter:` on a Kubernetes environment, for every node:
   - `port` (default 9100): node_exporter's port at the node's InternalIP (a DaemonSet with `hostNetwork`).
   - `access`: `direct` (default, Portarr calls the node's InternalIP) or `api-server` (through the API server's **pod proxy** to the node_exporter pod running on that node, `GET /api/v1/namespaces/<namespace>/pods/<pod>:<port>/proxy/metrics`, which needs `get` on `pods/proxy` in that namespace only; the node proxy, `nodes/proxy`, would reach any port of any node and is not used).

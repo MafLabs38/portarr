@@ -155,6 +155,24 @@ jobs:
           build-args: VERSION=0.0.0-${{ steps.meta.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # The reader (D-100) is its own image, built from its own Dockerfile and tagged the same way.
+      - id: meta-reader
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        with:
+          images: ghcr.io/${{ github.repository }}-reader
+          tags: |
+            type=ref,event=branch
+            type=sha
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: src/Portarr.Reader/Dockerfile
+          push: true
+          tags: ${{ steps.meta-reader.outputs.tags }}
+          labels: ${{ steps.meta-reader.outputs.labels }}
+          build-args: VERSION=0.0.0-${{ steps.meta-reader.outputs.version }}
+          cache-from: type=gha,scope=reader
+          cache-to: type=gha,mode=max,scope=reader
 
   sonarqube:
     name: sonarqube
