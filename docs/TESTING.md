@@ -68,6 +68,20 @@ public class StackStatusAggregatorFixture : CoreTest<StackStatusAggregator>
 
 ---
 
+### 2.3 The reader (Rust)
+
+The reader (`reader/`, [ADR 0011](adr/0011-reader-speaking-the-existing-protocols.md)) is a Rust program, so it has Rust's own checks, run by CI (`reader` job) and by hand with `cargo` in `reader/`:
+
+```bash
+cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings && cargo test --locked
+```
+
+- **Unit tests** sit next to the code (parsers, configuration, token check, routing, the chunked decoder).
+- **HTTP tests** (`reader/tests/http.rs`) run the real server against a fake Docker, over TCP and over a Unix socket, and check what Portarr relies on: the token, the filtering of what is forwarded, the absence of any other route, the hiding of Docker's own errors, and a followed log that arrives line by line.
+- **Golden files**: the host text for two fixed kernel states (`reader/tests/fixtures/golden-host-*.txt`) is written by the Rust tests (`UPDATE_GOLDEN=1 cargo test` regenerates them) and read by a .NET test with Portarr's own node_exporter sampler, so the two languages agree on one pair of files.
+- **Contract with Portarr**: the .NET integration tests that run Portarr's real Docker sources, and a machine connected by a `reader:` line, against the real binary are skipped unless `PORTARR_READER_BIN` names it (`PORTARR_READER_BIN=$PWD/reader/target/release/portarr-reader dotnet test --project src/Portarr.Integration.Test -- --filter-class "*Reader*"`). CI builds the binary first and runs them.
+- **Smoke test** (`tests/reader/smoke.sh`) runs against the binary and against the image CI builds, with a real Docker.
+
 ## 3. Integration tests
 
 The application **actually runs** and is driven through its public API, as in `Sonarr.Integration.Test`, but with real containerized dependencies.

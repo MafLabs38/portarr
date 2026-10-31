@@ -1,19 +1,17 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Portarr.Core.Infrastructure;
 using Portarr.Core.Workloads;
 using Portarr.Providers.Docker;
-using Portarr.Reader;
 
 namespace Portarr.Integration.Test.Api;
 
 /// <summary>
-/// A machine connected with one line, <c>reader: { url, tokenEnv }</c> (D-100, D-101): Portarr reads a real Portarr reader
-/// over real HTTP, the reader reads a fake Docker and a fake <c>/proc</c>, and the containers, their usage and the live host
+/// A machine connected with one line, <c>reader: { url, tokenEnv }</c> (D-100, D-101): Portarr reads the real Portarr reader (the Rust
+/// binary, <c>PORTARR_READER_BIN</c>) over real HTTP, the reader reads a fake Docker and a fake <c>/proc</c>, and the containers, their usage and the live host
 /// metrics show up through the existing Docker and node_exporter connectors, with the token as the only credential.
 /// </summary>
 [Trait("Category", "Integration")]
@@ -28,7 +26,7 @@ public sealed class ReaderFixture : IAsyncLifetime
     private readonly TestDatabase _database;
     private readonly ToolServer _docker = new();
     private readonly string _proc = Path.Combine(Path.GetTempPath(), "portarr-reader-it-" + Guid.NewGuid().ToString("N"));
-    private WebApplication _reader = null!;
+    private ReaderProcess? _reader;
     private PortarrFactory _factory = null!;
     private HttpClient _client = null!;
 
@@ -41,6 +39,11 @@ public sealed class ReaderFixture : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
+        if (!ReaderProcess.Available)
+        {
+            return;
+        }
+
         _docker
             .Serve("GET", "/info", """{"NCPU":8,"MemTotal":16777216000}""")
             .Serve("GET", "/containers/json", Containers)
@@ -48,20 +51,12 @@ public sealed class ReaderFixture : IAsyncLifetime
         Directory.CreateDirectory(_proc);
         WriteKernelFiles(cpu0: (150, 300), cpu1: (150, 300));
 
-        _reader = ReaderApp.Build([], new Dictionary<string, string?>
-        {
-            ["Token"] = Token,
-            ["Docker"] = _docker.Url,
-            ["Urls"] = "http://127.0.0.1:0",
-            ["ProcPath"] = _proc,
-            ["SysPath"] = _proc,
-        });
-        await _reader.StartAsync(Cancel);
+        _reader = await ReaderProcess.StartAsync(Token, _docker.Url, _proc, Cancel);
 
         var options = await _database.CreateOptionsAsync();
         await File.WriteAllTextAsync(Path.Combine(options.DataFolder, "catalog.yaml"), $$"""
             environments:
-              - { id: server-1, name: Server 1, reader: { url: "{{_reader.Urls.First()}}", tokenEnv: PORTARR_READER_TEST } }
+              - { id: server-1, name: Server 1, reader: { url: "{{_reader.BaseUrl.ToString().TrimEnd('/')}}", tokenEnv: PORTARR_READER_TEST } }
             apps:
               - { id: shop, name: Shop, workloads: [{ runtime: docker@server-1, match: { name: web } }] }
             """, Cancel);
@@ -76,6 +71,12 @@ public sealed class ReaderFixture : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
+        if (_reader is null)
+        {
+            _docker.Dispose();
+            return;
+        }
+
         _client.Dispose();
         await _factory.DisposeAsync();
         await _reader.DisposeAsync();
@@ -83,7 +84,7 @@ public sealed class ReaderFixture : IAsyncLifetime
         Directory.Delete(_proc, recursive: true);
     }
 
-    [Fact]
+    [Fact(Skip = "PORTARR_READER_BIN does not name the reader binary", SkipUnless = nameof(ReaderProcess.Available), SkipType = typeof(ReaderProcess))]
     public async Task should_show_the_containers_their_usage_and_the_live_host_metrics_of_a_machine_connected_by_its_reader()
     {
         await _factory.Services.GetRequiredService<IWorkloadInventory>().RefreshAsync(Cancel);

@@ -24,7 +24,12 @@ updates:
       interval: "weekly"
 
   - package-ecosystem: "docker"
-    directory: "/src/Portarr.Reader"
+    directory: "/reader"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "cargo"
+    directory: "/reader"
     schedule:
       interval: "weekly"
 

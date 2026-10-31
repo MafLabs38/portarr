@@ -121,36 +121,65 @@ jobs:
           name: playwright-report
           path: playwright-report/
 
-  # The reader (D-100, D-102) ships as a native AOT image: build it from its Dockerfile on every pull request and run its smoke
-  # test, which checks what the in-process tests cannot see (reflection, JSON and configuration in a native build).
-  reader-native:
-    name: reader-native
+  # The reader (D-100, D-102) is a small Rust program, a tool Portarr connects to: it has its own checks, then runs as the image
+  # that ships, against a real Docker, with the smoke test; and the .NET tests that need the real binary run against it.
+  reader:
+    name: reader
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Format, lint and test
+        working-directory: reader
+        run: |
+          rustup component add clippy rustfmt
+          cargo fmt --check
+          cargo clippy --all-targets --locked -- -D warnings
+          cargo test --locked
+      - name: Build the reader
+        working-directory: reader
+        run: cargo build --release --locked
+      - name: Smoke test the binary against a real Docker
+        run: |
+          token=$(openssl rand -hex 32)
+          docker run -d --name probe-target alpine sleep 600
+          PORTARR_READER_TOKEN="$token" PORTARR_READER_URLS=http://127.0.0.1:8485 reader/target/release/portarr-reader &
+          sleep 2
+          tests/reader/smoke.sh http://127.0.0.1:8485 "$token" probe-target
+          kill %1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+      - name: Portarr's connectors read the real reader
+        env:
+          PORTARR_READER_BIN: ${{ github.workspace }}/reader/target/release/portarr-reader
+        run: >
+          dotnet test --project src/Portarr.Integration.Test --configuration Release --
+          --filter-class "*Reader*" --ignore-exit-code 8
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
-          file: src/Portarr.Reader/Dockerfile
+          file: reader/Dockerfile
           load: true
           tags: portarr-reader:ci
           cache-from: type=gha,scope=reader
-      - name: Run the reader and its smoke test
+      - name: Run the image and its smoke test
         run: |
           token=$(openssl rand -hex 32)
-          docker run -d --name reader -p 8485:8485 \
+          docker run -d --name reader -p 8486:8485 \
             -e PORTARR_READER_TOKEN="$token" \
             --group-add "$(stat -c %g /var/run/docker.sock)" \
             -v /var/run/docker.sock:/var/run/docker.sock:ro \
             portarr-reader:ci
-          tests/reader/smoke.sh http://localhost:8485 "$token" reader || { docker logs reader; exit 1; }
+          tests/reader/smoke.sh http://127.0.0.1:8486 "$token" reader || { docker logs reader; exit 1; }
+          for _ in $(seq 1 30); do [ "$(docker inspect --format '{{.State.Health.Status}}' reader)" = healthy ] && break; sleep 2; done
+          [ "$(docker inspect --format '{{.State.Health.Status}}' reader)" = healthy ] || { docker inspect reader; exit 1; }
           docker image ls portarr-reader:ci
 
   image:
     name: image
     runs-on: ubuntu-latest
-    needs: [e2e-smoke, reader-native]
+    needs: [e2e-smoke, reader]
     # Integrated code only: pull requests never publish images.
     if: github.event_name == 'push'
     permissions:
@@ -192,7 +221,7 @@ jobs:
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
-          file: src/Portarr.Reader/Dockerfile
+          file: reader/Dockerfile
           push: true
           tags: ${{ steps.meta-reader.outputs.tags }}
           labels: ${{ steps.meta-reader.outputs.labels }}

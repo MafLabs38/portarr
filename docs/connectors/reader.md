@@ -19,13 +19,14 @@ The reader returns **raw counters**: Portarr turns them into loads (D-30, D-72),
 
 Measured on a 4-core Docker host with 21 containers, next to node_exporter and a socket proxy:
 
-| | The reader (.NET, native AOT) | node_exporter | Socket proxy |
+| | The reader | node_exporter | Socket proxy |
 |---|---|---|---|
-| One read of the host | about 1 ms, 2.4 kB | about 39 ms, 116 kB (16 kB compressed) | |
+| One read of the host | about 0.6 ms, 2.4 kB | about 39 ms, 116 kB (16 kB compressed) | |
 | One container list | about 3 ms | | about 3 ms |
-| Memory | **about 70 to 90 MB** | about 15 MB | about 10 MB |
+| Memory | **under 1 MB** | about 15 MB | about 10 MB |
+| Program | one 0.7 MB static binary | | |
 
-It reads far less than node_exporter (only what Portarr uses), so it answers much faster, and one reader stands for the two tools it replaces. **Its memory is the weak point** of this first implementation: almost all of it is one block of the .NET garbage collector's heap, which no setting reduced reliably. The reader is a probe with a small, fixed HTTP contract, so it is being rewritten in Rust ([ADR 0011](../adr/0011-reader-speaking-the-existing-protocols.md)), for a few MB. The catalog, the token and the documentation do not change with the implementation.
+It reads far less than node_exporter (only what Portarr uses), so it answers much faster, and one reader stands for the two tools it replaces. It is written in Rust for that reason: a probe that runs on every machine must be light ([ADR 0011](../adr/0011-reader-speaking-the-existing-protocols.md)).
 
 ## Install
 
@@ -44,13 +45,13 @@ services:
       - "8485:8485"   # reachable from Portarr only (firewall, or a private network)
 ```
 
-The container runs as a non-root user in a chiseled image (no shell, no package manager, no .NET runtime: the reader is a single native binary). It reads the machine's counters from the container's own `/proc`, which the kernel reports for the whole host, and the CPU temperature from `/sys/class/hwmon` when the machine has a sensor.
+The image holds the reader and nothing else (no shell, no package manager, no libc), and runs as a non-root user. Its health check is the binary itself (`/portarr-reader --healthcheck`), so `docker ps` shows it as healthy. It reads the machine's counters from the container's own `/proc`, which the kernel reports for the whole host, and the CPU temperature from `/sys/class/hwmon` when the machine has a sensor.
 
 | Variable | Default | |
 |---|---|---|
 | `PORTARR_READER_TOKEN` | required | The bearer token Portarr must present. At least 32 characters; the reader does not start without it. |
-| `PORTARR_READER_DOCKER` | `unix:///var/run/docker.sock` | The Docker Engine API to read: a socket, or the URL of a read-only [socket proxy](docker.md) if you prefer not to mount the socket. |
-| `PORTARR_READER_URLS` | `http://+:8485` | Where it listens. |
+| `PORTARR_READER_DOCKER` | `unix:///var/run/docker.sock` | The Docker Engine API to read: a socket, or the plain `http://` URL of a read-only [socket proxy](docker.md) if you prefer not to mount the socket (HTTPS is not supported). |
+| `PORTARR_READER_URLS` | `http://0.0.0.0:8485` | Where it listens (`http://+:8485` is read as every interface). |
 | `PORTARR_READER_HOSTNAME` | the machine's host name | The name reported by `/v1/info`. |
 | `PORTARR_READER_PROCPATH` | `/proc` | Where the host's `/proc` is, if you mount it elsewhere (for example `/host/proc` to read the host's counters from inside a container that has its own). |
 | `PORTARR_READER_SYSPATH` | `/sys` | The same for `/sys` (the CPU temperature only). |
@@ -73,7 +74,7 @@ environments:
 - **One token, compared by hash in constant time**, never logged and never returned. Every route but `/healthz` needs it, as `Authorization: Bearer <token>` or `X-Api-Key`.
 - **Read-only by construction.** Only `GET` is routed. The Docker paths and their parameters are an allowlist (host capacity, the container list, usage, logs, and an inspect reduced to the container id and its TTY flag), and every other path has no route. Container environment variables are never forwarded.
 - **It needs the Docker socket, which is root-equivalent on the host.** A read-only mount does not make a socket read-only: the protection is the reader's own code (no write path, a short list of paths, a non-root user, a token). Whoever compromises the reader can act on the host. If you do not accept that, point `PORTARR_READER_DOCKER` at a [read-only socket proxy](docker.md), or keep the direct connectors.
-- **Use a private network or a firewall**: the reader speaks plain HTTP. Put it behind a reverse proxy for TLS.
+- **Use a private network or a firewall**: the reader speaks plain HTTP, has no TLS and no request timeout of its own. Put it behind a reverse proxy for TLS.
 
 ## Verification
 
