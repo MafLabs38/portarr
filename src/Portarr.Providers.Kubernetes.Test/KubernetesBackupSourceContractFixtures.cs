@@ -5,7 +5,7 @@ using Portarr.Test.Common.Contracts;
 namespace Portarr.Providers.Kubernetes.Test;
 
 /// <summary>K8up passes the backup capability contract (CLAUDE.md rule 8): a Schedule is the job, its Backups the runs.</summary>
-public sealed class K8upBackupSourceContractFixture : BackupSourceContract
+public sealed class K8UpBackupSourceContractFixture : BackupSourceContract
 {
     protected override string ExpectedKind => BackupSourceKinds.K8up;
 
@@ -15,7 +15,7 @@ public sealed class K8upBackupSourceContractFixture : BackupSourceContract
     {
         var cluster = new FakeCluster(path => Answer(state, path)) { Fault = state.Fault };
         return new BackupToolHarness(
-            new KubernetesK8upBackupSource(cluster.Client),
+            new KubernetesK8UpBackupSource(cluster.Client),
             FakeCluster.Environment(),
             new CatalogEnvironment("server-1", "Server 1", null),
             () => cluster.Requests,
