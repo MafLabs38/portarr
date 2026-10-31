@@ -37,10 +37,7 @@ internal static class NodeExporterParser
 
     public static async Task<NodeExporterCounters> ParseAsync(TextReader reader, long maxCharacters, CancellationToken cancellationToken)
     {
-        var cpus = new Dictionary<string, (double Idle, double Iowait, double Total)>(StringComparer.Ordinal);
-        var memory = new Dictionary<string, double>(StringComparer.Ordinal);
-        double? load1 = null;
-        double? temperature = null;
+        var counters = new CounterAccumulator();
         long read = 0;
 
         while (await reader.ReadLineAsync(cancellationToken) is { } line)
@@ -51,41 +48,76 @@ internal static class NodeExporterParser
                 throw new InvalidDataException($"The metrics answer is larger than {maxCharacters} characters.");
             }
 
-            if (line.Length == 0 || line[0] != 'n' || !TryParseSample(line, out var sample))
+            if (line.Length > 0 && line[0] == 'n' && TryParseSample(line, out var sample))
             {
-                continue;
+                counters.Add(sample);
             }
+        }
 
+        return counters.ToCounters();
+    }
+
+    /// <summary>Collects the wanted samples of a scrape: per-cpu times, the memory fields, the load and the hottest CPU sensor.</summary>
+    private sealed class CounterAccumulator
+    {
+        private readonly Dictionary<string, (double Idle, double Iowait, double Total)> _cpus = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, double> _memory = new(StringComparer.Ordinal);
+        private double? _load1;
+        private double? _temperature;
+
+        public void Add(Sample sample)
+        {
             switch (sample.Name)
             {
-                case CpuFamily when sample.Label("cpu") is { } cpu && sample.Label("mode") is { } mode:
-                    var times = cpus.GetValueOrDefault(cpu);
-                    cpus[cpu] = (
-                        times.Idle + (mode == "idle" ? sample.Value : 0),
-                        times.Iowait + (mode == "iowait" ? sample.Value : 0),
-                        times.Total + sample.Value);
+                case CpuFamily:
+                    AddCpuTime(sample);
                     break;
                 case Load1Family:
-                    load1 = sample.Value;
+                    _load1 = sample.Value;
                     break;
-                case TemperatureFamily when IsCpuChip(sample.Label("chip")) && sample.Value is > 0 and < 150:
-                    temperature = Math.Max(temperature ?? double.MinValue, sample.Value);
+                case TemperatureFamily:
+                    AddTemperature(sample);
                     break;
                 default:
                     if (MemoryField(sample.Name) is { } field)
                     {
-                        memory[field] = sample.Value;
+                        _memory[field] = sample.Value;
                     }
 
                     break;
             }
         }
 
-        return new NodeExporterCounters(
-            cpus.ToDictionary(c => c.Key, c => new CpuTimes(c.Value.Idle, c.Value.Iowait, c.Value.Total), StringComparer.Ordinal),
-            memory,
-            load1,
-            temperature);
+        public NodeExporterCounters ToCounters()
+        {
+            return new NodeExporterCounters(
+                _cpus.ToDictionary(c => c.Key, c => new CpuTimes(c.Value.Idle, c.Value.Iowait, c.Value.Total), StringComparer.Ordinal),
+                _memory,
+                _load1,
+                _temperature);
+        }
+
+        private void AddCpuTime(Sample sample)
+        {
+            if (sample.Label("cpu") is not { } cpu || sample.Label("mode") is not { } mode)
+            {
+                return;
+            }
+
+            var times = _cpus.GetValueOrDefault(cpu);
+            _cpus[cpu] = (
+                times.Idle + (mode == "idle" ? sample.Value : 0),
+                times.Iowait + (mode == "iowait" ? sample.Value : 0),
+                times.Total + sample.Value);
+        }
+
+        private void AddTemperature(Sample sample)
+        {
+            if (IsCpuChip(sample.Label("chip")) && sample.Value is > 0 and < 150)
+            {
+                _temperature = Math.Max(_temperature ?? double.MinValue, sample.Value);
+            }
+        }
     }
 
     private static string? MemoryField(string name)
@@ -170,40 +202,65 @@ internal static class NodeExporterParser
                 return true;
             }
 
-            var equals = line.IndexOf('=', position);
-            if (equals < 0 || equals + 1 >= line.Length || line[equals + 1] != '"')
+            if (!TryReadLabel(line, ref position, out var label))
             {
                 return false;
             }
 
-            var key = line[position..equals].Trim();
-            position = equals + 2;
-            var value = new System.Text.StringBuilder();
-            while (position < line.Length && line[position] != '"')
-            {
-                if (line[position] == '\\' && position + 1 < line.Length)
-                {
-                    position++;
-                    value.Append(line[position] == 'n' ? '\n' : line[position]);
-                }
-                else
-                {
-                    value.Append(line[position]);
-                }
-
-                position++;
-            }
-
-            if (position >= line.Length)
-            {
-                return false;
-            }
-
-            position++;
-            labels.Add(new KeyValuePair<string, string>(key, value.ToString()));
+            labels.Add(label);
         }
 
         return false;
+    }
+
+    /// <summary>One <c>name="value"</c>, from the start of the name to just after the closing quote.</summary>
+    private static bool TryReadLabel(string line, ref int position, out KeyValuePair<string, string> label)
+    {
+        label = default;
+        var equals = line.IndexOf('=', position);
+        if (equals < 0 || equals + 1 >= line.Length || line[equals + 1] != '"')
+        {
+            return false;
+        }
+
+        var key = line[position..equals].Trim();
+        position = equals + 2;
+        if (!TryReadQuoted(line, ref position, out var value))
+        {
+            return false;
+        }
+
+        label = new KeyValuePair<string, string>(key, value);
+        return true;
+    }
+
+    /// <summary>A label value up to its closing quote, with the escapes <c>\\</c>, <c>\"</c> and <c>\n</c> resolved.</summary>
+    private static bool TryReadQuoted(string line, ref int position, out string value)
+    {
+        var text = new System.Text.StringBuilder();
+        while (position < line.Length && line[position] != '"')
+        {
+            if (line[position] == '\\' && position + 1 < line.Length)
+            {
+                position++;
+                text.Append(line[position] == 'n' ? '\n' : line[position]);
+            }
+            else
+            {
+                text.Append(line[position]);
+            }
+
+            position++;
+        }
+
+        value = text.ToString();
+        if (position >= line.Length)
+        {
+            return false;
+        }
+
+        position++;
+        return true;
     }
 
     private static bool TryParseValue(ReadOnlySpan<char> text, out double value)
