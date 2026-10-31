@@ -3,7 +3,7 @@
 # Docker window at /v1/docker/. A static Rust binary in an empty image: about 1 MB of memory. Built from the repository root:
 #
 #   docker build -f reader/Dockerfile -t portarr-reader .
-FROM rust:1-alpine AS build
+FROM rust:1-alpine@sha256:7e9e2d068a107a2adafd19930011178d14a78326053cd4c3a9f7ad3fd049557d AS build
 ARG VERSION=0.0.0-dev
 WORKDIR /src
 COPY reader/Cargo.toml reader/Cargo.lock ./

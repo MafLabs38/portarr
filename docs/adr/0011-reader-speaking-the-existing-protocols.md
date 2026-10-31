@@ -30,7 +30,9 @@
 - The reader reaches Docker over a Unix socket or plain HTTP only; a Docker endpoint in HTTPS is not supported (a socket proxy on the same network is the documented way).
 - Compatibility between Portarr and a reader of another version is still open: Portarr does not read `/v1/info` yet.
 - The reader still needs the Docker socket, which is root-equivalent on the host (ADR 0010, stated in the documentation); it can be pointed at a socket proxy instead.
-- It serves with one thread per request (at most 128 at once) and has no TLS and no request timeout of its own: it belongs on a private network or behind a reverse proxy, like the other tools Portarr reads.
+- It serves with one thread per request (at most 128 at once, of which at most 32 followed logs, closed after 30 minutes so a viewer that left cannot hold a place for ever). It has no TLS and no timeout on the connections it accepts (the HTTP library offers none, so a client that sends headers very slowly holds a thread): it belongs on a private network or behind a reverse proxy, like the other tools Portarr reads.
+- `tokenEnv` is confined to the `PORTARR_READER_` namespace, which keeps the catalog from sending any other secret of the process. It does not tie a reader's token to its URL: whoever may write the catalog (D-83, off by default, keyed) could point a reader's token at another host. That person can already read the whole catalog and change what Portarr connects to; the token only opens the read-only window of that one machine. Kubernetes (`kubernetes.tokenEnv`) and Backrest (`userEnv`, `passwordEnv`) are not confined: their variables predate the reader, and narrowing them would break installed catalogs. A single rule for every credential that goes to a catalog URL, with a migration, is the right next step and is not part of this change.
+- The Docker fields the reader forwards (`LISTED_FIELDS`) are the ones the connector reads today. A connector that reads one more field needs a reader that forwards it: the contract test (`ReaderDockerContractFixture`) fails in this repository's CI, and the compatibility question below covers the field.
 
 ## Open questions
 
@@ -38,7 +40,7 @@
 2. **Transport**: plain HTTP on a trusted network, TLS through a reverse proxy (the catalog accepts a path under it); a self-signed certificate with a pinned fingerprint later.
 3. **Direction**: pull only; a reader that connects out (NAT, a remote VPS) is a later step.
 4. **Kubernetes nodes**: keep the node_exporter DaemonSet for now.
-5. **Architectures**: the image is built for x86-64 first; a static Rust binary makes ARM a matter of one more target.
+5. **Architectures**: the image is built for x86-64 first; ARM (single-board computers are common in homelabs) is one more target of the build, to add when the first user asks.
 
 ## Implementation slices
 

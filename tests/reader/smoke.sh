@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Smoke test of the reader as it ships (native AOT, D-102): what only a native build can get wrong (reflection, JSON,
-# configuration binding) and what the in-process tests cannot see. Run in CI against the container built from the Dockerfile.
+# Smoke test of the reader as it ships (D-102): the release binary in its container image, with the real socket, user and entrypoint,
+# which the in-process tests cannot see. Run in CI against the container built from the Dockerfile.
 #
 #   tests/reader/smoke.sh <base-url> <token> [container-name]
 #
@@ -30,7 +30,7 @@ pass "the token is required"
 info=$(curl -fs -H "$AUTH" "$BASE/v1/info") || fail "/v1/info failed (native JSON?)"
 has "$info" '"name":"portarr-reader"' "/v1/info name"
 has "$info" '"capabilities":["host","docker"]' "/v1/info capabilities"
-pass "/v1/info (serialized without reflection)"
+pass "/v1/info"
 
 host=$(curl -fs -H "$AUTH" "$BASE/v1/host") || fail "/v1/host failed"
 for family in node_cpu_seconds_total node_memory_MemTotal_bytes node_memory_MemAvailable_bytes node_load1; do has "$host" "$family" "/v1/host"; done
