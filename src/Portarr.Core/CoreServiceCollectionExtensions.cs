@@ -10,6 +10,7 @@ using Portarr.Core.Datastore.Migration;
 using Portarr.Core.Icons;
 using Portarr.Core.Infrastructure;
 using Portarr.Core.Instrumentation;
+using Portarr.Core.Maintenance;
 using Portarr.Core.Status;
 using Portarr.Core.SystemInfo;
 using Portarr.Core.Workloads;
@@ -48,6 +49,10 @@ public static class CoreServiceCollectionExtensions
         services.AddHostedService(provider => provider.GetRequiredService<HostMetricsMonitor>());
 
 
+        services.AddSingleton<MaintenanceMonitor>();
+        services.AddSingleton<IMaintenanceMonitor>(provider => provider.GetRequiredService<MaintenanceMonitor>());
+        services.AddHostedService(provider => provider.GetRequiredService<MaintenanceMonitor>());
+        services.AddSingleton<IMaintenanceService, MaintenanceService>();
 
         services.AddSingleton<ICheckStore, CheckStore>();
         services.AddSingleton<IHttpCheckRunner, HttpCheckRunner>();

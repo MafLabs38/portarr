@@ -6,8 +6,10 @@ using Portarr.Host.Logging;
 using Portarr.Http;
 using Portarr.Providers.Cloudflare;
 using Portarr.Providers.Docker;
+using Portarr.Providers.GitHub;
 using Portarr.Providers.Kubernetes;
 using Portarr.Providers.NodeExporter;
+using Portarr.Providers.Registries;
 
 // The content root is the binary's folder, whatever the working directory (like the *arr apps).
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -25,6 +27,8 @@ builder.Services.AddDockerProvider();
 builder.Services.AddCloudflareProvider();
 builder.Services.AddKubernetesProvider();
 builder.Services.AddNodeExporterProvider();
+builder.Services.AddGitHubProvider();
+builder.Services.AddRegistriesProvider();
 builder.Services
     .AddPortarrHttp()
     .AddPortarrApiV1();

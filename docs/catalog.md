@@ -1,6 +1,6 @@
 # The catalog (`catalog.yaml`)
 
-The catalog declares what you run: **environments**, **stacks** and **apps**. Workloads (containers, pods, Pages projects, Workers) are never declared: Portarr discovers them and links them to apps through selectors (spec §4.2).
+The catalog declares what you run: **environments**, **stacks** and **apps** and the **code sources** you make apps from. Workloads (containers, pods, Pages projects, Workers) are never declared: Portarr discovers them and links them to apps through selectors (spec §4.2).
 
 - Location: `<data folder>/catalog.yaml` (`/config/catalog.yaml` in the image), or `PORTARR__CATALOGFILE`.
 - Reloaded as soon as the file is saved. A broken edit keeps the last valid catalog; the errors are shown on the Apps page and at `GET /api/v1/catalog/status`.
@@ -161,6 +161,29 @@ A machine with a host agent shows its host values first; one whose agent cannot 
 ## Kubernetes selectors
 
 A pod name changes on every rollout (`shop-web-7c4b9d-x2k8p`): match pods by what stays (D-56). `match:` takes `namespace`, `app` (the pod's `app` label), `namePrefix` and `name`; every key given must match, and one of `app`, `namePrefix` or `name` is required. `namespace`, `app` and `namePrefix` are only for `kubernetes@…` workloads.
+
+## Code sources
+
+The GitHub accounts whose repositories the **Maintenance** page scans (D-64): every app you make, deployed here or not (a desktop app, a library, a tool). Portarr only reads them ([connectors/github.md](connectors/github.md)).
+
+```yaml
+sources:
+  github:
+    owners: [example, example-org]   # required (or include): user or organization logins
+    tokenEnv: GITHUB_TOKEN           # default GITHUB_TOKEN: the variable name, never the token
+    pushedWithinMonths: 6            # default 6: only repositories pushed recently; 0 scans them all
+    include: [example/legacy-tool]   # always scanned, even inactive or owned by someone else
+    exclude: ["example/test-*", "*/sandbox"]   # never scanned; * matches anything
+    forks: false                     # default false
+    archived: false                  # default false
+
+apps:
+  - id: shop
+    repository: example/shop         # the app's code (owner/name): links the app and its repository (D-65)
+```
+
+- A repository is shown as **running in the fleet** when an app declares it in `repository:`, when a running image carries its URL in the OCI label `org.opencontainers.image.source`, or when a running image is named like it (`ghcr.io/example/shop`, Docker Hub `example/shop`). The others are listed as **not deployed here**.
+- Running images need no declaration: every running container and pod is checked against its registry ([connectors/registries.md](connectors/registries.md)).
 
 ## Icons
 

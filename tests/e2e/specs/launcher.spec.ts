@@ -24,6 +24,7 @@ test.describe('Apps launcher', { tag: '@smoke' }, () => {
     const menu = page.getByRole('navigation', { name: 'Main menu' });
     for (const [name, url] of [
       ['Infrastructure', /\/infrastructure$/],
+      ['Maintenance', /\/maintenance$/],
       ['System', /\/system\/status$/],
       ['Apps', /\/apps$/],
     ] as const) {

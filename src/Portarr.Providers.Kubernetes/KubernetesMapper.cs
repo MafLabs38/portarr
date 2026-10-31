@@ -41,7 +41,20 @@ internal static partial class KubernetesMapper
             null,
             metadata.Namespace,
             pod.Spec?.NodeName,
-            ToMounts(pod.Spec));
+            ToMounts(pod.Spec),
+            ImageDigest(pod));
+    }
+
+    /// <summary>
+    /// The registry digest of the first container's running image, from its status (<c>docker.io/library/postgres@sha256:…</c>,
+    /// sometimes prefixed with <c>docker-pullable://</c>); null while the image is pulled or for a locally built image.
+    /// </summary>
+    public static string? ImageDigest(Pod pod)
+    {
+        var name = pod.Spec?.Containers?.FirstOrDefault()?.Name;
+        var imageId = pod.Status?.ContainerStatuses?.FirstOrDefault(c => c.Name == name)?.ImageId;
+        var at = imageId?.LastIndexOf("@sha256:", StringComparison.Ordinal) ?? -1;
+        return at < 0 ? null : imageId![(at + 1)..];
     }
 
     /// <summary>

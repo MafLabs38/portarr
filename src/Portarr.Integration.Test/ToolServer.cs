@@ -5,7 +5,7 @@ using WireMock.Server;
 namespace Portarr.Integration.Test;
 
 /// <summary>
-/// A third-party tool (the Kubernetes API, node_exporter…) played by WireMock.Net over real HTTP on
+/// A third-party tool (the Kubernetes API, node_exporter, GitHub…) played by WireMock.Net over real HTTP on
 /// a local port, so the connector under test runs with its real HTTP stack (TESTING.md §3). No Docker needed.
 /// </summary>
 public sealed class ToolServer : IDisposable

@@ -11,6 +11,34 @@ internal sealed class CatalogDocument
     public List<StackDocument>? Stacks { get; set; }
 
     public List<AppDocument>? Apps { get; set; }
+
+    public SourcesDocument? Sources { get; set; }
+}
+
+/// <summary>Code sources scanned by the Maintenance page (D-64).</summary>
+internal sealed class SourcesDocument
+{
+    [YamlDotNet.Serialization.YamlMember(Alias = "github")]
+    public GitHubDocument? GitHub { get; set; }
+}
+
+/// <summary>See <see cref="GitHubSource"/>.</summary>
+internal sealed class GitHubDocument
+{
+    public List<string>? Owners { get; set; }
+
+    /// <summary>Name of the environment variable holding the token (never the token itself).</summary>
+    public string? TokenEnv { get; set; }
+
+    public int? PushedWithinMonths { get; set; }
+
+    public List<string>? Include { get; set; }
+
+    public List<string>? Exclude { get; set; }
+
+    public bool? Forks { get; set; }
+
+    public bool? Archived { get; set; }
 }
 
 internal sealed class EnvironmentDocument
@@ -132,6 +160,9 @@ internal sealed class AppDocument
 
     /// <summary><c>false</c>, <c>true</c> or a mapping (see <see cref="CheckBodyDocument"/>).</summary>
     public CheckDocument? Check { get; set; }
+
+    /// <summary>The app's code repository, <c>owner/name</c> (D-65).</summary>
+    public string? Repository { get; set; }
 }
 
 /// <summary><c>check:</c> is either a boolean or a mapping; read by <see cref="CheckDocumentConverter"/>.</summary>

@@ -1,0 +1,55 @@
+.section {
+  margin-top: 20px;
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-family: var(--displayFontFamily);
+  font-size: var(--fontSizeCardTitle);
+  font-weight: 600;
+}
+
+.heading svg {
+  color: var(--secondary);
+}
+
+.group {
+  margin-bottom: 14px;
+}
+
+.groupHeading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: var(--fontSizeMeta);
+}
+
+.groupName {
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.meta,
+.muted {
+  color: var(--inkMuted);
+  font-weight: 700;
+}
+
+.muted {
+  margin: 0 0 10px;
+  font-size: var(--fontSizeBody);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  border: var(--borderWidth) solid var(--hairline);
+  border-radius: var(--radiusMedium);
+  background-color: var(--paperCard);
+  box-shadow: var(--shadowCard);
+  list-style: none;
+}

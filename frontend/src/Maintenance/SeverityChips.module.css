@@ -1,0 +1,69 @@
+.group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.name {
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+}
+
+a.group:hover .name {
+  text-decoration: underline;
+}
+
+.chip,
+.off,
+.unknown {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 7px;
+  border: var(--borderWidth) solid var(--hairlineStrong);
+  border-radius: var(--radiusPill);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.critical,
+.high {
+  border-color: var(--dangerColor);
+  background-color: var(--dangerColor);
+  color: var(--inkOnAccent);
+}
+
+.medium {
+  border-color: var(--warningColor);
+  color: var(--warningColor);
+}
+
+.low {
+  border-color: var(--infoColor);
+  color: var(--infoColor);
+}
+
+.other {
+  color: var(--inkMuted);
+}
+
+.clean {
+  border-color: var(--successColor);
+  color: var(--successColor);
+}
+
+.off {
+  border-style: dashed;
+  color: var(--inkMuted);
+  text-decoration: line-through;
+}
+
+.unknown {
+  border-style: dotted;
+  color: var(--disabledColor);
+}

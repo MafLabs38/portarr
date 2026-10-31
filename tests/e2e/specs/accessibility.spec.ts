@@ -1,9 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
-// Every page of the portal, once, with axe: the pages of V2 (the launcher and the workload page are checked
+// Every page of the portal, once, with axe: the pages of V2 to V4 (the launcher and the workload page are checked
 // in launcher-and-workloads.spec.ts, on the stack's own containers).
-const pages: [string, string][] = [['/system/status', 'Status']];
+const pages: [string, string][] = [
+  ['/maintenance', 'What needs attention'],
+  ['/system/status', 'Status'],
+];
 
 test.describe('Accessibility', { tag: '@smoke' }, () => {
   for (const [path, heading] of pages) {

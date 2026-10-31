@@ -51,6 +51,14 @@ public static partial class CatalogParser
     [GeneratedRegex("^[a-z0-9]+(-[a-z0-9]+)*$")]
     private static partial Regex IdPattern();
 
+    /// <summary>A GitHub login: letters, digits and single dashes, at most 39 characters.</summary>
+    [GeneratedRegex("^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")]
+    private static partial Regex OwnerPattern();
+
+    /// <summary>A repository: <c>owner/name</c>.</summary>
+    [GeneratedRegex("^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")]
+    private static partial Regex RepositoryPattern();
+
     [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]{0,127}$")]
     private static partial Regex VariableNamePattern();
 
@@ -79,9 +87,10 @@ public static partial class CatalogParser
             var appIds = apps.Select(a => a.Id).ToHashSet();
 
             var stacks = BuildStacks(document.Stacks ?? [], appDocuments, appIds);
+            var gitHub = BuildGitHub(document.Sources?.GitHub);
 
             return _errors.Count == 0
-                ? new CatalogParseResult(new Catalog(environments, stacks, apps), [])
+                ? new CatalogParseResult(new Catalog(environments, stacks, apps, gitHub), [])
                 : new CatalogParseResult(Catalog.Empty, _errors);
         }
 
@@ -421,10 +430,83 @@ public static partial class CatalogParser
                     document.Tags ?? [],
                     BuildUrls(id, document.Urls ?? []),
                     BuildSelectors(id, document.Workloads ?? [], environments),
-                    BuildCheck(id, type, document.Check)));
+                    BuildCheck(id, type, document.Check),
+                    BuildRepository(id, document.Repository)));
             }
 
             return result;
+        }
+
+        private string? BuildRepository(string appId, string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            if (!RepositoryPattern().IsMatch(value.Trim()))
+            {
+                _errors.Add($"App '{appId}': repository must be owner/name (e.g. example/my-app), not a URL.");
+                return null;
+            }
+
+            return value.Trim();
+        }
+
+        /// <summary>
+        /// <c>sources: github:</c> (D-64): the accounts whose repositories are scanned. Like the other connectors,
+        /// the token comes from an environment variable: without it the section still loads, shown as not connected.
+        /// </summary>
+        private GitHubSource? BuildGitHub(GitHubDocument? document)
+        {
+            if (document is null)
+            {
+                return null;
+            }
+
+            var owners = (document.Owners ?? []).Select(o => o?.Trim() ?? string.Empty).ToList();
+            var include = (document.Include ?? []).Select(r => r?.Trim() ?? string.Empty).ToList();
+            var exclude = (document.Exclude ?? []).Select(r => r?.Trim() ?? string.Empty).ToList();
+            if (owners.Count == 0 && include.Count == 0)
+            {
+                _errors.Add("sources.github: list the owners to scan (users or organizations), or repositories in include.");
+            }
+
+            foreach (var owner in owners.Where(o => !OwnerPattern().IsMatch(o)))
+            {
+                _errors.Add($"sources.github: owner '{owner}' must be a GitHub user or organization login.");
+            }
+
+            foreach (var repository in include.Where(r => !RepositoryPattern().IsMatch(r)))
+            {
+                _errors.Add($"sources.github: include entry '{repository}' must be owner/name.");
+            }
+
+            foreach (var pattern in exclude.Where(r => !RepositoryPattern().IsMatch(r.Replace("*", "x", StringComparison.Ordinal))))
+            {
+                _errors.Add($"sources.github: exclude entry '{pattern}' must be owner/name, * allowed (e.g. example/test-*).");
+            }
+
+            var variable = document.TokenEnv ?? GitHubSource.DefaultTokenVariable;
+            if (!VariableNamePattern().IsMatch(variable))
+            {
+                _errors.Add($"sources.github: tokenEnv must be the name of an environment variable (e.g. {GitHubSource.DefaultTokenVariable}), never the token itself.");
+            }
+
+            var months = document.PushedWithinMonths ?? GitHubSource.DefaultPushedWithinMonths;
+            if (months is < 0 or > 120)
+            {
+                _errors.Add("sources.github: pushedWithinMonths must be between 0 (no limit) and 120.");
+            }
+
+            return new GitHubSource(
+                owners.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                variable,
+                months,
+                include.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                exclude,
+                document.Forks ?? false,
+                document.Archived ?? false);
         }
 
         /// <summary>Web apps are checked by default (D-50); <c>check: false</c> turns it off, a mapping overrides it.</summary>

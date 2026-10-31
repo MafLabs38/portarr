@@ -35,11 +35,11 @@ public sealed class ApiDocsFixture : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
         var paths = document.RootElement.GetProperty("paths").EnumerateObject().Select(p => p.Name).ToList();
-        paths.Should().Contain(["/api/v1/infrastructure", "/api/v1/infrastructure/stream", "/api/v1/apps/{id}"]);
+        paths.Should().Contain(["/api/v1/maintenance", "/api/v1/maintenance/refresh", "/api/v1/apps/{id}"]);
         paths.Should().OnlyContain(path => path.StartsWith("/api/v1/", StringComparison.Ordinal));
-        var stream = document.RootElement.GetProperty("paths").GetProperty("/api/v1/infrastructure/stream").GetProperty("get");
-        stream.GetProperty("summary").GetString().Should().NotBeNullOrWhiteSpace();
-        stream.GetProperty("responses").EnumerateObject().Select(r => r.Name).Should().BeEquivalentTo("200", "429");
+        var refresh = document.RootElement.GetProperty("paths").GetProperty("/api/v1/maintenance/refresh").GetProperty("post");
+        refresh.GetProperty("summary").GetString().Should().NotBeNullOrWhiteSpace();
+        refresh.GetProperty("responses").EnumerateObject().Select(r => r.Name).Should().BeEquivalentTo("202", "429");
     }
 
     [Fact]
