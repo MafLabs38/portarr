@@ -126,7 +126,7 @@ Third-party API responses are stored under `tests/fixtures/<provider>/` (anonymi
 | Frontend lint | ESLint, Stylelint, Prettier, `tsc --noEmit` | PR |
 | Quality and coverage | SonarQube (Quality Gate) | PR |
 | Static security analysis (SAST) | CodeQL (C#, TypeScript, workflows), `security-and-quality` queries | PR + weekly |
-| AI review (advisory) | The three agents of `.claude/agents/` (tests, quality, security), one PR comment each, never blocking | PR opened / ready, or `ai-review` label |
+| AI review (advisory) | The four agents of `.claude/agents/` (tests, quality, security, architecture), one PR comment each, never blocking on their own: the author triages every finding (fixed, or declined with the reason) in the PR's Review section before asking for the merge | PR opened / ready, or `ai-review` label |
 | Mutation testing | Stryker.NET (Core) and StrykerJS (frontend): do the tests catch injected bugs? Score and survivors in the job summary | weekly |
 | Secrets and privacy | gitleaks + denylist of personal values | pre-commit + PR |
 | Vulnerabilities | Trivy (image and dependencies), Dependabot | PR + daily |

@@ -1,6 +1,6 @@
 ---
 name: review-vertical
-description: Run the three review agents (tests, quality, OWASP security) in parallel on the current branch before opening or updating a vertical PR, then triage and apply their findings.
+description: Run the four review agents (tests, quality, OWASP security, architecture) in parallel on the current branch before opening or updating a vertical PR, then triage and apply their findings.
 ---
 
 # Review a vertical before its PR
@@ -9,8 +9,9 @@ description: Run the three review agents (tests, quality, OWASP security) in par
 2. Launch **in parallel**, each with the base and the branch name, asking for its Markdown report:
    - `test-reviewer`: relevance, redundancy, missing cases, speed;
    - `quality-reviewer`: spec compliance, design, smells, frontend conventions;
-   - `security-reviewer`: OWASP review.
+   - `security-reviewer`: OWASP review;
+   - `architecture-reviewer`: technical lead, *arr patterns, layers, hard-coded vs configurable, decisions.
    If the agents are not registered in the session, spawn general-purpose agents with the content of `.claude/agents/<name>.md` as instructions.
-3. **Triage** the three reports: fix every blocker/critical/high and every "remove/fix" test finding that is right; for the rest, decide and say why. Do not accept a finding without checking it in the code.
+3. **Triage** the four reports: fix every blocker/critical/high and every "remove/fix" test finding that is right; for the rest, decide and say why. Do not accept a finding without checking it in the code.
 4. Re-run the tests, note the durations before and after.
 5. Add a **Review** section to the PR description: per agent, what was fixed, what was declined and why, test count and duration before/after.
