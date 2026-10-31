@@ -19,6 +19,10 @@ public static class HttpServiceCollectionExtensions
     /// <summary>Rate limiting policies used by the API controllers.</summary>
     public const string LogStreamsPolicyName = "log-streams";
     public const string UsagePolicyName = "usage";
+    public const string CatalogWritesPolicyName = "catalog-writes";
+
+    /// <summary>Catalog edits per client and per minute: an assistant describing a fleet makes a few dozen.</summary>
+    public const int CatalogWritesPerMinute = 30;
 
     /// <summary>Open log streams per client, and for all clients together.</summary>
     public const int MaxLogStreamsPerClient = 4;
@@ -50,6 +54,11 @@ public static class HttpServiceCollectionExtensions
             options.AddPolicy(UsagePolicyName, context => RateLimitPartition.GetFixedWindowLimiter(
                 ClientKey(context),
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromSeconds(10), QueueLimit = 0 }));
+
+            // Catalog edits (D-85), counted before the key is checked: wrong keys are limited too.
+            options.AddPolicy(CatalogWritesPolicyName, context => RateLimitPartition.GetFixedWindowLimiter(
+                ClientKey(context),
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = CatalogWritesPerMinute, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
         });
         services.AddHealthChecks()
             .AddCheck<DatabaseHealthCheck>("database", tags: [ReadyTag]);
@@ -161,12 +170,13 @@ public static class HttpServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Returns the frontend's index page for client-side routes. Unknown /api, /health, /metrics, /openapi and /docs routes
-    /// stay plain 404s.
+    /// Returns the frontend's index page for client-side routes. Unknown /api, /health, /metrics, /openapi, /docs, /mcp (the MCP
+    /// endpoint when it is off) and /.well-known routes stay plain 404s: an MCP client probing for OAuth metadata
+    /// must not receive the UI.
     /// </summary>
     public static WebApplication MapPortarrFrontendFallback(this WebApplication app)
     {
-        app.MapFallbackToFile("{**path:regex(^(?!(api|health|metrics|openapi|docs)(/|$)).*$)}", "index.html");
+        app.MapFallbackToFile("{**path:regex(^(?!(api|health|metrics|mcp|openapi|docs|\\.well-known)(/|$)).*$)}", "index.html");
 
         return app;
     }

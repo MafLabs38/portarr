@@ -28,7 +28,7 @@
         {
           "conditions": ["CONDITION_SNAPSHOT_START"],
           "onError": "ON_ERROR_FATAL",
-          "actionCommand": { "command": "mkdir -p /dumps/shop && pg_dump -h shop-db -U backup -Fc shop > /dumps/shop/shop.dump" }
+          "actionCommand": { "command": "mkdir -p /dumps/shop && pg_dump -h shop-db -U backup -Fc -Z 0 shop > /dumps/shop/shop.dump" }
         }
       ]
     },
@@ -42,7 +42,7 @@
         {
           "conditions": ["CONDITION_SNAPSHOT_START"],
           "onError": "ON_ERROR_FATAL",
-          "actionCommand": { "command": "mkdir -p /dumps/shop && pg_dump -h shop-db -U backup -Fc shop > /dumps/shop/shop.dump" }
+          "actionCommand": { "command": "mkdir -p /dumps/shop && pg_dump -h shop-db -U backup -Fc -Z 0 shop > /dumps/shop/shop.dump" }
         }
       ]
     },

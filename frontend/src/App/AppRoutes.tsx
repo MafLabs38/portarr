@@ -4,6 +4,7 @@ import MaintenanceIndex from 'Maintenance/MaintenanceIndex';
 import { Navigate, Route, Routes } from 'react-router-dom';
 
 import AppsIndex from 'Apps/AppsIndex';
+import AssistantIndex from 'Assistant/AssistantIndex';
 import Status from 'System/Status/Status';
 import WorkloadDetails from 'Workloads/Details/WorkloadDetails';
 
@@ -16,6 +17,7 @@ export default function AppRoutes() {
       <Route element={<InfrastructureIndex />} path="/infrastructure" />
       <Route element={<DataIndex />} path="/data" />
       <Route element={<MaintenanceIndex />} path="/maintenance" />
+      <Route element={<AssistantIndex />} path="/assistant" />
       {/* The Workloads list became the Infrastructure dashboard (D-54); workload pages stay. */}
       <Route element={<Navigate replace to="/infrastructure" />} path="/workloads" />
       <Route element={<WorkloadDetails />} path="/workloads/:environmentId/:name" />

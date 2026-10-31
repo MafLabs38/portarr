@@ -4,6 +4,7 @@ using Portarr.Core.Datastore.Migration;
 using Portarr.Core.Instrumentation;
 using Portarr.Host.Logging;
 using Portarr.Http;
+using Portarr.Mcp;
 using Portarr.Providers.Backrest;
 using Portarr.Providers.Cloudflare;
 using Portarr.Providers.Docker;
@@ -33,7 +34,8 @@ builder.Services.AddGitHubProvider();
 builder.Services.AddRegistriesProvider();
 builder.Services
     .AddPortarrHttp()
-    .AddPortarrApiV1();
+    .AddPortarrApiV1()
+    .AddPortarrMcp(builder.Configuration);
 
 var app = builder.Build();
 
@@ -56,6 +58,7 @@ app.UsePortarrMetrics();
 app.MapControllers();
 app.MapPortarrApiDocs();
 app.MapPortarrHealthChecks();
+app.MapPortarrMcp();
 app.MapPortarrFrontendFallback();
 
 await app.RunAsync();

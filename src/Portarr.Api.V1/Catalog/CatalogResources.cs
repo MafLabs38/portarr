@@ -43,7 +43,10 @@ public sealed record StackMemberResource(string AppId, string Name, string Role,
 
 public sealed record StackResource(string Id, string Name, string? Description, StatusResource Status, IReadOnlyList<StackMemberResource> Members);
 
-/// <summary>Catalog state. Only the file name is exposed: the absolute path stays on the server.</summary>
+/// <summary>
+/// Catalog state. Only the file name is exposed: the absolute path stays on the server. <c>Version</c> is the
+/// version of the file as last read, to send back with an edit; <c>Writable</c> says whether edits are on (D-83).
+/// </summary>
 public sealed record CatalogStatusResource(
     string FileName,
     bool FileExists,
@@ -51,7 +54,9 @@ public sealed record CatalogStatusResource(
     IReadOnlyList<string> Errors,
     int Apps,
     int Stacks,
-    int Environments);
+    int Environments,
+    string? Version = null,
+    bool Writable = false);
 
 public static class CatalogResourceMapper
 {
@@ -92,7 +97,7 @@ public static class CatalogResourceMapper
             view.Members.Select(m => new StackMemberResource(m.Member.AppId, m.AppName, m.Member.Role.ToString().ToLowerInvariant(), StatusResource.From(m.Status))).ToList());
     }
 
-    public static CatalogStatusResource ToResource(this CatalogState state)
+    public static CatalogStatusResource ToResource(this CatalogState state, bool writable = false)
     {
         return new CatalogStatusResource(
             Path.GetFileName(state.FilePath),
@@ -101,6 +106,8 @@ public static class CatalogResourceMapper
             state.Errors,
             state.Catalog.Apps.Count,
             state.Catalog.Stacks.Count,
-            state.Catalog.Environments.Count);
+            state.Catalog.Environments.Count,
+            state.Version,
+            writable);
     }
 }

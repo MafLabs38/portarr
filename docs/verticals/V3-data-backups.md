@@ -73,7 +73,7 @@ The discovery code and everything that only served it: `DataAssetDiscovery`, `Da
 
 ## Statuses
 
-Data coverage is not an app status yet: a late or failed backup becomes an issue in V5 (Issues).
+Data coverage is not an app status yet: a late or failed backup becomes an issue in V5 (Issues). The MCP overview lists `backup-failed`, `data-missing`, `backup-late` and `critical-without-offsite` findings.
 
 ## Acceptance criteria
 
