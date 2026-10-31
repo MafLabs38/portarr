@@ -37,6 +37,7 @@ internal sealed class CappedStream(Stream inner, long limit) : Stream
 
     public override void Flush()
     {
+        // Read-only: nothing is buffered for writing.
     }
 
     public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();

@@ -61,7 +61,7 @@ public sealed partial class CheckScheduler : BackgroundService
         {
             var result = await ProbeAsync(item.Check, token);
             _store.Record(item.AppId, item.Check.Target, item.Check.Definition, result);
-            if (!result.Up)
+            if (!result.Up && result.Error != CheckErrors.CheckFailed)
             {
                 LogCheckFailed(item.AppId, result.Error!);
             }

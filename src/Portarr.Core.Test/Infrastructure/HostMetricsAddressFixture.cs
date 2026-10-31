@@ -22,7 +22,12 @@ public sealed class HostMetricsAddressFixture
     [InlineData("169.254.169.254")]
     [InlineData("::ffff:169.254.169.254")]
     [InlineData("fe80::1")]
-    public void should_refuse_a_loopback_link_local_or_unspecified_ip(string address)
+    [InlineData("::127.0.0.1")]
+    [InlineData("64:ff9b::a9fe:a9fe")]
+    [InlineData("ff02::1")]
+    [InlineData("224.0.0.1")]
+    [InlineData("255.255.255.255")]
+    public void should_refuse_a_loopback_link_local_multicast_or_unspecified_ip(string address)
     {
         HostMetricsMonitor.IsReachableAddress(address).Should().BeFalse();
     }

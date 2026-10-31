@@ -158,16 +158,16 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
             NodeExporterAccess.ApiServer => new HostMetricsTarget(environment, node.Id, null, nodeExporter.Port),
             NodeExporterAccess.Direct when node.Address is { } address
                 => IsReachableAddress(address)
-                    ? new HostMetricsTarget(environment, node.Id, new UriBuilder(Uri.UriSchemeHttp, address, nodeExporter.Port, "/metrics").Uri)
+                    ? new HostMetricsTarget(environment, node.Id, new UriBuilder(Uri.UriSchemeHttp, IPAddress.Parse(address).ToString(), nodeExporter.Port, "/metrics").Uri)
                     : new HostMetricsTarget(environment, node.Id, null, null, ReasonCodes.InvalidAddress),
             _ => null,
         };
     }
 
     /// <summary>
-    /// A node address worth connecting to: an IP literal (a node's InternalIP always is) that is not loopback, link-local or unspecified.
-    /// Such an address would make Portarr read itself or its own network neighbours; a name is refused too, since it is resolved at
-    /// connect time and could then point anywhere.
+    /// A node address worth connecting to: an IP literal (a node's InternalIP always is), private ranges included, that does not lead back to
+    /// Portarr or to a neighbour that answers to anyone: not unspecified, loopback, link-local, multicast or broadcast, whether written as
+    /// IPv4, IPv4-mapped, IPv4-compatible or through the NAT64 prefix. A name is refused too, since it is resolved at connect time.
     /// </summary>
     internal static bool IsReachableAddress(string address)
     {
@@ -176,14 +176,21 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
             return false;
         }
 
-        ip = ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip;
-        return !IPAddress.IsLoopback(ip) && !ip.Equals(IPAddress.Any) && !ip.Equals(IPAddress.IPv6Any) && !ip.IsIPv6LinkLocal && !IsIPv4LinkLocal(ip);
+        var bytes = (ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip).GetAddressBytes();
+        return bytes.Length == 4 ? IsRoutableIPv4(bytes) : IsRoutableIPv6(bytes);
     }
 
-    private static bool IsIPv4LinkLocal(IPAddress ip)
+    private static bool IsRoutableIPv4(byte[] bytes)
     {
-        var bytes = ip.GetAddressBytes();
-        return bytes.Length == 4 && bytes[0] == 169 && bytes[1] == 254;
+        return bytes[0] is not (0 or 127 or >= 224) && !(bytes[0] == 169 && bytes[1] == 254);
+    }
+
+    private static bool IsRoutableIPv6(byte[] bytes)
+    {
+        var embedded = bytes.AsSpan(0, 12).IndexOfAnyExcept((byte)0) < 0; // ::, ::1 and the IPv4-compatible ::a.b.c.d
+        var nat64 = bytes[0] == 0x00 && bytes[1] == 0x64 && bytes[2] == 0xff && bytes[3] == 0x9b && bytes.AsSpan(4, 8).IndexOfAnyExcept((byte)0) < 0;
+        var linkLocal = bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80;
+        return !embedded && !nat64 && !linkLocal && bytes[0] != 0xff;
     }
 
     private void StartDueReads(CancellationToken stoppingToken)
