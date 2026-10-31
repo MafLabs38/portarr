@@ -13,7 +13,10 @@ test.describe('Logging and metrics', { tag: '@smoke' }, () => {
     await expect(page.getByRole('combobox', { name: 'Log level' })).toHaveValue('Debug');
 
     // Leave the instance as it was for the other tests.
-    await request.put('/api/v1/system/logging', { data: { level: 'Information' } });
+    await request.put('/api/v1/system/logging', {
+      data: { level: 'Information' },
+      headers: { 'X-Requested-With': 'portarr' },
+    });
   });
 
   test('Prometheus metrics are exposed', async ({ request }) => {

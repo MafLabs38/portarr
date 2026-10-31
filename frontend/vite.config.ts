@@ -8,15 +8,18 @@ const src = fileURLToPath(new URL('./src', import.meta.url));
 // Absolute imports from src (DESIGN.md §1.3): every top-level folder becomes an alias.
 const aliases = [
   '__mocks__',
+  'Account',
   'App',
   'Apps',
   'Assistant',
+  'Auth',
   'Chat',
   'Components',
   'Data',
   'Helpers',
   'Infrastructure',
   'Maintenance',
+  'Settings',
   'Styles',
   'System',
   'Utilities',

@@ -27,11 +27,7 @@ export default function McpServerCard({ status, endpoint }: Readonly<McpServerCa
         <DescriptionListItem data={endpoint} monospace title={translate('Endpoint')} />
         <DescriptionListItem data={translate('McpTransportValue')} title={translate('Transport')} />
         <DescriptionListItem
-          data={
-            status.keyConfigured
-              ? translate('McpKeyConfigured', { header: status.headerName })
-              : translate('McpKeyMissing')
-          }
+          data={translate('McpKeyConfigured', { header: status.headerName })}
           title={translate('Authentication')}
         />
         <DescriptionListItem

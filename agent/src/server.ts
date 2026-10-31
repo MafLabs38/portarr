@@ -12,6 +12,8 @@ export const maxMessageLength = 20_000;
 const keepAliveMs = 15_000;
 const requestIdPattern = /^[A-Za-z0-9_-]{1,100}$/;
 const namePattern = /^[a-z0-9][a-z0-9.-]{0,63}$/;
+/** The per-turn token Portarr mints for the user (V7, D-98): used as the MCP key instead of the shared one. */
+const mcpTokenPattern = /^ptc_[A-Za-z0-9_-]{20,100}$/;
 
 function digest(value: string): Buffer {
   return createHash('sha256').update(value, 'utf8').digest();
@@ -65,6 +67,18 @@ function optionalName(body: Record<string, unknown>, key: string): string | unde
   }
   if (typeof value !== 'string' || !namePattern.test(value)) {
     throw new ChatError(400, `${key} must be a short lowercase name.`);
+  }
+  return value;
+}
+
+/** Absent or empty: the runner falls back to the shared key it was configured with. */
+function optionalMcpToken(body: Record<string, unknown>): string | undefined {
+  const value = body.mcpToken;
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+  if (typeof value !== 'string' || !mcpTokenPattern.test(value)) {
+    throw new ChatError(400, 'mcpToken is not a token Portarr minted.');
   }
   return value;
 }
@@ -143,7 +157,7 @@ async function message({ manager, request, response }: Call, id: string): Promis
   if (text.trim().length === 0 || text.length > maxMessageLength) {
     throw new ChatError(400, `text must be 1 to ${maxMessageLength} characters.`);
   }
-  manager.send(id, text, optionalName(body, 'model'));
+  manager.send(id, text, optionalName(body, 'model'), optionalMcpToken(body));
   send(response, 202, { accepted: true });
 }
 

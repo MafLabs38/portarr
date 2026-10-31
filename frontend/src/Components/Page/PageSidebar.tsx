@@ -1,39 +1,27 @@
-import type { LucideIcon } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 
-import * as icons from 'Helpers/Props/icons';
+import { menuEntries } from 'Auth/navigation';
+import usePermissions from 'Auth/usePermissions';
 import translate from 'Utilities/String/translate';
 
 import styles from './PageSidebar.module.css';
 import PortalBadge from './PortalBadge';
 
-interface Entry {
-  to: string;
-  label: string;
-  icon: LucideIcon;
-}
-
-// Menu structure inspired by the *arr apps (spec §8.1); entries appear as their screens are built.
-const entries: Entry[] = [
-  { to: '/apps', label: 'Apps', icon: icons.APPS },
-  { to: '/infrastructure', label: 'Infrastructure', icon: icons.INFRASTRUCTURE },
-  { to: '/data', label: 'Data', icon: icons.DATA },
-  { to: '/maintenance', label: 'Maintenance', icon: icons.MAINTENANCE },
-  // Its own entry while the sidebar has no second level (C3): the same questions, asked from an AI (V5).
-  { to: '/assistant', label: 'Assistant', icon: icons.ASSISTANT },
-  { to: '/system/status', label: 'System', icon: icons.SYSTEM },
-];
-
+/** The menu shows the entries the signed-in user's role allows (V7): the same role, another view. */
 export default function PageSidebar() {
+  const { can } = usePermissions();
+
   return (
     <aside className={styles.sidebar}>
       <nav aria-label={translate('MainMenu')} className={styles.menu}>
-        {entries.map(({ to, label, icon: Icon }) => (
-          <NavLink className={({ isActive }) => (isActive ? styles.activeLink : styles.link)} key={to} to={to}>
-            <Icon aria-hidden="true" size={18} strokeWidth={2.25} />
-            <span>{translate(label)}</span>
-          </NavLink>
-        ))}
+        {menuEntries
+          .filter((entry) => can(entry.permission))
+          .map(({ to, label, icon: Icon }) => (
+            <NavLink className={({ isActive }) => (isActive ? styles.activeLink : styles.link)} key={to} to={to}>
+              <Icon aria-hidden="true" size={18} strokeWidth={2.25} />
+              <span>{translate(label)}</span>
+            </NavLink>
+          ))}
       </nav>
       <PortalBadge />
     </aside>

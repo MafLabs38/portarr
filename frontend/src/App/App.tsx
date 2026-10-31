@@ -2,6 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 
+import AuthGate from 'Auth/AuthGate';
 import Page from 'Components/Page/Page';
 
 import AppRoutes from './AppRoutes';
@@ -13,9 +14,11 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <Page>
-          <AppRoutes />
-        </Page>
+        <AuthGate>
+          <Page>
+            <AppRoutes />
+          </Page>
+        </AuthGate>
       </BrowserRouter>
     </QueryClientProvider>
   );

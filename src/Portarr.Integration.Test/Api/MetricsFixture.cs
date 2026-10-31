@@ -16,7 +16,7 @@ public sealed class MetricsFixture
     public async Task should_expose_build_info_and_http_metrics_for_prometheus()
     {
         await using var factory = new PortarrFactory(await _database.CreateOptionsAsync());
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateSignedInClientAsync();
         await client.GetAsync("/api/v1/system/status", TestContext.Current.CancellationToken);
 
         var response = await client.GetAsync("/metrics", TestContext.Current.CancellationToken);

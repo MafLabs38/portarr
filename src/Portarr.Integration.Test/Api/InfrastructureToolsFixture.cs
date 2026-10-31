@@ -60,7 +60,7 @@ public sealed class InfrastructureToolsFixture : IAsyncLifetime
             options,
             new Dictionary<string, string?> { ["CLUSTER_TOKEN"] = "cluster-token" },
             services => services.AddSingleton<IWorkloadSource, KubernetesWorkloadSource>());
-        _client = _factory.CreateClient();
+        _client = await _factory.CreateSignedInClientAsync();
         await _factory.Services.GetRequiredService<IWorkloadInventory>().RefreshAsync(TestContext.Current.CancellationToken);
     }
 

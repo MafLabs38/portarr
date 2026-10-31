@@ -1,8 +1,10 @@
 using System.Text.Json.Nodes;
 using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Portarr.Core.Accounts;
 using Portarr.Core.Catalog.Editing;
 using Portarr.Http;
 
@@ -13,8 +15,7 @@ namespace Portarr.Api.V1.Catalog;
 /// the operator or an assistant. Every write sends the catalog version it read (409 when the file changed since),
 /// is validated on the whole resulting file (400 with field paths, file untouched), keeps the previous version and
 /// is audited. Writes are off unless <c>PORTARR__CATALOG__WRITABLE=true</c> and need the key of
-/// <c>PORTARR__APIKEY</c>; they change Portarr's description of the fleet, never the infrastructure (D-31). Reading
-/// one item and the audit log need the same key: they show the connectors' addresses and who changed what.
+/// <c>PORTARR__APIKEY</c>; they change Portarr's description of the fleet, never the infrastructure (D-31).
 /// </summary>
 [ApiController]
 [Route("api/v1/catalog")]
@@ -46,12 +47,10 @@ public sealed class CatalogEditController : ControllerBase
     /// <param name="section">environments, stacks, apps, data, links or providers.</param>
     /// <param name="id">The item's id.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
-    /// <response code="401">The API key is missing or wrong.</response>
     /// <response code="404">No such item.</response>
     [HttpGet(Section + "/{id}")]
-    [CatalogWriteAccess(RequireWritable = false)]
+    [Authorize(Policy = Permissions.CatalogWrite)]
     [ProducesResponseType<CatalogItemResource>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<CatalogItemResource>> GetItemAsync(string section, string id, CancellationToken cancellationToken)
     {
@@ -64,11 +63,9 @@ public sealed class CatalogEditController : ControllerBase
     /// <summary>The latest catalog edits, newest first: when, through which channel, what, and the versions before and after.</summary>
     /// <param name="limit">How many entries, 1 to 200 (default 20).</param>
     /// <param name="cancellationToken">Cancels the read.</param>
-    /// <response code="401">The API key is missing or wrong.</response>
     [HttpGet("audit")]
-    [CatalogWriteAccess(RequireWritable = false)]
+    [Authorize(Policy = Permissions.AssistantView)]
     [ProducesResponseType<IReadOnlyList<CatalogAuditEntryResource>>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
     public async Task<IReadOnlyList<CatalogAuditEntryResource>> GetAuditAsync(int limit = 20, CancellationToken cancellationToken = default)
     {
         var entries = await _auditLog.ReadAsync(Math.Clamp(limit, 1, MaxAuditEntries), cancellationToken);
@@ -85,6 +82,7 @@ public sealed class CatalogEditController : ControllerBase
     /// <response code="403">Catalog writes are off.</response>
     /// <response code="409">The catalog changed since the version sent, or the id exists.</response>
     [HttpPost(Section)]
+    [Authorize(Policy = Permissions.CatalogWrite)]
     [CatalogWriteAccess]
     [EnableRateLimiting(HttpServiceCollectionExtensions.CatalogWritesPolicyName)]
     [ProducesResponseType<CatalogEditResource>(StatusCodes.Status201Created)]
@@ -118,6 +116,7 @@ public sealed class CatalogEditController : ControllerBase
     /// <response code="403">Catalog writes are off.</response>
     /// <response code="409">The catalog changed since the version sent.</response>
     [HttpPut(Section + "/{id}")]
+    [Authorize(Policy = Permissions.CatalogWrite)]
     [CatalogWriteAccess]
     [EnableRateLimiting(HttpServiceCollectionExtensions.CatalogWritesPolicyName)]
     [ProducesResponseType<CatalogEditResource>(StatusCodes.Status200OK)]
@@ -142,6 +141,7 @@ public sealed class CatalogEditController : ControllerBase
     /// <response code="404">No such item.</response>
     /// <response code="409">The catalog changed since the version sent.</response>
     [HttpDelete(Section + "/{id}")]
+    [Authorize(Policy = Permissions.CatalogWrite)]
     [CatalogWriteAccess]
     [EnableRateLimiting(HttpServiceCollectionExtensions.CatalogWritesPolicyName)]
     [ProducesResponseType<CatalogEditResource>(StatusCodes.Status200OK)]
@@ -162,6 +162,7 @@ public sealed class CatalogEditController : ControllerBase
     /// <response code="404">No such item.</response>
     /// <response code="409">The catalog changed since the version sent.</response>
     [HttpPut(Section + "/{id}/notes")]
+    [Authorize(Policy = Permissions.CatalogWrite)]
     [CatalogWriteAccess]
     [EnableRateLimiting(HttpServiceCollectionExtensions.CatalogWritesPolicyName)]
     [ProducesResponseType<CatalogEditResource>(StatusCodes.Status200OK)]
@@ -188,6 +189,7 @@ public sealed class CatalogEditController : ControllerBase
     /// <response code="404">No such environment.</response>
     /// <response code="409">The catalog changed since the version sent.</response>
     [HttpPut("environments/{id}/machines/{name}")]
+    [Authorize(Policy = Permissions.CatalogWrite)]
     [CatalogWriteAccess]
     [EnableRateLimiting(HttpServiceCollectionExtensions.CatalogWritesPolicyName)]
     [ProducesResponseType<CatalogEditResource>(StatusCodes.Status200OK)]
@@ -208,6 +210,7 @@ public sealed class CatalogEditController : ControllerBase
     /// <response code="404">No such environment or machine.</response>
     /// <response code="409">The catalog changed since the version sent.</response>
     [HttpDelete("environments/{id}/machines/{name}")]
+    [Authorize(Policy = Permissions.CatalogWrite)]
     [CatalogWriteAccess]
     [EnableRateLimiting(HttpServiceCollectionExtensions.CatalogWritesPolicyName)]
     [ProducesResponseType<CatalogEditResource>(StatusCodes.Status200OK)]
@@ -226,7 +229,7 @@ public sealed class CatalogEditController : ControllerBase
 
     private async Task<IActionResult> EditAsync(string section, string id, string operation, string? version, Func<JsonObject?, JsonObject?> change, CancellationToken cancellationToken)
     {
-        var actor = new CatalogActor(Channel, HttpContext.Connection.RemoteIpAddress?.ToString());
+        var actor = new CatalogActor(Channel, HttpContext.Connection.RemoteIpAddress?.ToString(), null, User.Identity?.Name);
         var result = await _editor.EditAsync(new CatalogEdit(section, id, operation, version, actor, change), cancellationToken);
         return this.ToActionResult(result, section, id);
     }

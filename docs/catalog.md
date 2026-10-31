@@ -316,8 +316,8 @@ The catalog file stays the source of truth (D-44); Portarr can edit it for you, 
 
 | Setting | Effect |
 |---|---|
-| `PORTARR__CATALOG__WRITABLE=true` | Turns the write endpoints on. Requires `PORTARR__APIKEY` (at least 32 characters, e.g. `openssl rand -hex 32`). |
-| `PORTARR__APIKEY` | The key writes send in `X-Api-Key` (or `Authorization: Bearer`), until Portarr has accounts (C2). |
+| `PORTARR__CATALOG__WRITABLE=true` | Turns the write endpoints on. Who may write is the `catalog.write` permission of a role (V7): a signed-in user, or a per-user API key of such a user. |
+| `PORTARR__APIKEY` | Deprecated bootstrap key (at least 32 characters, e.g. `openssl rand -hex 32`), sent in `X-Api-Key` or `Authorization: Bearer`: acts as the built-in `system` principal with Admin permissions. Optional; a warning is logged at startup when set. |
 | `PORTARR__CATALOG__BACKUPS` | Previous versions kept next to the catalog (`catalog.yaml.bak-<timestamp>`), default 10. |
 | `PORTARR__MCP__WRITETOOLS=true` | Adds the MCP write tools ([verticals/V5-ai-mcp.md](verticals/V5-ai-mcp.md)); they also need the catalog to be writable. |
 
@@ -328,7 +328,7 @@ curl -s -X PUT localhost:8484/api/v1/catalog/apps/blog/notes -H "X-Api-Key: $KEY
   -H 'Content-Type: application/json' -d '{"version":"3f2a…","notes":"Built by CI."}'
 ```
 
-- Endpoints: `GET|PUT|DELETE /api/v1/catalog/{section}/{id}`, `POST /api/v1/catalog/{section}`, `PUT /api/v1/catalog/{section}/{id}/notes`, `PUT|DELETE /api/v1/catalog/environments/{id}/machines/{name}`, `GET /api/v1/catalog/audit`; the identity has its own ([Identity of the portal](#identity-of-the-portal)); sections `environments`, `stacks`, `apps`, `data`, `links`, `providers`. Items are JSON with the keys of the file. Reading one item and the audit need the API key too (they show the connectors' addresses and who changed what); they answer even when writes are off. Reference at `/docs`.
+- Endpoints: `GET|PUT|DELETE /api/v1/catalog/{section}/{id}`, `POST /api/v1/catalog/{section}`, `PUT /api/v1/catalog/{section}/{id}/notes`, `PUT|DELETE /api/v1/catalog/environments/{id}/machines/{name}`, `GET /api/v1/catalog/audit`; the identity has its own ([Identity of the portal](#identity-of-the-portal)); sections `environments`, `stacks`, `apps`, `data`, `links`, `providers`. Items are JSON with the keys of the file. Reference at `/docs`.
 - **Versions**: every write sends the version it read; if the file changed since (by hand, by another client), the write is refused with 409 and the current version. Writes are serialized.
 - **Validation**: the whole resulting file goes through the parser; an error is a 400 whose `errors` are keyed by field path (`apps[blog].check.url`) and the file is not touched.
 - **What changes in the file**: only what differs. A changed value is rewritten in place, a new key or item is added after the last one with the file's indentation and style (an item of a list written `- { … }` is written that way), a removed one loses its lines; comments and formatting elsewhere stay. Limits: a comment *inside* a rewritten node is lost (a flow item is rewritten whole; a list whose order changed is rewritten), and a comment line above a removed item stays.

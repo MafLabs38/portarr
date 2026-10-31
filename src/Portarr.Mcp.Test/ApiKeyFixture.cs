@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Http;
+using Portarr.Core.Configuration;
+using Portarr.Http.Authentication;
 
 namespace Portarr.Mcp.Test;
 
@@ -14,13 +16,13 @@ public sealed class ApiKeyFixture
     [InlineData("", false)]
     public void should_accept_only_the_exact_key(string presented, bool accepted)
     {
-        ApiKeyAuthenticationHandler.Matches(presented, Key).Should().Be(accepted);
+        ApiKeys.Matches(presented, Key).Should().Be(accepted);
     }
 
     [Fact]
     public void should_refuse_everything_when_no_key_is_set()
     {
-        ApiKeyAuthenticationHandler.Matches(Key, null).Should().BeFalse();
+        ApiKeys.Matches(Key, null).Should().BeFalse();
     }
 
     [Theory]
@@ -37,10 +39,11 @@ public sealed class ApiKeyFixture
 
     [Theory]
     [InlineData(false, null, true)]
-    [InlineData(true, null, false)]
+    [InlineData(true, null, true)]
     [InlineData(true, "too-short", false)]
+    [InlineData(false, "too-short", false)]
     [InlineData(true, Key, true)]
-    public void should_require_a_strong_key_only_when_enabled(bool enabled, string? key, bool valid)
+    public void should_require_a_strong_key_only_when_one_is_set(bool enabled, string? key, bool valid)
     {
         var result = new McpOptionsValidator().Validate(null, new McpOptions { Enabled = enabled, ApiKey = key });
 

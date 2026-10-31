@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
@@ -13,6 +12,8 @@ using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Portarr.Common;
+using Portarr.Core.Configuration;
+using Portarr.Http.Authentication;
 using Portarr.Mcp.Chat;
 using Portarr.Mcp.Digest;
 using Portarr.Mcp.Knowledge;
@@ -89,8 +90,9 @@ public static class McpServiceCollectionExtensions
         // Added once the options are bound (not while registering), so every configuration source counts.
         services.AddSingleton<IConfigureOptions<McpServerOptions>>(provider => new CatalogToolsSetup(provider, json));
 
-        services.AddAuthentication()
-            .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyAuthenticationHandler.SchemeName, null);
+        // The endpoint is for API clients: a key (a user's, the chat runner's token, or the deprecated environment key) and
+        // never a browser cookie. What each tool needs is checked per tool, against the permissions of the key's owner.
+        services.AddSingleton<ISystemApiKeySource, McpApiKeySource>();
         services.AddAuthorizationBuilder()
             .AddPolicy(AuthorizationPolicyName, policy => policy
                 .AddAuthenticationSchemes(ApiKeyAuthenticationHandler.SchemeName)
@@ -112,6 +114,12 @@ public static class McpServiceCollectionExtensions
             app.MapMcp(Path)
                 .RequireRateLimiting(RateLimitPolicyName)
                 .RequireAuthorization(AuthorizationPolicyName);
+        }
+        else
+        {
+            // Off, the path is a plain 404 for everyone: without these, the sign-in requirement would answer 401 first.
+            app.Map(Path, () => Results.NotFound()).AllowAnonymous();
+            app.Map(Path + "/{**rest}", () => Results.NotFound()).AllowAnonymous();
         }
 
         return app;

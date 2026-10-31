@@ -60,7 +60,7 @@ public sealed class ApiDocsFixture : IAsyncLifetime
     [Fact]
     public async Task should_keep_the_strict_global_policy_on_the_other_pages()
     {
-        using var client = _factory.CreateClient();
+        using var client = await _factory.CreateSignedInClientAsync();
 
         var response = await client.GetAsync("/api/v1/apps", TestContext.Current.CancellationToken);
 

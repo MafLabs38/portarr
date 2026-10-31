@@ -70,3 +70,18 @@ test('conversations: create, send, validate, delete', async () => {
   assert.equal((await fetch(`${base}/v1/conversations/${id}`, { method: 'DELETE', headers: auth })).status, 204);
   assert.equal((await fetch(`${base}/v1/conversations/${id}`, { headers: auth })).status, 404);
 });
+
+test('a message may carry the per-user MCP token; a malformed one is refused', async () => {
+  const created = await fetch(`${base}/v1/conversations`, { method: 'POST', headers: auth, body: '{}' });
+  const { id } = (await created.json()) as { id: string };
+  const send = (mcpToken: unknown) =>
+    fetch(`${base}/v1/conversations/${id}/messages`, {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ text: 'hello', mcpToken }),
+    });
+
+  assert.equal((await send('not-a-token')).status, 400);
+  assert.equal((await send(`ptc_${'b'.repeat(43)}`)).status, 202);
+  await fetch(`${base}/v1/conversations/${id}`, { method: 'DELETE', headers: auth });
+});

@@ -1,9 +1,11 @@
 using Portarr.Api.V1;
 using Portarr.Core;
+using Portarr.Core.Accounts;
 using Portarr.Core.Datastore.Migration;
 using Portarr.Core.Instrumentation;
 using Portarr.Host.Logging;
 using Portarr.Http;
+using Portarr.Http.Authentication;
 using Portarr.Mcp;
 using Portarr.Providers.Backrest;
 using Portarr.Providers.Cloudflare;
@@ -43,6 +45,10 @@ var app = builder.Build();
 app.Services.GetRequiredService<IMigrationController>().Migrate();
 await app.Services.GetRequiredService<ILogLevelService>().RestoreAsync();
 
+// Accounts (V7): the optional unattended first run, and a warning for each deprecated environment key.
+await app.Services.GetRequiredService<IAccountBootstrap>().RunAsync(CancellationToken.None);
+app.WarnAboutSystemKeys();
+
 app.UsePortarrForwardedHeaders();
 app.UsePortarrRequestLogging();
 app.UseExceptionHandler();
@@ -53,6 +59,7 @@ app.UsePortarrFrontendFiles();
 app.UseRouting();
 app.UseRateLimiter();
 app.UseAuthentication();
+app.UsePortarrCsrfProtection();
 app.UseAuthorization();
 app.UsePortarrMetrics();
 app.MapControllers();

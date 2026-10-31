@@ -34,7 +34,8 @@ public sealed record CatalogAuditEntryResource(
     string VersionBefore,
     string VersionAfter,
     IReadOnlyList<string> Changes,
-    string? Via = null);
+    string? Via = null,
+    string? User = null);
 
 public sealed class CatalogItemRequestValidator : AbstractValidator<CatalogItemRequest>
 {
@@ -76,7 +77,7 @@ public static partial class CatalogEditMapper
 
     public static CatalogAuditEntryResource ToResource(this CatalogAuditEntry entry)
     {
-        return new CatalogAuditEntryResource(entry.At, entry.Channel, entry.Client, entry.Operation, entry.Section, entry.Id, entry.VersionBefore, entry.VersionAfter, entry.Changes, entry.Via);
+        return new CatalogAuditEntryResource(entry.At, entry.Channel, entry.Client, entry.Operation, entry.Section, entry.Id, entry.VersionBefore, entry.VersionAfter, entry.Changes, entry.Via, entry.User);
     }
 
     public static CatalogEditResource ToResource(this CatalogEditResult result)

@@ -155,3 +155,21 @@ test('unknown agent or model is a 400', async () => {
   await assert.rejects(manager.create('nope', undefined, undefined), (error: ChatError) => error.status === 400);
   await assert.rejects(manager.create(undefined, 'huge', undefined), (error: ChatError) => error.status === 400);
 });
+
+function mcpKeyOf(process: { options: { mcpConfigFile: string } }): string {
+  const config = JSON.parse(readFileSync(process.options.mcpConfigFile, 'utf8')) as {
+    mcpServers: Record<string, { headers: Record<string, string> }>;
+  };
+  return Object.values(config.mcpServers)[0].headers['X-Api-Key'];
+}
+
+test("a process uses the user's token as its MCP key, else the shared key", async () => {
+  const { manager, adapter } = await newManager();
+  const withToken = await manager.create(undefined, undefined, undefined);
+  manager.send(withToken.id, 'hello', undefined, `ptc_${'a'.repeat(43)}`);
+  assert.equal(mcpKeyOf(adapter.last), `ptc_${'a'.repeat(43)}`);
+
+  const without = await manager.create(undefined, undefined, undefined);
+  manager.send(without.id, 'hello');
+  assert.equal(mcpKeyOf(adapter.last), 'k'.repeat(40));
+});

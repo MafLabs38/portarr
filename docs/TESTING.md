@@ -186,7 +186,8 @@ yarn stryker run                                                # mutation testi
 The E2E stack builds Portarr's image, which is too heavy for a small machine. The specs depend only on data any catalog has, so they also run against a running instance, a dev sandbox for instance:
 
 ```bash
-PORTARR_URL=http://localhost:5174 yarn e2e --project=chromium --workers=1 specs/data.spec.ts   # …and the other specs
+PORTARR_URL=http://localhost:5174 E2E_ADMIN_USER=<user> E2E_ADMIN_PASSWORD=<password> \
+  yarn e2e --project=chromium --workers=1 specs/accounts.spec.ts specs/data.spec.ts   # …and the other specs
 ```
 
 The specs of `launcher-and-workloads.spec.ts` and `logging-and-metrics.spec.ts` name the stack's own containers and only pass on the E2E stack; `/health` needs the API port (`PORTARR_URL` pointing at the Vite dev proxy answers the frontend instead).

@@ -18,7 +18,7 @@ public sealed class LoggingFixture
     public async Task should_default_to_information()
     {
         await using var factory = new PortarrFactory(await _database.CreateOptionsAsync());
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateSignedInClientAsync();
 
         var logging = await client.GetFromJsonAsync<LoggingResource>("/api/v1/system/logging", TestContext.Current.CancellationToken);
 
@@ -32,7 +32,7 @@ public sealed class LoggingFixture
 
         await using (var first = new PortarrFactory(options))
         {
-            using var client = first.CreateClient();
+            using var client = await first.CreateSignedInClientAsync();
             var response = await client.PutAsJsonAsync("/api/v1/system/logging", new LoggingResource("debug"), TestContext.Current.CancellationToken);
 
             response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -40,7 +40,7 @@ public sealed class LoggingFixture
         }
 
         await using var second = new PortarrFactory(options);
-        using var restarted = second.CreateClient();
+        using var restarted = await second.CreateSignedInClientAsync();
 
         var logging = await restarted.GetFromJsonAsync<LoggingResource>("/api/v1/system/logging", TestContext.Current.CancellationToken);
 
@@ -53,7 +53,7 @@ public sealed class LoggingFixture
     public async Task should_reject_an_unknown_or_unsafe_level(string level)
     {
         await using var factory = new PortarrFactory(await _database.CreateOptionsAsync());
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateSignedInClientAsync();
 
         var response = await client.PutAsJsonAsync("/api/v1/system/logging", new LoggingResource(level), TestContext.Current.CancellationToken);
 

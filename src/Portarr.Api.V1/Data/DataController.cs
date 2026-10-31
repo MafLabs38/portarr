@@ -1,11 +1,14 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Portarr.Core.Accounts;
 using Portarr.Core.Catalog;
 using Portarr.Core.Data;
 
 namespace Portarr.Api.V1.Data;
 
 [ApiController]
+[Authorize(Policy = Permissions.DataView)]
 [Route("api/v1/data")]
 public sealed class DataController : ControllerBase
 {

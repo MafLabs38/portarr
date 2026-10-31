@@ -1,11 +1,14 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Portarr.Core.Accounts;
 using Portarr.Core.Catalog;
 using Portarr.Core.Catalog.Editing;
 
 namespace Portarr.Api.V1.Catalog;
 
 [ApiController]
+[Authorize(Policy = Permissions.AppsView)]
 [Route("api/v1/catalog")]
 public sealed class CatalogStatusController : ControllerBase
 {

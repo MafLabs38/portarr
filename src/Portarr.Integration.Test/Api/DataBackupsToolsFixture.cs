@@ -91,7 +91,7 @@ public sealed class DataBackupsToolsFixture : IAsyncLifetime
             ["BACKREST_PASSWORD"] = "s3cret",
             ["CLUSTER_TOKEN"] = "cluster-token",
         });
-        _client = _factory.CreateClient();
+        _client = await _factory.CreateSignedInClientAsync();
         await _factory.Services.GetRequiredService<IBackupMonitor>().RefreshAsync(TestContext.Current.CancellationToken);
     }
 

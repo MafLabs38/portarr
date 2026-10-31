@@ -54,7 +54,7 @@ public sealed class MaintenanceToolsFixture : IAsyncLifetime
                 services.AddSingleton<ICodeRepositorySource, GitHubRepositorySource>();
                 services.AddHttpClient(GitHubRepositorySource.HttpClientName).ConfigureHttpClient(client => client.BaseAddress = new Uri(_github.Url + "/"));
             });
-        _client = _factory.CreateClient();
+        _client = await _factory.CreateSignedInClientAsync();
     }
 
     public async ValueTask DisposeAsync()

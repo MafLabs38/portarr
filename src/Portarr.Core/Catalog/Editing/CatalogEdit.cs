@@ -45,9 +45,10 @@ public enum CatalogEditStatus
 
 /// <summary>
 /// Who asked for an edit: the channel (<c>api</c>, <c>mcp</c>, <c>console</c>), the client's address and, for an MCP
-/// client that says so, where the request came from (<c>chat:&lt;conversation&gt;</c> for the built-in chat, D-89).
+/// client that says so, where the request came from (<c>chat:&lt;conversation&gt;</c> for the built-in chat, D-89)
+/// and, since accounts (V7, D-96), the user who made the edit (<c>system</c> for the deprecated environment keys).
 /// </summary>
-public sealed record CatalogActor(string Channel, string? Client, string? Via = null);
+public sealed record CatalogActor(string Channel, string? Client, string? Via = null, string? User = null);
 
 /// <summary>
 /// One edit of one catalog item. <c>Change</c> gets the current item (null when absent) and returns the new one

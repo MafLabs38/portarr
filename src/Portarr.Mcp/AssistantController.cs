@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
+using Portarr.Core.Accounts;
 using Portarr.Core.Catalog.Editing;
 using Portarr.Mcp.Knowledge;
 
@@ -30,6 +32,7 @@ public sealed record AssistantStatusResource(
 public sealed record KnowledgeResource(string Uri, DateTimeOffset GeneratedAt, string Markdown);
 
 [ApiController]
+[Authorize(Policy = Permissions.AssistantView)]
 [Route("api/v1/assistant")]
 public sealed class AssistantController : ControllerBase
 {
@@ -67,7 +70,7 @@ public sealed class AssistantController : ControllerBase
             options.Enabled,
             McpServiceCollectionExtensions.Path,
             !string.IsNullOrWhiteSpace(options.ApiKey),
-            ApiKeyAuthenticationHandler.HeaderName,
+            Portarr.Core.Configuration.ApiKeys.HeaderName,
             _tools.Select(t => new AssistantToolResource(t.ProtocolTool.Name, t.ProtocolTool.Title, t.ProtocolTool.Description, t.ProtocolTool.Annotations?.ReadOnlyHint ?? false))
                 .OrderBy(t => !t.ReadOnly)
                 .ThenBy(t => t.Name, StringComparer.Ordinal)

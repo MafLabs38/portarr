@@ -47,7 +47,8 @@ public static class ApiV1ServiceCollectionExtensions
     /// </summary>
     public static IEndpointRouteBuilder MapPortarrApiDocs(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapOpenApi(OpenApiDocumentPath);
+        // The reference documents the API, not the data: public, like the login page.
+        endpoints.MapOpenApi(OpenApiDocumentPath).AllowAnonymous();
         endpoints.MapScalarApiReference(ApiReferencePath, options => options
             .WithTitle("Portarr API")
             .WithOpenApiRoutePattern(OpenApiDocumentPath)
@@ -57,7 +58,8 @@ public static class ApiV1ServiceCollectionExtensions
             .HideDeveloperTools()
             .DisableAgent()
             .DisableMcp()
-            .WithNonce());
+            .WithNonce())
+            .AllowAnonymous();
 
         return endpoints;
     }

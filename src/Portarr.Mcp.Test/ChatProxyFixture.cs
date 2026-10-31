@@ -1,9 +1,12 @@
 using System.Net;
+using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Portarr.Core.Accounts;
+using Portarr.Http.Authentication;
 using Portarr.Mcp.Chat;
 using Portarr.Mcp.Server;
 
@@ -19,14 +22,22 @@ public sealed class ChatProxyFixture
     private const string Secret = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-secret";
     private const string ConversationId = "0d5c2f1e-7a3b-4c8d-9e0f-1a2b3c4d5e6f";
 
+    private const string Token = "ptc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
     private readonly RecordingHandler _handler = new();
+    private readonly IChatAccess _access = Substitute.For<IChatAccess>();
 
     private ChatController Controller(string? url = "http://agent.example:8488")
     {
         var options = Options.Create(new AgentOptions { Url = url, Secret = Secret });
-        var controller = new ChatController(new AgentRunnerClient(new HttpClient(_handler), options), options, NullLogger<ChatController>.Instance)
+        _access.CanAccessAsync(Arg.Any<string>(), Arg.Any<int?>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(true);
+        _access.MintTokenAsync(7, ConversationId, Arg.Any<CancellationToken>()).Returns(Token);
+        var user = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, "7"), new Claim(ClaimTypes.Name, "alice"), new Claim(PortarrClaims.Permission, Permissions.CatalogWrite)],
+            "test"));
+        var controller = new ChatController(new AgentRunnerClient(new HttpClient(_handler), options), options, _access, NullLogger<ChatController>.Instance)
         {
-            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = user } },
         };
         controller.HttpContext.Request.Headers.Cookie = "session=browser-cookie";
         return controller;
@@ -54,7 +65,7 @@ public sealed class ChatProxyFixture
         request.Uri.Should().Be($"http://agent.example:8488/v1/conversations/{ConversationId}/messages");
         request.Authorization.Should().Be($"Bearer {Secret}");
         request.Cookie.Should().BeNull();
-        request.Body.Should().Be("""{"text":"Add a note\nline two","model":"opus"}""");
+        request.Body.Should().Be($$"""{"text":"Add a note\nline two","model":"opus","mcpToken":"{{Token}}"}""");
     }
 
     [Theory]
@@ -66,6 +77,19 @@ public sealed class ChatProxyFixture
         var result = await Controller().SendAsync(id, new ChatMessageRequest(text, model), TestContext.Current.CancellationToken);
 
         result.Should().Match<IActionResult>(r => r is NotFoundResult || (r is ObjectResult && ((ObjectResult)r).StatusCode == StatusCodes.Status400BadRequest));
+        _handler.Requests.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task should_not_touch_a_conversation_of_someone_else()
+    {
+        var controller = Controller();
+        _access.CanAccessAsync(ConversationId, 7, false, Arg.Any<CancellationToken>()).Returns(false);
+
+        (await controller.GetConversationAsync(ConversationId, TestContext.Current.CancellationToken)).Should().BeOfType<NotFoundResult>();
+        (await controller.SendAsync(ConversationId, new ChatMessageRequest("hello", null), TestContext.Current.CancellationToken)).Should().BeOfType<NotFoundResult>();
+        (await controller.DeleteAsync(ConversationId, TestContext.Current.CancellationToken)).Should().BeOfType<NotFoundResult>();
+        (await controller.CancelAsync(ConversationId, new ChatCancelRequest(), TestContext.Current.CancellationToken)).Should().BeOfType<NotFoundResult>();
         _handler.Requests.Should().BeEmpty();
     }
 

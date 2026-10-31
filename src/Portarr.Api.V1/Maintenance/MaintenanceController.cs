@@ -1,12 +1,15 @@
 using System.Globalization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Portarr.Core.Accounts;
 using Portarr.Core.Catalog;
 using Portarr.Core.Maintenance;
 
 namespace Portarr.Api.V1.Maintenance;
 
 [ApiController]
+[Authorize(Policy = Permissions.MaintenanceView)]
 [Route("api/v1/maintenance")]
 [Produces("application/json")]
 public sealed class MaintenanceController : ControllerBase

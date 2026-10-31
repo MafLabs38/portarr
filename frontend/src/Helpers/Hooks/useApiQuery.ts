@@ -4,6 +4,8 @@ export class ApiError extends Error {
   constructor(
     public readonly status: number,
     path: string,
+    /** The problem details' `detail`, when the server gave one (safe to show: it never holds a secret). */
+    public readonly detail?: string,
   ) {
     super(`Request to ${path} failed with status ${status}`);
     this.name = 'ApiError';

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 
+import UserMenu from 'Auth/UserMenu';
 import ChatToggle from 'Chat/ChatToggle';
 
 import styles from './PageHeader.module.css';
@@ -13,6 +14,7 @@ export default function PageHeader() {
         <span className={styles.name}>Portarr</span>
       </Link>
       <ChatToggle />
+      <UserMenu />
     </header>
   );
 }

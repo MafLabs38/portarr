@@ -1,9 +1,11 @@
 using System.Text.Json.Nodes;
 using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Portarr.Api.V1.Catalog;
+using Portarr.Core.Accounts;
 using Portarr.Core.Catalog.Editing;
 using Portarr.Core.Portal;
 using Portarr.Core.SystemInfo;
@@ -59,6 +61,7 @@ public sealed class PortalController : ControllerBase
     /// <response code="200">The image (PNG, WebP or SVG).</response>
     /// <response code="404">No logo is declared, or it cannot be used: Portarr's own applies.</response>
     [HttpGet("logo")]
+    [AllowAnonymous]
     [Produces("image/png", "image/webp", "image/svg+xml")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -85,6 +88,7 @@ public sealed class PortalController : ControllerBase
     /// <response code="403">Catalog writes are off.</response>
     /// <response code="409">The catalog changed since the version sent.</response>
     [HttpPut]
+    [Authorize(Policy = Permissions.CatalogWrite)]
     [CatalogWriteAccess]
     [EnableRateLimiting(HttpServiceCollectionExtensions.CatalogWritesPolicyName)]
     [ProducesResponseType<CatalogEditResource>(StatusCodes.Status200OK)]
@@ -115,6 +119,7 @@ public sealed class PortalController : ControllerBase
     /// <response code="403">Catalog writes are off.</response>
     [HttpPut("logo")]
     [Consumes("multipart/form-data")]
+    [Authorize(Policy = Permissions.CatalogWrite)]
     [CatalogWriteAccess]
     [EnableRateLimiting(HttpServiceCollectionExtensions.CatalogWritesPolicyName)]
     [RequestSizeLimit(MaxRequestBytes)]
@@ -133,7 +138,7 @@ public sealed class PortalController : ControllerBase
         using var content = new MemoryStream((int)file.Length);
         await file.CopyToAsync(content, cancellationToken);
 
-        var actor = new CatalogActor(Channel, HttpContext.Connection.RemoteIpAddress?.ToString());
+        var actor = new CatalogActor(Channel, HttpContext.Connection.RemoteIpAddress?.ToString(), null, User.Identity?.Name);
         var upload = await _portal.SaveLogoAsync(file.FileName, content.ToArray(), actor, cancellationToken);
         return upload.Edit.Status == CatalogEditStatus.Invalid && upload.Path is null
             ? ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { ["file"] = [.. upload.Edit.Errors] }))
@@ -147,6 +152,7 @@ public sealed class PortalController : ControllerBase
     /// <response code="403">Catalog writes are off.</response>
     /// <response code="409">The catalog changed since the version sent.</response>
     [HttpDelete("logo")]
+    [Authorize(Policy = Permissions.CatalogWrite)]
     [CatalogWriteAccess]
     [EnableRateLimiting(HttpServiceCollectionExtensions.CatalogWritesPolicyName)]
     [ProducesResponseType<CatalogEditResource>(StatusCodes.Status200OK)]
@@ -160,7 +166,7 @@ public sealed class PortalController : ControllerBase
 
     private async Task<IActionResult> EditAsync(string operation, string? version, Func<JsonObject?, JsonObject?> change, CancellationToken cancellationToken)
     {
-        var actor = new CatalogActor(Channel, HttpContext.Connection.RemoteIpAddress?.ToString());
+        var actor = new CatalogActor(Channel, HttpContext.Connection.RemoteIpAddress?.ToString(), null, User.Identity?.Name);
         var edit = new CatalogEdit(CatalogSections.Portal, CatalogSections.Portal, operation, version ?? await _editor.GetVersionAsync(cancellationToken), actor, change);
         return this.ToActionResult(await _editor.EditAsync(edit, cancellationToken), CatalogSections.Portal, CatalogSections.Portal);
     }

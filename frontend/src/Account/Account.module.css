@@ -1,0 +1,58 @@
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.displayName {
+  color: var(--ink);
+  font-family: var(--displayFontFamily);
+  font-size: var(--fontSizeCardTitle);
+  font-weight: 700;
+}
+
+.meta {
+  color: var(--inkMuted);
+}
+
+.cards {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.cards > * {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+.created {
+  margin: 12px 0;
+  padding: 12px;
+  border: var(--borderWidth) solid var(--accent);
+  border-radius: var(--radiusMedium);
+  background-color: var(--paperSunken);
+}
+
+.secret {
+  display: block;
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+  font-family: var(--monoSpaceFontFamily);
+  font-size: var(--fontSizeBody);
+  user-select: all;
+}
+
+.lead {
+  max-width: 900px;
+  margin: 0 0 20px;
+  color: var(--inkSoft);
+}

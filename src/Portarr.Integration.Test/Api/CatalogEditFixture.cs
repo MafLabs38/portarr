@@ -58,7 +58,7 @@ public sealed class CatalogEditFixture : IAsyncLifetime
     [Fact]
     public async Task should_refuse_writes_when_off_and_hide_the_write_tools()
     {
-        using var client = _readOnly.CreateClient();
+        using var client = await _readOnly.CreateSignedInClientAsync();
 
         var response = await client.SendAsync(Notes("anything", "Nope.", Key), Token);
         var assistant = await client.GetStringAsync("/api/v1/assistant", Token);
@@ -72,38 +72,20 @@ public sealed class CatalogEditFixture : IAsyncLifetime
     [InlineData("wrong-key")]
     public async Task should_refuse_a_missing_or_wrong_key(string? key)
     {
+        using var admin = await _writable.CreateSignedInClientAsync();
+        var version = await VersionAsync(admin);
         using var client = _writable.CreateClient();
 
-        var response = await client.SendAsync(Notes(await VersionAsync(client), "Nope.", key), Token);
+        var response = await client.SendAsync(Notes(version, "Nope.", key), Token);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         response.Headers.WwwAuthenticate.Should().ContainSingle().Which.Scheme.Should().Be("Bearer");
     }
 
-    [Theory]
-    [InlineData("/api/v1/catalog/environments/server-1")]
-    [InlineData("/api/v1/catalog/audit")]
-    public async Task should_keep_the_item_and_the_audit_reads_behind_the_key_with_writes_on_or_off(string path)
-    {
-        foreach (var factory in new[] { _writable, _readOnly })
-        {
-            using var client = factory.CreateClient();
-
-            var missing = await client.SendAsync(new HttpRequestMessage(HttpMethod.Get, path), Token);
-            var wrong = await client.SendAsync(Get(path, "wrong-key"), Token);
-
-            missing.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-            wrong.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        }
-
-        using var keyed = _writable.CreateClient();
-        (await keyed.SendAsync(Get(path, Key), Token)).StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
     [Fact]
     public async Task should_write_audit_and_refuse_stale_or_invalid_edits()
     {
-        using var client = _writable.CreateClient();
+        using var client = await _writable.CreateSignedInClientAsync();
         var version = await VersionAsync(client);
 
         var applied = await client.SendAsync(Notes(version, "The media server.", Key), Token);
@@ -124,14 +106,14 @@ public sealed class CatalogEditFixture : IAsyncLifetime
         invalid.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await invalid.Content.ReadAsStringAsync(Token)).Should().Contain("\"apps[jellyfin].check.url\"");
 
-        var audit = await GetAsync<List<CatalogAuditEntryResource>>(client, "/api/v1/catalog/audit");
-        audit.Should().ContainSingle(e => e.Channel == "api").Which.Should().Match<CatalogAuditEntryResource>(e => e.Operation == "set-notes" && e.Id == "jellyfin" && e.VersionAfter == result.Version);
+        var audit = await client.GetFromJsonAsync<List<CatalogAuditEntryResource>>("/api/v1/catalog/audit", Token);
+        audit.Should().ContainSingle(e => e.Channel == "api").Which.Should().Match<CatalogAuditEntryResource>(e => e.Operation == "set-notes" && e.Id == "jellyfin" && e.VersionAfter == result.Version && e.User == "system");
     }
 
     [Fact]
     public async Task should_edit_through_the_mcp_write_tools_with_the_same_rules()
     {
-        using var client = _writable.CreateClient();
+        using var client = await _writable.CreateSignedInClientAsync();
         (await client.SendAsync(Rpc("initialize", Initialize), Token)).StatusCode.Should().Be(HttpStatusCode.OK);
 
         var read = await CallAsync(client, "get_catalog_item", """{"section":"environments","id":"server-1"}""");
@@ -141,7 +123,7 @@ public sealed class CatalogEditFixture : IAsyncLifetime
 
         added.Should().Contain("is not a machine of an environment");
         notes.Should().Contain("\"status\":\"applied\"");
-        var item = await GetAsync<CatalogItemResource>(client, "/api/v1/catalog/environments/server-1");
+        var item = await client.GetFromJsonAsync<CatalogItemResource>("/api/v1/catalog/environments/server-1", Token);
         item!.Item["machines"]![0]!["notes"]!.ToString().Should().Be("The NAS.");
     }
 
@@ -149,20 +131,6 @@ public sealed class CatalogEditFixture : IAsyncLifetime
 
     private static HttpRequestMessage Notes(string version, string notes, string? key) =>
         Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin/notes", new { version, notes }, key);
-
-    private static HttpRequestMessage Get(string path, string key)
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, path);
-        request.Headers.Add("X-Api-Key", key);
-        return request;
-    }
-
-    private static async Task<T?> GetAsync<T>(HttpClient client, string path)
-    {
-        using var response = await client.SendAsync(Get(path, Key), Token);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<T>(Token);
-    }
 
     private static HttpRequestMessage Request(HttpMethod method, string path, object body, string? key)
     {

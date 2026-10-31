@@ -1,5 +1,6 @@
 import { type ChangeEvent, type FormEvent, useRef, useState } from 'react';
 
+import usePermissions from 'Auth/usePermissions';
 import Alert from 'Components/Alert/Alert';
 import Card from 'Components/Card';
 import { ApiError } from 'Helpers/Hooks/useApiQuery';
@@ -12,18 +13,19 @@ const ACCEPTED_LOGOS = '.png,.webp,.svg,image/png,image/webp,image/svg+xml';
 
 const errorKeys: Record<number, string> = {
   400: 'IdentityInvalid',
-  401: 'IdentityKeyRejected',
-  403: 'IdentityReadOnly',
+  401: 'IdentitySessionEnded',
+  403: 'IdentityNotAllowed',
   409: 'IdentityStale',
 };
 
 /**
  * The identity of the portal (D-91): the name and the logo shown at the bottom of the menu. Changing them writes the
- * catalog file, which needs the API key until Portarr has accounts (D-85); with writes off the card says how to
- * turn them on.
+ * catalog file, which needs the catalog.write permission (V7, D-92); with writes off, or without the permission, the
+ * card says so.
  */
 export default function Identity() {
   const { data } = usePortal();
+  const { can } = usePermissions();
   const setPortal = useSetPortal();
   const uploadLogo = useUploadPortalLogo();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -31,7 +33,6 @@ export default function Identity() {
   const [nameColor, setNameColor] = useState<string | null>(null);
   const [versionColor, setVersionColor] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [apiKey, setApiKey] = useState('');
   const [outcome, setOutcome] = useState<'saved' | string | null>(null);
 
   if (!data) {
@@ -54,11 +55,10 @@ export default function Identity() {
         await setPortal.mutateAsync({
           name: nameChanged ? current.trim() : undefined,
           colors: colorsChanged ? { name: currentNameColor.trim(), version: currentVersionColor.trim() } : undefined,
-          apiKey,
         });
       }
       if (file) {
-        await uploadLogo.mutateAsync({ file, apiKey });
+        await uploadLogo.mutateAsync({ file });
         setFile(null);
         if (fileInput.current) {
           fileInput.current.value = '';
@@ -81,7 +81,7 @@ export default function Identity() {
       {data.logoProblem ? (
         <Alert kind="warning">{translate('IdentityLogoNotUsed', { reason: data.logoProblem })}</Alert>
       ) : null}
-      {data.writable ? (
+      {data.writable && can('catalog.write') ? (
         <form className={styles.form} onSubmit={onSubmit}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="identity-name">
@@ -148,25 +148,8 @@ export default function Identity() {
               {translate('LogoHelpText')}
             </span>
           </div>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="identity-api-key">
-              {translate('ApiKey')}
-            </label>
-            <input
-              aria-describedby="identity-api-key-help"
-              autoComplete="off"
-              className={styles.input}
-              id="identity-api-key"
-              onChange={(event: ChangeEvent<HTMLInputElement>) => setApiKey(event.target.value)}
-              type="password"
-              value={apiKey}
-            />
-            <span className={styles.help} id="identity-api-key-help">
-              {translate('ApiKeyHelpText')}
-            </span>
-          </div>
           <div className={styles.actions}>
-            <button className={styles.save} disabled={!changed || !apiKey || pending} type="submit">
+            <button className={styles.save} disabled={!changed || pending} type="submit">
               {translate('Save')}
             </button>
             {outcome === 'saved' ? (
@@ -178,7 +161,7 @@ export default function Identity() {
           {outcome && outcome !== 'saved' ? <p role="alert">{translate(outcome)}</p> : null}
         </form>
       ) : (
-        <p className={styles.help}>{translate('IdentityReadOnly')}</p>
+        <p className={styles.help}>{translate(data.writable ? 'IdentityNotAllowed' : 'IdentityReadOnly')}</p>
       )}
     </Card>
   );

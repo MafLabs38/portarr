@@ -38,7 +38,7 @@ public sealed class McpToolsFixture : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        _writable = await CreateAsync(new Dictionary<string, string?> { ["Mcp:Enabled"] = "true", ["Mcp:ApiKey"] = Key, ["ApiKey"] = Key, ["Mcp:WriteTools"] = "true", ["Catalog:Writable"] = "true" }, folder => _folder = folder);
+        _writable = await CreateAsync(new Dictionary<string, string?> { ["Mcp:Enabled"] = "true", ["Mcp:ApiKey"] = Key, ["Mcp:WriteTools"] = "true", ["Catalog:Writable"] = "true" }, folder => _folder = folder);
         _readOnly = await CreateAsync(new Dictionary<string, string?> { ["Mcp:Enabled"] = "true", ["Mcp:ApiKey"] = Key }, _ => { });
     }
 
