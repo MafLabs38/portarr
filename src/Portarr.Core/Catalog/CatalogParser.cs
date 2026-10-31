@@ -318,6 +318,12 @@ public static partial class CatalogParser
                 return null;
             }
 
+            if (server.Scheme == HttpScheme && !cluster.AllowInsecure)
+            {
+                _errors.Add($"Environment '{environmentId}': kubernetes.server must be https: the ServiceAccount token travels in it (kubernetes.allowInsecure: true accepts http, for a lab or a test only).");
+                return null;
+            }
+
             var variable = cluster.TokenEnv ?? DefaultKubernetesTokenVariable;
             if (!VariableNamePattern().IsMatch(variable))
             {
@@ -345,7 +351,7 @@ public static partial class CatalogParser
                 return null;
             }
 
-            return new KubernetesCluster(server, variable, cluster.CaFile?.Trim(), nodeHosts is { Count: > 0 } ? nodeHosts : null, nodeExporter);
+            return new KubernetesCluster(server, variable, cluster.CaFile?.Trim(), nodeHosts is { Count: > 0 } ? nodeHosts : null, nodeExporter, cluster.AllowInsecure);
         }
 
         /// <summary>

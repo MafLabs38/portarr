@@ -49,7 +49,7 @@ public sealed class InfrastructureToolsFixture : IAsyncLifetime
         var catalog = $$"""
             environments:
               - { id: server-1, name: Server 1, docker: { url: "{{_docker.Url}}" }, hostMetrics: { nodeExporter: "{{_host.Url}}/metrics" } }
-              - { id: cluster, name: Cluster, kubernetes: { server: "{{_cluster.Url}}", tokenEnv: CLUSTER_TOKEN, nodeExporter: { port: 9100, access: api-server } } }
+              - { id: cluster, name: Cluster, kubernetes: { server: "{{_cluster.Url}}", allowInsecure: true, tokenEnv: CLUSTER_TOKEN, nodeExporter: { port: 9100, access: api-server } } }
             apps:
               - { id: shop, name: Shop, workloads: [{ runtime: kubernetes@cluster, match: { name: api-1 } }] }
             """;
