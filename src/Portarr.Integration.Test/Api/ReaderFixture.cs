@@ -61,12 +61,12 @@ public sealed class ReaderFixture : IAsyncLifetime
         var options = await _database.CreateOptionsAsync();
         await File.WriteAllTextAsync(Path.Combine(options.DataFolder, "catalog.yaml"), $$"""
             environments:
-              - { id: server-1, name: Server 1, reader: { url: "{{_reader.Urls.First()}}", tokenEnv: READER_TOKEN } }
+              - { id: server-1, name: Server 1, reader: { url: "{{_reader.Urls.First()}}", tokenEnv: PORTARR_READER_TEST } }
             apps:
               - { id: shop, name: Shop, workloads: [{ runtime: docker@server-1, match: { name: web } }] }
             """, Cancel);
         // The factory fakes the Docker connector so API tests never need an Engine; here the real one reads the reader.
-        _factory = new PortarrFactory(options, new Dictionary<string, string?> { ["READER_TOKEN"] = Token }, services =>
+        _factory = new PortarrFactory(options, new Dictionary<string, string?> { ["PORTARR_READER_TEST"] = Token }, services =>
         {
             services.RemoveAll<IWorkloadSource>();
             services.AddSingleton<IWorkloadSource, DockerWorkloadSource>();

@@ -10,7 +10,7 @@ namespace Portarr.Reader;
 /// </summary>
 public static class ReaderApp
 {
-    public static readonly string[] Capabilities = ["host", "docker"];
+    public static readonly IReadOnlyList<string> Capabilities = Array.AsReadOnly(["host", "docker"]);
 
     /// <summary>Builds the app; <paramref name="settings"/> overrides the environment (tests).</summary>
     public static WebApplication Build(string[] args, IEnumerable<KeyValuePair<string, string?>>? settings = null)
@@ -22,7 +22,7 @@ public static class ReaderApp
             builder.Configuration.AddInMemoryCollection(settings);
         }
 
-        var options = builder.Configuration.Get<ReaderOptions>() ?? new ReaderOptions();
+        var options = ReaderOptions.From(builder.Configuration);
         options.Validate();
         builder.WebHost.UseUrls(options.Urls);
         builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
@@ -42,16 +42,16 @@ public static class ReaderApp
         var name = string.IsNullOrWhiteSpace(options.HostName) ? Environment.MachineName : options.HostName;
 
         app.MapGet(TokenMiddleware.HealthPath, () => Results.Text("ok"));
-        app.MapGet("/v1/info", () => Results.Json(new { name = "portarr-reader", version, host = name, capabilities = Capabilities }));
+        app.MapGet("/v1/info", () => Results.Json(new InfoResponse("portarr-reader", version, name, Capabilities), ReaderJsonContext.Default.InfoResponse));
         app.MapGet("/v1/host", async (HostReader reader, CancellationToken cancellationToken) =>
         {
             try
             {
                 return Results.Text(NodeExporterText.Write(await reader.ReadAsync(cancellationToken)), NodeExporterText.ContentType);
             }
-            catch (Exception exception) when (exception is IOException or InvalidDataException)
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
             {
-                return Results.Json(new { message = "The host's /proc could not be read." }, statusCode: StatusCodes.Status502BadGateway);
+                return Results.Json(new ErrorResponse("The host's /proc could not be read."), ReaderJsonContext.Default.ErrorResponse, statusCode: StatusCodes.Status502BadGateway);
             }
         });
 
@@ -60,8 +60,8 @@ public static class ReaderApp
         docker.MapGet("containers/json", (DockerGateway gateway, bool? all, CancellationToken cancellationToken) => gateway.ListAsync(all ?? false, cancellationToken));
         docker.MapGet("containers/{name}/json", (DockerGateway gateway, string name, CancellationToken cancellationToken) =>
             DockerGateway.IsValidName(name) ? gateway.InspectAsync(name, cancellationToken) : Task.FromResult(Results.BadRequest()));
-        docker.MapGet("containers/{name}/stats", (DockerGateway gateway, string name, CancellationToken cancellationToken) =>
-            DockerGateway.IsValidName(name) ? gateway.StatsAsync(name, cancellationToken) : Task.FromResult(Results.BadRequest()));
+        docker.MapGet("containers/{name}/stats", (DockerGateway gateway, string name, HttpRequest request, CancellationToken cancellationToken) =>
+            DockerGateway.IsValidName(name) ? gateway.StatsAsync(name, bool.TryParse(request.Query["one-shot"], out var oneShot) && oneShot, cancellationToken) : Task.FromResult(Results.BadRequest()));
         docker.MapGet("containers/{name}/logs", async (HttpContext context, DockerGateway gateway, string name, bool? stdout, bool? stderr, bool? timestamps, int? tail, bool? follow) =>
         {
             if (!DockerGateway.IsValidName(name))

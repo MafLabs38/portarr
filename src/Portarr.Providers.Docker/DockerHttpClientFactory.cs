@@ -23,7 +23,7 @@ public sealed class DockerHttpClientFactory : IDisposable
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "S5332:Using http protocol is insecure. Use https instead.", Justification = "Placeholder base address of a Unix domain socket: nothing leaves the machine.")]
     private const string UnixSocketBaseAddress = "http://docker/";
 
-    private readonly Dictionary<Uri, HttpClient> _clients = [];
+    private readonly Dictionary<(Uri Url, string? TokenVariable), HttpClient> _clients = [];
     private readonly Lock _lock = new();
     private readonly IConfiguration? _configuration;
 
@@ -42,15 +42,12 @@ public sealed class DockerHttpClientFactory : IDisposable
     {
         lock (_lock)
         {
-            if (!_clients.TryGetValue(endpoint.Url, out var client))
+            var key = (endpoint.Url, endpoint.TokenVariable);
+            if (!_clients.TryGetValue(key, out var client))
             {
-                client = Create(endpoint.Url);
-                if (TokenOf(endpoint) is { } token)
-                {
-                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-                }
-
-                _clients[endpoint.Url] = client;
+                // The token is read at each request, not once: a rotated token is used without a restart.
+                client = Create(endpoint.Url, endpoint.TokenVariable is null ? null : () => TokenOf(endpoint));
+                _clients[key] = client;
             }
 
             return client;
@@ -70,7 +67,7 @@ public sealed class DockerHttpClientFactory : IDisposable
         }
     }
 
-    internal static HttpClient Create(Uri url)
+    internal static HttpClient Create(Uri url, Func<string?>? token = null)
     {
         if (url.Scheme == "unix")
         {
@@ -94,7 +91,7 @@ public sealed class DockerHttpClientFactory : IDisposable
                 },
             };
 
-            return new HttpClient(handler) { BaseAddress = new Uri(UnixSocketBaseAddress), Timeout = Timeout.InfiniteTimeSpan };
+            return new HttpClient(WithToken(handler, token)) { BaseAddress = new Uri(UnixSocketBaseAddress), Timeout = Timeout.InfiniteTimeSpan };
         }
 
         // A base path is kept (the Portarr reader serves the Docker API under /v1/docker/); a bare address stays at the root.
@@ -106,6 +103,11 @@ public sealed class DockerHttpClientFactory : IDisposable
         }
 
         var tcpHandler = new SocketsHttpHandler { MaxConnectionsPerServer = MaxConnections };
-        return new HttpClient(tcpHandler) { BaseAddress = builder.Uri, Timeout = Timeout.InfiniteTimeSpan };
+        return new HttpClient(WithToken(tcpHandler, token)) { BaseAddress = builder.Uri, Timeout = Timeout.InfiniteTimeSpan };
+    }
+
+    private static HttpMessageHandler WithToken(HttpMessageHandler handler, Func<string?>? token)
+    {
+        return token is null ? handler : new BearerTokenHandler(token) { InnerHandler = handler };
     }
 }

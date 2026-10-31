@@ -62,6 +62,12 @@ public static partial class CatalogParser
     [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]{0,127}$")]
     private static partial Regex VariableNamePattern();
 
+    /// <summary>The namespace of the variables that hold a reader's token: the only ones a catalog may ask Portarr to send to a URL.</summary>
+    private const string ReaderTokenPrefix = "PORTARR_READER_";
+
+    [GeneratedRegex("^PORTARR_READER_[A-Za-z0-9_]{1,100}$")]
+    private static partial Regex ReaderTokenVariablePattern();
+
     /// <summary>A Kubernetes namespace: a DNS label.</summary>
     [GeneratedRegex("^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$")]
     private static partial Regex NamespacePattern();
@@ -384,32 +390,37 @@ public static partial class CatalogParser
             }
 
             var reader = document.Reader;
-            if (!Uri.TryCreate(reader.Url, UriKind.Absolute, out var url) || url.Scheme is not ("http" or "https") || url.UserInfo.Length > 0 || url.AbsolutePath != "/" || url.Query.Length > 0)
+            if (!Uri.TryCreate(reader.Url, UriKind.Absolute, out var url) || url.Scheme is not ("http" or "https") || url.UserInfo.Length > 0 || url.Query.Length > 0 || url.Fragment.Length > 0)
             {
-                _errors.Add($"Environment '{environmentId}': reader.url must be the reader's address (e.g. http://10.0.0.10:8485), without credentials or a path.");
+                _errors.Add($"Environment '{environmentId}': reader.url must be the reader's address (e.g. http://10.0.0.10:8485, or https://proxy.homelab.example/reader-1 behind a reverse proxy), without credentials, query or fragment.");
                 return null;
             }
 
             var variable = reader.TokenEnv?.Trim();
-            if (string.IsNullOrEmpty(variable) || !VariableNamePattern().IsMatch(variable))
+            if (string.IsNullOrEmpty(variable) || !ReaderTokenVariablePattern().IsMatch(variable))
             {
-                _errors.Add($"Environment '{environmentId}': reader.tokenEnv must be the name of the environment variable holding the reader's token (e.g. PORTARR_READER_SERVER_1), never the token itself.");
+                _errors.Add($"Environment '{environmentId}': reader.tokenEnv must be the name of the environment variable holding the reader's token, starting with {ReaderTokenPrefix} (e.g. {ReaderTokenPrefix}SERVER_1), never the token itself.");
                 return null;
             }
 
-            return (new DockerEndpoint(new Uri(url, "v1/docker/"), variable), new HostMetricsEndpoint(new Uri(url, "v1/host"), variable));
+            // A trailing slash makes the reader's own path a base: the routes are resolved under it, whatever it is.
+            var baseUrl = url.AbsolutePath.EndsWith('/') ? url : new Uri(url.GetLeftPart(UriPartial.Path) + "/");
+            return (new DockerEndpoint(new Uri(baseUrl, "v1/docker/"), variable), new HostMetricsEndpoint(new Uri(baseUrl, "v1/host"), variable));
         }
 
-        /// <summary>An optional <c>tokenEnv</c>: absent is fine, present must be a variable name, never a token.</summary>
+        /// <summary>
+        /// An optional <c>tokenEnv</c> on <c>docker:</c> or <c>hostMetrics:</c>: absent is fine, present must be a variable of the reader
+        /// namespace, never a token and never another secret of the process (the catalog can be edited by someone who must not read them).
+        /// </summary>
         private bool TryTokenVariable(string environmentId, string key, string? value, out string? variable)
         {
             variable = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-            if (variable is null || VariableNamePattern().IsMatch(variable))
+            if (variable is null || ReaderTokenVariablePattern().IsMatch(variable))
             {
                 return true;
             }
 
-            _errors.Add($"Environment '{environmentId}': {key} must be the name of an environment variable, never the token itself.");
+            _errors.Add($"Environment '{environmentId}': {key} must be the name of an environment variable starting with {ReaderTokenPrefix} (e.g. {ReaderTokenPrefix}SERVER_1), never the token itself.");
             return false;
         }
 

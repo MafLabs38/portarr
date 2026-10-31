@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.Extensions.Configuration;
 using Portarr.Core.Catalog;
 
@@ -6,29 +7,62 @@ namespace Portarr.Providers.Docker.Test;
 /// <summary>The Portarr reader (D-100) asks for a bearer token and serves Docker under a path: the Docker connector copes with both.</summary>
 public sealed class DockerReaderTokenFixture
 {
-    private static readonly DockerEndpoint Reader = new(new Uri("http://10.0.0.10:8485/v1/docker/"), "READER_TOKEN");
+    private static readonly DockerEndpoint Reader = new(new Uri("http://10.0.0.10:8485/v1/docker/"), "PORTARR_READER_TEST");
+
+    private static CancellationToken Token => TestContext.Current.CancellationToken;
 
     private static IConfiguration Configuration(string? token) =>
-        new ConfigurationBuilder().AddInMemoryCollection(token is null ? [] : new Dictionary<string, string?> { ["READER_TOKEN"] = token }).Build();
+        new ConfigurationBuilder().AddInMemoryCollection(token is null ? [] : new Dictionary<string, string?> { ["PORTARR_READER_TEST"] = token }).Build();
 
-    [Fact]
-    public void should_send_the_token_as_a_bearer_and_keep_the_base_path()
+    [Theory]
+    [InlineData("http://10.0.0.10:8485/v1/docker/", "http://10.0.0.10:8485/v1/docker/containers/json?all=true")]
+    [InlineData("http://10.0.0.10:8485/v1/docker", "http://10.0.0.10:8485/v1/docker/containers/json?all=true")]
+    [InlineData("http://socket-proxy:2375", "http://socket-proxy:2375/containers/json?all=true")]
+    public void should_resolve_a_request_under_the_endpoints_base_path(string endpoint, string expected)
     {
-        using var clients = new DockerHttpClientFactory(Configuration("secret-token"));
+        using var client = DockerHttpClientFactory.Create(new Uri(endpoint));
 
-        var client = clients.Get(Reader);
-
-        client.BaseAddress.Should().Be(new Uri("http://10.0.0.10:8485/v1/docker/"));
-        client.DefaultRequestHeaders.Authorization!.Scheme.Should().Be("Bearer");
-        client.DefaultRequestHeaders.Authorization.Parameter.Should().Be("secret-token");
+        new Uri(client.BaseAddress!, "containers/json?all=true").Should().Be(new Uri(expected));
     }
 
     [Fact]
-    public void should_send_nothing_to_an_endpoint_that_asks_for_no_token()
+    public async Task should_send_the_token_as_a_bearer_read_at_each_request()
+    {
+        var current = "first-token";
+        var recorder = new RecordingHandler();
+        using var client = new HttpClient(new BearerTokenHandler(() => current) { InnerHandler = recorder });
+
+        await client.GetAsync("http://reader/v1/docker/info", Token);
+        current = "rotated-token";
+        await client.GetAsync("http://reader/v1/docker/info", Token);
+
+        recorder.Authorizations.Should().Equal("Bearer first-token", "Bearer rotated-token");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task should_send_no_authorization_when_the_token_is_empty(string? token)
+    {
+        var recorder = new RecordingHandler();
+        using var client = new HttpClient(new BearerTokenHandler(() => token) { InnerHandler = recorder });
+
+        await client.GetAsync("http://reader/v1/docker/info", Token);
+
+        recorder.Authorizations.Should().Equal((string?)null);
+    }
+
+    [Fact]
+    public void should_build_a_client_per_endpoint_and_token_variable()
     {
         using var clients = new DockerHttpClientFactory(Configuration("secret-token"));
 
-        clients.Get(new DockerEndpoint(new Uri("http://socket-proxy:2375"))).DefaultRequestHeaders.Authorization.Should().BeNull();
+        var reader = clients.Get(Reader);
+        var proxy = clients.Get(new DockerEndpoint(new Uri("http://socket-proxy:2375")));
+
+        clients.Get(Reader).Should().BeSameAs(reader);
+        proxy.Should().NotBeSameAs(reader);
+        reader.BaseAddress.Should().Be(new Uri("http://10.0.0.10:8485/v1/docker/"));
     }
 
     [Theory]
@@ -43,11 +77,23 @@ public sealed class DockerReaderTokenFixture
     }
 
     [Fact]
-    public void should_report_no_configuration_error_for_an_endpoint_without_a_token_variable()
+    public void should_report_no_configuration_error_for_an_endpoint_that_asks_for_no_token()
     {
-        using var clients = new DockerHttpClientFactory();
+        using var clients = new DockerHttpClientFactory(Configuration("secret-token"));
         var environment = new CatalogEnvironment("server-1", "Server 1", new DockerEndpoint(new Uri("http://socket-proxy:2375")));
 
         new DockerWorkloadSource(clients).GetConfigurationError(environment).Should().BeNull();
+        clients.Get(environment.Docker!).BaseAddress.Should().Be(new Uri("http://socket-proxy:2375/"));
+    }
+
+    private sealed class RecordingHandler : HttpMessageHandler
+    {
+        public List<string?> Authorizations { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Authorizations.Add(request.Headers.Authorization?.ToString());
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+        }
     }
 }

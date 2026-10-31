@@ -8,11 +8,14 @@ namespace Portarr.Reader.Machine;
 /// </summary>
 public sealed class HostReader
 {
-    /// <summary>The <c>/proc/meminfo</c> fields Portarr reads (D-72).</summary>
+    /// <summary>
+    /// The <c>/proc/meminfo</c> fields Portarr reads (D-72): the same list as <c>NodeExporterParser.MemoryFields</c>, copied because the
+    /// reader does not depend on Portarr's connectors; the host metrics tests read this text with Portarr's own sampler.
+    /// </summary>
     public static readonly IReadOnlyList<string> MemoryFields =
         ["MemTotal", "MemFree", "MemAvailable", "Buffers", "Cached", "SReclaimable", "SwapTotal", "SwapFree"];
 
-    /// <summary>hwmon chips that measure the CPU package or its cores (Intel, AMD, Raspberry Pi and other ARM boards).</summary>
+    /// <summary>hwmon chips that measure the CPU package or its cores (Intel, AMD, Raspberry Pi and other ARM boards); the same list as the sampler's.</summary>
     private static readonly string[] CpuChips = ["coretemp", "k10temp", "zenpower", "cpu_thermal", "cpu-thermal"];
 
     private readonly string _proc;
@@ -98,7 +101,7 @@ public sealed class HostReader
             var first = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
             return double.TryParse(first, NumberStyles.Float, CultureInfo.InvariantCulture, out var load) ? load : null;
         }
-        catch (IOException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             return null;
         }
@@ -134,9 +137,9 @@ public sealed class HostReader
                     }
                 }
             }
-            catch (IOException)
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
-                // A sensor that cannot be read is skipped: the temperature is optional.
+                // A sensor that cannot be read (a container without access to /sys, a chip that went away) is skipped: the temperature is optional.
             }
         }
 

@@ -70,6 +70,56 @@ public sealed class HostMetricsFixture : IDisposable
             "node_hwmon_temp_celsius");
     }
 
+    [Fact]
+    public void should_skip_what_is_not_a_cpu_line_and_read_a_bad_number_as_zero()
+    {
+        var cpus = HostReader.ParseCpus("cpu  1 2 3 4 5 6 7 8\ncpu0 1 2 3\ncpu1 10 x 30 40 50 60 70 80 0 0\ncpuinfo 1 2 3 4 5 6 7 8 9\nintr 1\n");
+
+        cpus.Should().ContainSingle("a line of fewer than 9 fields, the aggregate and 'cpuinfo' are not a core").Which.Should().Be(new CpuTicks("1", 10, 0, 30, 40, 50, 60, 70, 80));
+    }
+
+    [Fact]
+    public void should_read_memory_in_kilobytes_or_bytes_and_ignore_lines_it_does_not_know()
+    {
+        var memory = HostReader.ParseMemory("MemTotal:  2 kB\nMemFree: 5\nBuffers: nope kB\nShmem: 9 kB\ngarbage\n");
+
+        memory.Should().BeEquivalentTo(new Dictionary<string, long> { ["MemTotal"] = 2048, ["MemFree"] = 5 });
+    }
+
+    [Fact]
+    public async Task should_read_a_machine_without_load_average_or_temperature_sensors()
+    {
+        File.Delete(Path.Combine(_host.Proc, "loadavg"));
+        Directory.Delete(Path.Combine(_host.Sys, "class", "hwmon"), recursive: true);
+
+        var snapshot = await new HostReader(Options()).ReadAsync(Token);
+
+        snapshot.Load1.Should().BeNull();
+        snapshot.Temperatures.Should().BeEmpty("a virtual machine has no sensor");
+    }
+
+    [Fact]
+    public async Task should_refuse_a_proc_that_is_not_linuxs()
+    {
+        File.WriteAllText(Path.Combine(_host.Proc, "stat"), "nothing useful\n");
+
+        var read = () => new HostReader(Options()).ReadAsync(Token);
+
+        await read.Should().ThrowAsync<InvalidDataException>();
+    }
+
+    [Fact]
+    public async Task should_escape_a_chip_name_so_that_portarrs_parser_still_reads_the_line()
+    {
+        var snapshot = await new HostReader(Options()).ReadAsync(Token);
+        var hostile = snapshot with { Temperatures = [new TemperatureSensor("coretemp\"\\\n", "temp1", 61.5)] };
+        var sampler = new NodeExporterSampler();
+
+        var reading = await sampler.ReadAsync(Key, new MemoryStream(Encoding.UTF8.GetBytes(NodeExporterText.Write(hostile))), Token);
+
+        reading.TemperatureCelsius.Should().Be(61.5);
+    }
+
     public void Dispose()
     {
         _host.Dispose();

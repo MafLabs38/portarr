@@ -50,17 +50,35 @@ public sealed class NodeExporterBearerFixture
         handler.Requests.Should().Be(0);
     }
 
+    [Theory]
+    [InlineData(null, "token-missing")]
+    [InlineData("secret-token", null)]
+    public void should_report_a_missing_token_as_a_reason_code_before_reading(string? token, string? expected)
+    {
+        var source = Source(new RecordingHandler(), token);
+
+        source.GetConfigurationError(Target(ReaderUrl)).Should().Be(expected);
+    }
+
+    [Fact]
+    public void should_report_no_configuration_error_for_an_exporter_that_is_not_the_environments_own()
+    {
+        var source = Source(new RecordingHandler(), null);
+
+        source.GetConfigurationError(Target(new Uri("http://10.0.0.11:9100/metrics"))).Should().BeNull();
+    }
+
     private static NodeExporterHostMetricsSource Source(RecordingHandler handler, string? token)
     {
         var factory = Substitute.For<IHttpClientFactory>();
         factory.CreateClient(NodeExporterHostMetricsSource.HttpClientName).Returns(_ => new HttpClient(handler));
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(token is null ? [] : new Dictionary<string, string?> { ["READER_TOKEN"] = token }).Build();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(token is null ? [] : new Dictionary<string, string?> { ["PORTARR_READER_TEST"] = token }).Build();
         return new NodeExporterHostMetricsSource(factory, configuration);
     }
 
     private static HostMetricsTarget Target(Uri url)
     {
-        var environment = new CatalogEnvironment("server-1", "Server 1", null, HostMetrics: new HostMetricsEndpoint(ReaderUrl, "READER_TOKEN"));
+        var environment = new CatalogEnvironment("server-1", "Server 1", null, HostMetrics: new HostMetricsEndpoint(ReaderUrl, "PORTARR_READER_TEST"));
         return new HostMetricsTarget(environment, "server-1", url);
     }
 

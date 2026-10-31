@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Configuration;
+
 namespace Portarr.Reader;
 
 /// <summary>
@@ -30,6 +32,24 @@ public sealed class ReaderOptions
 
     /// <summary>The name reported by <c>/v1/info</c>; the machine's host name when empty.</summary>
     public string? HostName { get; init; }
+
+    /// <summary>
+    /// Reads the settings key by key: the configuration binder works by reflection, which a native AOT build does not have.
+    /// Keys are those of the <c>PORTARR_READER_</c> variables without the prefix (<c>Token</c>, <c>Docker</c>, <c>Urls</c>…).
+    /// </summary>
+    public static ReaderOptions From(IConfiguration configuration)
+    {
+        var defaults = new ReaderOptions();
+        return new ReaderOptions
+        {
+            Token = configuration[nameof(Token)] ?? string.Empty,
+            Docker = configuration[nameof(Docker)] ?? defaults.Docker,
+            Urls = configuration[nameof(Urls)] ?? defaults.Urls,
+            ProcPath = configuration[nameof(ProcPath)] ?? defaults.ProcPath,
+            SysPath = configuration[nameof(SysPath)] ?? defaults.SysPath,
+            HostName = configuration[nameof(HostName)],
+        };
+    }
 
     /// <summary>Throws, naming the setting but never its value, when the settings cannot run the reader.</summary>
     public void Validate()

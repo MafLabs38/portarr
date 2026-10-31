@@ -30,6 +30,14 @@ public sealed class NodeExporterHostMetricsSource : IHostMetricsSource
         return target.Url is not null;
     }
 
+    public const string TokenMissing = "token-missing";
+
+    /// <summary><c>token-missing</c> when the environment's own endpoint declares a token whose variable is empty (the reader's, D-100).</summary>
+    public string? GetConfigurationError(HostMetricsTarget target)
+    {
+        return DeclaredVariable(target) is { } variable && string.IsNullOrEmpty(_configuration?[variable]) ? TokenMissing : null;
+    }
+
     public async Task<HostReading> ReadAsync(HostMetricsTarget target, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, target.Url);
@@ -51,7 +59,7 @@ public sealed class NodeExporterHostMetricsSource : IHostMetricsSource
     /// </summary>
     private string? BearerToken(HostMetricsTarget target)
     {
-        if (target.Environment.HostMetrics is not { TokenVariable: { } variable } endpoint || target.Url != endpoint.NodeExporter)
+        if (DeclaredVariable(target) is not { } variable)
         {
             return null;
         }
@@ -59,5 +67,11 @@ public sealed class NodeExporterHostMetricsSource : IHostMetricsSource
         return _configuration?[variable] is { Length: > 0 } token
             ? token
             : throw new HttpRequestException($"The token variable {variable} is not set.", null, HttpStatusCode.Unauthorized);
+    }
+
+    /// <summary>The token variable the target's own endpoint declares; none for a node's exporter reached another way.</summary>
+    private static string? DeclaredVariable(HostMetricsTarget target)
+    {
+        return target.Environment.HostMetrics is { TokenVariable: { } variable } endpoint && target.Url == endpoint.NodeExporter ? variable : null;
     }
 }

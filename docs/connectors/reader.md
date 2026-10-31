@@ -1,6 +1,6 @@
 # The Portarr reader
 
-The reader (`portarr-reader`, [ADR 0010](../adr/0010-optional-read-only-reader.md), D-100) is the **simple way to connect a Docker machine**: one container on the machine, one address and one token in the catalog. It replaces the Docker socket proxy and node_exporter, and the existing connectors read it unchanged.
+The reader (`portarr-reader`, [ADR 0010](../adr/0010-optional-read-only-agent.md), [ADR 0011](../adr/0011-reader-speaking-the-existing-protocols.md), D-100 to D-102) is the **simple way to connect a Docker machine**: one container on the machine, one address and one token in the catalog. It replaces the Docker socket proxy and node_exporter, and the existing connectors read it unchanged.
 
 It is **optional**. The direct connectors ([Docker](docker.md) with a socket proxy, [node_exporter](node-exporter.md)) stay for anyone who already runs them.
 
@@ -19,13 +19,13 @@ The reader returns **raw counters**: Portarr turns them into loads (D-30, D-72),
 
 Measured on a 4-core Docker host with 21 containers, next to node_exporter and a socket proxy:
 
-| | The reader | node_exporter | Socket proxy |
+| | The reader (.NET, native AOT) | node_exporter | Socket proxy |
 |---|---|---|---|
 | One read of the host | about 1 ms, 2.4 kB | about 39 ms, 116 kB (16 kB compressed) | |
 | One container list | about 3 ms | | about 3 ms |
-| Memory | about 75 MB of its own, plus about 60 MB of shared .NET runtime files | about 15 MB | about 10 MB |
+| Memory | **about 70 to 90 MB** | about 15 MB | about 10 MB |
 
-It reads far less than node_exporter (only what Portarr uses), so it answers much faster; the price is the .NET runtime's memory. One reader stands for the two tools it replaces.
+It reads far less than node_exporter (only what Portarr uses), so it answers much faster, and one reader stands for the two tools it replaces. **Its memory is the weak point** of this first implementation: almost all of it is one block of the .NET garbage collector's heap, which no setting reduced reliably. The reader is a probe with a small, fixed HTTP contract, so it is being rewritten in Rust ([ADR 0011](../adr/0011-reader-speaking-the-existing-protocols.md)), for a few MB. The catalog, the token and the documentation do not change with the implementation.
 
 ## Install
 
@@ -44,7 +44,7 @@ services:
       - "8485:8485"   # reachable from Portarr only (firewall, or a private network)
 ```
 
-The container runs as a non-root user in a chiseled image (no shell, no package manager). It reads the machine's counters from the container's own `/proc`, which the kernel reports for the whole host, and the CPU temperature from `/sys/class/hwmon` when the machine has a sensor.
+The container runs as a non-root user in a chiseled image (no shell, no package manager, no .NET runtime: the reader is a single native binary). It reads the machine's counters from the container's own `/proc`, which the kernel reports for the whole host, and the CPU temperature from `/sys/class/hwmon` when the machine has a sensor.
 
 | Variable | Default | |
 |---|---|---|
@@ -52,6 +52,8 @@ The container runs as a non-root user in a chiseled image (no shell, no package 
 | `PORTARR_READER_DOCKER` | `unix:///var/run/docker.sock` | The Docker Engine API to read: a socket, or the URL of a read-only [socket proxy](docker.md) if you prefer not to mount the socket. |
 | `PORTARR_READER_URLS` | `http://+:8485` | Where it listens. |
 | `PORTARR_READER_HOSTNAME` | the machine's host name | The name reported by `/v1/info`. |
+| `PORTARR_READER_PROCPATH` | `/proc` | Where the host's `/proc` is, if you mount it elsewhere (for example `/host/proc` to read the host's counters from inside a container that has its own). |
+| `PORTARR_READER_SYSPATH` | `/sys` | The same for `/sys` (the CPU temperature only). |
 
 ## Catalog
 
@@ -62,8 +64,8 @@ environments:
     reader: { url: "http://10.0.0.10:8485", tokenEnv: PORTARR_READER_SERVER_1 }
 ```
 
-- `url`: the reader's address, without a path or credentials.
-- `tokenEnv`: the **name** of the environment variable that holds the token, set where Portarr runs. The token never goes in the catalog.
+- `url`: the reader's address, without credentials, query or fragment. It may carry a path when the reader sits behind a reverse proxy (`https://proxy.homelab.example/reader-1`).
+- `tokenEnv`: the **name** of the environment variable that holds the token, set where Portarr runs, and it **must start with `PORTARR_READER_`** (for example `PORTARR_READER_SERVER_1`). The token never goes in the catalog, and the catalog cannot ask Portarr to send any other variable of its environment to a URL.
 - `reader` excludes `docker` and `hostMetrics` on the same environment (a validation error names both): it stands for both.
 
 ## Security
@@ -81,4 +83,4 @@ curl -s -H "Authorization: Bearer $PORTARR_READER_TOKEN" http://10.0.0.10:8485/v
 curl -s -H "Authorization: Bearer $PORTARR_READER_TOKEN" http://10.0.0.10:8485/v1/host | head
 ```
 
-In Portarr, the machine's card on **Infrastructure** shows live metrics, and its containers appear in the app tiles. If a machine shows "not connected: the token environment variable is not set", the variable named by `tokenEnv` is empty where Portarr runs; "http-401" means the token does not match the reader's.
+In Portarr, the machine's card on **Infrastructure** shows live metrics, and its containers appear in the app tiles. If the machine shows "the token environment variable is not set" (on its containers or its metrics alike), the variable named by `tokenEnv` is empty where Portarr runs; "http-401" means the token does not match the reader's.
