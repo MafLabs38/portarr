@@ -69,6 +69,33 @@ internal sealed class CatalogTextEditor
         throw new CatalogEditException(CatalogEditStatus.Invalid, $"The edit of {section} '{id}' could not be written without changing the rest of the file; edit the file by hand.");
     }
 
+    /// <summary>
+    /// The text with the top-level mapping <paramref name="key"/> (<c>portal:</c>, not a list) set to
+    /// <paramref name="value"/>, added at the end of the file when absent, or removed when <paramref name="value"/> is null.
+    /// Same guarantees as <see cref="Apply"/>.
+    /// </summary>
+    public static CatalogTextResult ApplySetting(string text, string key, JsonObject? value)
+    {
+        var root = Root(text) is { } mapping ? (JsonObject)YamlNodes.ToJson(mapping)! : new JsonObject();
+        root.Remove(key);
+        if (value is not null)
+        {
+            root[key] = value.DeepClone();
+        }
+
+        var expected = YamlNodes.Canonical(root);
+        foreach (var whole in new[] { false, true })
+        {
+            var edited = new CatalogTextEditor(text).EditSetting(key, value, whole);
+            if (edited is not null && Matches(edited, expected))
+            {
+                return new CatalogTextResult(edited);
+            }
+        }
+
+        throw new CatalogEditException(CatalogEditStatus.Invalid, $"The edit of {key} could not be written without changing the rest of the file; edit the file by hand.");
+    }
+
     private static YamlMappingNode? Root(string text)
     {
         var stream = new YamlStream();
@@ -172,6 +199,36 @@ internal sealed class CatalogTextEditor
         else
         {
             throw new CatalogEditException(CatalogEditStatus.NotFound, $"No {section} item '{id}' in the catalog.");
+        }
+
+        return Render();
+    }
+
+    private string? EditSetting(string key, JsonObject? value, bool whole)
+    {
+        var pair = Root(_text)?.Children.Where(p => p.Key is YamlScalarNode k && k.Value == key).Select(p => (KeyValuePair<YamlNode, YamlNode>?)p).FirstOrDefault();
+        if (pair is { } found)
+        {
+            var name = (YamlScalarNode)found.Key;
+            if (value is null)
+            {
+                DeleteLines(Start(name), PairEnd(name, found.Value));
+            }
+            else if (whole)
+            {
+                Replace(found.Value, value, Place.Value, name, block: true);
+            }
+            else
+            {
+                Patch(found.Value, value, Place.Value, name);
+            }
+        }
+        else if (value is not null)
+        {
+            // A new section at the end of the file.
+            var prefix = _text.Length == 0 || _text.EndsWith('\n') ? string.Empty : "\n";
+            var gap = _text.Trim().Length == 0 ? string.Empty : "\n";
+            Insert(_text.Length, prefix + gap + YamlEmitter.Key(key) + YamlEmitter.Value(value, 0, block: true) + "\n");
         }
 
         return Render();

@@ -28,7 +28,7 @@ The four tabs answer four questions; the assistant asks them all, mixes them and
 | Seven read-only tools over the views the pages show (fleet, Infrastructure, Data, Maintenance) | Any tool that acts (start, stop, restart, open a PR): out of scope (D-31) |
 | Two Markdown resources: the infrastructure knowledge base and the glossary, generated on each read | Issues, events and history (they come with V5 Overview / V6 Notifications); logs; long-term metrics (Prometheus, V8) |
 | Off by default; one shared API key until accounts exist (C2) | Scoped read-only API keys and roles (C2, §11.2); OAuth for MCP clients |
-| An **Assistant** page: server state, how to connect, knowledge preview | An assistant chat inside Portarr; any call to an LLM from Portarr |
+| An **Assistant** page: server state, how to connect, knowledge preview | An assistant chat inside Portarr: [V6](V6-chat.md), through an optional agent runner; Portarr itself never calls an LLM |
 
 ## Design
 
@@ -77,7 +77,7 @@ The live window is described as now, lowest and highest point: the chart in word
 ### Write tools and environment knowledge (D-83 to D-86)
 
 - The read tool `get_environment_knowledge` (always on) returns what the operator wrote in the catalog: notes, access (SSH alias or command line, key file *name*, jump host, consoles), machines of an environment, network links and external providers, optionally narrowed to one environment. The knowledge base gains an "Access, network and providers" section and the notes of stacks and apps.
-- `PORTARR__MCP__WRITETOOLS=true` adds the catalog write tools (`get_catalog_item`, `upsert_app`, `remove_app`, `upsert_stack`, `upsert_environment`, `upsert_machine`, `upsert_data_asset`, `add_link`, `upsert_provider`, `remove_catalog_item`, `set_notes`). They need `PORTARR__CATALOG__WRITABLE=true` and share the API's editor: same versions (a stale one is refused with the current one in the message), validation, backups and audit (channel `mcp`). Off, they are not listed. See [catalog.md](../catalog.md#editing-through-the-api).
+- `PORTARR__MCP__WRITETOOLS=true` adds the catalog write tools (`get_catalog_item`, `upsert_app`, `remove_app`, `upsert_stack`, `upsert_environment`, `upsert_machine`, `upsert_data_asset`, `add_link`, `upsert_provider`, `remove_catalog_item`, `set_notes`) and the identity tools `get_portal` and `set_portal` (name and logo shown in the sidebar, D-91; the logo is chosen among the files already in the `branding` folder). They need `PORTARR__CATALOG__WRITABLE=true` and share the API's editor: same versions (a stale one is refused with the current one in the message), validation, backups and audit (channel `mcp`). Off, they are not listed. See [catalog.md](../catalog.md#editing-through-the-api).
 - The Assistant page marks the write tools and shows a "Catalog edits" card: whether edits are on, and the latest audited edits.
 
 ## Connecting

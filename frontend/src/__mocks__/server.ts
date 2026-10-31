@@ -8,6 +8,7 @@ import type CatalogStatus from 'typings/CatalogStatus';
 import type DataReport from 'typings/Data';
 import type { InfrastructureEnvironment } from 'typings/Infrastructure';
 import type MaintenanceReport from 'typings/Maintenance';
+import type Portal from 'typings/Portal';
 import type Stack from 'typings/Stack';
 import type SystemStatus from 'typings/SystemStatus';
 import type Workload from 'typings/Workload';
@@ -22,6 +23,15 @@ export const systemStatus: SystemStatus = {
   osDescription: 'Linux 6.8.0',
   databaseEngine: 'SQLite 3.46.1',
   dataFolder: '/config',
+};
+
+export const portal: Portal = {
+  name: 'Homelab',
+  logoUrl: null,
+  version: '1.2.3',
+  logoProblem: null,
+  writable: false,
+  colors: { name: 'accent', version: 'accent' },
 };
 
 const healthy = { status: 'Healthy', reason: 'Running' } as const;
@@ -714,9 +724,12 @@ export function resetMockState() {
 
 export const handlers = [
   http.get('/api/v1/system/status', () => HttpResponse.json(systemStatus)),
+  http.get('/api/v1/portal', () => HttpResponse.json(portal)),
   http.get('/api/v1/apps', () => HttpResponse.json(apps)),
   http.get('/api/v1/assistant', () => HttpResponse.json(assistantStatus)),
   http.get('/api/v1/assistant/knowledge', () => HttpResponse.json(knowledge)),
+  // The built-in chat is off unless a test turns it on (D-89).
+  http.get('/api/v1/assistant/chat', () => HttpResponse.json({ enabled: false, reachable: false, agents: null })),
   http.get('/api/v1/catalog/audit', () => HttpResponse.json(catalogAudit)),
   http.get('/api/v1/stacks', () => HttpResponse.json(stacks)),
   http.get('/api/v1/catalog/status', () => HttpResponse.json(catalogStatus)),

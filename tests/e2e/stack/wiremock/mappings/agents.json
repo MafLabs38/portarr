@@ -1,0 +1,19 @@
+{
+  "request": { "method": "GET", "urlPath": "/v1/agents" },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": [
+      {
+        "id": "claude-code",
+        "name": "Claude Code",
+        "available": true,
+        "defaultModel": "sonnet",
+        "models": [
+          { "id": "sonnet", "label": "Sonnet" },
+          { "id": "opus", "label": "Opus" }
+        ]
+      }
+    ]
+  }
+}

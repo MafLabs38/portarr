@@ -13,6 +13,7 @@ using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Portarr.Common;
+using Portarr.Mcp.Chat;
 using Portarr.Mcp.Digest;
 using Portarr.Mcp.Knowledge;
 using Portarr.Mcp.Server;
@@ -45,6 +46,7 @@ public static class McpServiceCollectionExtensions
         The write tools edit only Portarr's catalog file (its description of the fleet), never the infrastructure.
         Read the item first with get_catalog_item, send its version with the write, change only what the operator
         asked for and say what you changed. Never write a secret: name the key file or the variable instead.
+        get_portal and set_portal read and change the name, logo and name/version colors shown in the sidebar.
         """;
 
     /// <summary>
@@ -59,6 +61,13 @@ public static class McpServiceCollectionExtensions
             .Bind(configuration.GetSection(McpOptions.SectionName))
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<McpOptions>, McpOptionsValidator>();
+
+        // The built-in chat (D-89): a proxy to the optional portarr-agent runner.
+        services.AddOptions<AgentOptions>()
+            .Bind(configuration.GetSection(AgentOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<AgentOptions>, AgentOptionsValidator>();
+        services.AddHttpClient<AgentRunnerClient>();
 
         services.AddSingleton<FleetDigest>();
         services.AddSingleton<KnowledgeBase>();

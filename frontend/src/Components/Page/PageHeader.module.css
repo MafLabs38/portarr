@@ -1,4 +1,8 @@
+/* Pinned to the top like the sidebar below it: only the page content scrolls. */
 .header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
   align-items: center;
   height: var(--headerHeight);

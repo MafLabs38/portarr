@@ -13,7 +13,8 @@ public sealed record Catalog(
     IReadOnlyList<DataAssetDefinition>? Data = null,
     GitHubSource? GitHub = null,
     IReadOnlyList<CatalogLink>? Links = null,
-    IReadOnlyList<CatalogProvider>? Providers = null)
+    IReadOnlyList<CatalogProvider>? Providers = null,
+    CatalogPortal? Portal = null)
 {
     public static Catalog Empty { get; } = new([], [], []);
 
@@ -25,6 +26,15 @@ public sealed record Catalog(
     /// <summary>External providers and accounts (D-84).</summary>
     public IReadOnlyList<CatalogProvider> ExternalProviders => Providers ?? [];
 }
+
+/// <summary>
+/// The identity of the portal (D-91): the name of the infrastructure and a logo, shown in the sidebar. <c>Logo</c> is
+/// a path relative to the catalog folder (<c>branding/logo.png</c>); all optional, Portarr's own are the defaults.
+/// </summary>
+public sealed record CatalogPortal(string? Name, string? Logo, CatalogPortalColors? Colors = null);
+
+/// <summary>The colors of the badge texts: a hex color or a theme token name (see <c>PortalColor</c>); each one optional, Portarr's accent is the default.</summary>
+public sealed record CatalogPortalColors(string? Name, string? Version);
 
 /// <summary>
 /// A host, a cluster or a hosting account. <c>Address</c> is its LAN address, used to build LAN URLs from

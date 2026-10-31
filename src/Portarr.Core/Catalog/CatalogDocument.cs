@@ -21,6 +21,28 @@ internal sealed class CatalogDocument
 
     /// <summary>External providers and accounts (D-84).</summary>
     public List<ProviderDocument>? Providers { get; set; }
+
+    /// <summary>The name and logo of the portal (D-91).</summary>
+    public PortalDocument? Portal { get; set; }
+}
+
+/// <summary>See <see cref="CatalogPortal"/>.</summary>
+internal sealed class PortalDocument
+{
+    public string? Name { get; set; }
+
+    /// <summary>Relative to the catalog folder, e.g. <c>branding/logo.png</c>.</summary>
+    public string? Logo { get; set; }
+
+    public PortalColorsDocument? Colors { get; set; }
+}
+
+/// <summary>See <see cref="CatalogPortalColors"/>.</summary>
+internal sealed class PortalColorsDocument
+{
+    public string? Name { get; set; }
+
+    public string? Version { get; set; }
 }
 
 /// <summary>See <see cref="CatalogLink"/>.</summary>

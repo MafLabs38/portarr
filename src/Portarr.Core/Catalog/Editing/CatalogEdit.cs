@@ -14,6 +14,9 @@ public static class CatalogSections
     public const string Links = "links";
     public const string Providers = "providers";
 
+    /// <summary>The identity of the portal (D-91): one mapping, not a list, edited through the same editor (id <c>portal</c>).</summary>
+    public const string Portal = "portal";
+
     public static readonly IReadOnlyList<string> All = [Environments, Stacks, Apps, Data, Links, Providers];
 
     /// <summary>The sections that carry <c>notes</c>.</summary>
@@ -40,8 +43,11 @@ public enum CatalogEditStatus
     Invalid,
 }
 
-/// <summary>Who asked for an edit: the channel (<c>api</c>, <c>mcp</c>, <c>console</c>) and the client's address.</summary>
-public sealed record CatalogActor(string Channel, string? Client);
+/// <summary>
+/// Who asked for an edit: the channel (<c>api</c>, <c>mcp</c>, <c>console</c>), the client's address and, for an MCP
+/// client that says so, where the request came from (<c>chat:&lt;conversation&gt;</c> for the built-in chat, D-89).
+/// </summary>
+public sealed record CatalogActor(string Channel, string? Client, string? Via = null);
 
 /// <summary>
 /// One edit of one catalog item. <c>Change</c> gets the current item (null when absent) and returns the new one
@@ -107,6 +113,11 @@ public static class CatalogEdits
 {
     public const string MachinesKey = "machines";
     public const string NotesKey = "notes";
+    public const string PortalNameKey = "name";
+    public const string PortalLogoKey = "logo";
+    public const string PortalColorsKey = "colors";
+    public const string PortalColorNameKey = "name";
+    public const string PortalColorVersionKey = "version";
 
     /// <summary>Creates the item; refused when it exists.</summary>
     public static Func<JsonObject?, JsonObject?> Add(string section, string id, JsonObject item)
@@ -122,6 +133,41 @@ public static class CatalogEdits
     public static Func<JsonObject?, JsonObject?> Remove(string section, string id)
     {
         return current => current is null ? throw NotFound(section, id) : null;
+    }
+
+    /// <summary>
+    /// Sets the name, the logo and the colors of the badge texts of the portal (D-91): null leaves a value as it is, an
+    /// empty text clears it; the <c>colors</c> and <c>portal</c> mappings are removed when nothing is left. The
+    /// colors are checked by the catalog's validation, like the rest.
+    /// </summary>
+    public static Func<JsonObject?, JsonObject?> SetPortal(string? name, string? logo, string? nameColor = null, string? versionColor = null)
+    {
+        return current =>
+        {
+            var next = new JsonObject();
+            Keep(next, PortalNameKey, name, current?[PortalNameKey]);
+            Keep(next, PortalLogoKey, logo, current?[PortalLogoKey]);
+
+            var colors = new JsonObject();
+            var currentColors = current?[PortalColorsKey] as JsonObject;
+            Keep(colors, PortalColorNameKey, nameColor, currentColors?[PortalColorNameKey]);
+            Keep(colors, PortalColorVersionKey, versionColor, currentColors?[PortalColorVersionKey]);
+            if (colors.Count > 0)
+            {
+                next[PortalColorsKey] = colors;
+            }
+
+            return next.Count == 0 ? null : next;
+        };
+    }
+
+    private static void Keep(JsonObject target, string key, string? value, JsonNode? current)
+    {
+        var kept = value is null ? current?.ToString() : value.Trim();
+        if (!string.IsNullOrEmpty(kept))
+        {
+            target[key] = kept;
+        }
     }
 
     /// <summary>Sets (or clears, when empty) the notes of an item, or of one machine of an environment.</summary>

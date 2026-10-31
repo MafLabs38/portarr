@@ -37,6 +37,8 @@ export interface CatalogAuditEntry {
   versionBefore: string;
   versionAfter: string;
   changes: string[];
+  /** Where an MCP edit came from, e.g. `chat:<conversation id>` for the built-in chat (D-89). */
+  via?: string | null;
 }
 
 export interface Knowledge {

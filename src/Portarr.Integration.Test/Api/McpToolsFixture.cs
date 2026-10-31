@@ -55,8 +55,8 @@ public sealed class McpToolsFixture : IAsyncLifetime
         var writable = await ToolNamesAsync(_writable);
 
         readOnly.Should().Contain(["get_overview", "list_apps", "get_app", "get_infrastructure", "find_workload", "get_data_coverage", "get_maintenance", "get_environment_knowledge"]);
-        readOnly.Should().NotContain(["upsert_app", "remove_app", "set_notes"]);
-        writable.Should().Contain(["get_catalog_item", "upsert_app", "remove_app", "upsert_stack", "set_notes"]);
+        readOnly.Should().NotContain(["upsert_app", "remove_app", "set_portal", "set_notes"]);
+        writable.Should().Contain(["get_catalog_item", "get_portal", "upsert_app", "remove_app", "upsert_stack", "set_portal", "set_notes"]);
     }
 
     [Theory]
@@ -110,15 +110,16 @@ public sealed class McpToolsFixture : IAsyncLifetime
     }
 
     [Fact]
-    public async Task should_set_the_notes_of_an_app()
+    public async Task should_set_the_notes_of_an_app_and_the_name_of_the_portal()
     {
-        var version = JsonDocument.Parse(await CallAsync(_writable, "get_catalog_item", """{"section":"apps","id":"jellyfin"}""")).RootElement.GetProperty("version").GetString()!;
+        var version = JsonDocument.Parse(await CallAsync(_writable, "get_portal", "{}")).RootElement.GetProperty("version").GetString()!;
 
-        var notes = JsonDocument.Parse(await CallAsync(_writable, "set_notes", $$"""{"section":"apps","id":"jellyfin","notes":"Runs on the NAS.","version":"{{version}}"}""")).RootElement;
+        var portal = JsonDocument.Parse(await CallAsync(_writable, "set_portal", $$"""{"version":"{{version}}","name":"My lab"}""")).RootElement;
+        var notes = JsonDocument.Parse(await CallAsync(_writable, "set_notes", $$"""{"section":"apps","id":"jellyfin","notes":"Runs on the NAS.","version":"{{portal.GetProperty("version").GetString()}}"}""")).RootElement;
 
         notes.GetProperty("version").GetString().Should().NotBeNullOrEmpty();
         var file = await File.ReadAllTextAsync(Path.Combine(_folder, "catalog.yaml"), TestContext.Current.CancellationToken);
-        file.Should().Contain("Runs on the NAS.");
+        file.Should().Contain("My lab").And.Contain("Runs on the NAS.");
     }
 
     [Fact]

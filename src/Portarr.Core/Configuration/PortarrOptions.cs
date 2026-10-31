@@ -22,6 +22,9 @@ public sealed class PortarrOptions
     /// <summary>The operator's own icons: an <c>icons</c> folder next to the catalog (D-47).</summary>
     public string CustomIconsFolder => Path.Combine(Path.GetDirectoryName(Path.GetFullPath(EffectiveCatalogFile))!, "icons");
 
+    /// <summary>The operator's logos: a <c>branding</c> folder next to the catalog (D-91).</summary>
+    public string BrandingFolder => Path.Combine(Path.GetDirectoryName(Path.GetFullPath(EffectiveCatalogFile))!, "branding");
+
     /// <summary>
     /// Live logs of workloads that no catalog app declares. Off by default: until authentication
     /// exists (C2), anyone who reaches Portarr can read the logs it serves.

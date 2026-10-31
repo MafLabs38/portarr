@@ -9,6 +9,7 @@ Generic deployment examples live in [`deploy/companions/`](../deploy/companions/
 | Host metrics (CPU per core, I/O wait, memory, swap) | [node_exporter](#node_exporter) | `/metrics`, every second |
 | Backups of hosts and VMs | [Backrest](#backrest) | plans and their last backups (its API) |
 | Backups in Kubernetes | [K8up](#k8up) | `Schedule`, `Backup` and `Snapshot` resources |
+| Built-in chat (optional) | [Agent runner](#agent-runner) (`portarr-agent`) | — (it calls Portarr's MCP server) |
 
 Companions are read and never changed by Portarr (D-31): GET only, except Backrest, whose API takes POST for the two read calls Portarr makes.
 
@@ -272,3 +273,65 @@ Until they are granted, the sources answer `http-403`: the copies they should pr
 2. `kubectl auth can-i list schedules.k8up.io --as=system:serviceaccount:portarr:portarr-reader` answers `yes`.
 3. On the Data page, the tool line says "K8up · cluster: N jobs, read … ago" and the copy lists "K8up · offsite" with its last success. Run a backup by hand (`kubectl create -f` a `Backup`): the success moves forward.
 4. A deleted Schedule turns the copy **Missing** (job not found); a failing dump command turns it **Failed**.
+
+## Agent runner
+
+`portarr-agent` (D-87 to D-90) runs an agent CLI **headless** behind Portarr's chat panel: Claude Code today, other CLIs through adapters later. It is optional and lives in its own container, never in Portarr's image. Its **only tool is Portarr's own MCP server**: the agent describes the fleet and, with the operator's approval of every write, edits Portarr's catalog. It has no shell, no file access, no web access and no access to the machines. Source: [`agent/`](../agent/) (Node.js 22, TypeScript run directly, no runtime dependency). Details: [V6 — Built-in chat](verticals/V6-chat.md).
+
+### What it can and cannot do
+
+| Can | Cannot |
+|---|---|
+| Call Portarr's read tools (`get_*`, `list_*`, `find_*`) without asking | Run a shell command, read or write files, fetch a web page (`--tools ""`, built-ins disallowed) |
+| Propose a catalog write (`set_notes`, `upsert_*`, `add_link`, `remove_*`): the panel shows "Apply this change?" with the tool and its arguments; nothing is written before **Approve** | Reach any MCP server but Portarr's (`--strict-mcp-config`), or any tool not named `mcp__portarr__*` (refused by the runner without asking) |
+| Resume a past conversation (the CLI's own session) | Read settings, hooks or `CLAUDE.md` files (`--setting-sources ""`, an empty working directory, its own `CLAUDE_CONFIG_DIR`) |
+| Report tokens and cost per turn | Act on the infrastructure: Portarr's tools never do (D-31) |
+
+### Install
+
+Requirements: Portarr's MCP server on with its write tools and catalog edits (`PORTARR__MCP__ENABLED`, `PORTARR__MCP__APIKEY`, `PORTARR__MCP__WRITETOOLS`, `PORTARR__CATALOG__WRITABLE`), and a Claude credential.
+
+```bash
+docker build -t portarr-agent agent/
+openssl rand -hex 32   # the shared secret, set on both sides
+```
+
+```yaml
+services:
+  portarr:
+    environment:
+      PORTARR__AGENT__URL: http://portarr-agent:8488
+      PORTARR__AGENT__SECRET: ${AGENT_SECRET}
+  portarr-agent:
+    image: portarr-agent
+    environment:
+      PORTARR_AGENT_SECRET: ${AGENT_SECRET}
+      PORTARR_MCP_URL: http://portarr:8484/mcp
+      PORTARR_MCP_APIKEY: ${PORTARR_MCP_APIKEY}
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN}   # or ANTHROPIC_API_KEY
+    volumes:
+      - agent-data:/data
+    # No published port: only Portarr talks to it.
+volumes:
+  agent-data:
+```
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `PORTARR_AGENT_SECRET` | — (required, 32+ characters) | Bearer secret Portarr sends; every route but `/healthz` checks it |
+| `PORTARR_MCP_URL` | — (required) | Portarr's MCP endpoint, e.g. `http://portarr:8484/mcp` |
+| `PORTARR_MCP_APIKEY` | — (required) | Portarr's MCP key; written only to a per-process file (mode 600), never on a command line, never passed to the CLI's environment |
+| `CLAUDE_CODE_OAUTH_TOKEN` / `ANTHROPIC_API_KEY` | — | A subscription token (`claude setup-token`) or an API key; without one the agent is listed as unavailable |
+| `PORTARR_AGENT_PORT`, `PORTARR_AGENT_HOST` | `8488`, `0.0.0.0` | Listening address |
+| `PORTARR_AGENT_DATA` | `/data` | Conversations (`conversations/*.json`), the CLI's state, its empty working directory |
+| `PORTARR_AGENT_MAX_SESSIONS` | `3` | CLI processes at once; the least recently used idle one makes room |
+| `PORTARR_AGENT_IDLE_MINUTES` | `15` | An idle conversation's process stops; the next message resumes it |
+| `CLAUDE_BIN` | `claude` | The Claude Code executable |
+
+Secrets are never logged and never returned. The CLI's environment is an allow-list (path, locale, proxy, the Claude credential): the runner's secret and Portarr's key do not reach it.
+
+### Verification
+
+1. `curl -s http://portarr-agent:8488/healthz` answers `{"status":"ok"}`; without the secret, `/v1/conversations` answers 401.
+2. `GET /api/v1/assistant/chat` on Portarr answers `"enabled": true, "reachable": true` and lists Claude Code with `"available": true`; the chat icon appears in the header.
+3. Ask "Which machines are in my infrastructure?": the panel shows the read tool calls and the answer. Ask for a note on a provider: an "Apply this change?" card appears; **Reject** leaves the catalog untouched, **Approve** writes it, and the Assistant page's "Catalog edits" card lists the edit "through mcp (built-in chat)".

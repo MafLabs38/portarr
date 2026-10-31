@@ -5,6 +5,7 @@ import * as icons from 'Helpers/Props/icons';
 import translate from 'Utilities/String/translate';
 
 import styles from './PageSidebar.module.css';
+import PortalBadge from './PortalBadge';
 
 interface Entry {
   to: string;
@@ -25,13 +26,16 @@ const entries: Entry[] = [
 
 export default function PageSidebar() {
   return (
-    <nav aria-label={translate('MainMenu')} className={styles.sidebar}>
-      {entries.map(({ to, label, icon: Icon }) => (
-        <NavLink className={({ isActive }) => (isActive ? styles.activeLink : styles.link)} key={to} to={to}>
-          <Icon aria-hidden="true" size={18} strokeWidth={2.25} />
-          <span>{translate(label)}</span>
-        </NavLink>
-      ))}
-    </nav>
+    <aside className={styles.sidebar}>
+      <nav aria-label={translate('MainMenu')} className={styles.menu}>
+        {entries.map(({ to, label, icon: Icon }) => (
+          <NavLink className={({ isActive }) => (isActive ? styles.activeLink : styles.link)} key={to} to={to}>
+            <Icon aria-hidden="true" size={18} strokeWidth={2.25} />
+            <span>{translate(label)}</span>
+          </NavLink>
+        ))}
+      </nav>
+      <PortalBadge />
+    </aside>
   );
 }

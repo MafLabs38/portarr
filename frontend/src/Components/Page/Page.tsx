@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import ChatPanel from 'Chat/ChatPanel';
+
 import styles from './Page.module.css';
 import PageHeader from './PageHeader';
 import PageSidebar from './PageSidebar';
@@ -15,6 +17,7 @@ export default function Page({ children }: Readonly<PageProps>) {
       <div className={styles.main}>
         <PageSidebar />
         {children}
+        <ChatPanel />
       </div>
     </div>
   );
