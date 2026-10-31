@@ -1,3 +1,4 @@
+using System.Net;
 using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -142,7 +143,7 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
                 {
                     NodeExporterAccess.Url => new HostMetricsTarget(environment, node.Id, route.Url),
                     NodeExporterAccess.ApiServer => new HostMetricsTarget(environment, node.Id, null, nodeExporter.Port),
-                    NodeExporterAccess.Direct when node.Address is { Length: > 0 } address
+                    NodeExporterAccess.Direct when IsReachableAddress(node.Address) && node.Address is { } address
                         => new HostMetricsTarget(environment, node.Id, new UriBuilder(Uri.UriSchemeHttp, address, nodeExporter.Port, "/metrics").Uri),
                     _ => null,
                 };
@@ -154,6 +155,31 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
         }
 
         return targets;
+    }
+
+    /// <summary>
+    /// A node address worth connecting to: a node that reports a loopback, link-local or unspecified address (or a name that is not an address
+    /// or a host name) would make Portarr read itself or its own network neighbours, so it is skipped.
+    /// </summary>
+    internal static bool IsReachableAddress(string? address)
+    {
+        if (string.IsNullOrWhiteSpace(address))
+        {
+            return false;
+        }
+
+        if (IPAddress.TryParse(address, out var ip))
+        {
+            return !IPAddress.IsLoopback(ip) && !ip.Equals(IPAddress.Any) && !ip.Equals(IPAddress.IPv6Any) && !ip.IsIPv6LinkLocal && !IsIPv4LinkLocal(ip);
+        }
+
+        return Uri.CheckHostName(address) == UriHostNameType.Dns && !address.Equals("localhost", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsIPv4LinkLocal(IPAddress ip)
+    {
+        var bytes = ip.GetAddressBytes();
+        return bytes.Length == 4 && bytes[0] == 169 && bytes[1] == 254;
     }
 
     private void StartDueReads(CancellationToken stoppingToken)
