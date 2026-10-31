@@ -15,4 +15,7 @@
     <PackageReference Include="YamlDotNet" />
     <ProjectReference Include="..\Portarr.Common\Portarr.Common.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Portarr.Core.Test" />
+  </ItemGroup>
 </Project>

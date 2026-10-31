@@ -156,7 +156,7 @@ public sealed partial class CatalogService : ICatalogService, IHostedService, ID
         previous?.Dispose();
 
         _ = Task.Delay(Debounce, _timeProvider, next.Token)
-            .ContinueWith(_ => ReloadAsync(), next.Token, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default)
+            .ContinueWith(_ => ReloadAsync(CancellationToken.None), next.Token, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default)
             .Unwrap()
             .ContinueWith(task => LogReloadFailed(task.Exception!), CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
     }

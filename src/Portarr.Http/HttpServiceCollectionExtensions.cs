@@ -161,11 +161,12 @@ public static class HttpServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Returns the frontend's index page for client-side routes. Unknown /api, /health and /metrics routes stay plain 404s.
+    /// Returns the frontend's index page for client-side routes. Unknown /api, /health, /metrics, /openapi and /docs routes
+    /// stay plain 404s.
     /// </summary>
     public static WebApplication MapPortarrFrontendFallback(this WebApplication app)
     {
-        app.MapFallbackToFile("{**path:regex(^(?!(api|health|metrics)(/|$)).*$)}", "index.html");
+        app.MapFallbackToFile("{**path:regex(^(?!(api|health|metrics|openapi|docs)(/|$)).*$)}", "index.html");
 
         return app;
     }

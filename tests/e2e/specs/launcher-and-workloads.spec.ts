@@ -34,8 +34,9 @@ test.describe('Launcher and workloads', { tag: '@smoke' }, () => {
   });
 
   test('a container page follows new log lines live', async ({ page, request }) => {
-    await page.goto('/workloads');
-    await page.getByRole('link', { name: 'e2e-web' }).click();
+    // The Infrastructure dashboard lists running containers as top consumers (V2), each linked to its page.
+    await page.goto('/infrastructure');
+    await page.getByRole('link', { name: /^e2e-web/ }).click({ timeout: 30_000 });
 
     await expect(page).toHaveURL(/\/workloads\/e2e\/e2e-web$/);
     await expect(page.getByText(/vCPU$/)).toBeVisible({ timeout: 15_000 });
@@ -49,13 +50,13 @@ test.describe('Launcher and workloads', { tag: '@smoke' }, () => {
 
   const pages: [string, string][] = [
     ['/apps', 'article'],
-    ['/workloads', 'table'],
+    ['/infrastructure', 'article'],
     ['/workloads/e2e/e2e-web', 'log'],
   ];
   for (const [path, role] of pages) {
     test(`${path} has no accessibility violation`, async ({ page }) => {
       await page.goto(path);
-      await expect(page.getByRole(role as 'article' | 'table' | 'log').first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole(role as 'article' | 'log').first()).toBeVisible({ timeout: 15_000 });
 
       const results = await new AxeBuilder({ page }).analyze();
 

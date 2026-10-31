@@ -3,7 +3,13 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="AwesomeAssertions" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="NSubstitute" />
+    <!-- Abstract capability contract suites live here (CLAUDE.md rule 8): they need xunit's attributes, not its runner. -->
+    <PackageReference Include="xunit.v3.extensibility.core" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Portarr.Core\Portarr.Core.csproj" />
   </ItemGroup>
 </Project>

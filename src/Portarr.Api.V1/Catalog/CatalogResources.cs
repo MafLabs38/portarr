@@ -1,3 +1,4 @@
+using Portarr.Api.V1.Checks;
 using Portarr.Core.Catalog;
 using Portarr.Core.Status;
 
@@ -13,8 +14,10 @@ public sealed record AppUrlResource(string Label, string Href, string Scope, boo
 
 public sealed record AppStackResource(string Id, string Name, string Role);
 
+/// <summary>A workload of an app; <c>Runtime</c>: docker, cloudflare or none.</summary>
 public sealed record AppWorkloadResource(
     string EnvironmentId,
+    string Runtime,
     string Name,
     string Role,
     bool Found,
@@ -33,7 +36,8 @@ public sealed record AppResource(
     IReadOnlyList<AppUrlResource> Urls,
     AppStackResource? Stack,
     StatusResource Status,
-    IReadOnlyList<AppWorkloadResource> Workloads);
+    IReadOnlyList<AppWorkloadResource> Workloads,
+    AppCheckResource? Check);
 
 public sealed record StackMemberResource(string AppId, string Name, string Role, StatusResource Status);
 
@@ -67,13 +71,15 @@ public static class CatalogResourceMapper
             StatusResource.From(view.Status),
             view.Workloads.Select(w => new AppWorkloadResource(
                 w.EnvironmentId,
+                w.Runtime,
                 w.Name,
                 w.Role.ToString().ToLowerInvariant(),
                 w.Workload is not null,
                 w.Workload?.State.ToString().ToLowerInvariant(),
                 w.Workload?.Health.ToString().ToLowerInvariant(),
                 w.Workload?.StatusText,
-                StatusResource.From(w.Status))).ToList());
+                StatusResource.From(w.Status))).ToList(),
+            view.Check?.ToResource());
     }
 
     public static StackResource ToResource(this StackView view)

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Portarr.Core.Status;
 
@@ -14,7 +15,9 @@ public sealed class StacksController : ControllerBase
         _fleetService = fleetService;
     }
 
+    /// <summary>The stacks of the catalog (groups of apps) with their status.</summary>
     [HttpGet]
+    [ProducesResponseType<IReadOnlyList<StackResource>>(StatusCodes.Status200OK)]
     public IReadOnlyList<StackResource> GetStacks()
     {
         return _fleetService.GetStacks().Select(stack => stack.ToResource()).ToList();

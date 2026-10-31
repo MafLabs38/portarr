@@ -3,10 +3,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Portarr.Core.Catalog;
+using Portarr.Core.Checks;
 using Portarr.Core.Configuration;
 using Portarr.Core.Datastore;
 using Portarr.Core.Datastore.Migration;
 using Portarr.Core.Icons;
+using Portarr.Core.Infrastructure;
 using Portarr.Core.Instrumentation;
 using Portarr.Core.Status;
 using Portarr.Core.SystemInfo;
@@ -37,6 +39,23 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IWorkloadInventory>(provider => provider.GetRequiredService<WorkloadInventory>());
         services.AddHostedService(provider => provider.GetRequiredService<WorkloadInventory>());
         services.AddSingleton<IFleetService, FleetService>();
+
+        services.AddSingleton<InfrastructureMonitor>();
+        services.AddSingleton<IInfrastructureMonitor>(provider => provider.GetRequiredService<InfrastructureMonitor>());
+        services.AddHostedService(provider => provider.GetRequiredService<InfrastructureMonitor>());
+        services.AddSingleton<HostMetricsMonitor>();
+        services.AddSingleton<IHostMetricsMonitor>(provider => provider.GetRequiredService<HostMetricsMonitor>());
+        services.AddHostedService(provider => provider.GetRequiredService<HostMetricsMonitor>());
+
+
+
+        services.AddSingleton<ICheckStore, CheckStore>();
+        services.AddSingleton<IHttpCheckRunner, HttpCheckRunner>();
+        services.AddHostedService<CheckScheduler>();
+
+        // Timeouts are per check (catalog), not per client.
+        services.AddHttpClient(HttpCheckRunner.HttpClientName, client => client.Timeout = Timeout.InfiniteTimeSpan)
+            .ConfigurePrimaryHttpMessageHandler(HttpCheckRunner.CreateHandler);
 
         services.AddHttpClient(IconService.HttpClientName, (provider, client) =>
         {

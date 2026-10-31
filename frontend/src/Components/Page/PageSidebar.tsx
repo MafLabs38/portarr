@@ -15,7 +15,7 @@ interface Entry {
 // Menu structure inspired by the *arr apps (spec §8.1); entries appear as their screens are built.
 const entries: Entry[] = [
   { to: '/apps', label: 'Apps', icon: icons.APPS },
-  { to: '/workloads', label: 'Workloads', icon: icons.WORKLOADS },
+  { to: '/infrastructure', label: 'Infrastructure', icon: icons.INFRASTRUCTURE },
   { to: '/system/status', label: 'System', icon: icons.SYSTEM },
 ];
 

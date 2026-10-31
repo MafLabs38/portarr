@@ -1,0 +1,43 @@
+.environments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0 0 12px;
+  padding: 0 0 8px;
+  border-bottom: var(--borderWidth) solid var(--hairline);
+  list-style: none;
+}
+
+.environment,
+.environmentError {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.environmentName {
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.meta,
+.muted {
+  color: var(--inkMuted);
+}
+
+.meta {
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.environmentError .meta {
+  color: var(--warningColor);
+}

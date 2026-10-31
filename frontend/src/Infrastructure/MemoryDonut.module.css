@@ -1,0 +1,18 @@
+.donut {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  flex-shrink: 0;
+}
+
+.center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--displayFontFamily);
+  font-size: var(--fontSizeBody);
+  font-weight: 600;
+  pointer-events: none;
+}

@@ -12,6 +12,7 @@ const aliases = [
   'Apps',
   'Components',
   'Helpers',
+  'Infrastructure',
   'Styles',
   'System',
   'Utilities',
@@ -32,8 +33,11 @@ export default defineConfig({
   server: {
     port: 5173,
     // PORTARR_API: where the backend runs (e.g. a dotnet watch on another port).
+    // /openapi and /docs: the OpenAPI document and its interactive reference (F-API-01), served by the backend.
     proxy: {
       '/api': process.env.PORTARR_API ?? 'http://localhost:8484',
+      '/openapi': process.env.PORTARR_API ?? 'http://localhost:8484',
+      '/docs': process.env.PORTARR_API ?? 'http://localhost:8484',
     },
   },
   build: {

@@ -13,6 +13,7 @@ services:
     restart: unless-stopped
     environment:
       CONTAINERS: 1   # list, inspect, stats, logs
+      INFO: 1         # optional: host CPU count and memory for the Infrastructure page
       POST: 0         # no writes
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -39,6 +40,12 @@ When Portarr runs on the Docker host itself, it can use `unix:///var/run/docker.
 
 | Data | Endpoint used | Refresh |
 |---|---|---|
-| Containers, state, healthcheck, Compose project | `GET /containers/json?all=true` | every 15 s |
+| Containers, state, healthcheck, Compose project, mounts (bind mounts and named volumes: where their data lives, V3) | `GET /containers/json?all=true` | every 15 s |
 | CPU (cores) and memory (without page cache) | `GET /containers/{name}/stats?stream=false` | on demand, every 5 s on the container page |
 | Logs (stdout/stderr, timestamps) | `GET /containers/{name}/logs?follow=true` | live (server-sent events) |
+
+## Machine card (Infrastructure)
+
+A Docker environment is one machine on the Infrastructure page (D-54). Every 3 s Portarr takes a one-shot stats sample of each running container (`GET /containers/{id}/stats?stream=false&one-shot=true`, 4 at a time: about 0.1 s for 40 containers) and measures CPU between two samples. The machine's usage is the **sum of its containers**, labelled "Containers" (D-57): Docker does not see the host's own processes, VMs or page cache. Its capacity (cores, memory) comes from `GET /info` when the proxy allows `INFO=1`, else from the containers' stats (online CPUs, and the memory limit of an unlimited container, which is the host's memory).
+
+Host-level usage needs a host metrics source (node_exporter or Prometheus), planned as an integration; none is shipped yet.

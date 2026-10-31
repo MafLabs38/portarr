@@ -1,0 +1,26 @@
+.hint {
+  margin: 0 0 10px;
+  color: var(--inkMuted);
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--secondary);
+  font-weight: 800;
+}
+
+.link:focus-visible {
+  outline: var(--borderWidth) solid var(--accent);
+  outline-offset: 2px;
+}

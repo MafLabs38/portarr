@@ -1,0 +1,29 @@
+.cores {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.core {
+  display: grid;
+  grid-template-columns: 7ch minmax(24px, 1fr) 5ch;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.name,
+.value {
+  color: var(--inkMuted);
+  font-family: var(--monoSpaceFontFamily);
+  font-size: var(--fontSizeMeta);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.value {
+  text-align: right;
+}
