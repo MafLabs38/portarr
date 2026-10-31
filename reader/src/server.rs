@@ -26,6 +26,31 @@ pub const HEALTH_PATH: &str = "/healthz";
 /// Requests served at once: a followed log holds one for as long as it runs, and a flood must not exhaust the machine's threads.
 const MAX_IN_FLIGHT: usize = 128;
 
+/// Followed logs open at once. They are the only requests that stay open, so they get a share of [`MAX_IN_FLIGHT`] of their own:
+/// the host metrics Portarr reads every second are never starved by log viewers.
+const MAX_FOLLOWED: usize = 32;
+
+static FOLLOWED: AtomicUsize = AtomicUsize::new(0);
+
+/// One of the [`MAX_FOLLOWED`] places, given back when the log stream ends (or the request is dropped).
+struct FollowSlot;
+
+impl FollowSlot {
+    fn take() -> Option<FollowSlot> {
+        if FOLLOWED.fetch_add(1, Ordering::SeqCst) >= MAX_FOLLOWED {
+            FOLLOWED.fetch_sub(1, Ordering::SeqCst);
+            return None;
+        }
+        Some(FollowSlot)
+    }
+}
+
+impl Drop for FollowSlot {
+    fn drop(&mut self) {
+        FOLLOWED.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
 /// A request thread holds a buffer and a few strings: a small stack keeps the memory of a busy reader low.
 const THREAD_STACK_BYTES: usize = 256 * 1024;
 
@@ -34,7 +59,7 @@ type Reply = Response<Box<dyn Read + Send>>;
 /// What a request is answered with: a complete reply, or a log stream written chunk by chunk.
 enum Outcome {
     Reply(Reply),
-    Stream(Box<dyn Read + Send>),
+    Stream(Box<dyn Read + Send>, Option<FollowSlot>),
 }
 
 struct Context {
@@ -90,12 +115,14 @@ pub fn start(options: Options) -> io::Result<RunningServer> {
                 continue;
             }
 
+            // The thread owns the request; a refused thread drops it, so the failure is logged and the connection closes.
             let (context, in_flight_done) = (Arc::clone(&context), Arc::clone(&in_flight));
             let spawned = thread::Builder::new().stack_size(THREAD_STACK_BYTES).spawn(move || {
                 handle(request, &context);
                 in_flight_done.fetch_sub(1, Ordering::SeqCst);
             });
-            if spawned.is_err() {
+            if let Err(failure) = spawned {
+                eprintln!("portarr-reader: a request thread could not be started: {failure}");
                 in_flight.fetch_sub(1, Ordering::SeqCst);
             }
         }
@@ -149,7 +176,7 @@ fn handle(request: Request, context: &Context) {
         Outcome::Reply(reply) => {
             let _ = request.respond(reply);
         }
-        Outcome::Stream(body) => stream_logs(request, body),
+        Outcome::Stream(body, _slot) => stream_logs(request, body),
     }
 }
 
@@ -217,10 +244,20 @@ fn logs(context: &Context, name: &str, query: &str) -> Outcome {
         return Outcome::Reply(error(400, "That is not a container name."));
     }
     match log_query(query) {
-        Ok(log_query) => match context.docker.logs(name, log_query) {
-            Ok(upstream) => Outcome::Stream(upstream.into_body()),
-            Err(failure) => Outcome::Reply(failure_reply(&failure)),
-        },
+        Ok(log_query) => {
+            let slot = if log_query.follow {
+                match FollowSlot::take() {
+                    Some(slot) => Some(slot),
+                    None => return Outcome::Reply(error(503, "Too many followed logs at once.")),
+                }
+            } else {
+                None
+            };
+            match context.docker.logs(name, log_query) {
+                Ok(upstream) => Outcome::Stream(upstream.into_body(), slot),
+                Err(failure) => Outcome::Reply(failure_reply(&failure)),
+            }
+        }
         Err(message) => Outcome::Reply(error(400, message)),
     }
 }
@@ -268,13 +305,13 @@ fn log_query(query: &str) -> Result<LogQuery, &'static str> {
     };
     let tail = match query_value(query, "tail") {
         None => 100,
-        Some(value) => value.parse::<i64>().map_err(|_| "tail must be a number of lines.")?,
+        Some(value) => value.parse::<i64>().ok().filter(|lines| *lines >= 0).ok_or("tail must be a number of lines, 0 or more.")?,
     };
     Ok(LogQuery {
         stdout: flag("stdout", true)?,
         stderr: flag("stderr", true)?,
         timestamps: flag("timestamps", false)?,
-        tail: tail.clamp(0, MAX_LOG_LINES),
+        tail: tail.min(MAX_LOG_LINES),
         follow: flag("follow", false)?,
     })
 }
@@ -382,6 +419,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn followed_logs_have_a_limited_number_of_places_that_come_back() {
+        let places: Vec<_> = (0..MAX_FOLLOWED).map(|_| FollowSlot::take().expect("a place")).collect();
+        assert!(FollowSlot::take().is_none());
+        drop(places);
+        assert!(FollowSlot::take().is_some());
+    }
+
+    #[test]
     fn routes_are_the_fixed_list_and_nothing_else() {
         assert_eq!(route("/healthz"), Some(Route::Health));
         assert_eq!(route("/v1/docker/containers/json"), Some(Route::ContainerList));
@@ -431,7 +476,7 @@ mod tests {
             }
         );
         assert_eq!(
-            log_query("tail=-1&follow=true&timestamps=true&stdout=false").unwrap(),
+            log_query("tail=0&follow=true&timestamps=true&stdout=false").unwrap(),
             LogQuery {
                 stdout: false,
                 stderr: true,
@@ -442,6 +487,7 @@ mod tests {
         );
         assert_eq!(log_query("tail=99999").unwrap().tail, MAX_LOG_LINES);
         assert!(log_query("tail=abc").is_err());
+        assert!(log_query("tail=-1").is_err());
         assert!(log_query("follow=maybe").is_err());
     }
 }

@@ -342,7 +342,6 @@ fn docker_with_everything(fake: &FakeDocker) {
 #[test]
 fn everything_but_the_health_check_is_behind_the_token() {
     let reader = Reader::with(&FakeDocker::tcp());
-    let bearer = |value: &str| request(reader.addr, "GET", "/v1/info", &[("Authorization", value)]);
 
     assert_eq!(request(reader.addr, "GET", "/healthz", &[]).text(), "ok");
     let refused = request(reader.addr, "GET", "/v1/info", &[]);
@@ -354,6 +353,12 @@ fn everything_but_the_health_check_is_behind_the_token() {
         "an anonymous caller learns nothing about the routes"
     );
     assert_eq!(request(reader.addr, "GET", "/v1/host", &[("Authorization", "Bearer wrong")]).status, 401);
+}
+
+#[test]
+fn the_accepted_credentials_are_a_bearer_token_or_an_api_key() {
+    let reader = Reader::with(&FakeDocker::tcp());
+    let bearer = |value: &str| request(reader.addr, "GET", "/v1/info", &[("Authorization", value)]);
 
     let info = bearer(&format!("Bearer {TOKEN}"));
     assert_eq!(info.status, 200);
@@ -364,6 +369,13 @@ fn everything_but_the_health_check_is_behind_the_token() {
     assert!(!info.text().contains(TOKEN));
     assert_eq!(request(reader.addr, "GET", "/v1/info", &[("X-Api-Key", TOKEN)]).status, 200);
     assert_eq!(bearer(&format!("bearer {TOKEN}")).status, 200, "an HTTP authentication scheme is case-insensitive");
+}
+
+#[test]
+fn a_malformed_or_wrong_credential_is_refused() {
+    let reader = Reader::with(&FakeDocker::tcp());
+    let bearer = |value: &str| request(reader.addr, "GET", "/v1/info", &[("Authorization", value)]);
+
     for value in [
         "Bearer ",
         "Bearer",
@@ -373,8 +385,36 @@ fn everything_but_the_health_check_is_behind_the_token() {
     ] {
         assert_eq!(bearer(value).status, 401, "{value}");
     }
+}
+
+#[test]
+fn a_wrong_bearer_is_not_rescued_by_an_api_key() {
+    let reader = Reader::with(&FakeDocker::tcp());
+
     let both = request(reader.addr, "GET", "/v1/info", &[("Authorization", "Bearer wrong"), ("X-Api-Key", TOKEN)]);
-    assert_eq!(both.status, 401, "a wrong bearer is not rescued by another header");
+    assert_eq!(both.status, 401);
+}
+
+#[test]
+fn two_authorization_headers_are_never_both_trusted() {
+    let reader = Reader::with(&FakeDocker::tcp());
+
+    let doubled = request(
+        reader.addr,
+        "GET",
+        "/v1/info",
+        &[("Authorization", "Bearer wrong"), ("Authorization", &format!("Bearer {TOKEN}"))],
+    );
+    assert_eq!(doubled.status, 401, "the first header decides");
+}
+
+#[test]
+fn head_is_not_a_route_either() {
+    let reader = Reader::with(&FakeDocker::tcp());
+
+    let head = request(reader.addr, "HEAD", "/v1/host", &[("Authorization", &format!("Bearer {TOKEN}"))]);
+    assert_eq!(head.status, 405);
+    assert_eq!(head.header("Allow"), Some("GET"));
 }
 
 #[test]
@@ -510,6 +550,7 @@ fn a_parameter_that_is_not_valid_is_refused_without_asking_docker() {
 
     for path in [
         "/v1/docker/containers/web/logs?tail=abc",
+        "/v1/docker/containers/web/logs?tail=-1",
         "/v1/docker/containers/web/logs?follow=maybe",
         "/v1/docker/containers/web/logs?stdout=2",
         "/v1/docker/containers/json?all=yes",
@@ -517,18 +558,6 @@ fn a_parameter_that_is_not_valid_is_refused_without_asking_docker() {
         assert_eq!(reader.get(path).status, 400, "{path}");
     }
     assert!(fake.requests().is_empty());
-}
-
-#[test]
-fn the_number_of_log_lines_is_clamped_whatever_is_asked() {
-    let fake = FakeDocker::tcp();
-    docker_with_everything(&fake);
-    let reader = Reader::with(&fake);
-
-    for (asked, forwarded) in [("-1", "0"), ("0", "0"), ("5000", "5000"), ("99999", "5000"), ("100", "100")] {
-        assert_eq!(reader.get(&format!("/v1/docker/containers/web/logs?tail={asked}")).status, 200);
-        assert_eq!(fake.query("/containers/web/logs")["tail"], forwarded, "tail={asked}");
-    }
 }
 
 #[test]

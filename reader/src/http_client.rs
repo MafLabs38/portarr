@@ -5,6 +5,8 @@
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::os::unix::net::UnixStream;
+use std::sync::mpsc;
+use std::thread;
 use std::time::Duration;
 
 use crate::config::DockerEndpoint;
@@ -16,6 +18,10 @@ pub const CALL_TIMEOUT: Duration = Duration::from_secs(10);
 pub const MAX_BODY_BYTES: u64 = 32 * 1024 * 1024;
 
 const MAX_HEADER_BYTES: usize = 64 * 1024;
+
+/// How long a followed log stays open. A caller that left on a quiet container is only noticed when the container writes again, so the
+/// connection to Docker is closed after this long: the thread and its slot come back, and a viewer that is still there follows again.
+pub const MAX_FOLLOW: Duration = Duration::from_secs(30 * 60);
 
 trait Transport: Read + Write + Send {}
 impl<T: Read + Write + Send> Transport for T {}
@@ -49,11 +55,16 @@ pub fn get(endpoint: &DockerEndpoint, target: &str, read_timeout: Option<Duratio
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "a request target holds a space or a control character"));
     }
 
+    let mut alive: Option<mpsc::Sender<()>> = None;
     let (stream, host): (Box<dyn Transport>, String) = match endpoint {
         DockerEndpoint::Unix(path) => {
             let stream = UnixStream::connect(path)?;
             stream.set_read_timeout(read_timeout)?;
             stream.set_write_timeout(Some(CALL_TIMEOUT))?;
+            if read_timeout.is_none() {
+                let closing = stream.try_clone()?;
+                close_after(MAX_FOLLOW, &mut alive, move || drop(closing.shutdown(std::net::Shutdown::Both)));
+            }
             (Box::new(stream), "docker".to_string())
         }
         DockerEndpoint::Tcp { host, port } => {
@@ -64,6 +75,10 @@ pub fn get(endpoint: &DockerEndpoint, target: &str, read_timeout: Option<Duratio
             let stream = TcpStream::connect_timeout(&address, CALL_TIMEOUT)?;
             stream.set_read_timeout(read_timeout)?;
             stream.set_write_timeout(Some(CALL_TIMEOUT))?;
+            if read_timeout.is_none() {
+                let closing = stream.try_clone()?;
+                close_after(MAX_FOLLOW, &mut alive, move || drop(closing.shutdown(std::net::Shutdown::Both)));
+            }
             (Box::new(stream), format!("{host}:{port}"))
         }
     };
@@ -115,7 +130,37 @@ pub fn get(endpoint: &DockerEndpoint, target: &str, read_timeout: Option<Duratio
     } else {
         Box::new(reader)
     };
+    // The sender lives as long as the body: when the body is dropped the watchdog wakes up and leaves.
+    let body: Box<dyn Read + Send> = match alive {
+        Some(alive) => Box::new(Watched { inner: body, _alive: alive }),
+        None => body,
+    };
     Ok(Upstream { status, body })
+}
+
+/// Calls `close` once `limit` has passed, unless the body it watches is dropped first.
+fn close_after(limit: Duration, alive: &mut Option<mpsc::Sender<()>>, close: impl FnOnce() + Send + 'static) {
+    let (sender, watcher) = mpsc::channel::<()>();
+    let spawned = thread::Builder::new().stack_size(64 * 1024).spawn(move || {
+        if watcher.recv_timeout(limit) == Err(mpsc::RecvTimeoutError::Timeout) {
+            close();
+        }
+    });
+    if spawned.is_ok() {
+        *alive = Some(sender);
+    }
+}
+
+/// A body whose connection a watchdog may close; dropping it releases the watchdog.
+struct Watched {
+    inner: Box<dyn Read + Send>,
+    _alive: mpsc::Sender<()>,
+}
+
+impl Read for Watched {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        self.inner.read(buffer)
+    }
 }
 
 fn read_line(reader: &mut impl BufRead, line: &mut String) -> io::Result<()> {
@@ -207,6 +252,28 @@ mod tests {
         assert!(decode(b"5\r\nhel").is_err());
         assert!(decode(b"zz\r\nhello\r\n").is_err());
         assert!(decode(b"5\r\nhello\r\n").is_err(), "no last chunk");
+    }
+
+    #[test]
+    fn a_watchdog_closes_a_connection_left_open_but_not_one_that_ended() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        let closed = Arc::new(AtomicBool::new(false));
+        let mut alive = None;
+        let flag = Arc::clone(&closed);
+        close_after(Duration::from_millis(50), &mut alive, move || flag.store(true, Ordering::SeqCst));
+        std::thread::sleep(Duration::from_millis(400));
+        assert!(closed.load(Ordering::SeqCst), "left open: closed after the limit");
+        drop(alive);
+
+        let ended = Arc::new(AtomicBool::new(false));
+        let mut alive = None;
+        let flag = Arc::clone(&ended);
+        close_after(Duration::from_millis(300), &mut alive, move || flag.store(true, Ordering::SeqCst));
+        drop(alive);
+        std::thread::sleep(Duration::from_millis(600));
+        assert!(!ended.load(Ordering::SeqCst), "the body was dropped first: nothing to close");
     }
 
     #[test]
