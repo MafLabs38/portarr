@@ -1083,7 +1083,7 @@ public static partial class CatalogParser
             return environment is null ? null : new BackupSourceReference(BackupSourceKinds.Backrest, environment, plan);
         }
 
-        private BackupSourceReference? BuildK8upSource(string dataId, string target, K8upSourceDocument? source, string? dataEnvironment, Dictionary<string, CatalogEnvironment> environments)
+        private BackupSourceReference? BuildK8upSource(string dataId, string target, K8UpSourceDocument? source, string? dataEnvironment, Dictionary<string, CatalogEnvironment> environments)
         {
             if (source is null)
             {
