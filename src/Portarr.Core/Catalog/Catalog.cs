@@ -3,13 +3,14 @@ using Portarr.Core.Workloads;
 namespace Portarr.Core.Catalog;
 
 /// <summary>
-/// What the operator declared: environments, stacks and apps (spec §4). Workloads are never declared; apps point at
-/// them through selectors.
+/// What the operator declared: environments, stacks and apps (spec §4) and the code sources the Maintenance page
+/// scans (D-64). Workloads are never declared; apps point at them through selectors.
 /// </summary>
 public sealed record Catalog(
     IReadOnlyList<CatalogEnvironment> Environments,
     IReadOnlyList<CatalogStack> Stacks,
-    IReadOnlyList<CatalogApp> Apps)
+    IReadOnlyList<CatalogApp> Apps,
+    GitHubSource? GitHub = null)
 {
     public static Catalog Empty { get; } = new([], [], []);
 }
@@ -136,7 +137,7 @@ public enum MemberRole
     Optional,
 }
 
-/// <summary>An app of the catalog.</summary>
+/// <summary>An app of the catalog. <c>Repository</c> is its code repository (<c>owner/name</c>), when declared (D-65).</summary>
 public sealed record CatalogApp(
     string Id,
     string Name,
@@ -146,7 +147,8 @@ public sealed record CatalogApp(
     IReadOnlyList<string> Tags,
     IReadOnlyList<AppUrl> Urls,
     IReadOnlyList<WorkloadSelector> Workloads,
-    CheckDefinition? Check = null);
+    CheckDefinition? Check = null,
+    string? Repository = null);
 
 public enum AppType
 {

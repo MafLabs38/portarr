@@ -79,7 +79,8 @@ internal sealed record ContainerStatus(
     [property: JsonPropertyName("ready")] bool Ready,
     [property: JsonPropertyName("started")] bool? Started,
     [property: JsonPropertyName("restartCount")] int RestartCount,
-    [property: JsonPropertyName("state")] ContainerState? State);
+    [property: JsonPropertyName("state")] ContainerState? State,
+    [property: JsonPropertyName("imageID")] string? ImageId = null);
 
 internal sealed record ContainerState(
     [property: JsonPropertyName("running")] ContainerStateDetail? Running,

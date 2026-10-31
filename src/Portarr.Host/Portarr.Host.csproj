@@ -7,6 +7,8 @@
     <PackageReference Include="Serilog.AspNetCore" />
     <ProjectReference Include="..\Portarr.Api.V1\Portarr.Api.V1.csproj" />
     <ProjectReference Include="..\Portarr.Providers.Cloudflare\Portarr.Providers.Cloudflare.csproj" />
+    <ProjectReference Include="..\Portarr.Providers.GitHub\Portarr.Providers.GitHub.csproj" />
+    <ProjectReference Include="..\Portarr.Providers.Registries\Portarr.Providers.Registries.csproj" />
     <ProjectReference Include="..\Portarr.Providers.Docker\Portarr.Providers.Docker.csproj" />
     <ProjectReference Include="..\Portarr.Providers.Kubernetes\Portarr.Providers.Kubernetes.csproj" />
     <ProjectReference Include="..\Portarr.Providers.NodeExporter\Portarr.Providers.NodeExporter.csproj" />

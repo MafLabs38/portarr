@@ -4,6 +4,7 @@ import { setupServer } from 'msw/node';
 import type App from 'typings/App';
 import type CatalogStatus from 'typings/CatalogStatus';
 import type { InfrastructureEnvironment } from 'typings/Infrastructure';
+import type MaintenanceReport from 'typings/Maintenance';
 import type Stack from 'typings/Stack';
 import type SystemStatus from 'typings/SystemStatus';
 import type Workload from 'typings/Workload';
@@ -264,6 +265,133 @@ export const infrastructure: InfrastructureEnvironment[] = [
   },
 ];
 
+const off = { state: 'off', critical: 0, high: 0, medium: 0, low: 0, other: 0, total: 0, reason: null } as const;
+
+export const maintenanceReport: MaintenanceReport = {
+  summary: {
+    repositories: 2,
+    deployedRepositories: 1,
+    critical: 1,
+    high: 0,
+    medium: 2,
+    low: 0,
+    qualityAlerts: 0,
+    secretAlerts: 0,
+    dependabotOff: 1,
+    codeScanningOff: 2,
+    ciFailing: 1,
+    dependabotPullRequests: 3,
+    images: 2,
+    imagesUpToDate: 0,
+    imagesBehind: 1,
+    imagesMajor: 1,
+    imagesFloating: 1,
+    imagesUnknown: 0,
+  },
+  attention: [
+    {
+      kind: 'severe-alerts',
+      level: 'danger',
+      count: 1,
+      subjects: [{ label: 'example/shop', url: 'https://github.com/example/shop', count: 1 }],
+    },
+    {
+      kind: 'dependabot-off',
+      level: 'warning',
+      count: 1,
+      subjects: [{ label: 'example/desktop', url: null, count: null }],
+    },
+  ],
+  codeSource: { configured: true, owners: ['example'], scannedAt: '2026-01-01T11:50:00Z', error: null },
+  repositories: [
+    {
+      fullName: 'example/shop',
+      owner: 'example',
+      name: 'shop',
+      url: 'https://github.com/example/shop',
+      visibility: 'public',
+      language: 'C#',
+      description: null,
+      pushedAt: '2026-01-01T09:00:00Z',
+      defaultBranch: 'main',
+      archived: false,
+      fork: false,
+      dependabot: { state: 'on', critical: 1, high: 0, medium: 2, low: 0, other: 0, total: 3, reason: null },
+      codeScanning: off,
+      secretScanning: { state: 'on', critical: 0, high: 0, medium: 0, low: 0, other: 0, total: 0, reason: null },
+      release: { tag: 'v1.2.0', publishedAt: '2025-12-01T00:00:00Z', url: null, tagOnly: false },
+      dependabotPullRequests: 3,
+      ci: { workflow: 'CI', status: 'completed', conclusion: 'failure', failed: true, at: null, url: null },
+      appIds: ['sonarr'],
+      images: [],
+      deployed: true,
+    },
+    {
+      fullName: 'example/desktop',
+      owner: 'example',
+      name: 'desktop',
+      url: 'https://github.com/example/desktop',
+      visibility: 'private',
+      language: 'C#',
+      description: null,
+      pushedAt: '2025-12-20T09:00:00Z',
+      defaultBranch: 'main',
+      archived: false,
+      fork: false,
+      dependabot: off,
+      codeScanning: off,
+      secretScanning: off,
+      release: null,
+      dependabotPullRequests: 0,
+      ci: null,
+      appIds: [],
+      images: [],
+      deployed: false,
+    },
+  ],
+  images: [
+    {
+      reference: 'postgres:16-alpine',
+      registry: 'docker.io',
+      repository: 'library/postgres',
+      tag: '16-alpine',
+      status: 'behind',
+      current: '16-alpine',
+      latest: '18-alpine',
+      change: 'major',
+      currentAt: null,
+      latestAt: '2025-12-29T12:00:00Z',
+      reason: null,
+      fromLabel: false,
+      users: [{ environmentId: 'server-1', environmentName: 'Server 1', name: 'app-db', namespace: null, appIds: [] }],
+      repositoryFullName: null,
+    },
+    {
+      reference: 'grafana/grafana:latest',
+      registry: 'docker.io',
+      repository: 'grafana/grafana',
+      tag: 'latest',
+      status: 'floating',
+      current: 'latest',
+      latest: null,
+      change: null,
+      currentAt: null,
+      latestAt: null,
+      reason: 'floating',
+      fromLabel: false,
+      users: [{ environmentId: 'server-1', environmentName: 'Server 1', name: 'grafana', namespace: null, appIds: [] }],
+      repositoryFullName: null,
+    },
+  ],
+  refresh: {
+    gitHubAt: '2026-01-01T11:50:00Z',
+    gitHubNextAt: '2026-01-01T12:20:00Z',
+    registriesAt: '2026-01-01T09:00:00Z',
+    refreshing: false,
+    availableAt: null,
+  },
+};
+
 let logLevel = 'Information';
 
 export function resetMockState() {
@@ -278,6 +406,10 @@ export const handlers = [
   http.get('/api/v1/environments', () => HttpResponse.json(environments)),
   http.get('/api/v1/workloads', () => HttpResponse.json(workloads)),
   http.get('/api/v1/infrastructure', () => HttpResponse.json(infrastructure)),
+  http.get('/api/v1/maintenance', () => HttpResponse.json(maintenanceReport)),
+  http.post('/api/v1/maintenance/refresh', () =>
+    HttpResponse.json({ ...maintenanceReport.refresh, refreshing: true }, { status: 202 }),
+  ),
   http.get('/api/v1/workloads/:environmentId/:name', ({ params }) => {
     const workload = workloads.find((w) => w.environmentId === params.environmentId && w.name === params.name);
     return workload ? HttpResponse.json(workload) : new HttpResponse(null, { status: 404 });

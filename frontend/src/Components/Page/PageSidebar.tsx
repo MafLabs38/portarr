@@ -16,6 +16,7 @@ interface Entry {
 const entries: Entry[] = [
   { to: '/apps', label: 'Apps', icon: icons.APPS },
   { to: '/infrastructure', label: 'Infrastructure', icon: icons.INFRASTRUCTURE },
+  { to: '/maintenance', label: 'Maintenance', icon: icons.MAINTENANCE },
   { to: '/system/status', label: 'System', icon: icons.SYSTEM },
 ];
 

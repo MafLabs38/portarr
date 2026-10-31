@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Time.Testing;
 using Portarr.Core.Checks;
 using Portarr.Core.Configuration;
+using Portarr.Core.Maintenance;
 using Portarr.Core.Workloads;
 
 namespace Portarr.Integration.Test;
@@ -49,6 +50,10 @@ public sealed class PortarrFactory : WebApplicationFactory<Program>
             services.Replace(ServiceDescriptor.Singleton<TimeProvider>(Clock));
             services.RemoveAll<IWorkloadSource>();
             services.AddSingleton<IWorkloadSource>(Workloads);
+
+            // Registries and code hosts are on the internet: tests never call them.
+            services.RemoveAll<IImageRegistry>();
+            services.RemoveAll<ICodeRepositorySource>();
 
             // App checks never leave the test: every URL answers 200.
             services.AddHttpClient(HttpCheckRunner.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => new OkHandler());

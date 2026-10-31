@@ -13,12 +13,14 @@ public sealed class KubernetesMapperFixture
             { "metadata": { "name": "api-7c4b-fghij", "namespace": "shop", "labels": { "app": "api" }, "creationTimestamp": "2026-10-30T08:00:00Z" },
               "spec": { "nodeName": "node-1", "containers": [{ "name": "api", "image": "registry.example/api:2" }] },
               "status": { "phase": "Running", "conditions": [{ "type": "Ready", "status": "True" }],
-                          "containerStatuses": [{ "name": "api", "ready": true, "started": true, "restartCount": 3, "state": { "running": {} }}] } }
+                          "containerStatuses": [{ "name": "api", "ready": true, "started": true, "restartCount": 3, "state": { "running": {} },
+                                                 "imageID": "docker-pullable://registry.example/api@sha256:0123abcd" }] } }
             """);
 
         var workload = KubernetesMapper.ToWorkload("cluster", pod);
 
         workload.Id.Should().Be("shop/api-7c4b-fghij");
+        workload.ImageDigest.Should().Be("sha256:0123abcd", "the running digest tells whether a floating tag moved (V4)");
         workload.Name.Should().Be("api-7c4b-fghij");
         workload.Namespace.Should().Be("shop");
         workload.Node.Should().Be("node-1");
