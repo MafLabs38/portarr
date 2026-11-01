@@ -372,6 +372,9 @@ internal sealed class MatchDocument
     /// <summary>Kubernetes only: the pod's <c>app</c> label.</summary>
     public string? App { get; set; }
 
+    /// <summary>Kubernetes only: any labels of the pod, each key with its value (the <c>app</c> label has <c>app:</c> as its shorthand).</summary>
+    public Dictionary<string, string>? Labels { get; set; }
+
     /// <summary>Kubernetes only: the start of the pod name (a Deployment's pods are <c>&lt;name&gt;-&lt;hash&gt;-&lt;id&gt;</c>).</summary>
     public string? NamePrefix { get; set; }
 }

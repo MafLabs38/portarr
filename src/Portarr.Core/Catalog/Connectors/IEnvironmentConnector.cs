@@ -12,9 +12,10 @@ public enum WorkloadMatchFields
     Namespace = 2,
     App = 4,
     NamePrefix = 8,
+    Labels = 16,
 
     /// <summary>What a Kubernetes cluster accepts: its pods are found by labels and prefixes, not only by name.</summary>
-    All = Name | Namespace | App | NamePrefix,
+    All = Name | Namespace | App | NamePrefix | Labels,
 }
 
 /// <summary>

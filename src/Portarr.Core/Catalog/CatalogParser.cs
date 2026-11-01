@@ -726,14 +726,15 @@ public static partial class CatalogParser
             var ns = CatalogValues.Blank(match.Namespace);
             var app = CatalogValues.Blank(match.App);
             var prefix = CatalogValues.Blank(match.NamePrefix);
+            var labels = match.Labels is { Count: > 0 } ? match.Labels : null;
 
             var fields = MatchFieldsOf(environment);
             if (!fields.HasFlag(WorkloadMatchFields.NamePrefix))
             {
-                if (ns is not null || app is not null || prefix is not null)
+                if (ns is not null || app is not null || prefix is not null || labels is not null)
                 {
                     var labelled = string.Join(" or ", _connectors.Where(c => c.IsRuntime && c.MatchFields.HasFlag(WorkloadMatchFields.NamePrefix)).Select(c => c.Section));
-                    _errors.Add($"App '{appId}': match.namespace, match.app and match.namePrefix only apply to {labelled} workloads.");
+                    _errors.Add($"App '{appId}': match.namespace, match.app, match.labels and match.namePrefix only apply to {labelled} workloads.");
                     return null;
                 }
 
@@ -746,13 +747,45 @@ public static partial class CatalogParser
                 return new WorkloadSelector(environment.Id, name);
             }
 
-            if (name is null && app is null && prefix is null)
+            if (name is null && app is null && prefix is null && labels is null)
             {
-                _errors.Add($"App '{appId}': workload on {document.Runtime} needs match.app (the pod's app label), match.name or match.namePrefix, usually with match.namespace.");
+                _errors.Add($"App '{appId}': workload on {document.Runtime} needs match.app (the pod's app label), match.labels, match.name or match.namePrefix, usually with match.namespace.");
                 return null;
             }
 
-            return new WorkloadSelector(environment.Id, name, Namespace: ns, App: app, NamePrefix: prefix);
+            IReadOnlyDictionary<string, string>? checkedLabels = null;
+            if (labels is not null && !TryBuildLabels(appId, labels, app, out checkedLabels))
+            {
+                return null;
+            }
+
+            return new WorkloadSelector(environment.Id, name, Namespace: ns, App: app, NamePrefix: prefix, Labels: checkedLabels);
+        }
+
+        /// <summary>The <c>labels</c> of a selector: Kubernetes label keys and values, and no disagreement with <c>app</c> (D-106).</summary>
+        private bool TryBuildLabels(string appId, Dictionary<string, string> labels, string? app, out IReadOnlyDictionary<string, string>? result)
+        {
+            result = null;
+            var valid = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var (key, value) in labels)
+            {
+                if (!CatalogValues.IsLabelKey(key.Trim()) || !CatalogValues.IsLabelValue(value?.Trim() ?? string.Empty) || string.IsNullOrWhiteSpace(value))
+                {
+                    _errors.Add($"App '{appId}': match.labels maps a label key to its value (e.g. {{ app.kubernetes.io/name: shop }}); '{key}' is not a Kubernetes label key and value.");
+                    return false;
+                }
+
+                valid[key.Trim()] = value.Trim();
+            }
+
+            if (app is not null && valid.TryGetValue(WorkloadSelector.AppLabel, out var other) && other != app)
+            {
+                _errors.Add($"App '{appId}': match.app ('{app}') and match.labels.app ('{other}') disagree: give the app label once.");
+                return false;
+            }
+
+            result = valid;
+            return true;
         }
 
         private List<CatalogStack> BuildStacks(List<StackDocument> documents, List<AppDocument> appDocuments, HashSet<string> appIds)

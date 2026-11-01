@@ -75,7 +75,7 @@ The CA is the `certificate-authority-data` of your kubeconfig, base64-decoded (`
 
 Until the token variable is set and the CA file is readable, the environment is shown as **not connected** with the reason (`token-missing`, `ca-missing`, `ca-invalid`); the rest of the catalog keeps working (D-32).
 
-Pod names change on every rollout: match pods by `namespace` and `app` label (or `namePrefix`), see [the catalog](../catalog.md#kubernetes-selectors) (D-56).
+Pod names change on every rollout: match pods by `namespace` and `labels` (`app:` is the shorthand of the `app` label) or `namePrefix`, see [the catalog](../catalog.md#kubernetes-selectors) (D-56).
 
 ## What it provides
 

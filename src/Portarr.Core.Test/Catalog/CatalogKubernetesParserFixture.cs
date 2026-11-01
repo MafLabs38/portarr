@@ -27,8 +27,55 @@ public sealed class CatalogKubernetesParserFixture
         selectors[1].Description.Should().Be("shop/shop-worker-*");
     }
 
+    [Fact]
+    public void should_read_the_labels_of_a_pod_and_keep_app_as_the_shorthand_of_the_app_label()
+    {
+        var selectors = Parse("""
+            environments: [{ id: cluster, kubernetes: { server: "https://10.0.0.10:6443" } }]
+            apps:
+              - id: shop
+                workloads:
+                  - { runtime: kubernetes@cluster, match: { namespace: shop, labels: { app.kubernetes.io/name: shop-api, tier: web } } }
+                  - { runtime: kubernetes@cluster, match: { app: shop-api, labels: { tier: web } } }
+            """).Apps[0].Workloads;
+
+        selectors[0].Labels.Should().Equal(new Dictionary<string, string> { ["app.kubernetes.io/name"] = "shop-api", ["tier"] = "web" });
+        selectors[0].Description.Should().Be("shop/app.kubernetes.io/name=shop-api,tier=web");
+        selectors[1].App.Should().Be("shop-api");
+        selectors[1].Description.Should().Be("app=shop-api,tier=web");
+    }
+
+    [Theory]
+    [InlineData("{ labels: { \"not a key\": web } }")]
+    [InlineData("{ labels: { tier: \"not a value!\" } }")]
+    [InlineData("{ labels: { tier: \"\" } }")]
+    [InlineData("{ app: shop-api, labels: { app: other } }")]
+    public void should_refuse_labels_that_are_not_kubernetes_labels_or_that_disagree_with_app(string match)
+    {
+        var result = TestCatalog.Parse($$"""
+            environments: [{ id: cluster, kubernetes: { server: "https://10.0.0.10:6443" } }]
+            apps:
+              - { id: shop, workloads: [{ runtime: kubernetes@cluster, match: {{match}} }] }
+            """);
+
+        result.Errors.Should().ContainSingle().Which.Should().MatchRegex("match\\.labels|disagree");
+    }
+
+    [Fact]
+    public void should_match_a_pod_that_carries_every_label_asked_for_and_pick_the_best_one()
+    {
+        var selector = new WorkloadSelector("cluster", null, Labels: new Dictionary<string, string> { ["app.kubernetes.io/name"] = "shop-api", ["tier"] = "web" });
+        var both = Pod("shop-api-1", "shop", null, WorkloadState.Running, WorkloadHealth.Healthy, 1) with { Labels = new Dictionary<string, string> { ["app.kubernetes.io/name"] = "shop-api", ["tier"] = "web" } };
+        var one = Pod("shop-api-2", "shop", null, WorkloadState.Running, WorkloadHealth.Healthy, 2) with { Labels = new Dictionary<string, string> { ["app.kubernetes.io/name"] = "shop-api" } };
+
+        selector.Matches(both).Should().BeTrue();
+        selector.Matches(one).Should().BeFalse("every label asked for must be there");
+        selector.Pick([one, both]).Should().Be(both);
+    }
+
     [Theory]
     [InlineData("kubernetes@cluster", "{ namespace: shop }", "needs match.app")]
+    [InlineData("kubernetes@cluster", "{ namespace: shop }", "match.labels")]
     [InlineData("docker@host", "{ name: web, app: web }", "only apply to kubernetes workloads")]
     public void should_reject_an_ambiguous_selector(string runtime, string match, string error)
     {

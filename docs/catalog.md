@@ -190,7 +190,7 @@ A machine with a host agent shows its host values first; one whose agent cannot 
 
 ## Kubernetes selectors
 
-A pod name changes on every rollout (`shop-web-7c4b9d-x2k8p`): match pods by what stays (D-56). `match:` takes `namespace`, `app` (the pod's `app` label), `namePrefix` and `name`; every key given must match, and one of `app`, `namePrefix` or `name` is required. `namespace`, `app` and `namePrefix` are only for `kubernetes@…` workloads.
+A pod name changes on every rollout (`shop-web-7c4b9d-x2k8p`): match pods by what stays (D-56). `match:` takes `namespace`, `labels` (any labels of the pod, e.g. `{ app.kubernetes.io/name: shop-api }`, which is what Helm charts set), `app` (the shorthand of the `app` label), `namePrefix` and `name`; every key given must match, and one of `app`, `labels`, `namePrefix` or `name` is required. `namespace`, `labels`, `app` and `namePrefix` are only for `kubernetes@…` workloads (D-56, D-106).
 
 ## Data
 

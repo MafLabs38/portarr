@@ -15,6 +15,14 @@ public static partial class CatalogValues
     [GeneratedRegex("^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$")]
     private static partial Regex NamespacePattern();
 
+    /// <summary>A Kubernetes label key: a name of at most 63 characters, with an optional DNS-subdomain prefix and a slash.</summary>
+    [GeneratedRegex("^([a-z0-9]([-a-z0-9.]{0,251}[a-z0-9])?/)?[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$")]
+    private static partial Regex LabelKeyPattern();
+
+    /// <summary>A Kubernetes label value: at most 63 characters of letters, digits, dashes, underscores and dots, starting and ending with a letter or digit.</summary>
+    [GeneratedRegex("^[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$")]
+    private static partial Regex LabelValuePattern();
+
     // Must match ReaderTokenPrefix.
     [GeneratedRegex("^PORTARR_READER_[A-Za-z0-9_]{1,100}$")]
     private static partial Regex ReaderTokenVariablePattern();
@@ -45,6 +53,12 @@ public static partial class CatalogValues
 
         return $"{key} must be the name of an environment variable starting with {ReaderTokenPrefix} (e.g. {ReaderTokenPrefix}SERVER_1), never the token itself.";
     }
+
+    /// <summary>A Kubernetes label key (<c>app</c>, <c>app.kubernetes.io/name</c>).</summary>
+    public static bool IsLabelKey(string value) => LabelKeyPattern().IsMatch(value);
+
+    /// <summary>A Kubernetes label value (<c>shop-api</c>).</summary>
+    public static bool IsLabelValue(string value) => LabelValuePattern().IsMatch(value);
 
     /// <summary>A Kubernetes namespace name: a DNS label.</summary>
     public static bool IsNamespaceName(string value) => NamespacePattern().IsMatch(value);
