@@ -1,5 +1,6 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
+using Portarr.Core.Catalog;
 using Portarr.Core.Infrastructure;
 
 namespace Portarr.Providers.NodeExporter;
@@ -19,6 +20,7 @@ public static class NodeExporterServiceCollectionExtensions
             PooledConnectionLifetime = TimeSpan.FromMinutes(10),
         });
         services.AddSingleton<IHostMetricsSource, NodeExporterHostMetricsSource>();
+        services.AddSingleton<IEnvironmentConnector, NodeExporterEnvironmentConnector>();
 
         return services;
     }

@@ -40,7 +40,7 @@ public sealed record CatalogPortalColors(string? Name, string? Version);
 /// A host, a cluster or a hosting account. <c>Address</c> is its LAN address, used to build LAN URLs from
 /// published ports (D-46). At most one runtime is set: <c>Kubernetes</c> or, through a connector library, <c>ConnectorRuntime</c> (D-105).
 /// <c>Host</c> is the environment this one runs on as a VM (D-59): the hypervisor's dashboard counts it as a guest.
-/// <c>HostMetrics</c> is the host agent of its single machine (a Docker host, D-72). <c>Notes</c>, <c>Access</c> and
+/// <c>Notes</c>, <c>Access</c> and
 /// <c>Machines</c> are what the operator knows about it, for people and AI assistants (D-84). <c>Connectors</c> holds the
 /// settings each connector library read from the section it owns, keyed by that section (D-105): Core never looks inside.
 /// <c>MachineHosts</c> says which machines of the environment are VMs on another environment, as those connectors know them.
@@ -51,7 +51,6 @@ public sealed record CatalogEnvironment(
     string? Address = null,
     KubernetesCluster? Kubernetes = null,
     string? Host = null,
-    HostMetricsEndpoint? HostMetrics = null,
     string? Notes = null,
     MachineAccess? Access = null,
     IReadOnlyList<MachineKnowledge>? Machines = null,
@@ -109,12 +108,6 @@ public sealed record KubernetesCluster(
     IReadOnlyDictionary<string, string>? NodeHosts = null,
     KubernetesNodeExporter? NodeExporter = null,
     bool AllowInsecure = false);
-
-/// <summary>
-/// The node_exporter of a single machine (D-72): its <c>/metrics</c> URL, read every second. <c>TokenVariable</c> names the
-/// environment variable holding a bearer token when something in front of it asks for one (the Portarr reader does, D-100).
-/// </summary>
-public sealed record HostMetricsEndpoint(Uri NodeExporter, string? TokenVariable = null);
 
 /// <summary>How a node's node_exporter is reached (D-72).</summary>
 public enum NodeExporterAccess

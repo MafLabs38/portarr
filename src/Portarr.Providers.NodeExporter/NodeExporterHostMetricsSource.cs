@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using Microsoft.Extensions.Configuration;
+using Portarr.Core.Catalog;
 using Portarr.Core.Infrastructure;
 using Portarr.Core.Workloads;
 
@@ -29,6 +30,12 @@ public sealed class NodeExporterHostMetricsSource : IHostMetricsSource
     public bool Supports(HostMetricsTarget target)
     {
         return target.Url is not null;
+    }
+
+    /// <summary>The environment's own node_exporter, when it declares one: its single machine, read at that address.</summary>
+    public IEnumerable<HostMetricsTarget> TargetsOf(CatalogEnvironment environment, EnvironmentMetrics? infrastructure)
+    {
+        return environment.HostMetrics() is { } endpoint ? [new HostMetricsTarget(environment, environment.Id, endpoint.NodeExporter)] : [];
     }
 
     /// <summary><c>token-missing</c> when the environment's own endpoint declares a token whose variable is empty (the reader's, D-100).</summary>
@@ -71,6 +78,6 @@ public sealed class NodeExporterHostMetricsSource : IHostMetricsSource
     /// <summary>The token variable the target's own endpoint declares; none for a node's exporter reached another way.</summary>
     private static string? DeclaredVariable(HostMetricsTarget target)
     {
-        return target.Environment.HostMetrics is { TokenVariable: { } variable } endpoint && target.Url == endpoint.NodeExporter ? variable : null;
+        return target.Environment.HostMetrics() is { TokenVariable: { } variable } endpoint && target.Url == endpoint.NodeExporter ? variable : null;
     }
 }

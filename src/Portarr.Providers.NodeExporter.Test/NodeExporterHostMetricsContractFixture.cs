@@ -18,7 +18,7 @@ public sealed class NodeExporterHostMetricsContractFixture : HostMetricsSourceCo
         var fault = ToolFault.None;
         var factory = Substitute.For<IHttpClientFactory>();
         factory.CreateClient(NodeExporterHostMetricsSource.HttpClientName).Returns(_ => new HttpClient(new FakeAgent(() => text, () => fault, requests)));
-        var environment = new CatalogEnvironment("server-1", "Server 1", null);
+        var environment = NodeExporterEnvironments.With(new HostMetricsEndpoint(new Uri("http://10.0.0.10:9100/metrics")));
 
         return new HostMetricsHarness(
             new NodeExporterHostMetricsSource(factory, new ConfigurationBuilder().Build()),
@@ -26,7 +26,8 @@ public sealed class NodeExporterHostMetricsContractFixture : HostMetricsSourceCo
             new HostMetricsTarget(environment, "server-1", null, 9100),
             served => text = served,
             failure => fault = failure,
-            () => requests.ToList());
+            () => requests.ToList(),
+            environment);
     }
 
     private sealed class FakeAgent(Func<string> text, Func<ToolFault> fault, List<RecordedRequest> requests) : HttpMessageHandler

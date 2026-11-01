@@ -30,12 +30,13 @@ public sealed class RawSectionConnector : IEnvironmentConnector
 /// <summary>A catalog read with stand-ins for the connector libraries Core does not reference (D-105).</summary>
 public static class TestCatalog
 {
-    /// <summary>Docker (a runtime, one machine), Cloudflare (a runtime, not a machine) and Backrest (auxiliary).</summary>
+    /// <summary>Docker (a runtime, one machine), Cloudflare (a runtime, not a machine), Backrest and the host agent (auxiliary).</summary>
     public static IReadOnlyList<IEnvironmentConnector> Connectors { get; } =
     [
         new RawSectionConnector("docker", isRuntime: true),
         new StubEnvironmentConnector("cloudflare", isRuntime: true, singleMachine: false),
         new StubEnvironmentConnector("backrest"),
+        new RawSectionConnector("hostMetrics"),
     ];
 
     public static CatalogParseResult Parse(string yaml, params IEnvironmentConnector[] more)

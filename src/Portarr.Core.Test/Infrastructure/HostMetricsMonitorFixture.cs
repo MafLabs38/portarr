@@ -27,6 +27,8 @@ public sealed class HostMetricsMonitorFixture
     public HostMetricsMonitorFixture()
     {
         _source.Supports(Arg.Any<HostMetricsTarget>()).Returns(true);
+        _source.TargetsOf(Arg.Any<CatalogEnvironment>(), Arg.Any<EnvironmentMetrics?>())
+            .Returns(call => call.Arg<CatalogEnvironment>() is { } environment && environment.Declares("hostMetrics") ? [new HostMetricsTarget(environment, environment.Id, new Uri("http://10.0.0.10:9100/metrics"))] : []);
         _infrastructure.Current.Returns(new Dictionary<string, EnvironmentMetrics>());
         UseCatalog(Catalog);
     }
@@ -163,7 +165,7 @@ public sealed class HostMetricsMonitorFixture
             ["cluster"] = new("cluster", [Node("home", "10.0.0.21"), Node("behind-tunnel", "10.0.0.22"), Node("elsewhere", null), Node("no-address", null), Node("disabled", "10.0.0.23"), Node("looped", "127.0.0.1")], new Dictionary<string, WorkloadUsageSample>(), Now, null),
         };
 
-        var targets = HostMetricsMonitor.ResolveTargets(catalog.Catalog, infrastructure);
+        var targets = Monitor().ResolveTargets(catalog.Catalog, infrastructure);
 
         targets.Select(t => (t.MachineId, t.Url?.ToString(), t.ApiServerPort, t.ConfigurationError)).Should().Equal(
             ("home", "http://10.0.0.21:9100/metrics", null, null),

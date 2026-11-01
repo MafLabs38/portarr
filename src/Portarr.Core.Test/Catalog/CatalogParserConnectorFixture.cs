@@ -198,7 +198,7 @@ public sealed class CatalogParserConnectorFixture
     }
 
     [Theory]
-    [InlineData("hostMetrics")]
+    [InlineData("reader")]
     [InlineData("kubernetes")]
     [InlineData("id")]
     [InlineData("notes")]

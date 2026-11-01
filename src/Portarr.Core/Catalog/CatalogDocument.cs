@@ -241,9 +241,6 @@ internal sealed class EnvironmentDocument
     /// <summary>The environment this machine is a VM on (D-59): its hypervisor counts it as a guest.</summary>
     public string? Host { get; set; }
 
-    /// <summary>The host agent of a Docker host (D-72).</summary>
-    public HostMetricsDocument? HostMetrics { get; set; }
-
     /// <summary>The sections of connector libraries (D-105), set aside as their events: each connector reads its own.</summary>
     [YamlIgnore]
     public IReadOnlyDictionary<string, IReadOnlyList<ParsingEvent>> Sections { get; set; } = new Dictionary<string, IReadOnlyList<ParsingEvent>>();
@@ -256,15 +253,6 @@ internal sealed class EnvironmentDocument
 
     /// <summary>Knowledge about the machines of this environment, e.g. the nodes of a cluster (D-84).</summary>
     public List<MachineDocument>? Machines { get; set; }
-}
-
-internal sealed class HostMetricsDocument
-{
-    /// <summary>node_exporter's metrics URL, e.g. http://10.0.0.10:9100/metrics.</summary>
-    public string? NodeExporter { get; set; }
-
-    /// <summary>The environment variable holding a bearer token, when something in front of node_exporter asks for one.</summary>
-    public string? TokenEnv { get; set; }
 }
 
 internal sealed class NodeExporterDocument
