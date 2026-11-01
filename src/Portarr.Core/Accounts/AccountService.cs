@@ -566,7 +566,10 @@ public sealed partial class AccountService : IAccountService
     private async Task<AccountIdentity> BuildIdentityAsync(UserRow row, CancellationToken cancellationToken)
     {
         var role = (await RolesAsync(cancellationToken)).FirstOrDefault(r => r.Id == row.RoleId);
-        var permissions = role is null ? new HashSet<string>() : role.Permissions.ToHashSet(StringComparer.Ordinal);
+        // A custom role keeps only what can be assigned: one that held a reserved permission before it became reserved loses it here.
+        var permissions = role is null
+            ? new HashSet<string>()
+            : role.Permissions.Where(p => role.BuiltIn || Permissions.Assignable.Contains(p)).ToHashSet(StringComparer.Ordinal);
         return new AccountIdentity(row.Id, row.Username, row.DisplayName, row.RoleName, permissions, row.SecurityStamp, row.AvatarFile);
     }
 

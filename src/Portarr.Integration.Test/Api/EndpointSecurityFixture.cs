@@ -41,7 +41,7 @@ public sealed partial class EndpointSecurityFixture
 
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
-    private record struct Route(string Method, string Pattern, string? Policy, bool Open);
+    private record struct Route(string Method, string Pattern, string[] Policies, bool Open);
 
     private static List<Route> Routes(IServiceProvider services)
     {
@@ -52,7 +52,7 @@ public sealed partial class EndpointSecurityFixture
                 new Route(
                     method,
                     e.RoutePattern.RawText!,
-                    e.Metadata.GetOrderedMetadata<IAuthorizeData>().Select(a => a.Policy).LastOrDefault(p => p is not null),
+                    [.. e.Metadata.GetOrderedMetadata<IAuthorizeData>().Select(a => a.Policy).OfType<string>().Distinct()],
                     e.Metadata.GetMetadata<IAllowAnonymous>() is not null)))
             .OrderBy(r => r.Pattern, StringComparer.Ordinal)
             .ThenBy(r => r.Method, StringComparer.Ordinal)];
@@ -109,7 +109,7 @@ public sealed partial class EndpointSecurityFixture
         var failures = new List<string>();
         foreach (var route in Routes(factory.Services).Where(r => !r.Open))
         {
-            var granted = Allowed(role, route.Policy);
+            var granted = Allowed(role, route.Policies);
             using var request = Request(route);
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, Token);
             var refused = response.StatusCode == HttpStatusCode.Forbidden;
@@ -129,20 +129,18 @@ public sealed partial class EndpointSecurityFixture
 
         foreach (var route in Routes(factory.Services).Where(r => !r.Open))
         {
-            if (route.Policy is not null)
+            foreach (var policy in route.Policies)
             {
-                (Permissions.Keys.Contains(route.Policy) || route.Policy == Session.SessionPolicyName)
-                    .Should().BeTrue($"{route.Method} {route.Pattern} names the policy '{route.Policy}'");
+                (Permissions.Keys.Contains(policy) || policy == Session.SessionPolicyName)
+                    .Should().BeTrue($"{route.Method} {route.Pattern} names the policy '{policy}'");
             }
         }
     }
 
-    // A permission policy needs the permission; the session policy and an endpoint without one only need a sign-in.
-    private static bool Allowed(string role, string? policy)
+    // Every permission policy needs its permission; the session policy and an endpoint without one only need a sign-in (the client is a cookie session).
+    private static bool Allowed(string role, string[] policies)
     {
-        return policy is null
-            || policy == Session.SessionPolicyName
-            || BuiltInRoles.Find(role)!.Permissions.Contains(policy);
+        return policies.All(policy => policy == Session.SessionPolicyName || BuiltInRoles.Find(role)!.Permissions.Contains(policy));
     }
 
     private static HttpRequestMessage Request(Route route)

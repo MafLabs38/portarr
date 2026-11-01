@@ -12,6 +12,7 @@ namespace Portarr.Api.V1.Accounts;
 /// </summary>
 [ApiController]
 [Authorize(Policy = Permissions.UsersManage)]
+[Authorize(Policy = AuthenticationServiceCollectionExtensions.SessionPolicyName)]
 [Route("api/v1/users")]
 [Produces("application/json")]
 public sealed class UsersController : ControllerBase
