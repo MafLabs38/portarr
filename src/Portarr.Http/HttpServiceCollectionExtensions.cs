@@ -44,6 +44,7 @@ public static class HttpServiceCollectionExtensions
     {
         services.AddProblemDetails();
         services.AddPortarrAuthentication();
+        services.AddPortarrDataProtection();
         services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;

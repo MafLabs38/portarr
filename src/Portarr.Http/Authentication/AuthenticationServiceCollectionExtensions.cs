@@ -3,6 +3,9 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.Repositories;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,6 +28,9 @@ public static class AuthenticationServiceCollectionExtensions
     public const string SessionPolicyName = "session";
 
     public const string SessionCookieName = "portarr_session";
+
+    /// <summary>The name when the cookie is always <c>Secure</c>: the prefix makes the browser refuse one set without it, or for another path or domain.</summary>
+    public const string SecureSessionCookieName = "__Host-portarr_session";
 
     /// <summary>Header every cookie-authenticated write must carry (CSRF, on top of SameSite=Strict). API-key requests are exempt.</summary>
     public const string CsrfHeaderName = "X-Requested-With";
@@ -54,12 +60,18 @@ public static class AuthenticationServiceCollectionExtensions
 
         services.AddOptions<CookieAuthenticationOptions>(CookieScheme).Configure<IOptions<AuthOptions>>((options, auth) =>
         {
-            options.Cookie.Name = SessionCookieName;
+            var always = auth.Value.CookieSecurity == CookieSecurity.Always;
+            options.Cookie.Name = always ? SecureSessionCookieName : SessionCookieName;
             options.Cookie.HttpOnly = true;
             options.Cookie.SameSite = SameSiteMode.Strict;
 
-            // Secure whenever the request is HTTPS (behind a trusted proxy, as forwarded headers say).
-            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+            // Auto: Secure whenever the request is HTTPS (behind a trusted proxy, as forwarded headers say). Always: for a proxy Portarr does not trust.
+            options.Cookie.SecurePolicy = always ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
+            options.Events.OnSigningIn = context =>
+            {
+                WarnIfBehindAnUntrustedProxy(context.HttpContext);
+                return Task.CompletedTask;
+            };
             options.Cookie.Path = "/";
             options.ExpireTimeSpan = TimeSpan.FromDays(auth.Value.SessionDays);
             options.SlidingExpiration = true;
@@ -94,6 +106,41 @@ public static class AuthenticationServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Keeps the keys that sign the session cookie in the data folder (<c>keys</c>, readable by the service account only),
+    /// so a container recreated on the same volume does not sign everyone out.
+    /// </summary>
+    public static IServiceCollection AddPortarrDataProtection(this IServiceCollection services)
+    {
+        services.AddDataProtection().SetApplicationName("Portarr");
+        services.AddOptions<KeyManagementOptions>().Configure<IOptions<PortarrOptions>, ILoggerFactory>((options, portarr, loggers) =>
+        {
+            var folder = Path.Combine(portarr.Value.DataFolder, "keys");
+            if (!OperatingSystem.IsWindows())
+            {
+                Directory.CreateDirectory(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            }
+
+            options.XmlRepository = new FileSystemXmlRepository(new DirectoryInfo(folder), loggers);
+        });
+        return services;
+    }
+
+    private static int _untrustedProxyWarned;
+
+    // A request that says it came over HTTPS (X-Forwarded-Proto) but is still http here crossed a proxy Portarr ignores:
+    // the cookie goes out without Secure. Said once, with the way out.
+    private static void WarnIfBehindAnUntrustedProxy(HttpContext context)
+    {
+        if (context.Request.IsHttps || context.Request.Headers["X-Forwarded-Proto"] != "https" || Interlocked.Exchange(ref _untrustedProxyWarned, 1) == 1)
+        {
+            return;
+        }
+
+        context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Portarr.Auth").LogWarning(
+            "A sign-in came through a proxy that Portarr does not trust (X-Forwarded-Proto is https, the request is http): the session cookie is issued without Secure. Add the proxy to PORTARR__TRUSTEDPROXIES, or set PORTARR__AUTH__COOKIESECURITY=Always");
+    }
+
+    /// <summary>
     /// Rejects requests that change something with a cookie session and no <c>X-Requested-With: portarr</c> header (a
     /// browser cannot add one to a cross-site form or fetch without a CORS preflight Portarr never grants), and so do the
     /// sign-in endpoints. Requests with a key are exempt: a key is not sent by the browser on its own. Anything else
@@ -104,7 +151,7 @@ public static class AuthenticationServiceCollectionExtensions
         app.Use(async (context, next) =>
         {
             var request = context.Request;
-            if (request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase)
+            if ((request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase) || request.Path.StartsWithSegments("/mcp", StringComparison.OrdinalIgnoreCase))
                 && !HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method) && !HttpMethods.IsOptions(request.Method) && !HttpMethods.IsTrace(request.Method)
                 && !ApiKeyAuthenticationHandler.HasKey(request)
                 && (context.User.Identity?.IsAuthenticated == true || request.Path.StartsWithSegments("/api/v1/auth", StringComparison.OrdinalIgnoreCase))
