@@ -121,6 +121,27 @@ public sealed class KubernetesEnvironmentConnectorFixture : EnvironmentConnector
     }
 
     [Theory]
+    [InlineData("5s", 5)]
+    [InlineData("1m", 60)]
+    public void should_read_the_nodes_less_often_when_asked_to(string interval, int seconds)
+    {
+        var nodeExporter = Cluster($"environments: [{{ id: cluster, kubernetes: {{ server: \"https://10.0.0.10:6443\", nodeExporter: {{ interval: {interval} }} }} }}]").NodeExporter!;
+
+        nodeExporter.Interval.Should().Be(TimeSpan.FromSeconds(seconds));
+    }
+
+    [Theory]
+    [InlineData("0s")]
+    [InlineData("6m")]
+    [InlineData("soon")]
+    public void should_refuse_a_node_exporter_interval_that_is_not_one_second_to_five_minutes(string interval)
+    {
+        var result = Parse($"environments: [{{ id: cluster, kubernetes: {{ server: \"https://10.0.0.10:6443\", nodeExporter: {{ interval: {interval} }} }} }}]");
+
+        result.Errors.Should().ContainSingle().Which.Should().Contain("kubernetes.nodeExporter.interval must be a duration");
+    }
+
+    [Theory]
     [InlineData("port: 0", "kubernetes.nodeExporter needs a port")]
     [InlineData("access: url", "kubernetes.nodeExporter needs a port")]
     [InlineData("nodes: { a: nowhere }", "kubernetes.nodeExporter.nodes maps a node name")]

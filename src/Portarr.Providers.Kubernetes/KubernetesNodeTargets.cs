@@ -27,11 +27,11 @@ internal static class KubernetesNodeTargets
         var route = nodeExporter.RouteOf(node.Id);
         return route.Access switch
         {
-            NodeExporterAccess.Url => new HostMetricsTarget(environment, node.Id, route.Url),
-            NodeExporterAccess.ApiServer => new HostMetricsTarget(environment, node.Id, null, new PodProxyRoute(nodeExporter.Port)),
+            NodeExporterAccess.Url => new HostMetricsTarget(environment, node.Id, route.Url, Interval: nodeExporter.Interval),
+            NodeExporterAccess.ApiServer => new HostMetricsTarget(environment, node.Id, null, new PodProxyRoute(nodeExporter.Port), Interval: nodeExporter.Interval),
             NodeExporterAccess.Direct when node.Address is { } address
                 => IsReachableAddress(address)
-                    ? new HostMetricsTarget(environment, node.Id, new UriBuilder(Uri.UriSchemeHttp, IPAddress.Parse(address).ToString(), nodeExporter.Port, "/metrics").Uri)
+                    ? new HostMetricsTarget(environment, node.Id, new UriBuilder(Uri.UriSchemeHttp, IPAddress.Parse(address).ToString(), nodeExporter.Port, "/metrics").Uri, Interval: nodeExporter.Interval)
                     : new HostMetricsTarget(environment, node.Id, null, null, ReasonCodes.InvalidAddress),
             _ => null,
         };

@@ -53,6 +53,30 @@ public sealed class HostMetricsMonitorFixture
     }
 
     [Fact]
+    public async Task should_read_a_machine_less_often_when_its_target_asks_for_an_interval()
+    {
+        var interval = TimeSpan.FromSeconds(5);
+        _source.TargetsOf(Arg.Any<CatalogEnvironment>(), Arg.Any<EnvironmentMetrics?>())
+            .Returns(call => call.Arg<CatalogEnvironment>().Declares("hostMetrics") ? [new HostMetricsTarget(call.Arg<CatalogEnvironment>(), "server-1", new Uri("http://10.0.0.10:9100/metrics"), Interval: interval)] : []);
+        Answer(Reading(cpu: 12, usedBytes: 6_000));
+        var monitor = Monitor();
+
+        await monitor.SampleAsync(TestContext.Current.CancellationToken);
+        var first = Reads();
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        await monitor.SampleAsync(TestContext.Current.CancellationToken);
+        _clock.Advance(TimeSpan.FromSeconds(3));
+        await monitor.SampleAsync(TestContext.Current.CancellationToken);
+        var beforeDue = Reads();
+        _clock.Advance(TimeSpan.FromSeconds(2));
+        await monitor.SampleAsync(TestContext.Current.CancellationToken);
+
+        beforeDue.Should().Be(first, "four seconds into a five-second interval nothing is read");
+        Reads().Should().Be(first + 1, "the next read is due after the interval");
+        monitor.Current[Machine].Interval.Should().Be(interval, "the view says how often it is read");
+    }
+
+    [Fact]
     public async Task should_show_a_configuration_error_as_its_reason_without_reading_the_agent()
     {
         _source.GetConfigurationError(Arg.Any<HostMetricsTarget>()).Returns("token-missing");

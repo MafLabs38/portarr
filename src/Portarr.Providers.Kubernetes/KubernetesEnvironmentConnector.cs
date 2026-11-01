@@ -1,4 +1,5 @@
 using Portarr.Core.Catalog;
+using Portarr.Providers.NodeExporter;
 
 namespace Portarr.Providers.Kubernetes;
 
@@ -49,7 +50,8 @@ public sealed record KubernetesNodeExporter(
     NodeExporterAccess Access,
     IReadOnlyDictionary<string, NodeExporterRoute>? Nodes = null,
     string Namespace = KubernetesNodeExporter.DefaultNamespace,
-    string Selector = KubernetesNodeExporter.DefaultSelector)
+    string Selector = KubernetesNodeExporter.DefaultSelector,
+    TimeSpan? Interval = null)
 {
     public const int DefaultPort = 9100;
     public const string DefaultNamespace = "monitoring";
@@ -98,6 +100,9 @@ internal sealed class NodeExporterDocument
 
     /// <summary>Per node name: direct, api-server, off, or a metrics URL.</summary>
     public Dictionary<string, string>? Nodes { get; set; }
+
+    /// <summary>How often the nodes are read when not every second: <c>5s</c>, <c>1m</c> (1 second to 5 minutes).</summary>
+    public string? Interval { get; set; }
 }
 
 /// <summary>
@@ -216,7 +221,14 @@ public sealed class KubernetesEnvironmentConnector : IEnvironmentConnector
             nodes[node.Trim()] = route;
         }
 
-        nodeExporter = new KubernetesNodeExporter(port, access.Value, nodes.Count > 0 ? nodes : null, podNamespace, selector);
+        TimeSpan? interval = null;
+        if (document.Interval is not null && (interval = CatalogValues.ParseInterval(document.Interval, HostMetricsIntervals.Min, HostMetricsIntervals.Max)) is null)
+        {
+            context.Error("kubernetes.nodeExporter.interval must be a duration of 1 second to 5 minutes (e.g. 5s, 1m), or be omitted to read every second.");
+            return false;
+        }
+
+        nodeExporter = new KubernetesNodeExporter(port, access.Value, nodes.Count > 0 ? nodes : null, podNamespace, selector, interval);
         return true;
     }
 

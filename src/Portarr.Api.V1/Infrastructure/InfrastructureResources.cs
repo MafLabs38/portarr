@@ -113,7 +113,7 @@ public static class InfrastructureResourceMapper
             "node-exporter",
             view.SampledAt,
             view.Error,
-            (int)HostMetricsMonitor.Interval.TotalSeconds,
+            (int)(view.Interval ?? HostMetricsMonitor.Interval).TotalSeconds,
             latest?.Cores,
             latest?.CpuPercent,
             latest?.IowaitPercent,
