@@ -23,6 +23,8 @@ export class ChatError extends Error {
 
 export interface SessionOptions {
   maxSessions: number;
+  /** Conversations kept; the oldest idle one is deleted to make room for a new one (default 200). */
+  maxConversations?: number;
   idleTimeoutMs: number;
   /** Where the CLI runs: an empty directory. */
   workDir: string;
@@ -71,6 +73,9 @@ function titleOf(text: string): string {
   const line = text.trim().split('\n')[0].trim();
   return line.length <= maxTitleLength ? line : `${line.slice(0, maxTitleLength - 1)}…`;
 }
+
+/** Conversations kept when the options say nothing. */
+const defaultMaxConversations = 200;
 
 export class SessionManager {
   private readonly conversations = new Map<string, Conversation>();
@@ -123,6 +128,7 @@ export class SessionManager {
   ): Promise<ConversationSummary> {
     const adapter = this.adapter(agentId ?? [...this.adapters.keys()][0]);
     const chosen = this.model(adapter, model);
+    await this.makeRoomForAConversation();
     const now = this.now();
     const conversation: Conversation = {
       id: randomUUID(),
@@ -136,6 +142,20 @@ export class SessionManager {
     this.conversations.set(conversation.id, conversation);
     await this.store.save(conversation);
     return this.summary(conversation);
+  }
+
+  /** At the cap, the least recently updated conversation that is not running goes; when every one runs, the new one waits (429). */
+  private async makeRoomForAConversation(): Promise<void> {
+    const cap = this.options.maxConversations ?? defaultMaxConversations;
+    while (this.conversations.size >= cap) {
+      const oldest = [...this.conversations.values()]
+        .filter((conversation) => !this.active.has(conversation.id))
+        .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))[0];
+      if (!oldest) {
+        throw new ChatError(429, `${cap} conversations are running or kept: delete one first.`);
+      }
+      await this.delete(oldest.id);
+    }
   }
 
   async delete(id: string): Promise<void> {

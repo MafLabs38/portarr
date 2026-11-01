@@ -10,11 +10,32 @@ export interface RunnerConfig {
   portarrMcpUrl: string;
   portarrMcpKey?: string;
   maxSessions: number;
+  /** Conversations kept on disk; the oldest idle one makes room for a new one. */
+  maxConversations: number;
   idleTimeoutMs: number;
+  /** The models offered, in order, and the one used when none is chosen; undefined: the adapter's own. */
+  models?: { id: string; label: string }[];
+  defaultModel?: string;
   claudeCommand: string;
 }
 
 export const minimumSecretLength = 32;
+
+/** `sonnet,opus:Opus 5` → ids with optional labels (`id` or `id:Label`), each id a short lowercase name. */
+export function parseModels(value: string | undefined): { id: string; label: string }[] | undefined {
+  if (!value?.trim()) {
+    return undefined;
+  }
+  return value.split(',').map((entry) => {
+    const [id, ...label] = entry.trim().split(':');
+    if (!/^[a-z0-9][a-z0-9.-]{0,63}$/.test(id)) {
+      throw new Error(
+        `PORTARR_AGENT_MODELS: '${entry.trim()}' is not a model name (a short lowercase id, optionally id:Label).`,
+      );
+    }
+    return { id, label: label.join(':').trim() || id };
+  });
+}
 
 function integer(value: string | undefined, fallback: number, min: number, max: number): number {
   const parsed = value ? Number.parseInt(value, 10) : fallback;
@@ -40,6 +61,16 @@ export function loadConfig(env: NodeJS.ProcessEnv): RunnerConfig {
   if (mcpKey !== undefined && mcpKey.trim().length < minimumSecretLength) {
     errors.push(`PORTARR_MCP_APIKEY, when set, must be at least ${minimumSecretLength} characters.`);
   }
+  let models: { id: string; label: string }[] | undefined;
+  try {
+    models = parseModels(env.PORTARR_AGENT_MODELS);
+  } catch (error) {
+    errors.push((error as Error).message);
+  }
+  const defaultModel = env.PORTARR_AGENT_DEFAULT_MODEL?.trim() || undefined;
+  if (defaultModel && models && !models.some((model) => model.id === defaultModel)) {
+    errors.push(`PORTARR_AGENT_DEFAULT_MODEL '${defaultModel}' is not one of PORTARR_AGENT_MODELS.`);
+  }
   if (errors.length > 0) {
     throw new Error(errors.join('\n'));
   }
@@ -51,6 +82,9 @@ export function loadConfig(env: NodeJS.ProcessEnv): RunnerConfig {
     portarrMcpUrl: mcpUrl,
     portarrMcpKey: mcpKey,
     maxSessions: integer(env.PORTARR_AGENT_MAX_SESSIONS, 3, 1, 20),
+    maxConversations: integer(env.PORTARR_AGENT_MAX_CONVERSATIONS, 200, 1, 5000),
+    models,
+    defaultModel,
     idleTimeoutMs: integer(env.PORTARR_AGENT_IDLE_MINUTES, 15, 1, 24 * 60) * 60_000,
     claudeCommand: env.CLAUDE_BIN ?? 'claude',
   };

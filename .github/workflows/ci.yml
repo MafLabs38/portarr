@@ -260,6 +260,22 @@ jobs:
           build-args: VERSION=0.0.0-${{ steps.meta-reader.outputs.version }}
           cache-from: type=gha,scope=reader
           cache-to: type=gha,mode=max,scope=reader
+      # The chat's agent runner (D-87) is a companion too: its own image, built from agent/, tagged the same way.
+      - id: meta-agent
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        with:
+          images: ghcr.io/${{ github.repository }}-agent
+          tags: |
+            type=ref,event=branch
+            type=sha
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: agent
+          push: true
+          tags: ${{ steps.meta-agent.outputs.tags }}
+          labels: ${{ steps.meta-agent.outputs.labels }}
+          cache-from: type=gha,scope=agent
+          cache-to: type=gha,mode=max,scope=agent
 
   sonarqube:
     name: sonarqube

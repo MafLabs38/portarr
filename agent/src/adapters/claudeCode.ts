@@ -397,15 +397,24 @@ export const claudeModels: readonly ModelOption[] = [
 export class ClaudeCodeAdapter implements AgentAdapter {
   readonly id = 'claude-code';
   readonly name = 'Claude Code';
-  readonly models = claudeModels;
-  readonly defaultModel = 'sonnet';
+  readonly models: readonly ModelOption[];
+  readonly defaultModel: string;
 
   private readonly command: string;
   private readonly configDir: string;
   private readonly home: string;
   private readonly env: NodeJS.ProcessEnv;
 
-  constructor(command: string, configDir: string, home: string, env: NodeJS.ProcessEnv = process.env) {
+  constructor(
+    command: string,
+    configDir: string,
+    home: string,
+    env: NodeJS.ProcessEnv = process.env,
+    models: readonly ModelOption[] = claudeModels,
+    defaultModel?: string,
+  ) {
+    this.models = models;
+    this.defaultModel = defaultModel ?? models[0]?.id ?? 'sonnet';
     this.command = command;
     this.configDir = configDir;
     this.home = home;
