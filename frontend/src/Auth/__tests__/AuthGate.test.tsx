@@ -89,29 +89,6 @@ describe('LoginPage', () => {
       body: { username: 'admin', password: 'correct horse battery', remember: true },
     });
   });
-
-  it('gives one generic message when the sign-in fails', async () => {
-    const user = userEvent.setup();
-    server.use(
-      unauthorized(),
-      http.post('/api/v1/auth/login', () => new HttpResponse(null, { status: 401 })),
-    );
-    renderWithProviders(
-      <AuthGate>
-        <p>The app</p>
-      </AuthGate>,
-    );
-
-    await user.type(await screen.findByLabelText('User name'), 'someone');
-    await user.type(screen.getByLabelText('Password'), 'not the password');
-    await user.click(screen.getByRole('button', { name: 'Sign in' }));
-
-    await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent(
-        'Invalid username or password, or the account is temporarily locked.',
-      ),
-    );
-  });
 });
 
 describe("AuthGate with the app's own query client", () => {

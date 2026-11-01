@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import usePermissions from 'Auth/usePermissions';
+import { SYSTEM_VIEW } from 'Helpers/Props/permissions';
 import { usePortal } from 'System/Status/usePortal';
 import useSystemStatus from 'System/Status/useSystemStatus';
 import translate from 'Utilities/String/translate';
@@ -23,7 +24,7 @@ export default function PortalBadge() {
   const { data, isPending } = usePortal();
   // Roles without system.view keep the version the portal answer carries.
   const { can } = usePermissions();
-  const status = useSystemStatus({ refetchInterval: STATUS_REFRESH_MS, enabled: can('system.view') });
+  const status = useSystemStatus({ refetchInterval: STATUS_REFRESH_MS, enabled: can(SYSTEM_VIEW) });
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
 
   if (isPending) {
