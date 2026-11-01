@@ -14,7 +14,7 @@ public sealed class CatalogServiceFixture : IDisposable
     public CatalogServiceFixture()
     {
         var options = Options.Create(new PortarrOptions { DataFolder = _folder });
-        _subject = new CatalogService(options, new FakeTimeProvider(), NullLogger<CatalogService>.Instance);
+        _subject = new CatalogService(options, new CatalogParserService([]), new FakeTimeProvider(), NullLogger<CatalogService>.Instance);
     }
 
     private string File => Path.Combine(_folder, "catalog.yaml");

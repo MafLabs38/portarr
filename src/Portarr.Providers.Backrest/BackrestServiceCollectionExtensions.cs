@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Portarr.Core.Backups;
+using Portarr.Core.Catalog;
 
 namespace Portarr.Providers.Backrest;
 
@@ -19,6 +20,7 @@ public static class BackrestServiceCollectionExtensions
             // The credentials go to the address the catalog names, never to wherever a redirect points.
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, PooledConnectionLifetime = TimeSpan.FromMinutes(10) });
         services.AddSingleton<IBackupSource, BackrestBackupSource>();
+        services.AddSingleton<IEnvironmentConnector, BackrestEnvironmentConnector>();
 
         return services;
     }

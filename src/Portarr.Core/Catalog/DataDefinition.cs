@@ -75,8 +75,3 @@ public sealed record BackupSourceReference(string Kind, string EnvironmentId, st
     public override string ToString() => $"{Kind}@{EnvironmentId}/{Reference}";
 }
 
-/// <summary>
-/// A Backrest instance (D-80). The credentials are read from the environment variables the catalog names, never
-/// written in it; a Backrest without authentication needs neither.
-/// </summary>
-public sealed record BackrestEndpoint(Uri Url, string? UserVariable, string? PasswordVariable);

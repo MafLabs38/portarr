@@ -28,14 +28,16 @@ public sealed partial class CatalogService : ICatalogService, IHostedService, ID
     private readonly string _filePath;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<CatalogService> _logger;
+    private readonly ICatalogParser _parser;
     private readonly SemaphoreSlim _reloadLock = new(1, 1);
     private FileSystemWatcher? _watcher;
     private CancellationTokenSource? _pendingReload;
     private volatile CatalogState _current;
     private bool _loaded;
 
-    public CatalogService(IOptions<PortarrOptions> options, TimeProvider timeProvider, ILogger<CatalogService> logger)
+    public CatalogService(IOptions<PortarrOptions> options, ICatalogParser parser, TimeProvider timeProvider, ILogger<CatalogService> logger)
     {
+        _parser = parser;
         _filePath = Path.GetFullPath(options.Value.EffectiveCatalogFile);
         _timeProvider = timeProvider;
         _logger = logger;
@@ -92,7 +94,7 @@ public sealed partial class CatalogService : ICatalogService, IHostedService, ID
                 return;
             }
 
-            var result = CatalogParser.Parse(text);
+            var result = _parser.Parse(text);
 
             // On errors, keep serving the previous valid catalog.
             Current = new CatalogState(

@@ -23,24 +23,28 @@ public static partial class CatalogParser
     private static readonly TimeSpan MaxInterval = TimeSpan.FromHours(24);
     private static readonly TimeSpan MaxTimeout = TimeSpan.FromSeconds(60);
 
-    private static readonly IDeserializer Deserializer = new DeserializerBuilder()
-        .WithNamingConvention(CamelCaseNamingConvention.Instance)
-        .WithTypeConverter(new CheckDocumentConverter())
-        .Build();
+    /// <summary>Reads a catalog that declares no connector section: what a test of the generic parts needs.</summary>
+    public static CatalogParseResult Parse(string yaml) => Parse(yaml, []);
 
-    public static CatalogParseResult Parse(string yaml)
+    /// <summary>
+    /// Reads a catalog. <paramref name="connectors"/> are the connector libraries' sections of an environment (D-105); a section
+    /// nobody registered is an unknown key, like any other.
+    /// </summary>
+    public static CatalogParseResult Parse(string yaml, IEnumerable<IEnvironmentConnector> connectors)
     {
+        var registered = connectors.OrderBy(c => c.Section, StringComparer.Ordinal).ToList();
+        var (full, plain) = CatalogDeserializers.For(registered.Select(c => c.Section).ToHashSet(StringComparer.Ordinal));
         CatalogDocument? document;
         try
         {
-            document = Deserializer.Deserialize<CatalogDocument?>(yaml);
+            document = full.Deserialize<CatalogDocument?>(yaml);
         }
         catch (YamlException exception)
         {
             return new CatalogParseResult(Catalog.Empty, [$"Invalid YAML at line {exception.Start.Line}: {Innermost(exception).Message}"]);
         }
 
-        return new Builder().Build(document ?? new CatalogDocument());
+        return new Builder(registered, plain).Build(document ?? new CatalogDocument());
     }
 
     private static Exception Innermost(Exception exception)
@@ -58,9 +62,6 @@ public static partial class CatalogParser
     /// <summary>A repository: <c>owner/name</c>.</summary>
     [GeneratedRegex("^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")]
     private static partial Regex RepositoryPattern();
-
-    [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]{0,127}$")]
-    private static partial Regex VariableNamePattern();
 
     private const string HttpScheme = "http";
     private const string HttpsScheme = "https";
@@ -107,6 +108,14 @@ public static partial class CatalogParser
     private sealed partial class Builder
     {
         private readonly List<string> _errors = [];
+        private readonly IReadOnlyList<IEnvironmentConnector> _connectors;
+        private readonly IDeserializer _plain;
+
+        public Builder(IReadOnlyList<IEnvironmentConnector> connectors, IDeserializer plain)
+        {
+            _connectors = connectors;
+            _plain = plain;
+        }
 
         public CatalogParseResult Build(CatalogDocument document)
         {
@@ -161,6 +170,15 @@ public static partial class CatalogParser
                     _errors.Add($"Environment '{id}': declare one connector (docker, cloudflare or kubernetes), not several.");
                 }
 
+                var runtime = (docker, cloudflare, kubernetes) switch
+                {
+                    ({ }, _, _) => RuntimeNames.Docker,
+                    (_, { }, _) => RuntimeNames.Cloudflare,
+                    (_, _, { }) => RuntimeNames.Kubernetes,
+                    _ => RuntimeNames.None,
+                };
+                var (settings, machineHosts) = BuildConnectors(id, runtime, document);
+
                 result.Add(new CatalogEnvironment(
                     id,
                     document.Name ?? id,
@@ -170,14 +188,39 @@ public static partial class CatalogParser
                     kubernetes,
                     string.IsNullOrWhiteSpace(document.Host) ? null : document.Host.Trim(),
                     reader?.HostMetrics ?? BuildHostMetrics(id, document, docker),
-                    BuildBackrest(id, document, kubernetes is null && cloudflare is null),
                     BuildNotes($"Environment '{id}'", document.Notes),
                     BuildAccess($"Environment '{id}'", "access", document.Access),
-                    BuildMachines(id, document.Machines)));
+                    BuildMachines(id, document.Machines),
+                    settings,
+                    machineHosts));
             }
 
             ValidateHosts(result);
             return result;
+        }
+
+        /// <summary>Gives each section a connector library owns to that library (D-105), and gathers what they made of them.</summary>
+        private (Dictionary<string, object> Settings, Dictionary<string, string>? MachineHosts) BuildConnectors(string environmentId, string runtime, EnvironmentDocument document)
+        {
+            var settings = new Dictionary<string, object>(StringComparer.Ordinal);
+            Dictionary<string, string>? machineHosts = null;
+            var declared = document.Sections.Keys.ToHashSet(StringComparer.Ordinal);
+            foreach (var connector in _connectors.Where(c => document.Sections.ContainsKey(c.Section)))
+            {
+                var context = new EnvironmentSectionContext(environmentId, connector.Section, runtime, declared, document.Sections[connector.Section], _plain, _errors.Add);
+                if (connector.Parse(context) is not { } result)
+                {
+                    continue;
+                }
+
+                settings[connector.Section] = result.Settings;
+                foreach (var (machine, host) in result.MachineHosts ?? new Dictionary<string, string>())
+                {
+                    (machineHosts ??= new Dictionary<string, string>(StringComparer.Ordinal))[machine] = host;
+                }
+            }
+
+            return (settings, machineHosts);
         }
 
         /// <summary>
@@ -190,7 +233,7 @@ public static partial class CatalogParser
             var byId = environments.ToDictionary(e => e.Id, StringComparer.Ordinal);
             foreach (var environment in environments)
             {
-                var hosts = (environment.Kubernetes?.NodeHosts?.Values ?? []).Append(environment.Host).OfType<string>().Distinct(StringComparer.Ordinal);
+                var hosts = (environment.Kubernetes?.NodeHosts?.Values ?? []).Concat(environment.MachineHosts?.Values ?? []).Append(environment.Host).OfType<string>().Distinct(StringComparer.Ordinal);
                 foreach (var host in hosts)
                 {
                     if (!byId.TryGetValue(host, out var target))
@@ -291,7 +334,7 @@ public static partial class CatalogParser
             }
 
             var variable = document.Cloudflare.TokenEnv ?? DefaultTokenVariable;
-            if (!VariableNamePattern().IsMatch(variable))
+            if (!CatalogValues.IsVariableName(variable))
             {
                 _errors.Add($"Environment '{environmentId}': cloudflare.tokenEnv must be the name of an environment variable (e.g. {DefaultTokenVariable}), never the token itself.");
                 return null;
@@ -325,7 +368,7 @@ public static partial class CatalogParser
             }
 
             var variable = cluster.TokenEnv ?? DefaultKubernetesTokenVariable;
-            if (!VariableNamePattern().IsMatch(variable))
+            if (!CatalogValues.IsVariableName(variable))
             {
                 _errors.Add($"Environment '{environmentId}': kubernetes.tokenEnv must be the name of an environment variable (e.g. {DefaultKubernetesTokenVariable}), never the token itself.");
                 return null;
@@ -503,10 +546,7 @@ public static partial class CatalogParser
         };
 
         /// <summary>An http(s) URL without credentials: read with GET only, so it must not carry a secret.</summary>
-        private static Uri? MetricsUrl(string? value)
-        {
-            return Uri.TryCreate(value?.Trim(), UriKind.Absolute, out var url) && url.Scheme is HttpScheme or HttpsScheme && url.UserInfo.Length == 0 ? url : null;
-        }
+        private static Uri? MetricsUrl(string? value) => CatalogValues.HttpUrl(value);
 
         private List<CatalogApp> BuildApps(List<AppDocument> documents, Dictionary<string, CatalogEnvironment> environments)
         {
@@ -599,7 +639,7 @@ public static partial class CatalogParser
             }
 
             var variable = document.TokenEnv ?? GitHubSource.DefaultTokenVariable;
-            if (!VariableNamePattern().IsMatch(variable))
+            if (!CatalogValues.IsVariableName(variable))
             {
                 _errors.Add($"sources.github: tokenEnv must be the name of an environment variable (e.g. {GitHubSource.DefaultTokenVariable}), never the token itself.");
             }
@@ -847,7 +887,7 @@ public static partial class CatalogParser
             return new WorkloadSelector(environment.Id, name, Namespace: ns, App: app, NamePrefix: prefix);
         }
 
-        private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        private static string? Blank(string? value) => CatalogValues.Blank(value);
 
         private List<CatalogStack> BuildStacks(List<StackDocument> documents, List<AppDocument> appDocuments, HashSet<string> appIds)
         {
@@ -915,40 +955,6 @@ public static partial class CatalogParser
             }
 
             return members;
-        }
-
-        /// <summary>
-        /// <c>backrest:</c> (D-80) names the Backrest of a single machine (a Docker host or a launcher-only
-        /// environment): its URL and the variables holding the basic-auth credentials, never the credentials.
-        /// </summary>
-        private BackrestEndpoint? BuildBackrest(string environmentId, EnvironmentDocument document, bool singleMachine)
-        {
-            if (document.Backrest is null)
-            {
-                return null;
-            }
-
-            if (!singleMachine)
-            {
-                _errors.Add($"Environment '{environmentId}': backrest runs on a docker host (or an environment without connector), not on a kubernetes or cloudflare environment.");
-                return null;
-            }
-
-            if (MetricsUrl(document.Backrest.Url) is not { } url)
-            {
-                _errors.Add($"Environment '{environmentId}': backrest.url must be Backrest's address (e.g. http://10.0.0.10:9898), without credentials.");
-                return null;
-            }
-
-            var user = Blank(document.Backrest.UserEnv);
-            var password = Blank(document.Backrest.PasswordEnv);
-            if ((user is null) != (password is null) || (user is not null && !VariableNamePattern().IsMatch(user)) || (password is not null && !VariableNamePattern().IsMatch(password)))
-            {
-                _errors.Add($"Environment '{environmentId}': backrest.userEnv and passwordEnv must both name an environment variable (never the credentials themselves), or both be omitted when Backrest has no authentication.");
-                return null;
-            }
-
-            return new BackrestEndpoint(url, user, password);
         }
 
         /// <summary>

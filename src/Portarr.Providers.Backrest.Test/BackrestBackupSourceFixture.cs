@@ -10,7 +10,7 @@ namespace Portarr.Providers.Backrest.Test;
 /// <summary>The Backrest connector (D-80): plans and their last backups, read with two POSTs of the Connect protocol.</summary>
 public sealed class BackrestBackupSourceFixture
 {
-    private static readonly CatalogEnvironment Host = new("server-1", "Server 1", null, Backrest: new BackrestEndpoint(new Uri("http://10.0.0.10:9898/"), "BACKREST_USER", "BACKREST_PASSWORD"));
+    private static readonly CatalogEnvironment Host = new("server-1", "Server 1", null, Connectors: BackrestEnvironments.Declared(new BackrestEndpoint(new Uri("http://10.0.0.10:9898/"), "BACKREST_USER", "BACKREST_PASSWORD")));
 
     private readonly List<(string Path, string Body, string? Authorization)> _requests = [];
     private readonly Dictionary<string, (HttpStatusCode Status, string Body)> _answers = [];
@@ -96,7 +96,7 @@ public sealed class BackrestBackupSourceFixture
     [Fact]
     public async Task should_call_a_backrest_without_authentication_with_no_credentials()
     {
-        var open = Host with { Backrest = new BackrestEndpoint(new Uri("http://10.0.0.10:9898/"), null, null) };
+        var open = Host with { Connectors = BackrestEnvironments.Declared(new BackrestEndpoint(new Uri("http://10.0.0.10:9898/"), null, null)) };
 
         await Subject().ListJobsAsync(open, TestContext.Current.CancellationToken);
 

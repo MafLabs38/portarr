@@ -30,8 +30,8 @@ public sealed class CatalogEditorFixture : IDisposable
     {
         _options = new PortarrOptions { DataFolder = _folder, Catalog = { Writable = true, Backups = 2 } };
         var options = Options.Create(_options);
-        _catalogService = new CatalogService(options, _clock, NullLogger<CatalogService>.Instance);
-        _subject = new CatalogEditor(options, _catalogService, new CatalogAuditLog(options), _clock, NullLogger<CatalogEditor>.Instance);
+        _catalogService = new CatalogService(options, new CatalogParserService([]), _clock, NullLogger<CatalogService>.Instance);
+        _subject = new CatalogEditor(options, _catalogService, new CatalogParserService([]), new CatalogAuditLog(options), _clock, NullLogger<CatalogEditor>.Instance);
         File.WriteAllText(CatalogFile, Catalog);
     }
 

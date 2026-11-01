@@ -38,6 +38,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
     private readonly string _filePath;
     private readonly CatalogOptions _options;
     private readonly ICatalogService _catalogService;
+    private readonly ICatalogParser _parser;
     private readonly ICatalogAuditLog _auditLog;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<CatalogEditor> _logger;
@@ -46,6 +47,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
     public CatalogEditor(
         IOptions<PortarrOptions> options,
         ICatalogService catalogService,
+        ICatalogParser parser,
         ICatalogAuditLog auditLog,
         TimeProvider timeProvider,
         ILogger<CatalogEditor> logger)
@@ -53,6 +55,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
         _filePath = Path.GetFullPath(options.Value.EffectiveCatalogFile);
         _options = options.Value.Catalog;
         _catalogService = catalogService;
+        _parser = parser;
         _auditLog = auditLog;
         _timeProvider = timeProvider;
         _logger = logger;
@@ -146,7 +149,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
             return Refused(CatalogEditStatus.Invalid, version, $"The catalog file is not valid YAML (line {exception.Start.Line}): fix it by hand first.");
         }
 
-        var parsed = CatalogParser.Parse(result);
+        var parsed = _parser.Parse(result);
         if (!parsed.IsValid)
         {
             return new CatalogEditResult(CatalogEditStatus.Invalid, version, [], parsed.Errors);
