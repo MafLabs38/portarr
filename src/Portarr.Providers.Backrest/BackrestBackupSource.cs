@@ -47,7 +47,7 @@ public sealed class BackrestBackupSource : IBackupSource
         return environment.Backrest() is not null;
     }
 
-    public async Task<IReadOnlyList<BackupJob>> ListJobsAsync(CatalogEnvironment environment, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<BackupJob>> ListJobsAsync(CatalogEnvironment environment, IReadOnlyCollection<string> references, CancellationToken cancellationToken)
     {
         var endpoint = environment.Backrest() ?? throw new InvalidOperationException($"Environment {environment.Id} has no Backrest.");
         var authorization = Authorization(endpoint);

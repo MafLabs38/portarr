@@ -121,6 +121,66 @@ public sealed class KubernetesBackupSourceFixture : IDisposable
         (await K8up().ListJobsAsync(Environment, TestContext.Current.CancellationToken)).Should().ContainSingle().Which.Run.Should().BeNull();
     }
 
+    [Fact]
+    public async Task should_read_only_the_namespaces_the_references_name()
+    {
+        Ok("/apis/batch/v1/namespaces/shop/cronjobs?limit=500", """{ "items": [{ "metadata": { "name": "dump", "namespace": "shop" }, "spec": { "schedule": "0 3 * * *" } }] }""");
+        Ok("/apis/batch/v1/namespaces/shop/jobs?limit=500", """{ "items": [] }""");
+
+        var jobs = await Cron().ListJobsAsync(Environment, ["shop/dump", "shop/other"], TestContext.Current.CancellationToken);
+
+        jobs.Should().ContainSingle().Which.Reference.Should().Be("shop/dump");
+        _requests.Select(r => r.RequestUri!.AbsolutePath).Should().OnlyContain(path => path.StartsWith("/apis/batch/v1/namespaces/shop/", StringComparison.Ordinal), "nothing is read outside the namespaces asked about");
+    }
+
+    [Fact]
+    public async Task should_read_each_namespace_once_for_k8up_schedules()
+    {
+        Ok("/apis/k8up.io/v1/namespaces/shop/schedules?limit=500", """{ "items": [{ "metadata": { "name": "offsite", "namespace": "shop" } }] }""");
+        Ok("/apis/k8up.io/v1/namespaces/shop/backups?limit=500", """{ "items": [] }""");
+        Ok("/apis/k8up.io/v1/namespaces/shop/snapshots?limit=500", """{ "items": [] }""");
+        Ok("/apis/k8up.io/v1/namespaces/media/schedules?limit=500", """{ "items": [] }""");
+
+        var jobs = await K8up().ListJobsAsync(Environment, ["shop/offsite", "shop/local", "media/nightly"], TestContext.Current.CancellationToken);
+
+        jobs.Select(j => j.Reference).Should().Equal("shop/offsite");
+        _requests.Count(r => r.RequestUri!.AbsolutePath == "/apis/k8up.io/v1/namespaces/shop/schedules").Should().Be(1);
+    }
+
+    [Fact]
+    public async Task should_refuse_a_list_it_would_have_to_cut_short()
+    {
+        // Every page points at another one: 20 pages of 500 and a continuation still pending.
+        for (var page = 0; page < 20; page++)
+        {
+            _responses[page == 0 ? "/apis/batch/v1/cronjobs?limit=500" : $"/apis/batch/v1/cronjobs?limit=500&continue=p{page}"] = (HttpStatusCode.OK, $$"""{ "metadata": { "continue": "p{{page + 1}}" }, "items": [] }""");
+        }
+
+        var read = () => Cron().ListJobsAsync(Environment, TestContext.Current.CancellationToken);
+
+        (await read.Should().ThrowAsync<InvalidDataException>()).Which.Message.Should().Contain("truncated");
+    }
+
+    [Fact]
+    public async Task should_see_a_cronjob_that_failed_after_a_success_and_one_that_is_suspended()
+    {
+        Ok("/apis/batch/v1/cronjobs?limit=500", """
+            { "items": [
+              { "metadata": { "name": "dump", "namespace": "shop" }, "spec": { "schedule": "0 3 * * *" }, "status": { "lastSuccessfulTime": "2026-01-29T03:02:00Z" } },
+              { "metadata": { "name": "paused", "namespace": "shop" }, "spec": { "schedule": "0 4 * * *", "suspend": true }, "status": { "lastSuccessfulTime": "2026-01-20T04:02:00Z" } } ] }
+            """);
+        Ok("/apis/batch/v1/jobs?limit=500", """
+            { "items": [
+              { "metadata": { "name": "dump-2", "namespace": "shop", "ownerReferences": [{ "kind": "CronJob", "name": "dump" }] },
+                "status": { "conditions": [{ "type": "Failed", "status": "True", "lastTransitionTime": "2026-01-31T03:05:00Z" }] } } ] }
+            """);
+
+        var jobs = await Cron().ListJobsAsync(Environment, TestContext.Current.CancellationToken);
+
+        jobs.Single(j => j.Reference == "shop/dump").Run.Should().Be(new BackupRun(At("2026-01-31T03:05:00Z"), BackupResult.Failed, At("2026-01-29T03:02:00Z")));
+        jobs.Single(j => j.Reference == "shop/paused").Run.Should().Be(new BackupRun(At("2026-01-20T04:02:00Z"), BackupResult.Success, At("2026-01-20T04:02:00Z")), "a suspended CronJob keeps its last success; being late is judged against the window");
+    }
+
     [Theory]
     [InlineData("""{ "s3": { "endpoint": "https://s3.example.com/", "bucket": "b" } }""", "s3:https://s3.example.com/b")]
     [InlineData("""{ "b2": { "bucket": "b", "path": "p" } }""", "b2:b:p")]

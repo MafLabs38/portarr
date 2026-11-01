@@ -45,12 +45,12 @@ public sealed class DataBackupsToolsFixture : IAsyncLifetime
                   { "id": "3", "status": "STATUS_ERROR", "unixTimeStartMs": "1767236400000", "unixTimeEndMs": "1767236460000", "operationBackup": { } }] }
                 """);
         _cluster
-            .Serve("GET", "/apis/batch/v1/cronjobs", """{ "items": [{ "metadata": { "name": "dump", "namespace": "shop" }, "spec": { "schedule": "0 1 * * *" }, "status": { "lastSuccessfulTime": "2026-01-01T01:02:00Z" } }] }""")
-            .Serve("GET", "/apis/batch/v1/jobs", """{ "items": [] }""");
+            .Serve("GET", "/apis/batch/v1/namespaces/shop/cronjobs", """{ "items": [{ "metadata": { "name": "dump", "namespace": "shop" }, "spec": { "schedule": "0 1 * * *" }, "status": { "lastSuccessfulTime": "2026-01-01T01:02:00Z" } }] }""")
+            .Serve("GET", "/apis/batch/v1/namespaces/shop/jobs", """{ "items": [] }""");
 
         var catalog = $$"""
             environments:
-              - { id: server-1, name: Server 1, docker: { url: "http://socket-proxy:2375" }, backrest: { url: "{{_backrest.Url}}", userEnv: BACKREST_USER, passwordEnv: BACKREST_PASSWORD } }
+              - { id: server-1, name: Server 1, docker: { url: "http://socket-proxy:2375" }, backrest: { url: "{{_backrest.Url}}", allowInsecure: true, userEnv: BACKREST_USER, passwordEnv: BACKREST_PASSWORD } }
               - { id: server-2, name: Server 2, docker: { url: "http://socket-proxy-2:2375" } }
               - { id: cluster, name: Cluster, kubernetes: { server: "{{_cluster.Url}}", allowInsecure: true, tokenEnv: CLUSTER_TOKEN } }
             apps:
@@ -148,7 +148,7 @@ public sealed class DataBackupsToolsFixture : IAsyncLifetime
 
         _backrest.Calls.Should().OnlyContain(c => c == "POST /v1.Backrest/GetConfig" || c == "POST /v1.Backrest/GetOperations");
         _backrest.Authorizations.Should().OnlyContain(a => a == "Basic " + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("portarr:s3cret")));
-        _cluster.Calls.Should().OnlyContain(c => c.StartsWith("GET /apis/batch/v1/", StringComparison.Ordinal));
+        _cluster.Calls.Should().OnlyContain(c => c.StartsWith("GET /apis/batch/v1/namespaces/shop/", StringComparison.Ordinal), "only the namespace the catalog names is read, never the whole cluster");
         _cluster.Authorizations.Should().OnlyContain(a => a == "Bearer cluster-token");
     }
 

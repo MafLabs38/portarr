@@ -120,11 +120,12 @@ public sealed class KubernetesApiClient : IDisposable
             next = list.Metadata?.Continue;
             if (string.IsNullOrEmpty(next))
             {
-                break;
+                return items;
             }
         }
 
-        return items;
+        // The last page still points at more: a list cut short would read as "not found" and mislead, so it is refused.
+        throw new InvalidDataException($"{path} has more than {MaxListPages * ListPageSize} items: Portarr refuses to read a truncated list.");
     }
 
     /// <summary>

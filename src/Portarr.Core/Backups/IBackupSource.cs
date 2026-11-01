@@ -15,10 +15,20 @@ public interface IBackupSource
     bool Supports(CatalogEnvironment environment);
 
     /// <summary>
-    /// Every job the tool defines on the environment, with its last runs. Throws when the tool cannot be read
-    /// (unreachable, refused, not configured): the sources that name it are then shown unknown, and why.
+    /// The jobs the tool defines on the environment, with their last runs. <paramref name="references"/> are the references the
+    /// catalog asks about (<c>namespace/name</c> for a cluster, a plan id for Backrest): a source that can read less than
+    /// everything reads only what they name (a cluster, per namespace, so the ServiceAccount needs no cluster-wide rule); empty
+    /// means every job. Throws when the tool cannot be read (unreachable, refused, not configured): the sources that name it
+    /// are then shown unknown, and why.
     /// </summary>
-    Task<IReadOnlyList<BackupJob>> ListJobsAsync(CatalogEnvironment environment, CancellationToken cancellationToken);
+    Task<IReadOnlyList<BackupJob>> ListJobsAsync(CatalogEnvironment environment, IReadOnlyCollection<string> references, CancellationToken cancellationToken);
+}
+
+public static class BackupSourceExtensions
+{
+    /// <summary>Every job of the tool on the environment: the references the catalog asks about are not narrowed.</summary>
+    public static Task<IReadOnlyList<BackupJob>> ListJobsAsync(this IBackupSource source, CatalogEnvironment environment, CancellationToken cancellationToken) =>
+        source.ListJobsAsync(environment, [], cancellationToken);
 }
 
 /// <summary>

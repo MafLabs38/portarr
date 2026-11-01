@@ -103,6 +103,46 @@ public sealed class BackrestBackupSourceFixture
         _requests.Should().AllSatisfy(r => r.Authorization.Should().BeNull());
     }
 
+    [Fact]
+    public async Task should_fail_as_an_unexpected_answer_when_the_configuration_is_not_what_backrest_sends()
+    {
+        Ok("/v1.Backrest/GetConfig", "this is not json");
+
+        var read = () => Subject().ListJobsAsync(Host, TestContext.Current.CancellationToken);
+
+        await read.Should().ThrowAsync<System.Text.Json.JsonException>();
+        Core.Workloads.ReasonCodes.From(new System.Text.Json.JsonException()).Should().Be("invalid-response");
+    }
+
+    [Fact]
+    public async Task should_treat_a_plan_whose_only_operation_is_running_as_not_yet_run()
+    {
+        Ok("/v1.Backrest/GetConfig", """{ "plans": [{ "id": "p", "repo": "local", "schedule": { "cron": "0 3 * * *" } }] }""");
+        Ok("/v1.Backrest/GetOperations", "p", """{ "operations": [{ "id": "1", "planId": "p", "status": "STATUS_INPROGRESS", "unixTimeStartMs": "1769830000000", "operationBackup": { } }] }""");
+
+        var jobs = await Subject().ListJobsAsync(Host, TestContext.Current.CancellationToken);
+
+        jobs.Single().Run.Should().BeNull("a backup that is still running has neither succeeded nor failed");
+    }
+
+    [Fact]
+    public void should_read_only_an_environment_that_declares_a_backrest()
+    {
+        Subject().Supports(Host).Should().BeTrue();
+        Subject().Supports(new CatalogEnvironment("server-2", "Server 2", null)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task should_keep_a_path_prefix_so_that_the_login_goes_to_backrest_and_not_to_another_app()
+    {
+        var prefixed = Host with { Connectors = BackrestEnvironments.Declared(new BackrestEndpoint(new Uri("https://home.example/backrest/"), "BACKREST_USER", "BACKREST_PASSWORD")) };
+        _answers["/backrest/v1.Backrest/GetConfig"] = (HttpStatusCode.OK, """{ "plans": [] }""");
+
+        await Subject().ListJobsAsync(prefixed, TestContext.Current.CancellationToken);
+
+        _requests.Should().ContainSingle().Which.Path.Should().Be("/backrest/v1.Backrest/GetConfig");
+    }
+
     [Theory]
     [InlineData("\"STATUS_SUCCESS\"", true)]
     [InlineData("3", true)]

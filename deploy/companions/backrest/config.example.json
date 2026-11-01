@@ -28,7 +28,12 @@
         {
           "conditions": ["CONDITION_SNAPSHOT_START"],
           "onError": "ON_ERROR_FATAL",
-          "actionCommand": { "command": "mkdir -p /dumps/shop && pg_dump -h shop-db -U backup -Fc -Z 0 shop > /dumps/shop/shop.dump" }
+          "actionCommand": { "command": "umask 077 && mkdir -p /dumps/shop && pg_dump -h shop-db -U backup -Fc -Z 0 shop > /dumps/shop/shop.dump" }
+        },
+        {
+          "conditions": ["CONDITION_SNAPSHOT_END"],
+          "onError": "ON_ERROR_IGNORE",
+          "actionCommand": { "command": "rm -rf /dumps/shop" }
         }
       ]
     },
@@ -42,7 +47,12 @@
         {
           "conditions": ["CONDITION_SNAPSHOT_START"],
           "onError": "ON_ERROR_FATAL",
-          "actionCommand": { "command": "mkdir -p /dumps/shop && pg_dump -h shop-db -U backup -Fc -Z 0 shop > /dumps/shop/shop.dump" }
+          "actionCommand": { "command": "umask 077 && mkdir -p /dumps/shop && pg_dump -h shop-db -U backup -Fc -Z 0 shop > /dumps/shop/shop.dump" }
+        },
+        {
+          "conditions": ["CONDITION_SNAPSHOT_END"],
+          "onError": "ON_ERROR_IGNORE",
+          "actionCommand": { "command": "rm -rf /dumps/shop" }
         }
       ]
     },

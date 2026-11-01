@@ -248,7 +248,7 @@ public sealed class DataServiceFixture
     {
         var parsed = TestCatalog.Parse("""
             environments:
-              - { id: server-1, docker: { url: "http://10.0.0.10:2375" }, backrest: { url: "http://10.0.0.10:9898", userEnv: BACKREST_USER, passwordEnv: BACKREST_PASSWORD } }
+              - { id: server-1, docker: { url: "http://10.0.0.10:2375" }, backrest: { url: "http://10.0.0.10:9898", allowInsecure: true, userEnv: BACKREST_USER, passwordEnv: BACKREST_PASSWORD } }
               - { id: cluster, kubernetes: { server: "https://10.0.0.20:6443" } }
             apps:
               - { id: shop }

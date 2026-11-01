@@ -50,8 +50,8 @@ public sealed class BackupMonitorFixture
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
 
         monitor.Current.Readings.Keys.Should().BeEquivalentTo("backrest@server-1", "backrest@server-2", "cronjob@cluster", "k8up@cluster");
-        await backrest.Received(1).ListJobsAsync(Arg.Is<CatalogEnvironment>(e => e.Id == "server-1"), Arg.Any<CancellationToken>());
-        await backrest.DidNotReceive().ListJobsAsync(Arg.Is<CatalogEnvironment>(e => e.Id == "unused"), Arg.Any<CancellationToken>());
+        await backrest.Received(1).ListJobsAsync(Arg.Is<CatalogEnvironment>(e => e.Id == "server-1"), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>());
+        await backrest.DidNotReceive().ListJobsAsync(Arg.Is<CatalogEnvironment>(e => e.Id == "unused"), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>());
         monitor.Current.Readings["backrest@server-1"].Should().BeEquivalentTo(new SourceReading("backrest", "server-1", [new BackupJob("files", "files", null, [], null)], null, Now));
     }
 
@@ -72,9 +72,9 @@ public sealed class BackupMonitorFixture
     {
         var backrest = Source(BackupSourceKinds.Backrest);
         var cronjob = Source(BackupSourceKinds.CronJob);
-        cronjob.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<BackupJob>>(_ => throw new BackupSourceUnavailableException("token-missing"));
+        cronjob.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<BackupJob>>(_ => throw new BackupSourceUnavailableException("token-missing"));
         var k8up = Source(BackupSourceKinds.K8up);
-        k8up.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<BackupJob>>(_ => throw new HttpRequestException("refused", null, System.Net.HttpStatusCode.Forbidden));
+        k8up.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<BackupJob>>(_ => throw new HttpRequestException("refused", null, System.Net.HttpStatusCode.Forbidden));
         var monitor = Monitor(backrest, cronjob, k8up);
 
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
@@ -90,7 +90,7 @@ public sealed class BackupMonitorFixture
     public async Task should_carry_on_the_reading_whether_the_operator_has_something_to_set_up(bool notSetUp)
     {
         var cronjob = Source(BackupSourceKinds.CronJob);
-        cronjob.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<BackupJob>>(_ => throw new BackupSourceUnavailableException("a-reason", notSetUp));
+        cronjob.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<BackupJob>>(_ => throw new BackupSourceUnavailableException("a-reason", notSetUp));
         var monitor = Monitor(Source(BackupSourceKinds.Backrest), cronjob, Source(BackupSourceKinds.K8up));
 
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
@@ -114,7 +114,7 @@ public sealed class BackupMonitorFixture
     public async Task should_turn_any_other_failure_into_its_reason_code_at_the_monitor(Type failure, string reason)
     {
         var cronjob = Source(BackupSourceKinds.CronJob);
-        cronjob.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<BackupJob>>(_ => throw (Exception)Activator.CreateInstance(failure)!);
+        cronjob.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<BackupJob>>(_ => throw (Exception)Activator.CreateInstance(failure)!);
         var monitor = Monitor(Source(BackupSourceKinds.Backrest), cronjob, Source(BackupSourceKinds.K8up));
 
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
@@ -143,7 +143,7 @@ public sealed class BackupMonitorFixture
     {
         var calls = 0;
         var backrest = Source(BackupSourceKinds.Backrest);
-        backrest.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<BackupJob>>(_ => ++calls == 1 ? throw new InvalidProgramException("a bug") : []);
+        backrest.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<BackupJob>>(_ => ++calls == 1 ? throw new InvalidProgramException("a bug") : []);
         var monitor = Monitor(backrest, Source(BackupSourceKinds.CronJob), Source(BackupSourceKinds.K8up));
         using var cancellation = new CancellationTokenSource();
 
@@ -203,7 +203,7 @@ public sealed class BackupMonitorFixture
             BackupSourceKinds.Backrest => call.Arg<CatalogEnvironment>().Declares("backrest"),
             _ => call.Arg<CatalogEnvironment>().Declares("kubernetes"),
         });
-        source.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<CancellationToken>()).Returns(jobs);
+        source.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>()).Returns(jobs);
         return source;
     }
 }

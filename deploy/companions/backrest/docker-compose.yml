@@ -22,5 +22,5 @@ services:
       - ./cache:/cache
       - /srv/backups/restic:/repos/local            # repository 1: the local array (a share)
       - /srv/appdata:/userdata:ro                    # what the plans back up, read-only
-      - ./dumps:/dumps                               # where the pre-backup hooks write their dumps
+      - ./dumps:/dumps                               # where the pre-backup hooks write their dumps (chmod 700 ./dumps: a dump holds the whole database; the hooks use umask 077 and delete it after the snapshot)
       - ./pgpass:/root/.pgpass:ro                    # host:port:database:user:password for pg_dump (chmod 600)
