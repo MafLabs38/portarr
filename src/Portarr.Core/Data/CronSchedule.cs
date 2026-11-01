@@ -26,7 +26,29 @@ public static class CronSchedule
     private static readonly string[] Months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
     private static readonly string[] Days = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
-    /// <summary>The first firing strictly after <paramref name="after"/>, or null when the text is not a cron expression.</summary>
+    /// <summary>
+    /// The first firing strictly after <paramref name="after"/> when the expression is read in <paramref name="zone"/>: the
+    /// clock of that zone decides the fields, the answer is in UTC. A time that does not exist that day (the hour skipped by
+    /// daylight saving) runs just after the gap.
+    /// </summary>
+    public static DateTimeOffset? NextAfter(string? expression, DateTimeOffset after, TimeZoneInfo zone)
+    {
+        var wall = TimeZoneInfo.ConvertTime(after, zone).DateTime;
+        if (NextAfter(expression, new DateTimeOffset(wall, TimeSpan.Zero)) is not { } next)
+        {
+            return null;
+        }
+
+        var firing = DateTime.SpecifyKind(next.DateTime, DateTimeKind.Unspecified);
+        if (zone.IsInvalidTime(firing))
+        {
+            firing = firing.AddHours(1);
+        }
+
+        return new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(firing, zone), TimeSpan.Zero);
+    }
+
+    /// <summary>The first firing strictly after <paramref name="after"/>, in UTC, or null when the text is not a cron expression.</summary>
     public static DateTimeOffset? NextAfter(string? expression, DateTimeOffset after)
     {
         if (string.IsNullOrWhiteSpace(expression))

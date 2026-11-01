@@ -150,7 +150,7 @@ public sealed class DataServiceFixture
     public void should_wait_for_the_first_run_of_a_job_that_exists_and_say_when_it_fires_next()
     {
         var reference = new BackupSourceReference(BackupSourceKinds.Backrest, "server-1", "plan");
-        var job = new BackupJob("plan", "plan", "0 3 * * *", ["offsite"], null);
+        var job = new BackupJob("plan", "plan", "0 3 * * *", ["offsite"], null, TimeZone: "UTC");
         var reading = new SourceReading("backrest", "server-1", [job], null, Now);
 
         var check = DataService.Check(reference, reading, TimeSpan.FromHours(24), Now);
@@ -166,7 +166,7 @@ public sealed class DataServiceFixture
     public void should_not_invent_a_next_run_when_the_schedule_is_not_a_cron_expression(string? schedule)
     {
         var reference = new BackupSourceReference(BackupSourceKinds.Backrest, "server-1", "plan");
-        var reading = new SourceReading("backrest", "server-1", [new BackupJob("plan", "plan", schedule, [], null)], null, Now);
+        var reading = new SourceReading("backrest", "server-1", [new BackupJob("plan", "plan", schedule, [], null, TimeZone: "UTC")], null, Now);
 
         var check = DataService.Check(reference, reading, TimeSpan.FromHours(24), Now);
 
@@ -193,7 +193,7 @@ public sealed class DataServiceFixture
             """,
             Reading("backrest", "server-1",
                 Job("waits-local", Run("2026-01-31T03:00:00Z", BackupResult.Success, "2026-01-31T03:00:00Z")),
-                new BackupJob("waits-offsite", "waits-offsite", "0 4 * * *", ["b2"], null),
+                new BackupJob("waits-offsite", "waits-offsite", "0 4 * * *", ["b2"], null, TimeZone: "UTC"),
                 new BackupJob("x", "x", null, [], new BackupRun(null, null, At("2026-01-31T03:00:00Z")))),
             new SourceReading("k8up", "cluster", [], BackupMonitor.NoConnector, Now, NotSetUp: true),
             new SourceReading("cronjob", "cluster", [], "unreachable", Now));
@@ -300,6 +300,23 @@ public sealed class DataServiceFixture
     public void should_reject_the_retired_backups_section()
     {
         TestCatalog.Parse("backups:\n  - { id: old }\n").IsValid.Should().BeFalse("the backups section was replaced by data");
+    }
+
+    [Fact]
+    public void should_announce_the_next_run_in_the_zone_of_the_job_and_none_when_the_tool_does_not_say_which()
+    {
+        var reference = new BackupSourceReference(BackupSourceKinds.CronJob, "cluster", "shop/dump");
+        BackupJob Job(string? zone) => new("shop/dump", "dump", "0 3 * * *", [], null, TimeZone: zone);
+
+        var paris = DataService.Check(reference, Reading("cronjob", "cluster", Job("Europe/Paris")), TimeSpan.FromHours(24), Now);
+        var utc = DataService.Check(reference, Reading("cronjob", "cluster", Job("UTC")), TimeSpan.FromHours(24), Now);
+        var unknown = DataService.Check(reference, Reading("cronjob", "cluster", Job(null)), TimeSpan.FromHours(24), Now);
+        var nonsense = DataService.Check(reference, Reading("cronjob", "cluster", Job("Mars/Olympus")), TimeSpan.FromHours(24), Now);
+
+        paris.NextRunAt.Should().Be(At("2026-02-01T02:00:00Z"));
+        utc.NextRunAt.Should().Be(At("2026-02-01T03:00:00Z"));
+        unknown.NextRunAt.Should().BeNull("Backrest reads its cron in its host's local time, which Portarr cannot see");
+        nonsense.NextRunAt.Should().BeNull("a zone the host does not know is not guessed");
     }
 
     private const string ManualAsset = """

@@ -82,6 +82,7 @@ public sealed class KubernetesCronJobBackupSource : IBackupSource
         }
 
         var name = cronJob.Metadata.Name;
-        return new BackupJob($"{cronJob.Metadata.Namespace}/{name}", name, cronJob.Spec?.Schedule, [], run);
+        // Without spec.timeZone a CronJob runs in the time zone of the controller manager, UTC on every distribution Portarr targets.
+        return new BackupJob($"{cronJob.Metadata.Namespace}/{name}", name, cronJob.Spec?.Schedule, [], run, TimeZone: cronJob.Spec?.TimeZone ?? "UTC");
     }
 }

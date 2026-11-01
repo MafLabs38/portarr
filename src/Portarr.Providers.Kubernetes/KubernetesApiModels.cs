@@ -83,7 +83,8 @@ internal sealed record CronJob(
 
 internal sealed record CronJobSpec(
     [property: JsonPropertyName("schedule")] string? Schedule,
-    [property: JsonPropertyName("suspend")] bool? Suspend);
+    [property: JsonPropertyName("suspend")] bool? Suspend,
+    [property: JsonPropertyName("timeZone")] string? TimeZone = null);
 
 internal sealed record CronJobStatus(
     [property: JsonPropertyName("lastScheduleTime")] DateTimeOffset? LastScheduleTime,
