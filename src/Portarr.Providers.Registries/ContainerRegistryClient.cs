@@ -26,6 +26,9 @@ public sealed partial class ContainerRegistryClient : IImageRegistry
     /// <summary>OCI lists are not sorted: linuxserver images have thousands of tags.</summary>
     private const int MaxOciPages = 10;
 
+    /// <summary>A blob is served by one redirect to a CDN; a chain longer than this is not followed.</summary>
+    private const int MaxRedirects = 3;
+
     private static readonly string[] ManifestTypes =
     [
         "application/vnd.oci.image.index.v1+json",
@@ -136,13 +139,15 @@ public sealed partial class ContainerRegistryClient : IImageRegistry
         var token = _tokens.TryGetValue(key, out var cached) && cached.Expires > _timeProvider.GetUtcNow() ? cached.Token : null;
 
         var response = await SendAsync(HttpMethod.Get, uri, request => Prepare(request, token, accept), cancellationToken);
-        if (response.StatusCode != HttpStatusCode.Unauthorized || token is not null)
+        if (response.StatusCode != HttpStatusCode.Unauthorized)
         {
             return response;
         }
 
+        // A 401 asks for a token: the first time, or again when the cached one was rejected (it expired early). Once.
         var challenge = response.Headers.WwwAuthenticate.FirstOrDefault(h => h.Scheme.Equals("Bearer", StringComparison.OrdinalIgnoreCase));
         response.Dispose();
+        _tokens.TryRemove(key, out _);
         token = await TokenAsync(image, challenge?.Parameter, cancellationToken);
         _tokens[key] = (token, _timeProvider.GetUtcNow().AddMinutes(4));
 
@@ -182,12 +187,40 @@ public sealed partial class ContainerRegistryClient : IImageRegistry
         return string.IsNullOrEmpty(token) ? throw new RegistryUnavailableException(RegistryUnavailableException.Refused) : token;
     }
 
+    /// <summary>
+    /// Sends the request. A redirect (a blob served from a CDN) is followed up to <see cref="MaxRedirects"/> times, only to
+    /// an https address and without the token: it is not Portarr's to hand to another host.
+    /// </summary>
     private async Task<HttpResponseMessage> SendAsync(HttpMethod method, Uri uri, Action<HttpRequestMessage>? prepare, CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(method, uri);
-        prepare?.Invoke(request);
-        return await _httpClientFactory.CreateClient(HttpClientName).SendAsync(request, cancellationToken);
+        var client = _httpClientFactory.CreateClient(HttpClientName);
+        for (var redirects = 0; ; redirects++)
+        {
+            using var request = new HttpRequestMessage(method, uri);
+            if (redirects == 0)
+            {
+                prepare?.Invoke(request);
+            }
+
+            var response = await client.SendAsync(request, cancellationToken);
+            if (!IsRedirect(response.StatusCode) || redirects >= MaxRedirects)
+            {
+                return response;
+            }
+
+            var target = response.Headers.Location is { } location ? (location.IsAbsoluteUri ? location : new Uri(uri, location)) : null;
+            response.Dispose();
+            if (target is not { Scheme: "https" })
+            {
+                throw new RegistryUnavailableException(RegistryUnavailableException.Refused);
+            }
+
+            uri = target;
+        }
     }
+
+    private static bool IsRedirect(HttpStatusCode status) =>
+        status is HttpStatusCode.MovedPermanently or HttpStatusCode.Found or HttpStatusCode.SeeOther or HttpStatusCode.TemporaryRedirect or HttpStatusCode.PermanentRedirect;
 
     /// <summary>The body of a successful answer; a refused, missing or throttled repository becomes a reason code.</summary>
     private static async Task<T> ReadAsync<T>(HttpResponseMessage response, JsonTypeInfo<T> type, CancellationToken cancellationToken)
