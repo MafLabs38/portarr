@@ -12,6 +12,9 @@ export const SETTINGS_MANAGE = 'settings.manage';
 export const USERS_MANAGE = 'users.manage';
 export const SECRETS_VIEW = 'secrets.view';
 
+/** One permission, or a list of which any one is enough (a menu entry or a page several roles reach for different reasons). */
+export type PermissionOrAny = Permission | readonly Permission[];
+
 export type Permission =
   | typeof APPS_VIEW
   | typeof INFRASTRUCTURE_VIEW

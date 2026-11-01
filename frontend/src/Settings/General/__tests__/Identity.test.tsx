@@ -4,7 +4,7 @@ import { http, HttpResponse } from 'msw';
 
 import renderWithProviders from '__mocks__/renderWithProviders';
 import { me, portal, server } from '__mocks__/server';
-import Identity from 'System/Status/Identity';
+import Identity from 'Settings/General/Identity';
 
 const writable = () => server.use(http.get('/api/v1/portal', () => HttpResponse.json({ ...portal, writable: true })));
 

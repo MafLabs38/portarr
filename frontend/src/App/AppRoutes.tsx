@@ -11,12 +11,15 @@ import RequirePermission from 'Auth/RequirePermission';
 import {
   APPS_VIEW,
   ASSISTANT_VIEW,
+  CATALOG_WRITE,
   DATA_VIEW,
   INFRASTRUCTURE_VIEW,
   MAINTENANCE_VIEW,
   SYSTEM_VIEW,
   USERS_MANAGE,
 } from 'Helpers/Props/permissions';
+import GeneralPage from 'Settings/General/GeneralPage';
+import SettingsHome from 'Settings/SettingsHome';
 import UsersAuthPage from 'Settings/UsersAuth/UsersAuthPage';
 import Status from 'System/Status/Status';
 import WorkloadDetails from 'Workloads/Details/WorkloadDetails';
@@ -88,7 +91,22 @@ export default function AppRoutes() {
         }
         path="/system/status"
       />
-      <Route element={<Navigate replace to="/settings/users" />} path="/settings" />
+      <Route
+        element={
+          <RequirePermission permission={[USERS_MANAGE, CATALOG_WRITE]}>
+            <SettingsHome />
+          </RequirePermission>
+        }
+        path="/settings"
+      />
+      <Route
+        element={
+          <RequirePermission permission={CATALOG_WRITE}>
+            <GeneralPage />
+          </RequirePermission>
+        }
+        path="/settings/general"
+      />
       <Route
         element={
           <RequirePermission permission={USERS_MANAGE}>

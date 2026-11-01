@@ -1,5 +1,7 @@
 # V6 — Built-in chat
 
+> **Naming:** this page is called V6 because the chat was built sixth in the sandbox order (step 6 of the plan's list of done work). The plan's own **V6** is *Notifications and heartbeats*, a different vertical; in other documents the chat is "the built-in chat".
+
 > Status: **in progress** (sandbox). Step 6 of the accepted plan ([IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md)). Decisions: D-87 to D-90, [ADR 0008](../adr/0008-headless-agent-cli-behind-an-adapter.md). Builds on the MCP server and its write tools (V5, D-68 to D-71, D-83 to D-86).
 
 ## Need

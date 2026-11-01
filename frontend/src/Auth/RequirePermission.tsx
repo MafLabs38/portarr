@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 
-import type { Permission } from 'Helpers/Props/permissions';
+import type { PermissionOrAny } from 'Helpers/Props/permissions';
 
 import { firstAllowedPath } from './navigation';
 import usePermissions from './usePermissions';
 
 interface RequirePermissionProps {
-  permission: Permission;
+  permission: PermissionOrAny;
   children: ReactNode;
 }
 

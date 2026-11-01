@@ -14,7 +14,7 @@ describe('PageSidebar', () => {
   it('shows every page to an administrator, Settings included', async () => {
     renderWithProviders(<PageSidebar />);
 
-    expect(await screen.findByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings/users');
+    expect(await screen.findByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings');
     expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual([
       'Apps',
       'Infrastructure',

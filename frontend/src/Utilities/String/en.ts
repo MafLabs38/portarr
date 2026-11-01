@@ -612,6 +612,7 @@ const en: Record<string, string> = {
   Roles: 'Roles',
   RolesHelpText:
     'A role is a named set of permissions: it decides which pages a user sees and what they may do. Pages hidden by a role are also refused by the API.',
+  General: 'General',
   Settings: 'Settings',
   SetupAlreadyDone: 'Portarr is already set up. Reload the page to sign in.',
   SetupCode: 'Setup code',

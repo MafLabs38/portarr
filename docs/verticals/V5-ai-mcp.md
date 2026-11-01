@@ -26,9 +26,9 @@ The four tabs answer four questions; the assistant asks them all, mixes them and
 |---|---|
 | An MCP server inside Portarr (official C# SDK), Streamable HTTP at `/mcp`, stateless | stdio transport, a separate binary; prompts; subscriptions and change notifications |
 | Seven read-only tools over the views the pages show (fleet, Infrastructure, Data, Maintenance) | Any tool that acts (start, stop, restart, open a PR): out of scope (D-31) |
-| Two Markdown resources: the infrastructure knowledge base and the glossary, generated on each read | Issues, events and history (they come with V5 Overview / V6 Notifications); logs; long-term metrics (Prometheus, V8) |
+| Two Markdown resources: the infrastructure knowledge base and the glossary, generated on each read | Issues, events and history (they come with the Overview and Notifications verticals of the plan); logs; long-term metrics (Prometheus, V8) |
 | Off by default; keyed (per-user API keys since V7, D-97; the shared key is deprecated) | OAuth for MCP clients (D-99, step 2) |
-| An **Assistant** page: server state, how to connect, knowledge preview | An assistant chat inside Portarr: [V6](V6-chat.md), through an optional agent runner; Portarr itself never calls an LLM |
+| An **Assistant** page: server state, how to connect, knowledge preview | An assistant chat inside Portarr: [the chat vertical](V6-chat.md), through an optional agent runner; Portarr itself never calls an LLM |
 
 ## Design
 
