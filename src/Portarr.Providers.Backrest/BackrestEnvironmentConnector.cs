@@ -67,7 +67,7 @@ public sealed class BackrestEnvironmentConnector : IEnvironmentConnector
         }
 
         // The requests are built from this address: without a trailing slash the last segment of a path prefix would be dropped and the credentials sent to another app.
-        var normalized = new UriBuilder(url) { Path = url.AbsolutePath.TrimEnd('/') + "/" }.Uri;
+        var normalized = new UriBuilder(url) { Path = url.AbsolutePath.TrimEnd(Path.AltDirectorySeparatorChar) + Path.AltDirectorySeparatorChar }.Uri;
         return new EnvironmentConnectorResult(new BackrestEndpoint(normalized, user, password, insecure));
     }
 }

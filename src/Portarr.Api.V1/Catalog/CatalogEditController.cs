@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Nodes;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -17,6 +18,7 @@ namespace Portarr.Api.V1.Catalog;
 /// is audited. Writes are off unless <c>PORTARR__CATALOG__WRITABLE=true</c> and need the key of
 /// <c>PORTARR__APIKEY</c>; they change Portarr's description of the fleet, never the infrastructure (D-31).
 /// </summary>
+[SuppressMessage("Major Code Smell", "S6960:This controller has multiple responsibilities and could be split into 2 smaller controllers.", Justification = "One REST resource, the catalog: its items, their notes, the machines of an environment and the audit of these edits are the same route family and the same permission; two controllers on api/v1/catalog would only share a route prefix.")]
 [ApiController]
 [Route("api/v1/catalog")]
 [RequestSizeLimit(MaxBodyBytes)]

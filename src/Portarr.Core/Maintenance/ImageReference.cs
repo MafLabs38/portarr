@@ -52,22 +52,36 @@ public sealed partial record ImageReference(string Registry, string Repository, 
             return null;
         }
 
-        string? digest = null;
+        text = TakeDigest(text, out var digest);
+        text = TakeTag(text, out var tag);
+        var (registry, repository) = SplitRegistry(text);
+
+        if (tag is null && digest is null)
+        {
+            tag = "latest";
+        }
+
+        return repository.Length == 0 ? null : new ImageReference(registry, repository, tag, digest);
+    }
+
+    private static string TakeDigest(string text, out string? digest)
+    {
         var at = text.IndexOf('@', StringComparison.Ordinal);
-        if (at >= 0)
-        {
-            digest = text[(at + 1)..];
-            text = text[..at];
-        }
+        digest = at >= 0 ? text[(at + 1)..] : null;
+        return at >= 0 ? text[..at] : text;
+    }
 
-        string? tag = null;
+    private static string TakeTag(string text, out string? tag)
+    {
         var colon = text.LastIndexOf(':');
-        if (colon > text.LastIndexOf('/'))
-        {
-            tag = text[(colon + 1)..];
-            text = text[..colon];
-        }
+        var hasTag = colon > text.LastIndexOf('/');
+        tag = hasTag ? text[(colon + 1)..] : null;
+        return hasTag ? text[..colon] : text;
+    }
 
+    /// <summary>The registry (Docker Hub when the first segment is not an address) and the repository, lower-cased, with the Hub's aliases and its <c>library/</c> namespace resolved.</summary>
+    private static (string Registry, string Repository) SplitRegistry(string text)
+    {
         var slash = text.IndexOf('/', StringComparison.Ordinal);
         var first = slash < 0 ? string.Empty : text[..slash];
         var hasRegistry = first.Contains('.', StringComparison.Ordinal) || first.Contains(':', StringComparison.Ordinal) || first == "localhost";
@@ -84,12 +98,7 @@ public sealed partial record ImageReference(string Registry, string Repository, 
             repository = $"library/{repository}";
         }
 
-        if (tag is null && digest is null)
-        {
-            tag = "latest";
-        }
-
-        return repository.Length == 0 ? null : new ImageReference(registry, repository, tag, digest);
+        return (registry, repository);
     }
 
     [GeneratedRegex("^(sha256:)?[0-9a-f]{64}$")]

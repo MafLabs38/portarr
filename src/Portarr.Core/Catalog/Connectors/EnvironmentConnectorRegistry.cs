@@ -17,12 +17,9 @@ internal static class EnvironmentConnectorRegistry
     public static IReadOnlyList<IEnvironmentConnector> Validate(IEnumerable<IEnvironmentConnector> connectors)
     {
         var registered = connectors.OrderBy(c => c.Section, StringComparer.Ordinal).ToList();
-        foreach (var connector in registered)
+        if (registered.FirstOrDefault(c => ReservedKeys.Contains(c.Section)) is { } reserved)
         {
-            if (ReservedKeys.Contains(connector.Section))
-            {
-                throw new InvalidOperationException($"The connector {connector.GetType().Name} owns the section '{connector.Section}', which Core still reads itself.");
-            }
+            throw new InvalidOperationException($"The connector {reserved.GetType().Name} owns the section '{reserved.Section}', which Core still reads itself.");
         }
 
         var twice = registered.GroupBy(c => c.Section, StringComparer.Ordinal).FirstOrDefault(group => group.Count() > 1);

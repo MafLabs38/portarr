@@ -175,11 +175,11 @@ public sealed class MaintenanceReportFixture
     /// <summary>What a code host's connector tells about its addresses and image names (the real rules are tested with the connector).</summary>
     private sealed class GitHubLikeSource : ICodeRepositorySource
     {
-        public bool Supports(CodeSource source) => true;
+        public bool Supports(ICodeSource source) => true;
 
-        public string? GetConfigurationError(CodeSource source) => null;
+        public string? GetConfigurationError(ICodeSource source) => null;
 
-        public Task<IReadOnlyList<CodeRepository>> ScanAsync(CodeSource source, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<CodeRepository>>([]);
+        public Task<IReadOnlyList<CodeRepository>> ScanAsync(ICodeSource source, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<CodeRepository>>([]);
 
         public string? RepositoryOfSourceLabel(string label) => label.StartsWith("https://github.com/", StringComparison.OrdinalIgnoreCase) ? label["https://github.com/".Length..].Replace(".git", string.Empty, StringComparison.Ordinal).TrimEnd('/') : null;
 

@@ -41,9 +41,9 @@ public sealed partial class GitHubRepositorySource : ICodeRepositorySource
         _timeProvider = timeProvider;
     }
 
-    public bool Supports(CodeSource source) => source is GitHubSource;
+    public bool Supports(ICodeSource source) => source is GitHubSource;
 
-    public string? GetConfigurationError(CodeSource source)
+    public string? GetConfigurationError(ICodeSource source)
     {
         return string.IsNullOrWhiteSpace(_configuration[((GitHubSource)source).TokenVariable]) ? TokenMissing : null;
     }
@@ -58,18 +58,18 @@ public sealed partial class GitHubRepositorySource : ICodeRepositorySource
     [GeneratedRegex("^https?://github\\.com/(?<owner>[A-Za-z0-9-]+)/(?<name>[A-Za-z0-9._-]+?)(\\.git)?/?$", RegexOptions.IgnoreCase)]
     private static partial Regex UrlPattern();
 
-    public async Task<IReadOnlyList<CodeRepository>> ScanAsync(CodeSource codeSource, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<CodeRepository>> ScanAsync(ICodeSource source, CancellationToken cancellationToken)
     {
-        var source = (GitHubSource)codeSource;
+        var github = (GitHubSource)source;
         if (GetConfigurationError(source) is { } error)
         {
             throw new InvalidOperationException($"GitHub source is not configured: {error}.");
         }
 
         // One client per API host: the rate-limit window belongs to the host, and github.com's must not stop a Server's.
-        var apiBase = source.ApiUrl ?? _httpClientFactory.CreateClient(HttpClientName).BaseAddress ?? ApiBaseAddress;
-        var session = new Session(this, _configuration[source.TokenVariable]!, apiBase, _clients.GetOrAdd(apiBase.Authority, _ => new GitHubClient(_timeProvider)));
-        var repositories = await ListRepositoriesAsync(session, source, cancellationToken);
+        var apiBase = github.ApiUrl ?? _httpClientFactory.CreateClient(HttpClientName).BaseAddress ?? ApiBaseAddress;
+        var session = new Session(this, _configuration[github.TokenVariable]!, apiBase, _clients.GetOrAdd(apiBase.Authority, _ => new GitHubClient(_timeProvider)));
+        var repositories = await ListRepositoriesAsync(session, github, cancellationToken);
 
         var results = new CodeRepository[repositories.Count];
         await Parallel.ForEachAsync(
@@ -88,25 +88,7 @@ public sealed partial class GitHubRepositorySource : ICodeRepositorySource
 
         foreach (var owner in source.Owners)
         {
-            var account = await session.GetAsync($"users/{Uri.EscapeDataString(owner)}", cancellationToken);
-            if (!account.IsSuccess)
-            {
-                throw new HttpRequestException($"GitHub owner {owner} could not be read.", null, account.Status);
-            }
-
-            var path = RepositoriesPath(owner, viewer, account.Read(GitHubJsonContext.Default.GitHubAccount)?.Type == "Organization");
-
-            foreach (var repository in await session.ListAsync(path, GitHubJsonContext.Default.ListGitHubRepository, cancellationToken))
-            {
-                var kept = string.Equals(repository.Owner.Login, owner, StringComparison.OrdinalIgnoreCase)
-                    && (source.Archived || !repository.Archived)
-                    && (source.Forks || !repository.Fork)
-                    && (since is null || repository.PushedAt >= since);
-                if (kept && !source.IsExcluded(repository.FullName))
-                {
-                    found.TryAdd(repository.FullName, repository);
-                }
-            }
+            await AddOwnerRepositoriesAsync(session, source, owner, viewer, since, found, cancellationToken);
         }
 
         // Included repositories bypass the activity and ownership filters, not the exclusions.
@@ -121,6 +103,30 @@ public sealed partial class GitHubRepositorySource : ICodeRepositorySource
 
         return found.Values.OrderByDescending(r => r.PushedAt).ToList();
     }
+
+    private static async Task AddOwnerRepositoriesAsync(Session session, GitHubSource source, string owner, string? viewer, DateTimeOffset? since, Dictionary<string, GitHubRepository> found, CancellationToken cancellationToken)
+    {
+        var account = await session.GetAsync($"users/{Uri.EscapeDataString(owner)}", cancellationToken);
+        if (!account.IsSuccess)
+        {
+            throw new HttpRequestException($"GitHub owner {owner} could not be read.", null, account.Status);
+        }
+
+        var path = RepositoriesPath(owner, viewer, account.Read(GitHubJsonContext.Default.GitHubAccount)?.Type == "Organization");
+
+        var listed = await session.ListAsync(path, GitHubJsonContext.Default.ListGitHubRepository, cancellationToken);
+        foreach (var repository in listed.Where(r => IsKept(r, owner, source, since) && !source.IsExcluded(r.FullName)))
+        {
+            found.TryAdd(repository.FullName, repository);
+        }
+    }
+
+    /// <summary>Owned by this owner (a listing can hold others), and passing the archived, fork and activity filters.</summary>
+    private static bool IsKept(GitHubRepository repository, string owner, GitHubSource source, DateTimeOffset? since) =>
+        string.Equals(repository.Owner.Login, owner, StringComparison.OrdinalIgnoreCase)
+        && (source.Archived || !repository.Archived)
+        && (source.Forks || !repository.Fork)
+        && (since is null || repository.PushedAt >= since);
 
     /// <summary>Where an owner's repositories are listed: an organization's, the token owner's own (private ones included), or another user's.</summary>
     private static string RepositoriesPath(string owner, string? viewer, bool organization)

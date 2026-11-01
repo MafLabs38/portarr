@@ -66,6 +66,8 @@ public interface IAccountService
 /// </summary>
 public sealed partial class AccountService : IAccountService
 {
+    private const string NoSuchUser = "No such user.";
+
     public const int MinimumPasswordLength = 10;
     public const int MaximumPasswordLength = 128;
     public const string LoginFailedMessage = "Invalid username or password, or the account is temporarily locked.";
@@ -247,52 +249,70 @@ public sealed partial class AccountService : IAccountService
             var row = await _store.FindByIdAsync(id, cancellationToken);
             if (row is null)
             {
-                return AccountResult<AccountUser>.Fail(AccountError.NotFound, "No such user.");
+                return AccountResult<AccountUser>.Fail(AccountError.NotFound, NoSuchUser);
             }
 
-            var self = actor.UserId == id;
-            var changesRole = roleId is { } r && r != row.RoleId;
-            var changesState = disabled is { } d && d != row.Disabled;
-            if (self && (changesRole || changesState))
+            if (await RefuseUpdateAsync(actor, row, roleId, disabled, cancellationToken) is { } refusal)
             {
-                return AccountResult<AccountUser>.Fail(AccountError.Forbidden, "You cannot change your own role or disable your own account.");
+                return refusal;
             }
 
-            if (changesRole && (await RolesAsync(cancellationToken)).All(role => role.Id != roleId))
-            {
-                return AccountResult<AccountUser>.Fail(AccountError.Invalid, "role does not exist.");
-            }
-
-            var leavesAdmin = row is { Disabled: false } && row.RoleName == BuiltInRoles.Admin && ((changesState && disabled == true) || changesRole);
-            if (leavesAdmin && await _store.CountEnabledAdminsAsync(id, cancellationToken) == 0)
-            {
-                return AccountResult<AccountUser>.Fail(AccountError.Conflict, "At least one enabled Admin must remain.");
-            }
-
-            if (displayName is not null && displayName.Trim() != row.DisplayName)
-            {
-                await _store.SetDisplayNameAsync(id, displayName.Trim(), cancellationToken);
-                await _audit.AppendAsync("user.update", actor.Name, row.Username, "display name changed", actor.Client, cancellationToken);
-            }
-
-            if (changesRole)
-            {
-                await _store.SetRoleAsync(id, roleId!.Value, cancellationToken);
-                await _audit.AppendAsync("user.role", actor.Name, row.Username, $"role {row.RoleName} to {await RoleNameAsync(roleId.Value, cancellationToken)}", actor.Client, cancellationToken);
-            }
-
-            if (changesState)
-            {
-                await _store.SetDisabledAsync(id, disabled!.Value, AccountStore.NewStamp(), cancellationToken);
-                await _audit.AppendAsync(disabled.Value ? "user.disable" : "user.enable", actor.Name, row.Username, null, actor.Client, cancellationToken);
-            }
-
+            await ApplyUpdateAsync(actor, row, displayName, roleId, disabled, cancellationToken);
             Invalidate();
             return AccountResult<AccountUser>.Ok((await GetUserAsync(id, cancellationToken))!);
         }
         finally
         {
             _mutations.Release();
+        }
+    }
+
+    private static bool ChangesRole(UserRow row, int? roleId) => roleId is { } r && r != row.RoleId;
+
+    private static bool ChangesState(UserRow row, bool? disabled) => disabled is { } d && d != row.Disabled;
+
+    /// <summary>Why an update is refused (nobody changes their own role or state, the role must exist, an Admin must remain), or null.</summary>
+    private async Task<AccountResult<AccountUser>?> RefuseUpdateAsync(AccountActor actor, UserRow row, int? roleId, bool? disabled, CancellationToken cancellationToken)
+    {
+        var changesRole = ChangesRole(row, roleId);
+        var changesState = ChangesState(row, disabled);
+        if (actor.UserId == row.Id && (changesRole || changesState))
+        {
+            return AccountResult<AccountUser>.Fail(AccountError.Forbidden, "You cannot change your own role or disable your own account.");
+        }
+
+        if (changesRole && (await RolesAsync(cancellationToken)).All(role => role.Id != roleId))
+        {
+            return AccountResult<AccountUser>.Fail(AccountError.Invalid, "role does not exist.");
+        }
+
+        var leavesAdmin = row is { Disabled: false } && row.RoleName == BuiltInRoles.Admin && ((changesState && disabled == true) || changesRole);
+        if (leavesAdmin && await _store.CountEnabledAdminsAsync(row.Id, cancellationToken) == 0)
+        {
+            return AccountResult<AccountUser>.Fail(AccountError.Conflict, "At least one enabled Admin must remain.");
+        }
+
+        return null;
+    }
+
+    private async Task ApplyUpdateAsync(AccountActor actor, UserRow row, string? displayName, int? roleId, bool? disabled, CancellationToken cancellationToken)
+    {
+        if (displayName is not null && displayName.Trim() != row.DisplayName)
+        {
+            await _store.SetDisplayNameAsync(row.Id, displayName.Trim(), cancellationToken);
+            await _audit.AppendAsync("user.update", actor.Name, row.Username, "display name changed", actor.Client, cancellationToken);
+        }
+
+        if (ChangesRole(row, roleId))
+        {
+            await _store.SetRoleAsync(row.Id, roleId!.Value, cancellationToken);
+            await _audit.AppendAsync("user.role", actor.Name, row.Username, $"role {row.RoleName} to {await RoleNameAsync(roleId.Value, cancellationToken)}", actor.Client, cancellationToken);
+        }
+
+        if (ChangesState(row, disabled))
+        {
+            await _store.SetDisabledAsync(row.Id, disabled!.Value, AccountStore.NewStamp(), cancellationToken);
+            await _audit.AppendAsync(disabled.Value ? "user.disable" : "user.enable", actor.Name, row.Username, null, actor.Client, cancellationToken);
         }
     }
 
@@ -304,7 +324,7 @@ public sealed partial class AccountService : IAccountService
         var row = await _store.FindByIdAsync(id, cancellationToken);
         if (row is null)
         {
-            return AccountResult<AccountUser>.Fail(AccountError.NotFound, "No such user.");
+            return AccountResult<AccountUser>.Fail(AccountError.NotFound, NoSuchUser);
         }
 
         if (ValidatePassword(newPassword, row.Username) is { } invalid)
@@ -326,7 +346,7 @@ public sealed partial class AccountService : IAccountService
         var row = actor.UserId is { } userId ? await _store.FindByIdAsync(userId, cancellationToken) : null;
         if (row is null)
         {
-            return AccountResult<AccountIdentity>.Fail(AccountError.NotFound, "No such user.");
+            return AccountResult<AccountIdentity>.Fail(AccountError.NotFound, NoSuchUser);
         }
 
         if (ValidatePassword(newPassword, row.Username) is { } invalid)
@@ -345,7 +365,7 @@ public sealed partial class AccountService : IAccountService
         await _audit.AppendAsync("password.change", row.Username, row.Username, null, actor.Client, cancellationToken);
         return await ResolveAsync(row.Id, null, cancellationToken) is { } identity
             ? AccountResult<AccountIdentity>.Ok(identity)
-            : AccountResult<AccountIdentity>.Fail(AccountError.NotFound, "No such user.");
+            : AccountResult<AccountIdentity>.Fail(AccountError.NotFound, NoSuchUser);
     }
 
     public Task<AccountResult<AccountUser>> UpdateProfileAsync(AccountActor actor, string displayName, CancellationToken cancellationToken) =>
@@ -361,7 +381,7 @@ public sealed partial class AccountService : IAccountService
 
         if (actor.UserId is not { } id || await _store.FindByIdAsync(id, cancellationToken) is null)
         {
-            return AccountResult<AccountUser>.Fail(AccountError.NotFound, "No such user.");
+            return AccountResult<AccountUser>.Fail(AccountError.NotFound, NoSuchUser);
         }
 
         await _store.SetDisplayNameAsync(id, display, cancellationToken);
@@ -378,7 +398,7 @@ public sealed partial class AccountService : IAccountService
             var row = await _store.FindByIdAsync(id, cancellationToken);
             if (row is null)
             {
-                return AccountResult<AccountUser>.Fail(AccountError.NotFound, "No such user.");
+                return AccountResult<AccountUser>.Fail(AccountError.NotFound, NoSuchUser);
             }
 
             if (actor.UserId == id)
@@ -410,7 +430,7 @@ public sealed partial class AccountService : IAccountService
         var row = await _store.FindByIdAsync(id, cancellationToken);
         if (row is null)
         {
-            return AccountResult<AccountUser>.Fail(AccountError.NotFound, "No such user.");
+            return AccountResult<AccountUser>.Fail(AccountError.NotFound, NoSuchUser);
         }
 
         await _store.SetAvatarAsync(id, avatarFile, cancellationToken);
@@ -608,7 +628,7 @@ public sealed partial class AccountService : IAccountService
     }
 
     private async Task<AccountResult<AccountUser>> UserOrNotFoundAsync(int id, CancellationToken cancellationToken) =>
-        await GetUserAsync(id, cancellationToken) is { } user ? AccountResult<AccountUser>.Ok(user) : AccountResult<AccountUser>.Fail(AccountError.NotFound, "No such user.");
+        await GetUserAsync(id, cancellationToken) is { } user ? AccountResult<AccountUser>.Ok(user) : AccountResult<AccountUser>.Fail(AccountError.NotFound, NoSuchUser);
 
     private void Invalidate()
     {

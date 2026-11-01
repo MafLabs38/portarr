@@ -225,40 +225,57 @@ public sealed class KnowledgeBase
 
         foreach (var environment in described)
         {
-            Line(md, $"- **{environment.Name}** (`{environment.Id}`){Notes(environment.Notes, "  ")}");
-            WriteAccess(md, environment.Access, "  ");
-            foreach (var machine in environment.Machines)
-            {
-                var hosted = machine.HostedOn is null ? string.Empty : $", VM on {machine.HostedOn}";
-                Line(md, $"  - machine `{machine.Name}`{hosted}{Notes(machine.Notes, "    ")}");
-                WriteAccess(md, machine.Access, "    ");
-            }
+            WriteKnowledgeEnvironment(md, environment);
         }
 
-        if (knowledge.Links.Count > 0)
-        {
-            md.AppendLine().AppendLine("### Network links").AppendLine();
-            foreach (var link in knowledge.Links)
-            {
-                var name = link.Name is null ? string.Empty : $" {link.Name}";
-                var network = link.Network is null ? string.Empty : $", network {link.Network}";
-                Line(md, $"- `{link.From}` ⇄ `{link.To}`: {link.Kind}{name}{network} (`{link.Id}`){Notes(link.Notes, "  ")}");
-            }
-        }
-
-        if (knowledge.Providers.Count > 0)
-        {
-            md.AppendLine().AppendLine("### External providers").AppendLine();
-            foreach (var provider in knowledge.Providers)
-            {
-                var console = provider.Console is null ? string.Empty : $", console {provider.Console}";
-                var account = provider.Account is null ? string.Empty : $", account {provider.Account}";
-                var used = provider.UsedBy.Count == 0 ? string.Empty : $"; used by {string.Join(", ", provider.UsedBy)}";
-                Line(md, $"- **{provider.Name}** (`{provider.Id}`, {provider.Kind}{console}{account}){used}{Notes(provider.Notes, "  ")}");
-            }
-        }
-
+        WriteLinks(md, knowledge.Links);
+        WriteProviders(md, knowledge.Providers);
         md.AppendLine();
+    }
+
+    private static void WriteKnowledgeEnvironment(StringBuilder md, EnvironmentKnowledgeLine environment)
+    {
+        Line(md, $"- **{environment.Name}** (`{environment.Id}`){Notes(environment.Notes, "  ")}");
+        WriteAccess(md, environment.Access, "  ");
+        foreach (var machine in environment.Machines)
+        {
+            var hosted = machine.HostedOn is null ? string.Empty : $", VM on {machine.HostedOn}";
+            Line(md, $"  - machine `{machine.Name}`{hosted}{Notes(machine.Notes, "    ")}");
+            WriteAccess(md, machine.Access, "    ");
+        }
+    }
+
+    private static void WriteLinks(StringBuilder md, IReadOnlyList<LinkLine> links)
+    {
+        if (links.Count == 0)
+        {
+            return;
+        }
+
+        md.AppendLine().AppendLine("### Network links").AppendLine();
+        foreach (var link in links)
+        {
+            var name = link.Name is null ? string.Empty : $" {link.Name}";
+            var network = link.Network is null ? string.Empty : $", network {link.Network}";
+            Line(md, $"- `{link.From}` ⇄ `{link.To}`: {link.Kind}{name}{network} (`{link.Id}`){Notes(link.Notes, "  ")}");
+        }
+    }
+
+    private static void WriteProviders(StringBuilder md, IReadOnlyList<ProviderLine> providers)
+    {
+        if (providers.Count == 0)
+        {
+            return;
+        }
+
+        md.AppendLine().AppendLine("### External providers").AppendLine();
+        foreach (var provider in providers)
+        {
+            var console = provider.Console is null ? string.Empty : $", console {provider.Console}";
+            var account = provider.Account is null ? string.Empty : $", account {provider.Account}";
+            var used = provider.UsedBy.Count == 0 ? string.Empty : $"; used by {string.Join(", ", provider.UsedBy)}";
+            Line(md, $"- **{provider.Name}** (`{provider.Id}`, {provider.Kind}{console}{account}){used}{Notes(provider.Notes, "  ")}");
+        }
     }
 
     private static void WriteAccess(StringBuilder md, AccessLine? access, string indent)

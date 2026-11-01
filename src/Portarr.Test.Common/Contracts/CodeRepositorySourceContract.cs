@@ -11,8 +11,8 @@ namespace Portarr.Test.Common.Contracts;
 /// </summary>
 public sealed record CodeRepositorySourceHarness(
     ICodeRepositorySource Source,
-    CodeSource Declared,
-    CodeSource Unsupported,
+    ICodeSource Declared,
+    ICodeSource Unsupported,
     Action Fail,
     Func<IReadOnlyList<HttpMethod>>? Methods = null);
 

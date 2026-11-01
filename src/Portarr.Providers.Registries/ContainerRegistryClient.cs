@@ -194,7 +194,8 @@ public sealed partial class ContainerRegistryClient : IImageRegistry
     private async Task<HttpResponseMessage> SendAsync(HttpMethod method, Uri uri, Action<HttpRequestMessage>? prepare, CancellationToken cancellationToken)
     {
         var client = _httpClientFactory.CreateClient(HttpClientName);
-        for (var redirects = 0; ; redirects++)
+        var redirects = 0;
+        while (true)
         {
             using var request = new HttpRequestMessage(method, uri);
             if (redirects == 0)
@@ -208,7 +209,7 @@ public sealed partial class ContainerRegistryClient : IImageRegistry
                 return response;
             }
 
-            var target = response.Headers.Location is { } location ? (location.IsAbsoluteUri ? location : new Uri(uri, location)) : null;
+            var target = Absolute(uri, response.Headers.Location);
             response.Dispose();
             if (target is not { Scheme: "https" })
             {
@@ -216,8 +217,12 @@ public sealed partial class ContainerRegistryClient : IImageRegistry
             }
 
             uri = target;
+            redirects++;
         }
     }
+
+    private static Uri? Absolute(Uri from, Uri? location) =>
+        location is null || location.IsAbsoluteUri ? location : new Uri(from, location);
 
     private static bool IsRedirect(HttpStatusCode status) =>
         status is HttpStatusCode.MovedPermanently or HttpStatusCode.Found or HttpStatusCode.SeeOther or HttpStatusCode.TemporaryRedirect or HttpStatusCode.PermanentRedirect;

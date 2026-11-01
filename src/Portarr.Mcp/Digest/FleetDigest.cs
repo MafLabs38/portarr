@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Portarr.Api.V1.Data;
 using Portarr.Api.V1.Infrastructure;
 using Portarr.Api.V1.Maintenance;
@@ -40,6 +41,7 @@ public sealed class FleetDigest
     private readonly IEnumerable<IWorkloadSource> _sources;
     private readonly TimeProvider _timeProvider;
 
+    [SuppressMessage("Major Code Smell", "S107:Constructor has too many parameters", Justification = "The digest is a read-only facade over every domain service of the fleet; grouping its dependencies in a bag object would only hide them.")]
     public FleetDigest(
         ICatalogService catalogService,
         IFleetService fleetService,

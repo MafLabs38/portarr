@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -31,6 +32,7 @@ public sealed record AssistantStatusResource(
 
 public sealed record KnowledgeResource(string Uri, DateTimeOffset GeneratedAt, string Markdown);
 
+[SuppressMessage("Major Code Smell", "S6960:This controller has multiple responsibilities and could be split into 2 smaller controllers.", Justification = "One resource, the assistant: its description and the knowledge it serves; the rule counts the services each action uses, not the resources.")]
 [ApiController]
 [Authorize(Policy = Permissions.AssistantView)]
 [Route("api/v1/assistant")]

@@ -116,16 +116,16 @@ public sealed record RepositoryScan(IReadOnlyList<CodeRepository> Repositories, 
 public interface ICodeRepositorySource
 {
     /// <summary>Whether this connector reads that kind of source: the monitor hands each declared source to the one that does.</summary>
-    bool Supports(CodeSource source);
+    bool Supports(ICodeSource source);
 
     /// <summary>A reason code when the source is declared but cannot be called (no token), else null.</summary>
-    string? GetConfigurationError(CodeSource source);
+    string? GetConfigurationError(ICodeSource source);
 
     /// <summary>
     /// The repositories of the source's owners (and its includes) that pass its filters, with their security
     /// alerts, latest release and CI state. Throws when the host cannot be read at all.
     /// </summary>
-    Task<IReadOnlyList<CodeRepository>> ScanAsync(CodeSource source, CancellationToken cancellationToken);
+    Task<IReadOnlyList<CodeRepository>> ScanAsync(ICodeSource source, CancellationToken cancellationToken);
 
     /// <summary>
     /// The repository (<c>owner/name</c>) an image's OCI source label (<c>org.opencontainers.image.source</c>) points at, when it

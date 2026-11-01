@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -8,6 +9,7 @@ using Portarr.Core.Maintenance;
 
 namespace Portarr.Api.V1.Maintenance;
 
+[SuppressMessage("Major Code Smell", "S6960:This controller has multiple responsibilities and could be split into 2 smaller controllers.", Justification = "One REST resource: the report and the request to refresh it. A controller per action would put two classes on the same route.")]
 [ApiController]
 [Authorize(Policy = Permissions.MaintenanceView)]
 [Route("api/v1/maintenance")]

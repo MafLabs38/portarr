@@ -5,16 +5,16 @@ namespace Portarr.Core.Catalog;
 /// not (a desktop app, a utility, a library). One entry per account, each with its own credential; the host-specific
 /// settings live in the subtype, and the scan is dispatched to the connector that supports it.
 /// </summary>
-public abstract record CodeSource
+public interface ICodeSource
 {
     /// <summary>Which host: <c>github</c> today.</summary>
-    public abstract string Kind { get; }
+    string Kind { get; }
 
     /// <summary>The logins scanned, shown on the page.</summary>
-    public abstract IReadOnlyList<string> Logins { get; }
+    IReadOnlyList<string> Logins { get; }
 
     /// <summary>What a rescan depends on: a change in any of it is scanned at once, not at the next interval.</summary>
-    public abstract string Fingerprint { get; }
+    string Fingerprint { get; }
 }
 
 /// <summary>
@@ -37,15 +37,15 @@ public sealed record GitHubSource(
     IReadOnlyList<string> Exclude,
     bool Forks,
     bool Archived,
-    Uri? ApiUrl = null) : CodeSource
+    Uri? ApiUrl = null) : ICodeSource
 {
     public const string KindName = "github";
 
-    public override string Kind => KindName;
+    public string Kind => KindName;
 
-    public override IReadOnlyList<string> Logins => Owners;
+    public IReadOnlyList<string> Logins => Owners;
 
-    public override string Fingerprint => string.Join('|', string.Join(',', Owners), TokenVariable, PushedWithinMonths, string.Join(',', Include), string.Join(',', Exclude), Forks, Archived, ApiUrl);
+    public string Fingerprint => string.Join('|', string.Join(',', Owners), TokenVariable, PushedWithinMonths, string.Join(',', Include), string.Join(',', Exclude), Forks, Archived, ApiUrl);
 
     public const string DefaultTokenVariable = "GITHUB_TOKEN";
     public const int DefaultPushedWithinMonths = 6;

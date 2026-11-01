@@ -50,12 +50,12 @@ public sealed class GitHubRepositorySourceContractFixture : CodeRepositorySource
             () => github.Methods);
     }
 
-    private sealed record FakeOtherSource : CodeSource
+    private sealed record FakeOtherSource : ICodeSource
     {
-        public override string Kind => "gitlab";
+        public string Kind => "gitlab";
 
-        public override IReadOnlyList<string> Logins => [];
+        public IReadOnlyList<string> Logins => [];
 
-        public override string Fingerprint => "gitlab";
+        public string Fingerprint => "gitlab";
     }
 }
