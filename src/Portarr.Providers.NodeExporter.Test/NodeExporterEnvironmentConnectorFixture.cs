@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Configuration;
+using NSubstitute;
 using Portarr.Core.Catalog;
 using Portarr.Test.Common;
 using Portarr.Test.Common.Contracts;
@@ -65,6 +67,41 @@ public sealed class NodeExporterEnvironmentConnectorFixture : EnvironmentConnect
         var result = Parse($"environments:\n  - {{ id: server-1, docker: {{ url: \"http://10.0.0.10:2375\" }}, hostMetrics: {{ nodeExporter: \"http://attacker.example:9100/metrics\", tokenEnv: {variable} }} }}\n");
 
         result.Errors.Should().ContainSingle().Which.Should().Contain("hostMetrics.tokenEnv").And.Contain("PORTARR_READER_");
+    }
+
+    [Theory]
+    [InlineData("5s", 5)]
+    [InlineData("1m", 60)]
+    [InlineData("30", 30)]
+    public void should_read_the_agent_less_often_when_asked_to(string interval, int seconds)
+    {
+        var parsed = Parse($"environments:\n  - {{ id: server-1, docker: {{ url: \"http://10.0.0.10:2375\" }}, hostMetrics: {{ nodeExporter: \"http://10.0.0.10:9100/metrics\", interval: {interval} }} }}\n");
+
+        parsed.Errors.Should().BeEmpty();
+        parsed.Catalog.Environments.Single().HostMetrics()!.Interval.Should().Be(TimeSpan.FromSeconds(seconds));
+    }
+
+    [Theory]
+    [InlineData("0s")]
+    [InlineData("6m")]
+    [InlineData("1h")]
+    [InlineData("soon")]
+    public void should_refuse_an_interval_that_is_not_one_second_to_five_minutes(string interval)
+    {
+        var result = Parse($"environments:\n  - {{ id: server-1, docker: {{ url: \"http://10.0.0.10:2375\" }}, hostMetrics: {{ nodeExporter: \"http://10.0.0.10:9100/metrics\", interval: {interval} }} }}\n");
+
+        result.Errors.Should().ContainSingle().Which.Should().Contain("hostMetrics.interval must be a duration");
+    }
+
+    [Fact]
+    public void should_resolve_its_target_with_the_interval()
+    {
+        var environment = NodeExporterEnvironments.With(new HostMetricsEndpoint(new Uri("http://10.0.0.10:9100/metrics"), Interval: TimeSpan.FromSeconds(10)));
+
+        var factory = Substitute.For<IHttpClientFactory>();
+        var source = new NodeExporterHostMetricsSource(factory, new ConfigurationBuilder().Build());
+
+        source.TargetsOf(environment, null).Should().ContainSingle().Which.Interval.Should().Be(TimeSpan.FromSeconds(10));
     }
 
     [Fact]

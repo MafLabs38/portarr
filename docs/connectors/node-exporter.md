@@ -54,7 +54,7 @@ Parts that sum to the total, like Unraid's legend:
 
 ## Cadence and memory
 
-Every machine is read every second, at most one read in flight per machine; a failing machine is retried after 1, 2, 4… up to 30 s, with its reason code (`unreachable`, `timeout`, `http-403`…) and its last values kept. Points are kept **in memory only**, 10 minutes per machine (D-54).
+Every machine is read every second (or at the `interval` its catalog entry gives, up to every 5 minutes, D-107), at most one read in flight per machine; a failing machine is retried after 1, 2, 4… up to 30 s, with its reason code (`unreachable`, `timeout`, `http-403`…) and its last values kept. Points are kept **in memory only**, 10 minutes per machine (D-54).
 
 The browser gets the snapshot (`GET /api/v1/infrastructure`, `hostMetrics` per machine with its 10-minute history), then each read as it happens over **server-sent events**: `GET /api/v1/infrastructure/stream`, one `host` event per machine and second (the same object without history), a keep-alive comment every 15 s, `retry: 2000`. While the stream is open the snapshot is polled every 5 s (consumers, VMs); without it, every 2 s, and the snapshot's history still carries the 1 s points.
 

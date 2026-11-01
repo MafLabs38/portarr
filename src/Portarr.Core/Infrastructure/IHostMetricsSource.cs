@@ -36,9 +36,10 @@ public readonly record struct HostMachineKey(string EnvironmentId, string Machin
 /// <summary>
 /// Where a machine's host agent is read: <c>Url</c> directly, or, when null, by the <c>Route</c> its connector gave (a Kubernetes
 /// node's exporter is reached through the API server's pod proxy: Core does not know what a route holds). <c>ConfigurationError</c>
-/// is a reason code when the machine cannot be read as declared.
+/// is a reason code when the machine cannot be read as declared. <c>Interval</c> is how often it is read when the catalog slows the
+/// default of a second (D-107).
 /// </summary>
-public sealed record HostMetricsTarget(CatalogEnvironment Environment, string MachineId, Uri? Url, object? Route = null, string? ConfigurationError = null)
+public sealed record HostMetricsTarget(CatalogEnvironment Environment, string MachineId, Uri? Url, object? Route = null, string? ConfigurationError = null, TimeSpan? Interval = null)
 {
     public HostMachineKey Key => new(Environment.Id, MachineId);
 }
@@ -79,4 +80,4 @@ public sealed record HostPoint(DateTimeOffset At, double? CpuPercent, double? Io
 /// A machine's host agent: its latest read, when it was taken, its points over the live window (oldest
 /// first) and, when the last read failed, why (a reason code; the last read and the points are kept).
 /// </summary>
-public sealed record HostMetricsView(HostMachineKey Key, HostReading? Latest, DateTimeOffset? SampledAt, IReadOnlyList<HostPoint> History, string? Error);
+public sealed record HostMetricsView(HostMachineKey Key, HostReading? Latest, DateTimeOffset? SampledAt, IReadOnlyList<HostPoint> History, string? Error, TimeSpan? Interval = null);

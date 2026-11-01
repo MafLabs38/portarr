@@ -5,8 +5,9 @@ namespace Portarr.Providers.NodeExporter;
 /// <summary>
 /// The node_exporter of a single machine (D-72): its <c>/metrics</c> URL, read every second. <c>TokenVariable</c> names the
 /// environment variable holding a bearer token when something in front of it asks for one (the Portarr reader does, D-100).
+/// <c>Interval</c> reads it less often than every second (D-107).
 /// </summary>
-public sealed record HostMetricsEndpoint(Uri NodeExporter, string? TokenVariable = null);
+public sealed record HostMetricsEndpoint(Uri NodeExporter, string? TokenVariable = null, TimeSpan? Interval = null);
 
 /// <summary>The <c>hostMetrics:</c> section of an environment, which the <c>reader:</c> shortcut also stands for (D-102).</summary>
 internal sealed class HostMetricsDocument
@@ -16,6 +17,9 @@ internal sealed class HostMetricsDocument
 
     /// <summary>The environment variable holding a bearer token, when something in front of node_exporter asks for one.</summary>
     public string? TokenEnv { get; set; }
+
+    /// <summary>How often the agent is read when not every second: <c>5s</c>, <c>1m</c> (1 second to 5 minutes).</summary>
+    public string? Interval { get; set; }
 }
 
 /// <summary>
@@ -54,8 +58,23 @@ public sealed class NodeExporterEnvironmentConnector : IEnvironmentConnector
             return null;
         }
 
-        return new EnvironmentConnectorResult(new HostMetricsEndpoint(url, variable));
+        TimeSpan? interval = null;
+        if (document.Interval is not null && (interval = CatalogValues.ParseInterval(document.Interval, HostMetricsIntervals.Min, HostMetricsIntervals.Max)) is null)
+        {
+            context.Error("hostMetrics.interval must be a duration of 1 second to 5 minutes (e.g. 5s, 1m), or be omitted to read every second.");
+            return null;
+        }
+
+        return new EnvironmentConnectorResult(new HostMetricsEndpoint(url, variable, interval));
     }
+}
+
+/// <summary>How often a host agent can be read: every second by default, slower when the catalog says so (D-107).</summary>
+public static class HostMetricsIntervals
+{
+    public static readonly TimeSpan Min = TimeSpan.FromSeconds(1);
+
+    public static readonly TimeSpan Max = TimeSpan.FromMinutes(5);
 }
 
 public static class NodeExporterEnvironmentExtensions

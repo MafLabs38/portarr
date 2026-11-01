@@ -178,13 +178,14 @@ On the Infrastructure page, the host's card then splits its memory into **Contai
 
 Docker sees only its containers and metrics-server only refreshes a node every ~15 s. A **node_exporter** on a machine gives Portarr the machine as its kernel sees it, every second: overall load, I/O wait, load per core, memory, swap and CPU temperature (D-72, [connectors/node-exporter.md](connectors/node-exporter.md); installation in [companions.md](companions.md#node_exporter)).
 
-- `hostMetrics: { nodeExporter: <URL> }` on a **Docker** environment: the `/metrics` URL of the host's node_exporter (`http` or `https`, no credentials in it).
+- `hostMetrics: { nodeExporter: <URL> }` on a **Docker** environment: the `/metrics` URL of the host's node_exporter (`http` or `https`, no credentials in it). `interval` (optional, `5s`, `1m`, from 1 second to 5 minutes, default every second) reads it less often, for a machine behind a slow link or a large fleet (D-107).
 - `reader: { url, tokenEnv }` on a **Docker** environment: the [Portarr reader](connectors/reader.md) of the machine, in place of `docker` and `hostMetrics` (declaring both is an error). `url` is the reader's address (it may carry a path behind a reverse proxy), `tokenEnv` the name of the variable that holds its token, which **must start with `PORTARR_READER_`**. `docker` and `hostMetrics` also accept an optional `tokenEnv` for a proxy that asks for a bearer token, in the same namespace.
 - `kubernetes.nodeExporter:` on a Kubernetes environment, for every node:
   - `port` (default 9100): node_exporter's port at the node's InternalIP (a DaemonSet with `hostNetwork`).
   - `access`: `direct` (default, Portarr calls the node's InternalIP; a node whose address is not an IP, or is a loopback, link-local or unspecified one, is shown with the reason `invalid-address`; give it a route in `nodes`) or `api-server` (through the API server's **pod proxy** to the node_exporter pod running on that node, `GET /api/v1/namespaces/<namespace>/pods/<pod>:<port>/proxy/metrics`, which needs `get` on `pods/proxy` in that namespace only; the node proxy, `nodes/proxy`, would reach any port of any node and is not used).
   - `namespace` (default `monitoring`) and `selector` (default `app.kubernetes.io/name=node-exporter`): where `api-server` access finds the exporter's pod: the running pod of that namespace matching the label selector on the node (`spec.nodeName`). The pod name is remembered per node, and looked up again when the proxy answers 404 or 503 and every 5 minutes.
   - `nodes: { <node>: direct | api-server | off | <URL> }`: per node, overrides `access` (a node behind a tunnel, a node without the DaemonSet, an exporter at another address).
+  - `interval` (optional, `5s`, `1m`, from 1 second to 5 minutes, default every second): how often each node is read. With `api-server` access every read goes through the API server, so a larger cluster or a slower link is a reason to raise it (D-107).
 
 A machine with a host agent shows its host values first; one whose agent cannot be read keeps its connector's values (container sums, metrics-server) and says why ("node_exporter: access refused").
 

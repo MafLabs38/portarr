@@ -61,6 +61,15 @@ public sealed class KubernetesNodeExporterSourceFixture
     }
 
     [Fact]
+    public void should_give_every_node_target_the_interval_of_the_cluster()
+    {
+        var environment = KubernetesEnvironments.With(new KubernetesCluster(new Uri("https://10.0.0.20:6443"), "CLUSTER_TOKEN", null, NodeExporter: new KubernetesNodeExporter(9100, NodeExporterAccess.ApiServer, Interval: TimeSpan.FromSeconds(15))));
+        var metrics = new EnvironmentMetrics("cluster", [Node("a", "10.0.0.21"), Node("b", "10.0.0.22")], new Dictionary<string, WorkloadUsageSample>(), _clock.GetUtcNow(), null);
+
+        Source().TargetsOf(environment, metrics).Should().OnlyContain(t => t.Interval == TimeSpan.FromSeconds(15));
+    }
+
+    [Fact]
     public void should_resolve_nothing_for_a_cluster_without_node_exporter_or_without_nodes()
     {
         var plain = KubernetesEnvironments.With(new KubernetesCluster(new Uri("https://10.0.0.20:6443"), "CLUSTER_TOKEN", null));

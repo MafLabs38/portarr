@@ -161,7 +161,7 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
         {
             if ((target.ConfigurationError ?? source?.GetConfigurationError(target)) is { Length: > 0 } configurationError)
             {
-                Store(target.Key, null, configurationError);
+                Store(target, null, configurationError);
                 return;
             }
 
@@ -174,17 +174,18 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(ReadTimeout);
             var reading = await source.ReadAsync(target, timeout.Token);
-            Store(target.Key, reading, null);
+            Store(target, reading, null);
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
             LogReadFailed(target.Environment.Id, target.MachineId, exception.Message);
-            Store(target.Key, null, ReasonCodes.From(exception));
+            Store(target, null, ReasonCodes.From(exception));
         }
     }
 
-    private void Store(HostMachineKey key, HostReading? reading, string? error)
+    private void Store(HostMetricsTarget target, HostReading? reading, string? error)
     {
+        var key = target.Key;
         HostMetricsView view;
         lock (_gate)
         {
@@ -201,18 +202,27 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
                 var failures = _schedule.GetValueOrDefault(key).Failures + 1;
                 var backoff = TimeSpan.FromSeconds(Math.Min(Math.Pow(2, failures - 1), MaxBackoff.TotalSeconds));
                 _schedule[key] = (failures, now + backoff - TimeSpan.FromMilliseconds(100));
-                view = new HostMetricsView(key, previous?.Latest, previous?.SampledAt, points.ToArray(), error);
+                view = new HostMetricsView(key, previous?.Latest, previous?.SampledAt, points.ToArray(), error, target.Interval);
             }
             else
             {
-                _schedule.Remove(key);
+                if (target.Interval is { } interval && interval > Interval)
+                {
+                    // Read less often than the second the monitor ticks at (D-107): the next read is due after the interval.
+                    _schedule[key] = (0, now + interval - TimeSpan.FromMilliseconds(100));
+                }
+                else
+                {
+                    _schedule.Remove(key);
+                }
+
                 points.Enqueue(new HostPoint(now, reading.CpuPercent, reading.IowaitPercent, reading.Memory.UsedBytes, reading.Memory.SwapUsedBytes));
                 while (points.Count > InfrastructureMonitor.Capacity || (points.Count > 0 && points.Peek().At < now - InfrastructureMonitor.Window))
                 {
                     points.Dequeue();
                 }
 
-                view = new HostMetricsView(key, reading, now, points.ToArray(), null);
+                view = new HostMetricsView(key, reading, now, points.ToArray(), null, target.Interval);
             }
 
             _current = new Dictionary<HostMachineKey, HostMetricsView>(_current) { [key] = view };

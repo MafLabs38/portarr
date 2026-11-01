@@ -45,6 +45,28 @@ public sealed class CatalogValuesFixture
         CatalogValues.IsVariableName(value).Should().Be(expected);
     }
 
+    [Theory]
+    [InlineData("5", 5)]
+    [InlineData("5s", 5)]
+    [InlineData(" 30s ", 30)]
+    [InlineData("2m", 120)]
+    [InlineData("1", 1)]
+    [InlineData("5m", 300)]
+    [InlineData("0s", null)]
+    [InlineData("301", null)]
+    [InlineData("6m", null)]
+    [InlineData("1h", null)]
+    [InlineData("soon", null)]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void should_read_an_interval_between_one_second_and_five_minutes(string? value, int? seconds)
+    {
+        var interval = CatalogValues.ParseInterval(value, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(5));
+
+        interval?.TotalSeconds.Should().Be(seconds);
+        (interval is null).Should().Be(seconds is null);
+    }
+
     [Fact]
     public void should_limit_a_variable_name_to_128_characters()
     {
