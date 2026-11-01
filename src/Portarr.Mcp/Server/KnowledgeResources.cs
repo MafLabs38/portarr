@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using Microsoft.AspNetCore.Http;
 using ModelContextProtocol.Server;
 using Portarr.Core.Accounts;
 using Portarr.Mcp.Knowledge;
@@ -11,23 +10,23 @@ namespace Portarr.Mcp.Server;
 public sealed class KnowledgeResources
 {
     private readonly KnowledgeBase _knowledgeBase;
-    private readonly IHttpContextAccessor _httpContext;
 
-    public KnowledgeResources(KnowledgeBase knowledgeBase, IHttpContextAccessor httpContext)
+    public KnowledgeResources(KnowledgeBase knowledgeBase)
     {
         _knowledgeBase = knowledgeBase;
-        _httpContext = httpContext;
     }
 
+    // It is every page at once: it needs every page's view permission.
+    [RequiresPermissions(Permissions.AppsView, Permissions.InfrastructureView, Permissions.DataView, Permissions.MaintenanceView)]
     [McpServerResource(UriTemplate = KnowledgeBase.InfrastructureUri, Name = "infrastructure", Title = "Infrastructure knowledge base", MimeType = "text/markdown")]
     [Description("The whole map of the homelab, generated from the live state: environments and machines (VMs under their hypervisor), stacks and apps with URLs, roles and where they run, data assets and backup jobs, repositories and images.")]
     public string Infrastructure()
     {
-        // It is every page at once: it needs every page's view permission.
-        McpAccess.Require(_httpContext, Permissions.AppsView, Permissions.InfrastructureView, Permissions.DataView, Permissions.MaintenanceView);
         return _knowledgeBase.BuildInfrastructure();
     }
 
+    // Vocabulary only, no data: any valid key may read it.
+    [RequiresPermissions]
     [McpServerResource(UriTemplate = KnowledgeBase.GlossaryUri, Name = "glossary", Title = "Glossary", MimeType = "text/markdown")]
     [Description("What Portarr's statuses, roles, coverage states, verdicts and reason codes mean.")]
     public static string GlossaryText() => Glossary.Markdown;

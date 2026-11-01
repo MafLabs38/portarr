@@ -84,7 +84,11 @@ public sealed class AssistantController : ControllerBase
 
     /// <summary>The knowledge base an assistant reads, for the operator to see what it learns. Same data as the pages.</summary>
     [HttpGet("knowledge")]
-    [EndpointSummary("The knowledge base an assistant reads, as Markdown.")]
+    [Authorize(Policy = Permissions.AppsView)]
+    [Authorize(Policy = Permissions.InfrastructureView)]
+    [Authorize(Policy = Permissions.DataView)]
+    [Authorize(Policy = Permissions.MaintenanceView)]
+    [EndpointSummary("The knowledge base an assistant reads, as Markdown. It is every page at once: it needs every page's view permission, like the MCP resource.")]
     public KnowledgeResource GetKnowledge()
     {
         return new KnowledgeResource(KnowledgeBase.InfrastructureUri, _timeProvider.GetUtcNow(), _knowledgeBase.BuildInfrastructure());

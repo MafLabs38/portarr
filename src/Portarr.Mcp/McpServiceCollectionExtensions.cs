@@ -83,6 +83,7 @@ public static class McpServiceCollectionExtensions
                 options.ServerInstructions = Instructions;
             })
             .WithHttpTransport(options => options.Stateless = true)
+            .WithRequestFilters(McpAccess.Configure)
             .WithTools<PortarrTools>(json)
             .WithResources<KnowledgeResources>();
 
