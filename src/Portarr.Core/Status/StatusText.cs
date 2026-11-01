@@ -1,13 +1,12 @@
 using Portarr.Core.Checks;
-using Portarr.Core.Status;
 
-namespace Portarr.Mcp;
+namespace Portarr.Core.Status;
 
 /// <summary>
 /// The status reasons Core gives as codes, said in English for the assistants that read the knowledge base and the digest. The
 /// interface translates the same codes itself; a reason that is not a code is already a sentence and stays as it is.
 /// </summary>
-internal static class StatusText
+public static class StatusText
 {
     public static string Of(ResolvedStatus status)
     {

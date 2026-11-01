@@ -1,6 +1,4 @@
-using Portarr.Core.Workloads;
-
-namespace Portarr.Api.V1.Workloads;
+namespace Portarr.Core.Workloads;
 
 /// <summary>How Portarr reaches an environment: connected, unreachable, pending (not read yet) or not-connected.</summary>
 public static class EnvironmentConnection

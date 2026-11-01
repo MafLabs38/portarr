@@ -2,6 +2,7 @@ using Portarr.Api.V1.Data;
 using Portarr.Api.V1.Infrastructure;
 using Portarr.Api.V1.Maintenance;
 using Portarr.Api.V1.Workloads;
+using Portarr.Core.Attention;
 using Portarr.Core.Catalog;
 using Portarr.Core.Data;
 using Portarr.Core.Infrastructure;
@@ -35,6 +36,7 @@ public sealed class FleetDigest
     private readonly IHostMetricsMonitor _hostMonitor;
     private readonly IDataService _dataService;
     private readonly IMaintenanceService _maintenanceService;
+    private readonly IAttentionService _attention;
     private readonly IEnumerable<IWorkloadSource> _sources;
     private readonly TimeProvider _timeProvider;
 
@@ -46,6 +48,7 @@ public sealed class FleetDigest
         IHostMetricsMonitor hostMonitor,
         IDataService dataService,
         IMaintenanceService maintenanceService,
+        IAttentionService attention,
         IEnumerable<IWorkloadSource> sources,
         TimeProvider timeProvider)
     {
@@ -56,6 +59,7 @@ public sealed class FleetDigest
         _hostMonitor = hostMonitor;
         _dataService = dataService;
         _maintenanceService = maintenanceService;
+        _attention = attention;
         _sources = sources;
         _timeProvider = timeProvider;
     }
@@ -71,15 +75,7 @@ public sealed class FleetDigest
         var data = _dataService.GetReport();
         var maintenance = _maintenanceService.GetReport();
 
-        var findings = new List<Finding>();
-        findings.AddRange(AppFindings(apps));
-        findings.AddRange(InfrastructureFindings(environments, infrastructure));
-        findings.AddRange(DataFindings(data));
-        findings.AddRange(maintenance.Attention.Select(a => new Finding("maintenance", Level(a.Level), a.Kind, a.Count, Cap(a.Subjects.Select(s => s.Label)))));
-        if (state.Errors.Count > 0)
-        {
-            findings.Add(new Finding("catalog", "warning", "catalog-errors", state.Errors.Count, []));
-        }
+        var findings = _attention.GetFindings().Select(f => new Finding(f.Area, Level(f.Level), f.Kind, f.Count, Cap(f.Subjects))).ToList();
 
         var busiest = infrastructure
             .SelectMany(e => e.Machines.Select(m => new MachineLoad(e.Name, m.Name, m.Cpu.NowPercent, m.Memory.NowPercent, m.Scope)))
@@ -90,7 +86,7 @@ public sealed class FleetDigest
         return new Overview(
             Now,
             CountApps(apps),
-            findings.OrderBy(f => LevelRank(f.Level)).ToList(),
+            findings,
             environments,
             busiest,
             ToCounts(data.Summary),
@@ -304,77 +300,6 @@ public sealed class FleetDigest
     public static double? Percent(double? value, double? capacity) =>
         value is { } v && capacity is > 0 ? Math.Round(v / capacity.Value * 100, 1) : null;
 
-    private static IEnumerable<Finding> AppFindings(IReadOnlyList<AppView> apps)
-    {
-        foreach (var (status, level, kind) in new[]
-        {
-            (HealthStatus.Down, "danger", "app-down"),
-            (HealthStatus.Degraded, "warning", "app-degraded"),
-            (HealthStatus.Unknown, "info", "app-unknown"),
-        })
-        {
-            var matching = apps.Where(a => a.Status.Status == status).OrderBy(a => a.App.Name, StringComparer.OrdinalIgnoreCase).ToList();
-            if (matching.Count > 0)
-            {
-                yield return new Finding("apps", level, kind, matching.Count, Cap(matching.Select(a => $"{a.App.Name} ({StatusText.Of(a.Status)})")));
-            }
-        }
-    }
-
-    private static IEnumerable<Finding> InfrastructureFindings(IReadOnlyList<EnvironmentLine> environments, IReadOnlyList<InfrastructureLine> infrastructure)
-    {
-        var unreachable = environments.Where(e => e.Connection == "unreachable").ToList();
-        if (unreachable.Count > 0)
-        {
-            yield return new Finding("infrastructure", "danger", "environment-unreachable", unreachable.Count, Cap(unreachable.Select(e => $"{e.Name} ({e.Error ?? "unreachable"})")));
-        }
-
-        var notReady = infrastructure.SelectMany(e => e.Machines.Where(m => m.Ready == false).Select(m => $"{m.Name} ({e.Name})")).ToList();
-        if (notReady.Count > 0)
-        {
-            yield return new Finding("infrastructure", "danger", "machine-not-ready", notReady.Count, Cap(notReady));
-        }
-
-        var unsampled = infrastructure.Where(e => e.Error is not null).ToList();
-        if (unsampled.Count > 0)
-        {
-            yield return new Finding("infrastructure", "warning", "metrics-unavailable", unsampled.Count, Cap(unsampled.Select(e => $"{e.Name} ({e.Error})")));
-        }
-    }
-
-    private static IEnumerable<Finding> DataFindings(DataReport report)
-    {
-        foreach (var (state, level, kind) in new[]
-        {
-            (CopyState.Failed, "danger", "backup-failed"),
-            (CopyState.Missing, "danger", "data-missing"),
-            (CopyState.Late, "warning", "backup-late"),
-            (CopyState.NotSetUp, "warning", "backup-tool-not-set-up"),
-        })
-        {
-            var assets = report.Assets.Where(a => a.State == state).ToList();
-            if (assets.Count > 0)
-            {
-                yield return new Finding("data", level, kind, assets.Count, Cap(assets.Select(a => $"{a.Asset.Name} ({a.Asset.Importance.ToResource()})")));
-            }
-        }
-
-        var withoutOffsite = report.Assets.Where(a => a.Asset.Importance == DataImportance.Critical && a.Offsite?.LastSuccessAt is null).ToList();
-
-        // An off-site job that has not run yet is pending, not a gap: the operator waits, or runs it once.
-        var pending = withoutOffsite.Where(a => a.Offsite?.State == CopyState.Waiting).ToList();
-        var critical = withoutOffsite.Except(pending).ToList();
-        if (critical.Count > 0)
-        {
-            yield return new Finding("data", "warning", "critical-without-offsite", critical.Count, Cap(critical.Select(a => a.Asset.Name)));
-        }
-
-        if (pending.Count > 0)
-        {
-            yield return new Finding("data", "info", "critical-offsite-pending", pending.Count, Cap(pending.Select(a => a.Asset.Name)));
-        }
-    }
-
     private static AppCounts CountApps(IReadOnlyList<AppView> apps)
     {
         int Count(HealthStatus status) => apps.Count(a => a.Status.Status == status);
@@ -387,13 +312,6 @@ public sealed class FleetDigest
         new(s.Repositories, s.Critical + s.High, s.SecretAlerts, s.CiFailing, s.DependabotOff, s.Images, s.ImagesBehind, s.ImagesMajor, s.ImagesUnknown);
 
     private static string Level(AttentionLevel level) => level.ToString().ToLowerInvariant();
-
-    private static int LevelRank(string level) => level switch
-    {
-        "danger" => 0,
-        "warning" => 1,
-        _ => 2,
-    };
 
     private static bool Same(string? a, string? b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 

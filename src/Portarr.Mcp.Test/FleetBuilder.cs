@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Time.Testing;
+using Portarr.Core.Attention;
 using Portarr.Core.Backups;
 using Portarr.Core.Catalog;
 using Portarr.Core.Checks;
@@ -120,7 +121,8 @@ internal sealed class FleetBuilder
         var source = Substitute.For<IWorkloadSource>();
         source.Supports(Arg.Any<CatalogEnvironment>()).Returns(call => call.Arg<CatalogEnvironment>().Runtime != RuntimeNames.None);
 
-        var digest = new FleetDigest(catalogService, fleet, inventory, monitor, hostMonitor, data, maintenance, [source], clock);
+        var attention = new AttentionService(catalogService, fleet, inventory, [source], monitor, data, maintenance);
+        var digest = new FleetDigest(catalogService, fleet, inventory, monitor, hostMonitor, data, maintenance, attention, [source], clock);
         return (digest, new KnowledgeBase(digest, catalogService, fleet));
     }
 }
