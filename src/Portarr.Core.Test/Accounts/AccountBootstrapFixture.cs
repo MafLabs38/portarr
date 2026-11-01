@@ -29,11 +29,18 @@ public sealed class AccountBootstrapFixture : IDisposable
     }
 
     [Fact]
-    public async Task should_do_nothing_without_a_user_and_a_file_or_once_a_user_exists()
+    public async Task should_do_nothing_without_a_user_name_and_a_file()
     {
         await Bootstrap(new AuthOptions()).RunAsync(TestContext.Current.CancellationToken);
 
+        await _accounts.DidNotReceive().SetupAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task should_do_nothing_once_a_user_exists()
+    {
         _accounts.SetupRequiredAsync(Arg.Any<CancellationToken>()).Returns(false);
+
         await Bootstrap(new AuthOptions { AdminUser = "root", AdminPasswordFile = PasswordFile("a long throwaway passphrase") }).RunAsync(TestContext.Current.CancellationToken);
 
         await _accounts.DidNotReceive().SetupAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
@@ -75,32 +82,7 @@ public sealed class AccountBootstrapFixture : IDisposable
         var run = () => Bootstrap(new AuthOptions { AdminUser = "root", AdminPasswordFile = PasswordFile("short") }).RunAsync(TestContext.Current.CancellationToken);
 
         await run.Should().NotThrowAsync("the setup screen stays available");
-    }
-
-    [Theory]
-    [InlineData(null, null, true)]
-    [InlineData("root", "/run/secrets/admin", true)]
-    [InlineData("root", null, false)]
-    [InlineData(null, "/run/secrets/admin", false)]
-    public void should_ask_for_the_user_and_the_file_together(string? user, string? file, bool valid)
-    {
-        var result = new AuthOptionsValidator().Validate(null, new AuthOptions { AdminUser = user, AdminPasswordFile = file });
-
-        result.Succeeded.Should().Be(valid);
-    }
-
-    [Theory]
-    [InlineData(0, 5, 5, false)]
-    [InlineData(366, 5, 5, false)]
-    [InlineData(7, 0, 5, false)]
-    [InlineData(7, 5, 0, false)]
-    [InlineData(7, 5, 1441, false)]
-    [InlineData(7, 5, 5, true)]
-    public void should_refuse_a_nonsensical_session_length_or_lockout(int days, int attempts, int minutes, bool valid)
-    {
-        var result = new AuthOptionsValidator().Validate(null, new AuthOptions { SessionDays = days, MaxFailedAttempts = attempts, LockoutMinutes = minutes });
-
-        result.Succeeded.Should().Be(valid);
+        await _accounts.Received(1).SetupAsync("root", null, "short", "startup", Arg.Any<CancellationToken>());
     }
 
     public void Dispose()

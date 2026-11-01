@@ -44,13 +44,23 @@ test.describe('Accounts', { tag: '@smoke' }, () => {
     await form.getByLabel('Password').fill('a-long-throwaway-passphrase');
     await form.getByRole('button', { name: 'Save' }).click();
 
-    const row = page.getByRole('row', { name: new RegExp(username) });
-    await expect(row).toBeVisible();
-    await expect(row.getByRole('cell', { name: 'Observer' })).toBeVisible();
+    try {
+      const row = page.getByRole('row', { name: new RegExp(username) });
+      await expect(row).toBeVisible();
+      await expect(row.getByRole('cell', { name: 'Observer' })).toBeVisible();
 
-    // Deleting asks for a confirmation.
-    await row.getByRole('button', { name: `Delete user ${username}` }).click();
-    await row.getByRole('button', { name: 'Confirm delete' }).click();
-    await expect(row).toHaveCount(0);
+      // Deleting asks for a confirmation.
+      await row.getByRole('button', { name: `Delete user ${username}` }).click();
+      await row.getByRole('button', { name: 'Confirm delete' }).click();
+      await expect(row).toHaveCount(0);
+    } finally {
+      // A failing run must not leave the temporary user behind.
+      const headers = { 'X-Requested-With': 'portarr' };
+      const users = (await (await page.request.get('/api/v1/users')).json()) as { id: number; username: string }[];
+      const left = users.find((user) => user.username === username);
+      if (left) {
+        await page.request.delete(`/api/v1/users/${left.id}`, { headers });
+      }
+    }
   });
 });

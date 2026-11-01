@@ -95,10 +95,11 @@ public sealed partial class AccountService : IAccountService
         _logger = logger;
     }
 
-    [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]{2,31}$")]
+    // \z, not $: a $ also matches before a final newline, so "admin\n" would be a valid name.
+    [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]{2,31}\\z")]
     private static partial Regex UsernamePattern();
 
-    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9 ._-]{0,38}[A-Za-z0-9]$")]
+    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9 ._-]{0,38}[A-Za-z0-9]\z")]
     private static partial Regex RoleNamePattern();
 
     /// <summary>Why a user name is refused, or null: 3 to 32 letters, digits, dots, dashes and underscores.</summary>

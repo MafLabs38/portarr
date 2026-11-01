@@ -142,6 +142,7 @@ public sealed class PortarrFactory : WebApplicationFactory<Program>
         builder.ConfigureServices(services =>
         {
             services.Replace(ServiceDescriptor.Singleton<TimeProvider>(Clock));
+            services.PostConfigure<Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationOptions>(Portarr.Http.Authentication.AuthenticationServiceCollectionExtensions.CookieScheme, options => options.TimeProvider = Clock);
             services.RemoveAll<IWorkloadSource>();
             services.AddSingleton<IWorkloadSource>(Workloads);
 

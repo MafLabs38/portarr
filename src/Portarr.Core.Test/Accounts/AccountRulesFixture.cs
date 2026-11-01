@@ -37,6 +37,11 @@ public sealed class AccountRulesFixture
     [InlineData("-admin", false)]
     [InlineData("has space", false)]
     [InlineData("a\nb", false)]
+    [InlineData("admin\n", false)]
+    [InlineData("abc", true)]
+    [InlineData("abcdefghijklmnopqrstuvwxyz012345", true)]
+    [InlineData("abcdefghijklmnopqrstuvwxyz0123456", false)]
+    [InlineData("", false)]
     public void should_check_user_names(string username, bool valid)
     {
         (AccountService.ValidateUsername(username) is null).Should().Be(valid);
@@ -49,6 +54,19 @@ public sealed class AccountRulesFixture
     public void should_check_passwords(string password, string username, bool valid)
     {
         (AccountService.ValidatePassword(password, username) is null).Should().Be(valid);
+    }
+
+    [Fact]
+    public void should_stop_a_key_the_instant_it_expires_or_is_revoked()
+    {
+        var now = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+        ApiKeyInfo Key(DateTimeOffset? expires, DateTimeOffset? revoked) => new(1, 1, "ci", "ptr_abc123", "full", now.AddDays(-1), null, expires, revoked);
+
+        Key(null, null).IsActive(now).Should().BeTrue("a key without an expiry lasts");
+        Key(now.AddSeconds(1), null).IsActive(now).Should().BeTrue();
+        Key(now, null).IsActive(now).Should().BeFalse("it expires at the instant, not after");
+        Key(now.AddSeconds(-1), null).IsActive(now).Should().BeFalse();
+        Key(null, now.AddHours(-1)).IsActive(now).Should().BeFalse("a revoked key never comes back");
     }
 
     [Fact]

@@ -92,6 +92,13 @@ public sealed partial class EndpointSecurityFixture
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, Token);
             response.StatusCode.Should().Be(HttpStatusCode.Unauthorized, $"{route.Method} {route.Pattern} must ask to sign in");
         }
+
+        // Outside the API: the metrics ask to sign in too; the probes, the docs and the SPA fallback are open (or absent in a test host).
+        (await client.GetAsync("/metrics", Token)).StatusCode.Should().Be(HttpStatusCode.Unauthorized, "/metrics");
+        foreach (var path in new[] { "/health/live", "/openapi/v1.json", "/docs/", "/apps" })
+        {
+            (await client.GetAsync(path, Token)).StatusCode.Should().BeOneOf([HttpStatusCode.OK, HttpStatusCode.NotFound], path);
+        }
     }
 
     [Theory]
