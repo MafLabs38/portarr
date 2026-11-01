@@ -40,12 +40,62 @@ public sealed class ImageCheckFixture
     }
 
     [Fact]
-    public void should_say_why_it_cannot_tell()
+    public void should_say_an_image_id_cannot_be_looked_up_but_keep_the_version_its_label_states()
     {
         var id = ImageReference.Parse("sha256:" + new string('b', 64))!;
 
         ImageCheck.Evaluate(id, "4.0.1", null, null).Should().Match<ImageCheck>(c => c.Status == ImageStatus.Unknown && c.Reason == ImageCheck.ImageId && c.Current == "4.0.1");
-        ImageCheck.Evaluate(ImageReference.Parse("app:1")!, null, null, null).Status.Should().Be(ImageStatus.Pending);
-        ImageCheck.Evaluate(ImageReference.Parse("ghcr.io/me/app:1")!, null, null, new RegistryLookup([], "refused", Now)).Reason.Should().Be("refused");
+    }
+
+    [Fact]
+    public void should_wait_for_a_lookup_that_has_not_happened_yet()
+    {
+        ImageCheck.Evaluate(ImageReference.Parse("app:1")!, null, null, null).Should().Match<ImageCheck>(c => c.Status == ImageStatus.Pending && c.Current == "1");
+    }
+
+    [Fact]
+    public void should_give_the_reason_a_registry_could_not_be_read()
+    {
+        ImageCheck.Evaluate(ImageReference.Parse("ghcr.io/me/app:1")!, null, null, new RegistryLookup([], "refused", Now)).Should().Match<ImageCheck>(c => c.Status == ImageStatus.Unknown && c.Reason == "refused");
+    }
+
+    [Fact]
+    public void should_be_up_to_date_when_no_tag_of_the_same_shape_is_newer()
+    {
+        var check = ImageCheck.Evaluate(ImageReference.Parse("postgres:18-alpine")!, null, null, Lookup(new RegistryTag("16-alpine"), new RegistryTag("18-alpine", Now)));
+
+        check.Should().Be(new ImageCheck(ImageStatus.UpToDate, "18-alpine", CurrentAt: Now));
+    }
+
+    [Fact]
+    public void should_not_compare_a_tag_with_tags_of_another_shape()
+    {
+        var check = ImageCheck.Evaluate(ImageReference.Parse("app:1.2.3")!, null, null, Lookup(new RegistryTag("1.2.3"), new RegistryTag("2024-01-01"), new RegistryTag("latest"), new RegistryTag("2.0")));
+
+        check.Status.Should().Be(ImageStatus.UpToDate, "2.0 has two numbers and 1.2.3 has three: a different scheme");
+    }
+
+    [Fact]
+    public void should_say_an_image_pinned_by_digest_is_pinned_not_floating()
+    {
+        var image = ImageReference.Parse("ghcr.io/me/app@sha256:" + new string('a', 64))!;
+
+        ImageCheck.Evaluate(image, null, null, Lookup(new RegistryTag("1.0"))).Should().Match<ImageCheck>(c => c.Status == ImageStatus.Floating && c.Reason == ImageCheck.Pinned);
+    }
+
+    [Fact]
+    public void should_call_a_floating_tag_floating_when_nothing_tells_its_version_or_digest()
+    {
+        var check = ImageCheck.Evaluate(ImageReference.Parse("nginx:latest")!, null, null, Lookup(new RegistryTag("latest")));
+
+        check.Should().Match<ImageCheck>(c => c.Status == ImageStatus.Floating && c.Reason == ImageCheck.FloatingTag);
+    }
+
+    [Fact]
+    public void should_not_compare_by_digest_when_the_registry_gave_none_for_the_tag()
+    {
+        var check = ImageCheck.Evaluate(ImageReference.Parse("nginx:latest")!, null, "sha256:running", Lookup(new RegistryTag("latest")));
+
+        check.Status.Should().Be(ImageStatus.Floating);
     }
 }
