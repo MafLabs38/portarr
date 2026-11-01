@@ -51,6 +51,7 @@ public sealed partial class CatalogTools
         _httpContext = httpContext;
     }
 
+    [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "get_catalog_item", Title = "Read a catalog item", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Reads the catalog file before changing it: one item exactly as written (keys of the catalog file), or without an id the ids of the section; always the version to send with a write.")]
     public async Task<CatalogItemAnswer> GetCatalogItemAsync(
@@ -58,7 +59,6 @@ public sealed partial class CatalogTools
         [Description("The item's id; omit to list the ids of the section.")] string? id = null,
         CancellationToken cancellationToken = default)
     {
-        Require();
         CheckSection(section);
         if (id is null)
         {
@@ -71,6 +71,7 @@ public sealed partial class CatalogTools
         return new CatalogItemAnswer(item.Version, section, id, item.Item, null);
     }
 
+    [RequiresPermissions]
     [McpServerTool(Name = "get_portal", Title = "Read the portal's identity", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Reads the identity shown in the sidebar: the name of the infrastructure, the logo the catalog declares (a path in the branding folder), the logo files already in that folder, the colors of the name and of the version (a hex color or a theme token name) and the version to send with set_portal.")]
     public async Task<PortalAnswer> GetPortalAsync(CancellationToken cancellationToken = default)
@@ -79,6 +80,7 @@ public sealed partial class CatalogTools
         return new PortalAnswer(await _editor.GetVersionAsync(cancellationToken), identity.Name, identity.Logo, _portal.ListBranding(), identity.LogoProblem, identity.Colors.Name, identity.Colors.Version);
     }
 
+    [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "set_portal", Title = "Set the portal's identity", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Sets the name of the infrastructure, the logo and/or the colors of the name and of the version shown in the sidebar. The logo must be one of the files already in the branding folder (get_portal lists them); uploading an image is done by the operator in the UI. Omit a value to keep it, send an empty one to go back to Portarr's own.")]
     public Task<CatalogWriteAnswer> SetPortalAsync(
@@ -89,7 +91,6 @@ public sealed partial class CatalogTools
         [Description("The color of the version, same values as nameColor.")] string? versionColor = null,
         CancellationToken cancellationToken = default)
     {
-        Require();
         if (name is null && logo is null && nameColor is null && versionColor is null)
         {
             throw new McpException("Give a name, a logo, a color, or several.");
@@ -111,26 +112,31 @@ public sealed partial class CatalogTools
         return EditAsync(CatalogSections.Portal, CatalogSections.Portal, "set-portal", version, CatalogEdits.SetPortal(name, logo, nameColor, versionColor), cancellationToken);
     }
 
+    [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "upsert_app", Title = "Create or replace an app", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Creates or replaces an app of the catalog: id, name, type (web, desktop, service), icon, description, urls, workloads, check, repository, notes.")]
     public Task<CatalogWriteAnswer> UpsertAppAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
         UpsertAsync(CatalogSections.Apps, item, version, cancellationToken);
 
+    [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "remove_app", Title = "Remove an app", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
     [Description("Removes an app from the catalog (refused while a stack, a data asset or a provider still names it).")]
     public Task<CatalogWriteAnswer> RemoveAppAsync([Description("The app id.")] string id, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
         EditAsync(CatalogSections.Apps, id, "remove", version, CatalogEdits.Remove(CatalogSections.Apps, id), cancellationToken);
 
+    [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "upsert_stack", Title = "Create or replace a stack", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Creates or replaces a stack: id, name, description, members ([{ app, role: critical|optional }]), notes. Members kept in order keep their comments in the file.")]
     public Task<CatalogWriteAnswer> UpsertStackAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
         UpsertAsync(CatalogSections.Stacks, item, version, cancellationToken);
 
+    [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "upsert_environment", Title = "Create or replace an environment", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Creates or replaces an environment (a host, a cluster, a hosting account): id, name, address, host (its hypervisor), connector (docker, cloudflare, kubernetes), notes, access ({ ssh: { alias, host, port, user, key (file name only), jump }, consoles: [{ label, href }], notes }) and machines ([{ name, notes, access }]). Read it first: the connector settings must be kept.")]
     public Task<CatalogWriteAnswer> UpsertEnvironmentAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
         UpsertAsync(CatalogSections.Environments, item, version, cancellationToken);
 
+    [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "upsert_machine", Title = "Describe a machine", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Creates or replaces what is known about one machine of an environment (a cluster node, a VPS): notes and access. Never a password or a key: name the key file.")]
     public Task<CatalogWriteAnswer> UpsertMachineAsync(
@@ -141,11 +147,13 @@ public sealed partial class CatalogTools
         CancellationToken cancellationToken = default) =>
         EditAsync(CatalogSections.Environments, environment, "upsert-machine", version, CatalogEdits.UpsertMachine(environment, name, Object(machine, "machine")), cancellationToken);
 
+    [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "upsert_data_asset", Title = "Create or replace a data asset", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Creates or replaces a followed data asset: id, name, app, kind, where ({ environment, namespace, workload, claim, path }), importance (critical, important, comfort), maxAge, targets ({ local: {…}, offsite: {…} } with backrest, k8up, cronjob or manual sources).")]
     public Task<CatalogWriteAnswer> UpsertDataAssetAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
         UpsertAsync(CatalogSections.Data, item, version, cancellationToken);
 
+    [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "add_link", Title = "Add a network link", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
     [Description("Adds a network link between two environments or machines: id, from, to (environment ids, machine names or environment/machine), kind (wireguard-tunnel, vpn, lan, peering, ssh-tunnel, other), name, network (CIDR), notes (e.g. which side initiates, the port).")]
     public Task<CatalogWriteAnswer> AddLinkAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default)
@@ -155,11 +163,13 @@ public sealed partial class CatalogTools
         return EditAsync(CatalogSections.Links, id, "add", version, CatalogEdits.Add(CatalogSections.Links, id, value), cancellationToken);
     }
 
+    [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "upsert_provider", Title = "Create or replace a provider", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Creates or replaces an external provider or account: id, name, kind (cdn, paas, dns, registrar, cloud, vps, storage, backup, email, git, registry, monitoring, other), console (URL), account (a name or e-mail hint, never a credential), usedBy (app and environment ids), notes.")]
     public Task<CatalogWriteAnswer> UpsertProviderAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
         UpsertAsync(CatalogSections.Providers, item, version, cancellationToken);
 
+    [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "remove_catalog_item", Title = "Remove a catalog item", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
     [Description("Removes a stack, environment, data asset, link or provider (refused while something else names it).")]
     public Task<CatalogWriteAnswer> RemoveItemAsync(
@@ -172,6 +182,7 @@ public sealed partial class CatalogTools
         return EditAsync(section, id, "remove", version, CatalogEdits.Remove(section, id), cancellationToken);
     }
 
+    [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "set_notes", Title = "Set notes", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Sets the free Markdown notes of an environment, a machine of an environment, a stack, an app, a link or a provider; empty clears them. Notes are for people and assistants: what it is for, quirks, how it is wired. Never secrets.")]
     public Task<CatalogWriteAnswer> SetNotesAsync(
@@ -226,14 +237,10 @@ public sealed partial class CatalogTools
         return EditAsync(section, id, "upsert", version, CatalogEdits.Upsert(id, value), cancellationToken);
     }
 
-    /// <summary>Every catalog tool changes (or reads for a change) the catalog: it needs <c>catalog.write</c>, as the API does.</summary>
-    private void Require() => McpAccess.Require(_httpContext, Permissions.CatalogWrite);
-
     private Task<IReadOnlyList<string>> IdsAsync(string section, CancellationToken cancellationToken) => _editor.GetIdsAsync(section, cancellationToken);
 
     private async Task<CatalogWriteAnswer> EditAsync(string section, string id, string operation, string version, Func<JsonObject?, JsonObject?> change, CancellationToken cancellationToken)
     {
-        Require();
         var context = _httpContext.HttpContext;
 
         // A chat token names its conversation: that is the truth. The header is only a hint from other clients.

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
@@ -88,6 +89,41 @@ public sealed class McpFixture : IAsyncLifetime
         var text = await ReadResultTextAsync(call);
 
         text.Should().Contain("https://jellyfin.homelab.example/").And.NotContain("token=abc").And.NotContain("#top");
+    }
+
+    [Fact]
+    public async Task should_list_and_serve_only_what_the_role_behind_the_key_may_use()
+    {
+        using var admin = await _enabled.CreateSignedInClientAsync();
+        var role = await admin.PostAsJsonAsync("/api/v1/roles", new { name = "Apps only", permissions = new[] { "apps.view" } }, TestContext.Current.CancellationToken);
+        role.EnsureSuccessStatusCode();
+        using var appsOnly = await _enabled.CreateSignedInClientAsync("Apps only");
+        var created = await appsOnly.PostAsJsonAsync("/api/v1/auth/keys", new { name = "mcp", scope = "full" }, TestContext.Current.CancellationToken);
+        var key = (await created.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken)).GetProperty("value").GetString()!;
+        using var anonymous = _enabled.CreateClient();
+
+        var tools = await ResultAsync(anonymous, "tools/list", "{}", key);
+        var resources = await ResultAsync(anonymous, "resources/list", "{}", key);
+        var allowed = await ResultAsync(anonymous, "tools/call", """{"name":"list_apps","arguments":{}}""", key);
+        var denied = await ResultAsync(anonymous, "tools/call", """{"name":"get_overview","arguments":{}}""", key);
+
+        tools.GetProperty("tools").EnumerateArray().Select(t => t.GetProperty("name").GetString()).Should().BeEquivalentTo("list_apps", "get_app");
+        resources.GetProperty("resources").EnumerateArray().Select(r => r.GetProperty("name").GetString()).Should().NotContain("infrastructure");
+        IsError(allowed).Should().BeFalse();
+        IsError(denied).Should().BeTrue();
+        denied.GetProperty("content")[0].GetProperty("text").GetString().Should().Contain("lacks");
+    }
+
+    private static bool IsError(JsonElement result) => result.TryGetProperty("isError", out var flag) && flag.GetBoolean();
+
+    private static async Task<JsonElement> ResultAsync(HttpClient client, string method, string parameters, string key)
+    {
+        using var response = await client.SendAsync(Rpc(method, parameters, key), TestContext.Current.CancellationToken);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var json = body.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.StartsWith("data: ", StringComparison.Ordinal))?["data: ".Length..] ?? body;
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.GetProperty("result").Clone();
     }
 
     [Fact]

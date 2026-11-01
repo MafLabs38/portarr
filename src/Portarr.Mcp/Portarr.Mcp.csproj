@@ -4,4 +4,7 @@
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <ProjectReference Include="..\Portarr.Api.V1\Portarr.Api.V1.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Portarr.Mcp.Test" />
+  </ItemGroup>
 </Project>
