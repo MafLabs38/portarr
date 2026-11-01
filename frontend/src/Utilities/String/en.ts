@@ -256,6 +256,18 @@ const en: Record<string, string> = {
   LocalCopy: 'Local copy',
   MadeByHand: 'Made by hand',
   NeverSucceeded: 'never succeeded',
+  CannotBeRead: "can't be read right now",
+  UnreachableNoticeOne: 'Portarr cannot read {names}.',
+  UnreachableNoticeMany: 'Portarr cannot read {count} machines: {names}.',
+  UnreachableNoticeBody:
+    'That is not a failure of your apps: what runs there shows as unknown, and its backups cannot be checked, until Portarr can read it again.',
+  UnreachableNoticeHelp: 'How to check',
+  ReasonHintTimeout:
+    'no answer in time: the machine is off, or a firewall drops the requests of the address Portarr runs on',
+  ReasonHintUnreachable: 'connection refused, or the machine is down',
+  ReasonHintRefused: 'it answered but refused Portarr: check the credentials',
+  ReasonHintOther: 'see the reason on the Infrastructure page',
+  ContainersUpUnread: '{up}/{total} up · {unread} unknown',
   NoDataMatches: 'No data matches this filter.',
   NotProvenYet: 'Not proven yet',
   PendingFirstRun: '{count} pending first run',

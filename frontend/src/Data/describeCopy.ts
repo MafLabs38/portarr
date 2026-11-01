@@ -22,9 +22,11 @@ export function describeLastSuccess(copy: DataCopy, now: number = Date.now()): s
   if (copy.state === 'not-set-up') {
     return translate('SetUpTheTool');
   }
-  return copy.lastSuccessAt
-    ? translate('LastSuccessAge', { age: formatAge(copy.lastSuccessAt, now) })
-    : translate('NeverSucceeded');
+  if (copy.lastSuccessAt) {
+    return translate('LastSuccessAge', { age: formatAge(copy.lastSuccessAt, now) });
+  }
+  // A copy that could not be judged (the tool is unreachable, refused or did not answer) has not "never succeeded": nobody could look.
+  return translate(copy.state === 'unknown' ? 'CannotBeRead' : 'NeverSucceeded');
 }
 
 /** The accepted loss window: "within 24 h", "within 7 days". */

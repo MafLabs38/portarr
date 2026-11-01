@@ -12,8 +12,17 @@ interface WorkloadSummaryProps {
 // Docker appends the healthcheck to the status; it has its own line on the tile (D-45).
 const healthSuffixes = [' (healthy)', ' (unhealthy)', ' (health: starting)'];
 
+// A container that is not in the inventory because its environment could not be read is unknown, not missing (the server says so:
+// the workload's status is Unknown, with the environment that cannot be reached as its reason).
+function isUnread(workload: AppWorkload): boolean {
+  return !workload.found && workload.status.status === 'Unknown';
+}
+
 // "Up 3 hours (healthy)" → "Up 3 hours". Plain suffix checks: no regex backtracking on Docker's text.
 function stateText(workload: AppWorkload): string {
+  if (isUnread(workload)) {
+    return translate('CannotBeRead');
+  }
   if (!workload.found) {
     return translate(workload.runtime === 'cloudflare' ? 'DeploymentNotFound' : 'ContainerNotFound');
   }
@@ -23,6 +32,9 @@ function stateText(workload: AppWorkload): string {
 }
 
 function stateTone(workload: AppWorkload): Tone {
+  if (isUnread(workload)) {
+    return 'warn';
+  }
   if (!workload.found || workload.state === 'exited' || workload.state === 'dead' || workload.state === 'restarting') {
     return 'bad';
   }
@@ -56,6 +68,14 @@ function healthSummary(workloads: AppWorkload[]): { tone: Tone; value: string } 
   return { tone: 'muted', value: translate('HealthNone') };
 }
 
+// All up: ok. The others only unread (their environment cannot be reached): a warning, not an alarm. Any other missing one: bad.
+function upTone(up: number, unread: number, total: number): Tone {
+  if (up === total) {
+    return 'ok';
+  }
+  return up + unread === total ? 'warn' : 'bad';
+}
+
 /** Container state and healthcheck, like Portainer (D-45); several workloads are counted. */
 export default function WorkloadSummary({ workloads }: Readonly<WorkloadSummaryProps>) {
   if (workloads.length === 0) {
@@ -72,7 +92,7 @@ export default function WorkloadSummary({ workloads }: Readonly<WorkloadSummaryP
         <SummaryLine
           icon={container ? icons.CONTAINER : icons.DEPLOYMENT}
           label={translate(container ? 'Container' : 'Deployment')}
-          title={only.statusText ?? undefined}
+          title={only.statusText ?? (isUnread(only) ? only.status.reason : undefined)}
           tone={stateTone(only)}
           value={stateText(only)}
         />
@@ -89,6 +109,7 @@ export default function WorkloadSummary({ workloads }: Readonly<WorkloadSummaryP
   }
 
   const up = workloads.filter((w) => stateTone(w) === 'ok').length;
+  const unread = workloads.filter(isUnread).length;
   const health = healthSummary(workloads);
   const details = workloads.map(describe).join('\n');
 
@@ -97,8 +118,8 @@ export default function WorkloadSummary({ workloads }: Readonly<WorkloadSummaryP
       <SummaryLine
         icon={icons.CONTAINER}
         label={translate('Containers')}
-        tone={up === workloads.length ? 'ok' : 'bad'}
-        value={translate('ContainersUp', { up, total: workloads.length })}
+        tone={upTone(up, unread, workloads.length)}
+        value={translate(unread > 0 ? 'ContainersUpUnread' : 'ContainersUp', { up, total: workloads.length, unread })}
       />
       <SummaryLine icon={icons.HEALTHCHECK} label={translate('Healthcheck')} tone={health.tone} value={health.value} />
     </div>
