@@ -30,7 +30,7 @@ describe('InfrastructureIndex', () => {
   });
 
   it('shows the age of the last sample, live or stale', async () => {
-    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'], shouldAdvanceTime: true });
     vi.setSystemTime(new Date('2026-01-01T12:00:02Z'));
     try {
       renderWithProviders(<InfrastructureIndex />);
@@ -108,18 +108,12 @@ describe('InfrastructureIndex', () => {
       ).toHaveLength(4);
     });
 
-    it('shows the memory ring', async () => {
-      const card = await renderHostAgentCard();
-
-      const memory = within(card).getByRole('region', { name: 'Memory' });
-      expect(within(memory).getByRole('img', { name: /Memory of Server 1/ })).toBeInTheDocument();
-    });
-
-    it('stacks CPU, then memory, then swap', async () => {
+    it('stacks CPU, then memory with its ring, then swap', async () => {
       const card = await renderHostAgentCard();
 
       const cpu = within(card).getByRole('region', { name: 'CPU' });
       const memory = within(card).getByRole('region', { name: 'Memory' });
+      expect(within(memory).getByRole('img', { name: /Memory of Server 1/ })).toBeInTheDocument();
       expect(cpu.compareDocumentPosition(memory) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(
         memory.compareDocumentPosition(within(card).getByText('Swap')) & Node.DOCUMENT_POSITION_FOLLOWING,

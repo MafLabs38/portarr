@@ -117,7 +117,7 @@ public sealed class CheckSchedulerFixture : CoreTest<CheckScheduler>
     }
 
     [Fact]
-    public async Task should_probe_at_most_six_checks_at_a_time()
+    public async Task should_cap_the_concurrent_probes()
     {
         _apps.Clear();
         _apps.AddRange(Enumerable.Range(1, 10).Select(n => $"app-{n}"));
@@ -150,6 +150,10 @@ public sealed class CheckSchedulerFixture : CoreTest<CheckScheduler>
 
         var run = Subject.RunDueAsync(TestContext.Current.CancellationToken);
         await sixRunning.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        // A probe over the cap would start right now: a test that nothing happens needs a window. It can only let a broken cap
+        // pass by luck, never fail a good one.
+        await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
         gate.SetResult();
         await run;
 

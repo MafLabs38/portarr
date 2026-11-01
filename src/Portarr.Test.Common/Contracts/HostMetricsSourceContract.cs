@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Portarr.Core.Catalog;
 using Portarr.Core.Infrastructure;
+using Portarr.Core.Workloads;
 using Xunit;
 
 namespace Portarr.Test.Common.Contracts;
@@ -103,7 +104,10 @@ public abstract class HostMetricsSourceContract
 
         var read = () => harness.Source.ReadAsync(harness.Target, TestContext.Current.CancellationToken);
 
-        await read.Should().ThrowAsync<HttpRequestException>("the monitor handles a refused or timed-out read, not any exception");
+        var failure = await Record.ExceptionAsync(read);
+
+        failure.Should().NotBeNull();
+        ReasonCodes.From(failure!).Should().Be(ReasonCodes.Unreachable, "an unreachable agent is reported as such, not as an invalid answer");
     }
 
     [Fact]

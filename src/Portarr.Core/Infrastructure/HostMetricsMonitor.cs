@@ -67,6 +67,8 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
     public async IAsyncEnumerable<HostMetricsView> WatchAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var channel = Channel.CreateBounded<HostMetricsView>(new BoundedChannelOptions(SubscriberBuffer) { FullMode = BoundedChannelFullMode.DropOldest, SingleReader = true });
+
+        // The subscription is registered when the first MoveNextAsync starts, before any wait: the tests rely on it.
         lock (_gate)
         {
             _subscribers.Add(channel);
@@ -104,19 +106,26 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(Interval, _timeProvider);
-        do
+        try
         {
-            try
+            do
             {
-                StartDueReads(stoppingToken);
+                try
+                {
+                    StartDueReads(stoppingToken);
+                }
+                catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
+                {
+                    // A failed tick must never end the service (and with it the host).
+                    LogTickFailed(exception);
+                }
             }
-            catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
-            {
-                // A failed tick must never end the service (and with it the host).
-                LogTickFailed(exception);
-            }
+            while (await timer.WaitForNextTickAsync(stoppingToken));
         }
-        while (await timer.WaitForNextTickAsync(stoppingToken));
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Stopped: the loop ends quietly, the host does not take it for a crash.
+        }
     }
 
     /// <summary>The machines whose host agent is declared, with where to read it.</summary>

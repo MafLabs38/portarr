@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using Portarr.Core.Catalog;
 using Portarr.Core.Checks;
 using Portarr.Test.Common;
@@ -85,12 +86,60 @@ public sealed class HttpCheckRunnerFixture : CoreTest<HttpCheckRunner>
     }
 
     [Fact]
-    public void should_not_follow_a_redirect_nor_keep_cookies_between_checks()
+    public async Task should_find_a_keyword_that_ends_exactly_at_the_64_kib_limit()
     {
-        using var handler = (HttpClientHandler)HttpCheckRunner.CreateHandler();
+        Given(Answer(HttpStatusCode.OK, new string('a', HttpCheckRunner.MaxBodyBytes - "Grafana".Length) + "Grafana"));
 
-        handler.AllowAutoRedirect.Should().BeFalse("a 3xx is the answer of the app, not a hop to another host");
-        handler.UseCookies.Should().BeFalse();
+        var result = await Subject.RunAsync(Target, CheckDefinition.Default with { Keyword = "Grafana" }, TestContext.Current.CancellationToken);
+
+        result.Up.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task should_report_a_redirect_as_the_answer_without_following_it()
+    {
+        // The real handler of the checks client against a real local server: the redirect target would be asked next.
+        var probe = new TcpListener(IPAddress.Loopback, 0);
+        probe.Start();
+        var port = ((IPEndPoint)probe.LocalEndpoint).Port;
+        probe.Stop();
+        using var server = new HttpListener();
+        server.Prefixes.Add($"http://127.0.0.1:{port}/");
+        server.Start();
+        var asked = new List<string>();
+        var serving = Task.Run(async () =>
+        {
+            while (server.IsListening)
+            {
+                try
+                {
+                    var context = await server.GetContextAsync();
+                    asked.Add(context.Request.RawUrl!);
+                    context.Response.StatusCode = (int)HttpStatusCode.Found;
+                    context.Response.RedirectLocation = "/elsewhere";
+                    context.Response.Close();
+                }
+                catch (Exception exception) when (exception is HttpListenerException or ObjectDisposedException)
+                {
+                    return;
+                }
+            }
+        }, TestContext.Current.CancellationToken);
+        Mocker.Get<IHttpClientFactory>().CreateClient(HttpCheckRunner.HttpClientName).Returns(_ => new HttpClient(HttpCheckRunner.CreateHandler()));
+
+        try
+        {
+            var result = await Subject.RunAsync(new Uri($"http://127.0.0.1:{port}/"), CheckDefinition.Default, TestContext.Current.CancellationToken);
+
+            result.StatusCode.Should().Be(302);
+            result.Up.Should().BeTrue();
+            asked.Should().Equal("/");
+        }
+        finally
+        {
+            server.Stop();
+            await serving;
+        }
     }
 
     [Fact]

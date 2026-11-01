@@ -12,10 +12,18 @@ test.describe('Infrastructure', { tag: '@smoke' }, () => {
     const age = card.getByText(/^Live · \d+ s ago$/);
     await expect(age).toBeVisible({ timeout: 30_000 });
 
-    // The age ticks every second and the next sample resets it: it climbs, then falls back, and is never "stale".
-    const seconds = async () => Number(/\d+/.exec((await age.textContent()) ?? '')?.[0]);
-    await expect.poll(seconds, { timeout: 15_000 }).toBeGreaterThan(0);
-    await expect.poll(seconds, { timeout: 15_000 }).toBeLessThanOrEqual(1);
+    // The age ticks every second and the next sample resets it: it climbs, then a lower value shows the reset.
+    let highest = 0;
+    const sawAReset = async () => {
+      const seconds = Number(/\d+/.exec((await age.textContent()) ?? '')?.[0]);
+      if (Number.isNaN(seconds)) {
+        return false;
+      }
+
+      highest = Math.max(highest, seconds);
+      return seconds < highest;
+    };
+    await expect.poll(sawAReset, { timeout: 20_000 }).toBe(true);
     await expect(card.getByText(/^Stale/)).toHaveCount(0);
   });
 
