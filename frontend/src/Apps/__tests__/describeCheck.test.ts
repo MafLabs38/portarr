@@ -33,12 +33,23 @@ describe('describeCheck', () => {
     expect(describeCheck(result({ up: false, error }), now)).toEqual({ text, tone: 'bad' });
   });
 
-  it('warns about a certificate expiring within 14 days, before the latency', () => {
-    expect(describeCheck(result({ certificateExpiresAt: inDays(6.5) }), now)).toEqual({
-      text: 'Certificate expires in 6 days',
-      tone: 'warn',
-    });
-    expect(describeCheck(result({ certificateExpiresAt: inDays(30) }), now).text).toBe('200 · 140 ms');
+  it('warns about a certificate the server says is expiring, before the latency', () => {
+    expect(
+      describeCheck(result({ certificateExpiresAt: inDays(6.5) }), now, { status: 'Degraded', reason: 'expiring' }),
+    ).toEqual({ text: 'Certificate expires in 6 days', tone: 'warn' });
+    expect(
+      describeCheck(result({ certificateExpiresAt: inDays(30) }), now, { status: 'Healthy', reason: '' }).text,
+    ).toBe('200 · 140 ms');
+  });
+
+  it('does not decide by itself that a certificate is near its expiry', () => {
+    expect(describeCheck(result({ certificateExpiresAt: inDays(6.5) }), now).text).toBe('200 · 140 ms');
+  });
+
+  it('shows an expired certificate as a failure when the server says the app is down', () => {
+    expect(
+      describeCheck(result({ certificateExpiresAt: inDays(-2) }), now, { status: 'Down', reason: 'expired' }),
+    ).toEqual({ text: 'Certificate expired', tone: 'bad' });
   });
 
   it('says a check has not run yet', () => {

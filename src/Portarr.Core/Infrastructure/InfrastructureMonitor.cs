@@ -20,7 +20,7 @@ public sealed record GuestMachine(
     string EnvironmentId,
     string MachineId,
     string Name,
-    MachineKind? Kind,
+    string? Kind,
     double? CpuCapacityCores,
     long? MemoryCapacityBytes,
     double? CpuCores,

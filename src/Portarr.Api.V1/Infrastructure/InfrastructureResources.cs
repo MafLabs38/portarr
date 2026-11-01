@@ -100,8 +100,6 @@ public sealed record InfrastructureEnvironmentResource(
 
 public static class InfrastructureResourceMapper
 {
-    public static string ToResource(this MachineKind kind) => kind == MachineKind.DockerHost ? "docker-host" : "kubernetes-node";
-
     public static string ToResource(this UsageScope scope) => scope == UsageScope.Containers ? "containers" : "host";
 
     /// <summary>A host agent's view; <paramref name="withHistory"/> false for the live stream (one point at a time).</summary>

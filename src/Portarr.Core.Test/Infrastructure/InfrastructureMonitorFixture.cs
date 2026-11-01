@@ -10,7 +10,7 @@ namespace Portarr.Core.Test.Infrastructure;
 public sealed class InfrastructureMonitorFixture
 {
     private static readonly CatalogEnvironment Server = TestEnvironments.DockerHost("server-1", "Server 1");
-    private static readonly MachineSample Machine = new("server-1", "Server 1", MachineKind.DockerHost, 8, 16_000_000_000, 1.5, 4_000_000_000, UsageScope.Containers);
+    private static readonly MachineSample Machine = new("server-1", "Server 1", "docker-host", 8, 16_000_000_000, 1.5, 4_000_000_000, UsageScope.Containers);
 
     private readonly IInfrastructureSource _source = Substitute.For<IInfrastructureSource>();
     private readonly IWorkloadInventory _inventory = Substitute.For<IWorkloadInventory>();
@@ -75,14 +75,14 @@ public sealed class InfrastructureMonitorFixture
         var cluster = TestEnvironments.Cluster("cluster", "Cluster", new Dictionary<string, string> { ["node-1"] = "hypervisor" });
         _inventory.Current.Returns(new[] { hypervisor, vm, cluster }.ToDictionary(e => e.Id, e => new EnvironmentInventory(e.Id, true, null, [], _clock.GetUtcNow())));
         _source.SampleAsync(hypervisor, Arg.Any<IReadOnlyList<Workload>>(), Arg.Any<CancellationToken>())
-            .Returns(new InfrastructureSample([new MachineSample("hypervisor", "Hypervisor", MachineKind.DockerHost, 8, 64_000_000_000, 0.5, 8_000_000_000, UsageScope.Containers)], []));
+            .Returns(new InfrastructureSample([new MachineSample("hypervisor", "Hypervisor", "docker-host", 8, 64_000_000_000, 0.5, 8_000_000_000, UsageScope.Containers)], []));
         _source.SampleAsync(vm, Arg.Any<IReadOnlyList<Workload>>(), Arg.Any<CancellationToken>())
-            .Returns(new InfrastructureSample([new MachineSample("vm-1", "VM 1", MachineKind.DockerHost, 4, 12_000_000_000, 0.25, 1_000_000_000, UsageScope.Containers)], []));
+            .Returns(new InfrastructureSample([new MachineSample("vm-1", "VM 1", "docker-host", 4, 12_000_000_000, 0.25, 1_000_000_000, UsageScope.Containers)], []));
         _source.SampleAsync(cluster, Arg.Any<IReadOnlyList<Workload>>(), Arg.Any<CancellationToken>())
             .Returns(new InfrastructureSample(
                 [
-                    new MachineSample("node-1", "node-1", MachineKind.KubernetesNode, 4, 20_000_000_000, 0.75, 4_000_000_000, UsageScope.Host),
-                    new MachineSample("node-2", "node-2", MachineKind.KubernetesNode, 4, 8_000_000_000, 0.1, 1_000_000_000, UsageScope.Host),
+                    new MachineSample("node-1", "node-1", "kubernetes-node", 4, 20_000_000_000, 0.75, 4_000_000_000, UsageScope.Host),
+                    new MachineSample("node-2", "node-2", "kubernetes-node", 4, 8_000_000_000, 0.1, 1_000_000_000, UsageScope.Host),
                 ],
                 []));
         var subject = Subject(hypervisor, vm, cluster);
@@ -96,8 +96,8 @@ public sealed class InfrastructureMonitorFixture
         host.HostEnvironmentId.Should().BeNull();
         host.Guests.Should().BeEquivalentTo(
         [
-            new GuestMachine("vm-1", "vm-1", "VM 1", MachineKind.DockerHost, 4, 12_000_000_000, 0.25, UsageScope.Containers),
-            new GuestMachine("cluster", "node-1", "node-1", MachineKind.KubernetesNode, 4, 20_000_000_000, 0.75, UsageScope.Host),
+            new GuestMachine("vm-1", "vm-1", "VM 1", "docker-host", 4, 12_000_000_000, 0.25, UsageScope.Containers),
+            new GuestMachine("cluster", "node-1", "node-1", "kubernetes-node", 4, 20_000_000_000, 0.75, UsageScope.Host),
         ]);
         host.History[^1].GuestCpuCores.Should().Be(1.0);
         subject.Current["vm-1"].Machines[0].HostEnvironmentId.Should().Be("hypervisor");

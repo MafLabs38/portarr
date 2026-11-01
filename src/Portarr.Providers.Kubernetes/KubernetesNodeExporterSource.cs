@@ -39,7 +39,7 @@ public sealed class KubernetesNodeExporterSource : IHostMetricsSource
 
     public bool Supports(HostMetricsTarget target)
     {
-        return target.Url is null && target.ApiServerPort is not null && target.Environment.Kubernetes() is not null;
+        return target.Url is null && target.Route is PodProxyRoute && target.Environment.Kubernetes() is not null;
     }
 
     public async Task<HostReading> ReadAsync(HostMetricsTarget target, CancellationToken cancellationToken)
@@ -66,7 +66,7 @@ public sealed class KubernetesNodeExporterSource : IHostMetricsSource
     {
         try
         {
-            using var response = await _client.GetResponseAsync(cluster, ProxyPath(exporter.Namespace, pod, target.ApiServerPort), "text/plain", cancellationToken);
+            using var response = await _client.GetResponseAsync(cluster, ProxyPath(exporter.Namespace, pod, ((PodProxyRoute)target.Route!).Port), "text/plain", cancellationToken);
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             return await _sampler.ReadAsync(target.Key, stream, cancellationToken);
         }

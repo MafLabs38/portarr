@@ -19,7 +19,7 @@ export default function CheckSummary({ check, now }: Readonly<CheckSummaryProps>
     return <SummaryLine icon={icons.HTTP_CHECK} label={label} tone="muted" value={translate('NotMonitored')} />;
   }
 
-  const { text, tone } = describeCheck(check.latest, now);
+  const { text, tone } = describeCheck(check.latest, now, check.status);
   // A non-critical check only degrades its app: warning color, not danger.
   const shownTone = tone === 'bad' && !check.critical ? 'warn' : tone;
 

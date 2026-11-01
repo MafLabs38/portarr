@@ -29,7 +29,7 @@ public sealed class KubernetesNodeExporterSourceFixture
         null,
         NodeExporter: new KubernetesNodeExporter(9100, NodeExporterAccess.ApiServer)));
 
-    private static readonly HostMetricsTarget Target = new(Environment, "worker", null, 9100);
+    private static readonly HostMetricsTarget Target = new(Environment, "worker", null, new PodProxyRoute(9100));
 
     // Never read nor written: no environment of these tests names a file next to the catalog. A folder nobody creates, so a
     // future test that makes the client read one fails loudly.
@@ -53,7 +53,7 @@ public sealed class KubernetesNodeExporterSourceFixture
 
         var targets = Source().TargetsOf(environment, metrics);
 
-        targets.Select(t => (t.MachineId, t.Url?.ToString(), t.ApiServerPort, t.ConfigurationError)).Should().Equal(
+        targets.Select(t => (t.MachineId, t.Url?.ToString(), (t.Route as PodProxyRoute)?.Port, t.ConfigurationError)).Should().Equal(
             ("home", "http://10.0.0.21:9100/metrics", null, null),
             ("behind-tunnel", null, 9100, null),
             ("elsewhere", "http://10.0.0.30:9100/metrics", null, null),
@@ -70,7 +70,7 @@ public sealed class KubernetesNodeExporterSourceFixture
     }
 
     private static MachineView Node(string name, string? address) =>
-        new(new MachineSample(name, name, MachineKind.KubernetesNode, 4, 8_000, null, null, UsageScope.Host, Address: address), []);
+        new(new MachineSample(name, name, "kubernetes-node", 4, 8_000, null, null, UsageScope.Host, Address: address), []);
 
     [Fact]
     public async Task should_find_the_running_pod_of_the_node_and_read_it_through_the_pod_proxy()
@@ -173,7 +173,7 @@ public sealed class KubernetesNodeExporterSourceFixture
     public async Task should_use_the_namespace_and_selector_of_the_catalog_and_skip_terminating_pods()
     {
         var exporter = new KubernetesNodeExporter(9101, NodeExporterAccess.ApiServer, Namespace: "ops", Selector: "app=exporter");
-        var target = Target with { Environment = Environment.Replace(Environment.Kubernetes()! with { NodeExporter = exporter }), ApiServerPort = 9101 };
+        var target = Target with { Environment = Environment.Replace(Environment.Kubernetes()! with { NodeExporter = exporter }), Route = new PodProxyRoute(9101) };
         _responses["/api/v1/namespaces/ops/pods?labelSelector=app%3Dexporter&fieldSelector=spec.nodeName%3Dworker%2Cstatus.phase%3DRunning"] = (HttpStatusCode.OK, """
             { "items": [
               { "metadata": { "name": "ne-a", "deletionTimestamp": "2026-01-31T11:59:00Z" } },
@@ -192,7 +192,7 @@ public sealed class KubernetesNodeExporterSourceFixture
         var source = Source();
 
         source.Supports(Target).Should().BeTrue();
-        source.Supports(Target with { ApiServerPort = null }).Should().BeFalse();
+        source.Supports(Target with { Route = null }).Should().BeFalse();
         source.Supports(Target with { Url = new Uri("http://10.0.0.11:9100/metrics") }).Should().BeFalse();
     }
 

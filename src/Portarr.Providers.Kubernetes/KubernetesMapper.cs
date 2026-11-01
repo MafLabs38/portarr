@@ -8,6 +8,9 @@ namespace Portarr.Providers.Kubernetes;
 /// <summary>Pods as workloads, nodes as machines (D-55).</summary>
 internal static partial class KubernetesMapper
 {
+    /// <summary>What a node is called on the dashboard.</summary>
+    public const string NodeKind = "kubernetes-node";
+
     private const string NodeRolePrefix = "node-role.kubernetes.io/";
 
     /// <summary>Waiting reasons of a container that keeps failing rather than starting.</summary>
@@ -173,7 +176,7 @@ internal static partial class KubernetesMapper
         return new MachineSample(
             node.Metadata.Name,
             node.Metadata.Name,
-            MachineKind.KubernetesNode,
+            NodeKind,
             KubernetesQuantity.Cores(node.Status?.Capacity),
             KubernetesQuantity.Bytes(node.Status?.Capacity),
             KubernetesQuantity.Cores(metrics?.Usage),

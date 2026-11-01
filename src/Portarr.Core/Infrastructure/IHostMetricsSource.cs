@@ -34,11 +34,11 @@ public interface IHostMetricsSource
 public readonly record struct HostMachineKey(string EnvironmentId, string MachineId);
 
 /// <summary>
-/// Where a machine's host agent is read: <c>Url</c> directly, or, when null, through the Kubernetes API
-/// server's pod proxy to the node_exporter pod of the node, on <c>ApiServerPort</c>
-/// (<c>/api/v1/namespaces/&lt;ns&gt;/pods/&lt;pod&gt;:&lt;port&gt;/proxy/metrics</c>).
+/// Where a machine's host agent is read: <c>Url</c> directly, or, when null, by the <c>Route</c> its connector gave (a Kubernetes
+/// node's exporter is reached through the API server's pod proxy: Core does not know what a route holds). <c>ConfigurationError</c>
+/// is a reason code when the machine cannot be read as declared.
 /// </summary>
-public sealed record HostMetricsTarget(CatalogEnvironment Environment, string MachineId, Uri? Url, int? ApiServerPort = null, string? ConfigurationError = null)
+public sealed record HostMetricsTarget(CatalogEnvironment Environment, string MachineId, Uri? Url, object? Route = null, string? ConfigurationError = null)
 {
     public HostMachineKey Key => new(Environment.Id, MachineId);
 }
