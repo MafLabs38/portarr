@@ -24,7 +24,7 @@ public sealed class TestDatabase : IAsyncLifetime
     {
         if (Type == DatabaseType.Postgres)
         {
-            _postgres = new PostgreSqlBuilder("postgres:17-alpine").Build();
+            _postgres = new PostgreSqlBuilder("postgres:17-alpine").WithCommand("-c", "max_connections=500").Build();
             await _postgres.StartAsync();
         }
     }

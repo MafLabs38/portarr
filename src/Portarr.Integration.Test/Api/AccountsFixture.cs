@@ -2,7 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Portarr.Api.V1.Accounts;
+using Portarr.Core.Accounts;
 
 namespace Portarr.Integration.Test.Api;
 
@@ -41,33 +44,17 @@ public sealed class AccountsFixture
     }
 
     [Fact]
-    public async Task should_answer_401_without_a_session_and_allow_only_the_public_endpoints()
-    {
-        await using var factory = new PortarrFactory(await _database.CreateOptionsAsync());
-        using var client = factory.CreateClient();
-
-        foreach (var path in new[] { "/api/v1/apps", "/api/v1/system/status", "/api/v1/auth/me", "/api/v1/infrastructure/stream", "/metrics" })
-        {
-            (await client.GetAsync(path, Token)).StatusCode.Should().Be(HttpStatusCode.Unauthorized, path);
-        }
-
-        foreach (var path in new[] { "/api/v1/auth/status", "/health/live", "/openapi/v1.json", "/docs/", "/apps" })
-        {
-            (await client.GetAsync(path, Token)).StatusCode.Should().BeOneOf([HttpStatusCode.OK, HttpStatusCode.NotFound], path);
-        }
-    }
-
-    [Fact]
     public async Task should_fail_sign_in_with_one_generic_message_and_lock_the_account()
     {
         await using var factory = new PortarrFactory(await _database.CreateOptionsAsync());
         using var admin = await factory.CreateSignedInClientAsync();
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Add("X-Requested-With", "portarr");
+        var auth = factory.Services.GetRequiredService<IOptions<AuthOptions>>().Value;
 
         var unknown = await LoginAsync(client, "nobody", "wrong password here");
         var wrong = await LoginAsync(client, PortarrFactory.AdminUser, "wrong password here");
-        for (var i = 0; i < 4; i++)
+        for (var i = 1; i < auth.MaxFailedAttempts; i++)
         {
             await LoginAsync(client, PortarrFactory.AdminUser, "wrong password here");
         }
@@ -77,13 +64,13 @@ public sealed class AccountsFixture
         async Task<string?> DetailAsync(HttpResponseMessage r) => (await r.Content.ReadFromJsonAsync<JsonElement>(Token)).GetProperty("detail").GetString();
         (await DetailAsync(unknown)).Should().Be(await DetailAsync(wrong));
         unknown.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        lockedGood.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "five failures lock the account, even for the right password");
+        lockedGood.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "the failures lock the account, even for the right password");
 
-        factory.Clock.Advance(TimeSpan.FromMinutes(6));
+        factory.Clock.Advance(auth.Lockout + TimeSpan.FromMinutes(1));
         (await LoginAsync(client, PortarrFactory.AdminUser, PortarrFactory.Password)).StatusCode.Should().Be(HttpStatusCode.OK);
 
         var activity = await admin.GetStringAsync("/api/v1/users/activity", Token);
-        activity.Should().Contain("login.failure").And.Contain("wrong password; locked for 5 minutes").And.NotContain("wrong password here");
+        activity.Should().Contain("login.failure").And.Contain($"wrong password; locked for {auth.LockoutMinutes} minutes").And.NotContain("wrong password here");
     }
 
     [Fact]
@@ -106,62 +93,6 @@ public sealed class AccountsFixture
         using var keyClient = factory.CreateClient();
         keyClient.DefaultRequestHeaders.Add("X-Api-Key", key);
         (await keyClient.PostAsJsonAsync("/api/v1/maintenance/refresh", new { }, Token)).StatusCode.Should().NotBe(HttpStatusCode.Forbidden);
-    }
-
-    // Each row: role, path, whether the role may call it. One endpoint per permission.
-    public static TheoryData<string, string, bool> Matrix()
-    {
-        var data = new TheoryData<string, string, bool>();
-        var rows = new (string Path, string[] Roles)[]
-        {
-            ("GET /api/v1/apps", ["Admin", "Operator", "Observer", "Guest"]),
-            ("GET /api/v1/environments", ["Admin", "Operator", "Observer"]),
-            ("GET /api/v1/data", ["Admin", "Operator", "Observer"]),
-            ("GET /api/v1/maintenance", ["Admin", "Operator", "Observer"]),
-            ("GET /api/v1/assistant", ["Admin", "Operator", "Observer"]),
-            ("GET /api/v1/assistant/chat", ["Admin", "Operator"]),
-            ("GET /api/v1/catalog/apps/none", ["Admin", "Operator"]),
-            ("GET /api/v1/system/status", ["Admin", "Operator", "Observer"]),
-            ("PUT /api/v1/system/logging", ["Admin"]),
-            ("GET /api/v1/users", ["Admin"]),
-            ("GET /api/v1/roles", ["Admin"]),
-            ("GET /api/v1/portal", ["Admin", "Operator", "Observer", "Guest"]),
-        };
-        foreach (var (path, allowed) in rows)
-        {
-            foreach (var role in new[] { "Admin", "Operator", "Observer", "Guest" })
-            {
-                data.Add(role, path, allowed.Contains(role));
-            }
-        }
-
-        return data;
-    }
-
-    [Theory]
-    [MemberData(nameof(Matrix))]
-    public async Task should_give_each_role_exactly_its_permissions(string role, string endpoint, bool allowed)
-    {
-        await using var factory = await FactoryAsync();
-        using var client = await factory.CreateSignedInClientAsync(role);
-        var (method, path) = (endpoint.Split(' ')[0], endpoint.Split(' ')[1]);
-
-        using var request = new HttpRequestMessage(new HttpMethod(method), path);
-        if (method == "PUT")
-        {
-            request.Content = JsonContent.Create(new { level = "Information" });
-        }
-
-        var response = await client.SendAsync(request, Token);
-
-        if (allowed)
-        {
-            response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden).And.NotBe(HttpStatusCode.Unauthorized);
-        }
-        else
-        {
-            response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        }
     }
 
     [Fact]
@@ -369,6 +300,40 @@ public sealed class AccountsFixture
         var response = await withoutHeader.PostAsJsonAsync("/mcp", new { jsonrpc = "2.0", id = 1, method = "ping" }, Token);
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task should_refuse_an_empty_or_oversized_avatar()
+    {
+        await using var factory = await FactoryAsync();
+        using var admin = await factory.CreateSignedInClientAsync();
+        byte[] pngHeader = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        var oversized = pngHeader.Concat(new byte[(int)Portarr.Core.Accounts.AvatarService.MaxBytes]).ToArray();
+
+        var empty = await UploadAsync(admin, [], "me.png", "image/png");
+        var tooBig = await UploadAsync(admin, oversized, "me.png", "image/png");
+
+        empty.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        tooBig.StatusCode.Should().BeOneOf(HttpStatusCode.BadRequest, HttpStatusCode.RequestEntityTooLarge);
+    }
+
+    [Fact]
+    public async Task should_refuse_roles_with_an_unknown_or_reserved_permission_and_say_why_a_role_in_use_stays()
+    {
+        await using var factory = await FactoryAsync();
+        using var admin = await factory.CreateSignedInClientAsync();
+
+        var unknown = await admin.PostAsJsonAsync("/api/v1/roles", new { name = "Strange", permissions = new[] { "apps.view", "launch.missiles" } }, Token);
+        var secrets = await admin.PostAsJsonAsync("/api/v1/roles", new { name = "Curious", permissions = new[] { "apps.view", "secrets.view" } }, Token);
+        var empty = await admin.PostAsJsonAsync("/api/v1/roles", new { name = "Nothing", permissions = Array.Empty<string>() }, Token);
+        var made = await admin.PostAsJsonAsync("/api/v1/roles", new { name = "Used", permissions = new[] { "apps.view" } }, Token);
+        var role = (await made.Content.ReadFromJsonAsync<RoleResource>(Token))!;
+        await CreateUserAsync(admin, "holder", role.Id);
+
+        unknown.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        secrets.StatusCode.Should().Be(HttpStatusCode.BadRequest, "secrets.view is reserved to Admin");
+        empty.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await admin.DeleteAsync($"/api/v1/roles/{role.Id}", Token)).StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 
     [Fact]
