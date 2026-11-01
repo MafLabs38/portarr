@@ -54,6 +54,8 @@ public sealed class StandInKubernetesConnector : IEnvironmentConnector
 
     public bool SingleMachine => false;
 
+    public WorkloadMatchFields MatchFields => WorkloadMatchFields.All;
+
     public EnvironmentConnectorResult? Parse(EnvironmentSectionContext context)
     {
         return context.Read<Document>() is { } document ? new EnvironmentConnectorResult(new object(), document.NodeHosts is { Count: > 0 } ? document.NodeHosts : null) : null;

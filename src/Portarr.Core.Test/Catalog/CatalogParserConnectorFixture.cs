@@ -152,6 +152,44 @@ public sealed class CatalogParserConnectorFixture
         parsed.Errors.Should().ContainSingle().Which.Should().Contain("a docker environment cannot declare edge");
     }
 
+    private sealed class LabelledRuntime : IEnvironmentConnector
+    {
+        public string Section => "edge";
+
+        public bool IsRuntime => true;
+
+        public bool SingleMachine => false;
+
+        public WorkloadMatchFields MatchFields => WorkloadMatchFields.All;
+
+        public EnvironmentConnectorResult? Parse(EnvironmentSectionContext context) => new(new object());
+    }
+
+    [Fact]
+    public void should_select_the_workloads_of_a_runtime_with_the_fields_its_connector_declares()
+    {
+        const string Yaml = """
+            environments:
+              - { id: edge-1, edge: {} }
+              - { id: host, docker: { url: "http://10.0.0.10:2375" } }
+            apps:
+              - { id: shop, workloads: [{ runtime: edge@edge-1, match: { app: shop } }] }
+              - { id: web, workloads: [{ runtime: docker@host, match: { name: web, app: web } }] }
+            """;
+
+        var parsed = TestCatalog.Parse(Yaml, new LabelledRuntime());
+
+        parsed.Errors.Should().ContainSingle().Which.Should().Contain("only apply to edge or kubernetes workloads");
+    }
+
+    [Fact]
+    public void should_name_the_runtimes_a_workload_can_be_selected_on()
+    {
+        var parsed = TestCatalog.Parse("environments:\n  - { id: edge-1, edge: {} }\napps:\n  - { id: shop, workloads: [{ runtime: nomad@edge-1, match: { name: shop } }] }\n", new LabelledRuntime());
+
+        parsed.Errors.Should().ContainSingle().Which.Should().Contain("must be cloudflare@<environment id>, docker@<environment id>, edge@<environment id> or kubernetes@<environment id>");
+    }
+
     [Fact]
     public void should_check_the_hosts_a_connector_gives_like_any_other_host()
     {

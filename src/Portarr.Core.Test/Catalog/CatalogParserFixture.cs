@@ -107,7 +107,7 @@ public sealed class CatalogParserFixture
     [InlineData("apps:\n  - id: a\n    type: game", "type must be web, desktop or service")]
     [InlineData("apps:\n  - id: a\n    urls: [{ href: \"ftp://x\" }]", "must be an absolute http(s) URL")]
     [InlineData("apps:\n  - id: a\n    workloads: [{ runtime: docker@ghost, match: { name: a } }]", "environment 'ghost' is not declared")]
-    [InlineData("apps:\n  - id: a\n    workloads: [{ runtime: podman@x }]", "must be docker@<environment id>")]
+    [InlineData("apps:\n  - id: a\n    workloads: [{ runtime: podman@x }]", "must be cloudflare@<environment id>, docker@<environment id> or kubernetes@<environment id>")]
     [InlineData("stacks:\n  - id: s\n    members: [{ app: ghost }]", "member 'ghost' is not a declared app")]
     [InlineData("apps:\n  - id: a\n    colour: red", "colour")]
     [InlineData("apps: [", "Invalid YAML")]

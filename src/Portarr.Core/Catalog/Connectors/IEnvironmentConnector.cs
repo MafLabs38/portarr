@@ -4,6 +4,19 @@ using YamlDotNet.Serialization;
 
 namespace Portarr.Core.Catalog;
 
+/// <summary>How an app selects the workloads of a runtime (D-56): by name only, or also by namespace, <c>app</c> label and name prefix.</summary>
+[Flags]
+public enum WorkloadMatchFields
+{
+    Name = 1,
+    Namespace = 2,
+    App = 4,
+    NamePrefix = 8,
+
+    /// <summary>What a Kubernetes cluster accepts: its pods are found by labels and prefixes, not only by name.</summary>
+    All = Name | Namespace | App | NamePrefix,
+}
+
 /// <summary>
 /// A connector's side of the catalog (D-105): the section of an environment it owns (<c>backrest:</c>), read and validated by
 /// the connector's own library. Core never looks inside what <see cref="Parse"/> returns; the connector reads it back with an
@@ -25,6 +38,9 @@ public interface IEnvironmentConnector
     /// or an account. Meaningful for a runtime only.
     /// </summary>
     bool SingleMachine => true;
+
+    /// <summary>The fields an app can select this runtime's workloads with. A container or a Pages project is found by its name only.</summary>
+    WorkloadMatchFields MatchFields => WorkloadMatchFields.Name;
 
     /// <summary>Validates the section and returns its typed settings, or null after adding the errors to the context.</summary>
     EnvironmentConnectorResult? Parse(EnvironmentSectionContext context);
