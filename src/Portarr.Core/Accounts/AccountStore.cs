@@ -185,11 +185,27 @@ internal sealed class AccountStore
     public Task SetDisplayNameAsync(int id, string displayName, CancellationToken cancellationToken) =>
         ExecuteAsync("""UPDATE "Users" SET "DisplayName" = @displayName WHERE "Id" = @id""", new { id, displayName }, cancellationToken);
 
-    public Task SetPasswordAsync(int id, string passwordHash, string stamp, CancellationToken cancellationToken) =>
-        ExecuteAsync(
+    /// <summary>
+    /// Stores a new password, which ends the user's sessions (new stamp) and also revokes their API keys and chat tokens: a
+    /// password changed because it leaked must not leave a key that outlives it.
+    /// </summary>
+    public async Task SetPasswordAsync(int id, string passwordHash, string stamp, string revokedAt, CancellationToken cancellationToken)
+    {
+        await using var connection = await _database.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await connection.ExecuteAsync(new CommandDefinition(
             """UPDATE "Users" SET "PasswordHash" = @passwordHash, "SecurityStamp" = @stamp, "FailedAttempts" = 0, "LockoutEnd" = NULL WHERE "Id" = @id""",
             new { id, passwordHash, stamp },
-            cancellationToken);
+            transaction,
+            cancellationToken: cancellationToken));
+        await connection.ExecuteAsync(new CommandDefinition(
+            """UPDATE "ApiKeys" SET "Revoked" = @revokedAt WHERE "UserId" = @id AND "Revoked" IS NULL""",
+            new { id, revokedAt },
+            transaction,
+            cancellationToken: cancellationToken));
+        await connection.ExecuteAsync(new CommandDefinition("""DELETE FROM "ChatTokens" WHERE "UserId" = @id""", new { id }, transaction, cancellationToken: cancellationToken));
+        await transaction.CommitAsync(cancellationToken);
+    }
 
     /// <summary>Stores a hash computed with newer parameters; the session stays valid.</summary>
     public Task SetPasswordHashOnlyAsync(int id, string passwordHash, CancellationToken cancellationToken) =>

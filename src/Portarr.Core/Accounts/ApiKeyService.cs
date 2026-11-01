@@ -25,6 +25,9 @@ public interface IApiKeyService
     /// <summary>Revokes one of the actor's own keys.</summary>
     Task<AccountResult<ApiKeyInfo>> RevokeAsync(AccountActor actor, int keyId, CancellationToken cancellationToken);
 
+    /// <summary>Revokes a key of another user, for a user manager who suspects it leaked; audited.</summary>
+    Task<AccountResult<ApiKeyInfo>> RevokeForAsync(AccountActor actor, int userId, int keyId, CancellationToken cancellationToken);
+
     /// <summary>The identity behind a presented <c>ptr_</c> key, with the permissions its scope allows; null when unknown, revoked, expired or its owner is disabled.</summary>
     Task<AccountIdentity?> AuthenticateAsync(string key, CancellationToken cancellationToken);
 }
@@ -119,12 +122,15 @@ public sealed class ApiKeyService : IApiKeyService
         return AccountResult<CreatedApiKey>.Ok(new CreatedApiKey(row.ToInfo(), key));
     }
 
-    public async Task<AccountResult<ApiKeyInfo>> RevokeAsync(AccountActor actor, int keyId, CancellationToken cancellationToken)
+    public Task<AccountResult<ApiKeyInfo>> RevokeAsync(AccountActor actor, int keyId, CancellationToken cancellationToken) =>
+        RevokeForAsync(actor, actor.UserId ?? -1, keyId, cancellationToken);
+
+    public async Task<AccountResult<ApiKeyInfo>> RevokeForAsync(AccountActor actor, int userId, int keyId, CancellationToken cancellationToken)
     {
         await using var connection = await _database.OpenConnectionAsync(cancellationToken);
         var row = await connection.QuerySingleOrDefaultAsync<Row>(new CommandDefinition(
             Select + """ WHERE "Id" = @keyId AND "UserId" = @userId""",
-            new { keyId, userId = actor.UserId ?? -1 },
+            new { keyId, userId },
             cancellationToken: cancellationToken));
         if (row is null)
         {
@@ -137,7 +143,7 @@ public sealed class ApiKeyService : IApiKeyService
                 """UPDATE "ApiKeys" SET "Revoked" = @at WHERE "Id" = @keyId""",
                 new { keyId, at = Iso.Format(_timeProvider.GetUtcNow()) },
                 cancellationToken: cancellationToken));
-            await _audit.AppendAsync("key.revoke", actor.Name, row.Name, $"key {row.Prefix}", actor.Client, cancellationToken);
+            await _audit.AppendAsync("key.revoke", actor.Name, row.Name, userId == actor.UserId ? $"key {row.Prefix}" : $"key {row.Prefix} of user {userId}", actor.Client, cancellationToken);
         }
 
         var revoked = await connection.QuerySingleAsync<Row>(new CommandDefinition(Select + """ WHERE "Id" = @keyId""", new { keyId }, cancellationToken: cancellationToken));
