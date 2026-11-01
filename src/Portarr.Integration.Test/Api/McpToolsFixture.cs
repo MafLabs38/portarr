@@ -154,17 +154,45 @@ public sealed class McpToolsFixture : IClassFixture<McpToolsHosts>
     }
 
     [Fact]
-    public async Task should_set_the_name_of_the_portal_and_the_notes_of_an_app()
+    public async Task should_record_where_a_write_came_from_only_when_the_client_says_so_in_the_right_shape()
+    {
+        await _hosts.ResetWritableAsync();
+        var client = Writable.CreateClient();
+        var version = JsonDocument.Parse(await CallAsync(Writable, "get_catalog_item", """{"section":"apps"}""")).RootElement.GetProperty("version").GetString()!;
+        const string chat = "chat:0d5c2f1e-7a3b-4c8d-9e0f-1a2b3c4d5e6f";
+
+        var first = await McpTestClient.CallRawAsync(client, "upsert_app", $$"""{"item":{"id":"one","name":"One"},"version":"{{version}}"}""", Key, chat);
+        var second = await McpTestClient.CallRawAsync(client, "upsert_app", $$"""{"item":{"id":"two","name":"Two"},"version":"{{JsonDocument.Parse(McpTestClient.TextOf(first)).RootElement.GetProperty("version").GetString()}}"}""", Key, "chat:../../etc");
+        var third = await McpTestClient.CallRawAsync(client, "upsert_app", $$"""{"item":{"id":"three","name":"Three"},"version":"{{JsonDocument.Parse(McpTestClient.TextOf(second)).RootElement.GetProperty("version").GetString()}}"}""", Key);
+
+        var vias = (await File.ReadAllLinesAsync(Path.Combine(Folder, "catalog.audit.jsonl"), TestContext.Current.CancellationToken))
+            .Select(l => JsonDocument.Parse(l).RootElement)
+            .Select(e => e.TryGetProperty("via", out var via) ? via.GetString() : null)
+            .ToList();
+        McpTestClient.IsError(third).Should().BeFalse();
+        vias.Should().Equal(chat, null, null);
+    }
+
+    [Fact]
+    public async Task should_set_the_name_of_the_portal()
     {
         await _hosts.ResetWritableAsync();
         var version = JsonDocument.Parse(await CallAsync(Writable, "get_portal", "{}")).RootElement.GetProperty("version").GetString()!;
 
-        var portal = JsonDocument.Parse(await CallAsync(Writable, "set_portal", $$"""{"version":"{{version}}","name":"My lab"}""")).RootElement;
-        var notes = JsonDocument.Parse(await CallAsync(Writable, "set_notes", $$"""{"section":"apps","id":"jellyfin","notes":"Runs on the NAS.","version":"{{portal.GetProperty("version").GetString()}}"}""")).RootElement;
+        await CallAsync(Writable, "set_portal", $$"""{"version":"{{version}}","name":"My lab"}""");
 
-        notes.GetProperty("version").GetString().Should().NotBeNullOrEmpty();
-        var file = await File.ReadAllTextAsync(Path.Combine(Folder, "catalog.yaml"), TestContext.Current.CancellationToken);
-        file.Should().Contain("My lab").And.Contain("Runs on the NAS.");
+        (await File.ReadAllTextAsync(Path.Combine(Folder, "catalog.yaml"), TestContext.Current.CancellationToken)).Should().Contain("My lab");
+    }
+
+    [Fact]
+    public async Task should_set_the_notes_of_an_app()
+    {
+        await _hosts.ResetWritableAsync();
+        var version = JsonDocument.Parse(await CallAsync(Writable, "get_catalog_item", """{"section":"apps"}""")).RootElement.GetProperty("version").GetString()!;
+
+        await CallAsync(Writable, "set_notes", $$"""{"section":"apps","id":"jellyfin","notes":"Runs on the NAS.","version":"{{version}}"}""");
+
+        (await File.ReadAllTextAsync(Path.Combine(Folder, "catalog.yaml"), TestContext.Current.CancellationToken)).Should().Contain("Runs on the NAS.");
     }
 
     [Fact]

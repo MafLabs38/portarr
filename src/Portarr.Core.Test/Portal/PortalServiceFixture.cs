@@ -70,6 +70,46 @@ public sealed class PortalServiceFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_put_the_previous_logo_back_when_the_catalog_edit_is_refused()
+    {
+        Directory.CreateDirectory(Path.Combine(_folder, "branding"));
+        byte[] live = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 9, 9, 9];
+        File.WriteAllBytes(Path.Combine(_folder, "branding", "logo.png"), live);
+        File.WriteAllText(CatalogFile, "apps:\n  - { id: blog, name: Blog, urls: [{ href: \"ftp://nope\" }] }\n");
+
+        var replaced = await _subject.SaveLogoAsync("logo.png", Png, Actor, Token);
+        var added = await _subject.SaveLogoAsync("other.png", Png, Actor, Token);
+
+        replaced.Edit.Status.Should().Be(CatalogEditStatus.Invalid);
+        File.ReadAllBytes(Path.Combine(_folder, "branding", "logo.png")).Should().Equal(live, "the live logo was not replaced by an upload that failed");
+        added.Edit.Status.Should().Be(CatalogEditStatus.Invalid);
+        File.Exists(Path.Combine(_folder, "branding", "other.png")).Should().BeFalse("a new file whose edit failed is not left behind");
+    }
+
+    [Fact]
+    public async Task should_say_a_fixed_sentence_when_the_logo_cannot_be_read()
+    {
+        if (OperatingSystem.IsWindows() || Environment.UserName == "root")
+        {
+            return;
+        }
+
+        await _subject.SaveLogoAsync("logo.png", Png, Actor, Token);
+        var file = Path.Combine(_folder, "branding", "logo.png");
+        File.SetUnixFileMode(file, UnixFileMode.None);
+        try
+        {
+            var problem = _subject.Get().LogoProblem;
+
+            problem.Should().NotBeNull().And.NotContain(_folder, "the answer never carries a path of the server");
+        }
+        finally
+        {
+            File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        }
+    }
+
+    [Fact]
     public async Task should_keep_the_previous_file_and_change_the_hash_when_a_logo_is_replaced()
     {
         await _subject.SaveLogoAsync("logo.png", Png, Actor, Token);
