@@ -85,8 +85,10 @@ public sealed class ChatAccess : IChatAccess
     public async Task ForgetAsync(string conversationId, CancellationToken cancellationToken)
     {
         await using var connection = await _database.OpenConnectionAsync(cancellationToken);
-        await connection.ExecuteAsync(new CommandDefinition("""DELETE FROM "ChatTokens" WHERE "ConversationId" = @conversationId""", new { conversationId }, cancellationToken: cancellationToken));
-        await connection.ExecuteAsync(new CommandDefinition("""DELETE FROM "ChatConversations" WHERE "Id" = @conversationId""", new { conversationId }, cancellationToken: cancellationToken));
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await connection.ExecuteAsync(new CommandDefinition("""DELETE FROM "ChatTokens" WHERE "ConversationId" = @conversationId""", new { conversationId }, transaction, cancellationToken: cancellationToken));
+        await connection.ExecuteAsync(new CommandDefinition("""DELETE FROM "ChatConversations" WHERE "Id" = @conversationId""", new { conversationId }, transaction, cancellationToken: cancellationToken));
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task<bool> CanAccessAsync(string conversationId, int? userId, bool isUserManager, CancellationToken cancellationToken)

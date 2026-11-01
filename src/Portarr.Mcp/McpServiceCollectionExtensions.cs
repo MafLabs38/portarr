@@ -69,6 +69,7 @@ public static class McpServiceCollectionExtensions
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<AgentOptions>, AgentOptionsValidator>();
         services.AddHttpClient<AgentRunnerClient>();
+        services.AddScoped<ChatService>();
 
         services.AddSingleton<FleetDigest>();
         services.AddSingleton<KnowledgeBase>();

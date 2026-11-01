@@ -35,7 +35,8 @@ public sealed class ChatProxyFixture
         var user = new ClaimsPrincipal(new ClaimsIdentity(
             [new Claim(ClaimTypes.NameIdentifier, "7"), new Claim(ClaimTypes.Name, "alice"), new Claim(PortarrClaims.Permission, Permissions.CatalogWrite)],
             "test"));
-        var controller = new ChatController(new AgentRunnerClient(new HttpClient(_handler), options), options, _access, NullLogger<ChatController>.Instance)
+        var runner = new AgentRunnerClient(new HttpClient(_handler), options);
+        var controller = new ChatController(runner, new ChatService(runner, _access, options, NullLogger<ChatService>.Instance), options, NullLogger<ChatController>.Instance)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = user } },
         };

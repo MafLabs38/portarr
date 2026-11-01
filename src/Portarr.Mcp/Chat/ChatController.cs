@@ -33,7 +33,7 @@ public sealed record ChatCancelRequest;
 /// The built-in chat (D-89): a proxy to the optional <c>portarr-agent</c> runner, which runs an agent CLI whose only
 /// tool is Portarr's own MCP server (D-87, D-88). Off (404) without <c>PORTARR__AGENT__URL</c>. Per user since accounts
 /// (V7, D-98): it needs <c>chat.use</c>, a conversation belongs to the user who created it (list, read, send, cancel,
-/// events and delete are the owner's; user managers also list every conversation and look after those without an owner),
+/// events and delete are the owner's; user managers also see, and look after, those without an owner),
 /// approving a change needs <c>catalog.write</c>, and each message carries a short-lived token so the agent's MCP calls
 /// run as the user.
 /// </summary>
@@ -45,20 +45,17 @@ public sealed partial class ChatController : ControllerBase
     public const int MaxMessageLength = 20_000;
 
     private readonly AgentRunnerClient _runner;
+    private readonly ChatService _chat;
     private readonly AgentOptions _options;
-    private readonly IChatAccess _access;
     private readonly ILogger<ChatController> _logger;
 
-    public ChatController(AgentRunnerClient runner, IOptions<AgentOptions> options, IChatAccess access, ILogger<ChatController> logger)
+    public ChatController(AgentRunnerClient runner, ChatService chat, IOptions<AgentOptions> options, ILogger<ChatController> logger)
     {
         _runner = runner;
+        _chat = chat;
         _options = options.Value;
-        _access = access;
         _logger = logger;
     }
-
-    [GeneratedRegex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")]
-    private static partial Regex IdPattern();
 
     [GeneratedRegex("^[A-Za-z0-9_-]{1,100}$")]
     private static partial Regex RequestIdPattern();
@@ -93,31 +90,7 @@ public sealed partial class ChatController : ControllerBase
     /// <summary>The conversations, latest first.</summary>
     [HttpGet("conversations")]
     [EndpointSummary("The chat's conversations, latest first.")]
-    public async Task<IActionResult> ListAsync(CancellationToken cancellationToken)
-    {
-        var result = await ForwardAsync(HttpMethod.Get, "v1/conversations", null, cancellationToken);
-        if (result is not ContentResult { StatusCode: StatusCodes.Status200OK, Content: { } json } || JsonNode.Parse(json) is not JsonArray all)
-        {
-            return result;
-        }
-
-        // Only the user's own conversations; a user manager sees every one, with its owner.
-        var owners = await _access.ListAsync(cancellationToken);
-        var manager = User.HasPermission(Permissions.UsersManage);
-        var visible = new JsonArray();
-        foreach (var item in all.OfType<JsonObject>().ToList())
-        {
-            owners.TryGetValue(item["id"]?.GetValue<string>() ?? string.Empty, out var owner);
-            if (manager || (owner?.UserId is { } ownerId && ownerId == User.UserId()))
-            {
-                all.Remove(item);
-                item["owner"] = owner?.OwnerName;
-                visible.Add(item);
-            }
-        }
-
-        return new ContentResult { StatusCode = StatusCodes.Status200OK, Content = visible.ToJsonString(), ContentType = "application/json" };
-    }
+    public Task<IActionResult> ListAsync(CancellationToken cancellationToken) => RunAsync(() => _chat.ListAsync(Caller(), cancellationToken), cancellationToken);
 
     [HttpPost("conversations")]
     [EndpointSummary("Starts a conversation with an agent and a model.")]
@@ -131,18 +104,8 @@ public sealed partial class ChatController : ControllerBase
         return CreateConversationAsync(request, cancellationToken);
     }
 
-    private async Task<IActionResult> CreateConversationAsync(ChatConversationRequest request, CancellationToken cancellationToken)
-    {
-        var result = await ForwardAsync(HttpMethod.Post, "v1/conversations", request, cancellationToken);
-        if (result is ContentResult { StatusCode: StatusCodes.Status201Created, Content: { } json }
-            && JsonNode.Parse(json)?["id"]?.GetValue<string>() is { } id
-            && User.UserId() is { } userId)
-        {
-            await _access.RegisterAsync(id, userId, User.Identity?.Name ?? string.Empty, cancellationToken);
-        }
-
-        return result;
-    }
+    private Task<IActionResult> CreateConversationAsync(ChatConversationRequest request, CancellationToken cancellationToken) =>
+        RunAsync(() => _chat.CreateAsync(request, Caller(), cancellationToken), cancellationToken);
 
     /// <summary>A conversation with its stored events (the history the panel shows).</summary>
     [HttpGet("conversations/{id}")]
@@ -152,21 +115,8 @@ public sealed partial class ChatController : ControllerBase
 
     [HttpDelete("conversations/{id}")]
     [EndpointSummary("Deletes a conversation (its process stops).")]
-    public async Task<IActionResult> DeleteAsync(string id, CancellationToken cancellationToken)
-    {
-        if (!await OwnsAsync(id, cancellationToken))
-        {
-            return NotFound();
-        }
-
-        var result = await ForwardAsync(HttpMethod.Delete, $"v1/conversations/{id}", null, cancellationToken);
-        if (result is StatusCodeResult { StatusCode: < 300 })
-        {
-            await _access.ForgetAsync(id, cancellationToken);
-        }
-
-        return result;
-    }
+    public async Task<IActionResult> DeleteAsync(string id, CancellationToken cancellationToken) =>
+        await OwnsAsync(id, cancellationToken) ? await RunAsync(() => _chat.DeleteAsync(id, cancellationToken), cancellationToken) : NotFound();
 
     /// <summary>Sends the operator's message; the answer arrives on the event stream.</summary>
     /// <response code="409">A turn is running.</response>
@@ -185,10 +135,7 @@ public sealed partial class ChatController : ControllerBase
             return Invalid($"text is 1 to {MaxMessageLength} characters; model a short lowercase name.");
         }
 
-        // The agent reaches the MCP server as this user: a token tied to the user and the conversation, instead of the
-        // shared key. A caller that is not a user account (an environment key) sends none: the runner falls back to its key.
-        var token = User.UserId() is { } userId && _options.Enabled ? await _access.MintTokenAsync(userId, id, cancellationToken) : null;
-        return await ForwardAsync(HttpMethod.Post, $"v1/conversations/{id}/messages", new { request.Text, request.Model, McpToken = token }, cancellationToken);
+        return await RunAsync(() => _chat.SendAsync(id, request, Caller(), cancellationToken), cancellationToken);
     }
 
     /// <summary>Approves or rejects a catalog write the agent proposes.</summary>
@@ -270,16 +217,17 @@ public sealed partial class ChatController : ControllerBase
 
     private static bool ValidName(string? value) => value is null || NamePattern().IsMatch(value);
 
-    /// <summary>
-    /// Whether the conversation exists for this user: a well-formed id and the user's own conversation (or an ownerless
-    /// one, for a user manager). Everything else is a 404, never a 403: another user's conversation is not revealed.
-    /// </summary>
-    private async Task<bool> OwnsAsync(string id, CancellationToken cancellationToken) =>
-        IdPattern().IsMatch(id) && await _access.CanAccessAsync(id, User.UserId(), User.HasPermission(Permissions.UsersManage), cancellationToken);
+    private Task<bool> OwnsAsync(string id, CancellationToken cancellationToken) => _chat.CanAccessAsync(id, Caller(), cancellationToken);
+
+    private ChatCaller Caller() => new(User.UserId(), User.Identity?.Name ?? string.Empty, User.HasPermission(Permissions.UsersManage));
 
     private ObjectResult Invalid(string detail) => Problem(detail, statusCode: StatusCodes.Status400BadRequest);
 
-    private async Task<IActionResult> ForwardAsync(HttpMethod method, string path, object? body, CancellationToken cancellationToken)
+    private Task<IActionResult> ForwardAsync(HttpMethod method, string path, object? body, CancellationToken cancellationToken) =>
+        RunAsync(() => _runner.SendAsync(method, path, body, cancellationToken), cancellationToken);
+
+    /// <summary>Calls the runner and passes its answer through; a runner that does not answer, or refuses the secret, is a 502.</summary>
+    private async Task<IActionResult> RunAsync(Func<Task<AgentRunnerResponse>> call, CancellationToken cancellationToken)
     {
         if (!_options.Enabled)
         {
@@ -288,7 +236,7 @@ public sealed partial class ChatController : ControllerBase
 
         try
         {
-            var response = await _runner.SendAsync(method, path, body, cancellationToken);
+            var response = await call();
             if (response.StatusCode == StatusCodes.Status401Unauthorized)
             {
                 // The runner refused Portarr's secret: a configuration error, not the operator's.

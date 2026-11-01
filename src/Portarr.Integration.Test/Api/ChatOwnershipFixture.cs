@@ -28,7 +28,7 @@ public sealed class ChatOwnershipFixture
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task should_limit_conversations_to_their_owner_and_let_managers_list_them_all()
+    public async Task should_limit_conversations_to_their_owner_even_for_a_manager()
     {
         var runner = new FakeRunner();
         await using var factory = await FactoryAsync(runner);
@@ -40,7 +40,7 @@ public sealed class ChatOwnershipFixture
 
         (await IdsAsync(operatorClient)).Should().BeEquivalentTo([mine]);
         var seenByAdmin = await admin.GetFromJsonAsync<JsonArray>("/api/v1/assistant/chat/conversations", Token);
-        seenByAdmin!.Select(n => (n!["id"]!.GetValue<string>(), n["owner"]!.GetValue<string>())).Should().BeEquivalentTo([(mine, "operator-user"), (theirs, "admin")]);
+        seenByAdmin!.Select(n => (n!["id"]!.GetValue<string>(), n["owner"]!.GetValue<string>())).Should().BeEquivalentTo([(theirs, "admin")], "a manager lists their own and the ownerless ones, not other users'");
 
         foreach (var (method, path) in new[] { ("GET", ""), ("POST", "/messages"), ("POST", "/cancel"), ("GET", "/events"), ("DELETE", "") })
         {
@@ -48,7 +48,7 @@ public sealed class ChatOwnershipFixture
             (await operatorClient.SendAsync(request, Token)).StatusCode.Should().Be(HttpStatusCode.NotFound, $"{method} {path}");
         }
 
-        (await admin.GetAsync($"/api/v1/assistant/chat/conversations/{mine}", Token)).StatusCode.Should().Be(HttpStatusCode.NotFound, "managers list others' conversations, they do not read them");
+        (await admin.GetAsync($"/api/v1/assistant/chat/conversations/{mine}", Token)).StatusCode.Should().Be(HttpStatusCode.NotFound, "a manager does not read other users' conversations");
         (await operatorClient.DeleteAsync($"/api/v1/assistant/chat/conversations/{mine}", Token)).StatusCode.Should().Be(HttpStatusCode.NoContent);
         (await IdsAsync(operatorClient)).Should().BeEmpty();
     }
