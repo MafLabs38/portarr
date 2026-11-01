@@ -12,6 +12,11 @@ public sealed class BackrestEnvironmentConnectorFixture : EnvironmentConnectorCo
 
     protected override string? SectionWithCredentialsInUrl => "{ url: \"http://user:pass@10.0.0.10:9898\" }";
 
+    protected override string? SectionWithSecretOutsideNamespace => "{ url: \"http://10.0.0.10:9898\", userEnv: SOME_OTHER_USER, passwordEnv: SOME_OTHER_SECRET }";
+
+    // Backrest's credential variables are not confined to a Portarr namespace yet (issue #45).
+    protected override bool SecretVariablesAreUnconfined => true;
+
     protected override string? SectionWithLiteralSecret => "{ url: \"http://10.0.0.10:9898\", userEnv: \"admin\", passwordEnv: \"pa ss\" }";
 
     private static CatalogParseResult Parse(string yaml) => CatalogParser.Parse(yaml, [new BackrestEnvironmentConnector()]);

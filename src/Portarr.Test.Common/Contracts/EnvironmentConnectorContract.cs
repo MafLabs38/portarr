@@ -22,6 +22,15 @@ public abstract class EnvironmentConnectorContract
     /// <summary>The section with a literal secret where a variable name is expected, or null when it has no such key.</summary>
     protected virtual string? SectionWithLiteralSecret => null;
 
+    /// <summary>The section with a secret variable outside the <c>PORTARR_READER_</c> namespace, or null when it names none.</summary>
+    protected virtual string? SectionWithSecretOutsideNamespace => null;
+
+    /// <summary>
+    /// True for a connector that does not confine its secret variables yet (issue #45): the section above is then accepted, and
+    /// the test says so, so that the day it is confined this flag goes away with the test that pins the gap.
+    /// </summary>
+    protected virtual bool SecretVariablesAreUnconfined => false;
+
     [Fact]
     public void should_accept_its_valid_section()
     {
@@ -71,6 +80,26 @@ public abstract class EnvironmentConnectorContract
         var result = Parse(SectionWithLiteralSecret);
 
         result.Errors.Should().ContainSingle().Which.Should().Contain("Environment 'server-1'");
+    }
+
+    [Fact]
+    public void should_confine_its_secret_variables_to_the_portarr_namespace_or_say_it_does_not()
+    {
+        if (SectionWithSecretOutsideNamespace is null)
+        {
+            return; // this section names no secret variable
+        }
+
+        var result = Parse(SectionWithSecretOutsideNamespace);
+
+        if (SecretVariablesAreUnconfined)
+        {
+            result.Errors.Should().BeEmpty("a known gap, issue #45: when the section is confined, remove SecretVariablesAreUnconfined");
+        }
+        else
+        {
+            result.Errors.Should().NotBeEmpty("a secret variable outside the namespace must be refused");
+        }
     }
 
     private CatalogParseResult Parse(string section)
