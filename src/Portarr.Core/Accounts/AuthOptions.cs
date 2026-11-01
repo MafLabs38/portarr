@@ -6,7 +6,9 @@ namespace Portarr.Core.Accounts;
 /// Local accounts (V7, D-92), section <c>Auth</c>: <c>PORTARR__AUTH__SESSIONDAYS</c> (sliding session, 7 by default),
 /// <c>MAXFAILEDATTEMPTS</c> and <c>LOCKOUTMINUTES</c> (5 failures lock the account for 5 minutes), and the optional
 /// unattended first run: <c>PORTARR__AUTH__ADMINUSER</c> with <c>PORTARR__AUTH__ADMINPASSWORDFILE</c> (a file holding
-/// the password), read once, only while no user exists.
+/// the password), read once, only while no user exists. <c>PORTARR__AUTH__COOKIESECURITY=Always</c> issues the session
+/// cookie as <c>Secure</c> (with the <c>__Host-</c> prefix) whatever the request looks like, for an install behind a TLS
+/// proxy Portarr does not trust; the default <c>Auto</c> follows the request, so plain HTTP on a LAN keeps working.
 /// </summary>
 public sealed class AuthOptions
 {
@@ -18,11 +20,23 @@ public sealed class AuthOptions
 
     public int LockoutMinutes { get; set; } = 5;
 
+    public CookieSecurity CookieSecurity { get; set; } = CookieSecurity.Auto;
+
     public string? AdminUser { get; set; }
 
     public string? AdminPasswordFile { get; set; }
 
     public TimeSpan Lockout => TimeSpan.FromMinutes(LockoutMinutes);
+}
+
+/// <summary>When the session cookie carries the <c>Secure</c> attribute.</summary>
+public enum CookieSecurity
+{
+    /// <summary>When the request is HTTPS (as seen after the trusted proxies' forwarded headers).</summary>
+    Auto,
+
+    /// <summary>Always, so the browser sends the cookie over HTTPS only.</summary>
+    Always,
 }
 
 /// <summary>Fails startup on a nonsensical session length or lockout, or on half of the unattended first run.</summary>

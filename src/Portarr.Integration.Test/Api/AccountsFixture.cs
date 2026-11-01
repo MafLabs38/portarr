@@ -307,6 +307,32 @@ public sealed class AccountsFixture
     }
 
     [Fact]
+    public async Task should_issue_a_secure_host_prefixed_cookie_when_asked_to()
+    {
+        var options = await _database.CreateOptionsAsync();
+        await using var factory = new PortarrFactory(options, new Dictionary<string, string?> { ["Auth:CookieSecurity"] = "Always" });
+        using var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions { HandleCookies = false });
+        client.DefaultRequestHeaders.Add("X-Requested-With", "portarr");
+
+        var response = await client.PostAsJsonAsync("/api/v1/auth/setup", new { username = PortarrFactory.AdminUser, password = PortarrFactory.Password }, Token);
+
+        var cookie = response.Headers.GetValues("Set-Cookie").Single();
+        cookie.Should().StartWith("__Host-portarr_session=").And.Contain("secure", Exactly.Once()).And.Contain("httponly").And.Contain("samesite=strict");
+        Directory.Exists(Path.Combine(options.DataFolder, "keys")).Should().BeTrue("the cookie keys live in the data folder");
+    }
+
+    [Fact]
+    public async Task should_require_the_csrf_header_on_the_mcp_endpoint_for_a_cookie_session()
+    {
+        await using var factory = await FactoryAsync();
+        using var withoutHeader = await factory.CreateSignedInClientAsync(csrfHeader: false);
+
+        var response = await withoutHeader.PostAsJsonAsync("/mcp", new { jsonrpc = "2.0", id = 1, method = "ping" }, Token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task should_create_the_first_admin_from_a_password_file()
     {
         var options = await _database.CreateOptionsAsync();
