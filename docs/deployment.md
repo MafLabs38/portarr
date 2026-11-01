@@ -22,6 +22,12 @@ Change the three values marked `CHANGE` (the administrator's password, the host 
 - **Reaching the other hosts** (Docker sockets, node_exporter, Backrest) is a matter of network: the pod must reach them, and a Docker host is read through a read-only [socket proxy](connectors/docker.md), never the socket itself.
 - **Credentials** for the connectors (`PORTARR_BACKREST_…`, `PORTARR_CLOUDFLARE_…`, `PORTARR_GITHUB_…`) go in a `Secret` read as environment variables, never in the catalog.
 
+## Reaching the machines it watches
+
+Inside the cluster, Portarr's outgoing requests carry the address of **its node** (SNAT), not a pod address. A machine that only accepts requests
+from an allow-list must list that node, and Portarr should stay pinned to it (`nodeSelector`), or the firewall will drop its requests and the
+machine will show as unreachable. See [Troubleshooting](troubleshooting.md#a-machine-is-unreachable).
+
 ## Following the releases
 
 Every release publishes the images `X.Y.Z` and `latest`. Two ways to deploy a version:
