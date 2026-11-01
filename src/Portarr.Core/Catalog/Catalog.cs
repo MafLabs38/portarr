@@ -139,7 +139,8 @@ public enum UrlScope
 
 /// <summary>
 /// Matches discovered workloads of one environment: by container, project or pod name, or, on Kubernetes,
-/// by namespace, <c>app</c> label and name prefix, which stay stable when a rollout renames the pods (D-56).
+/// by namespace, labels (<c>app</c> is the shorthand of the <c>app</c> label) and name prefix, which stay stable when a
+/// rollout renames the pods (D-56, D-106).
 /// Every criterion given must match. An <c>Optional</c> role means the app still works without it: its
 /// failure only degrades the app (D-48).
 /// </summary>
@@ -149,7 +150,8 @@ public sealed record WorkloadSelector(
     MemberRole Role = MemberRole.Critical,
     string? Namespace = null,
     string? App = null,
-    string? NamePrefix = null)
+    string? NamePrefix = null,
+    IReadOnlyDictionary<string, string>? Labels = null)
 {
     /// <summary>The label a Kubernetes selector matches with <c>app:</c>.</summary>
     public const string AppLabel = "app";
@@ -159,9 +161,26 @@ public sealed record WorkloadSelector(
     {
         get
         {
-            var target = Name ?? (App is not null ? $"{AppLabel}={App}" : $"{NamePrefix}*");
+            var labels = LabelCriteria();
+            var target = Name ?? (labels.Count > 0 ? string.Join(',', labels.Select(label => $"{label.Key}={label.Value}")) : $"{NamePrefix}*");
             return Namespace is null ? target : $"{Namespace}/{target}";
         }
+    }
+
+    /// <summary>Every label the pod must carry: <c>app</c> (the shorthand) and the <c>labels</c>, by key.</summary>
+    private SortedDictionary<string, string> LabelCriteria()
+    {
+        var all = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (key, value) in Labels ?? new Dictionary<string, string>())
+        {
+            all[key] = value;
+        }
+        if (App is not null)
+        {
+            all[AppLabel] = App;
+        }
+
+        return all;
     }
 
     public bool Matches(Workload workload)
@@ -170,7 +189,7 @@ public sealed record WorkloadSelector(
             && (Name is null || workload.Name == Name)
             && (NamePrefix is null || workload.Name.StartsWith(NamePrefix, StringComparison.Ordinal))
             && (Namespace is null || workload.Namespace == Namespace)
-            && (App is null || (workload.Labels.TryGetValue(AppLabel, out var app) && app == App));
+            && LabelCriteria().All(label => workload.Labels.TryGetValue(label.Key, out var value) && value == label.Value);
     }
 
     /// <summary>
