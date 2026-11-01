@@ -2,12 +2,12 @@
   "priority": 1,
   "request": {
     "method": "GET",
-    "urlPath": "/v1/conversations/7ea43bc3-4714-49e0-9f8b-8a0791c49889/events",
     "headers": {
       "Last-Event-ID": {
         "matches": ".+"
       }
-    }
+    },
+    "urlPathPattern": "/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/events"
   },
   "response": {
     "status": 200,

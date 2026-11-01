@@ -8,16 +8,9 @@
     "headers": {
       "Content-Type": "application/json"
     },
-    "jsonBody": {
-      "id": "7ea43bc3-4714-49e0-9f8b-8a0791c49889",
-      "title": "What needs my attention?",
-      "agent": "claude-code",
-      "model": "sonnet",
-      "createdAt": "2026-01-01T12:00:00Z",
-      "updatedAt": "2026-01-01T12:00:05Z",
-      "running": false,
-      "busy": false,
-      "pendingPermissions": 1
-    }
+    "body": "{\"id\": \"{{randomValue type='UUID'}}\", \"title\": \"What needs my attention?\", \"agent\": \"claude-code\", \"model\": \"sonnet\", \"createdAt\": \"2026-01-01T12:00:00Z\", \"updatedAt\": \"2026-01-01T12:00:05Z\", \"running\": false, \"busy\": false, \"pendingPermissions\": 1}",
+    "transformers": [
+      "response-template"
+    ]
   }
 }
