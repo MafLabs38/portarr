@@ -38,7 +38,7 @@ public sealed class KubernetesK8UpBackupSource : IBackupSource
         var cluster = environment.Kubernetes()!;
         if (_client.GetConfigurationError(cluster) is { } error)
         {
-            throw new BackupSourceUnavailableException(error);
+            throw new BackupSourceUnavailableException(error, notSetUp: true);
         }
 
         // A 404 is a cluster without the K8up CRDs: nothing to read, not an error.

@@ -21,13 +21,17 @@ public interface IBackupSource
     Task<IReadOnlyList<BackupJob>> ListJobsAsync(CatalogEnvironment environment, CancellationToken cancellationToken);
 }
 
-/// <summary>Thrown by a source whose environment is declared but cannot be called yet; <c>Reason</c> is a reason code.</summary>
+/// <summary>
+/// Thrown by a source whose environment is declared but cannot be called yet; <c>Reason</c> is a reason code. <c>NotSetUp</c>:
+/// the operator has something to configure (a credential, a token, a cluster CA), as opposed to a tool that failed.
+/// </summary>
 public sealed class BackupSourceUnavailableException : Exception
 {
-    public BackupSourceUnavailableException(string reason)
+    public BackupSourceUnavailableException(string reason, bool notSetUp = false)
         : base(reason)
     {
         Reason = reason;
+        NotSetUp = notSetUp;
     }
 
     public BackupSourceUnavailableException()
@@ -42,4 +46,7 @@ public sealed class BackupSourceUnavailableException : Exception
     }
 
     public string Reason { get; }
+
+    /// <summary>The operator has to set something up (a credential, a token, a cluster CA) for the tool to be read.</summary>
+    public bool NotSetUp { get; }
 }

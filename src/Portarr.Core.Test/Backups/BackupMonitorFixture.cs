@@ -85,18 +85,90 @@ public sealed class BackupMonitorFixture
     }
 
     [Theory]
-    [InlineData("no-connector", true)]
-    [InlineData("credentials-missing", true)]
-    [InlineData("token-missing", true)]
-    [InlineData("ca-missing", true)]
-    [InlineData("ca-invalid", true)]
-    [InlineData("http-403", false)]
-    [InlineData("http-401", false)]
-    [InlineData("unreachable", false)]
-    [InlineData("timeout", false)]
-    public void should_tell_a_configuration_to_fix_from_a_tool_that_failed(string reason, bool notSetUp)
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task should_carry_on_the_reading_whether_the_operator_has_something_to_set_up(bool notSetUp)
     {
-        BackupMonitor.IsNotSetUp(reason).Should().Be(notSetUp);
+        var cronjob = Source(BackupSourceKinds.CronJob);
+        cronjob.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<BackupJob>>(_ => throw new BackupSourceUnavailableException("a-reason", notSetUp));
+        var monitor = Monitor(Source(BackupSourceKinds.Backrest), cronjob, Source(BackupSourceKinds.K8up));
+
+        await monitor.RefreshAsync(TestContext.Current.CancellationToken);
+
+        monitor.Current.Readings["cronjob@cluster"].Should().Match<SourceReading>(r => r.Error == "a-reason" && r.NotSetUp == notSetUp);
+    }
+
+    [Fact]
+    public async Task should_mark_a_missing_connector_as_something_to_set_up()
+    {
+        var monitor = Monitor(Source(BackupSourceKinds.Backrest), Source(BackupSourceKinds.CronJob), Source(BackupSourceKinds.K8up));
+
+        await monitor.RefreshAsync(TestContext.Current.CancellationToken);
+
+        monitor.Current.Readings["backrest@server-2"].Should().Match<SourceReading>(r => r.Error == BackupMonitor.NoConnector && r.NotSetUp);
+    }
+
+    [Theory]
+    [InlineData(typeof(TimeoutException), "timeout")]
+    [InlineData(typeof(System.Text.Json.JsonException), "invalid-response")]
+    public async Task should_turn_any_other_failure_into_its_reason_code_at_the_monitor(Type failure, string reason)
+    {
+        var cronjob = Source(BackupSourceKinds.CronJob);
+        cronjob.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<BackupJob>>(_ => throw (Exception)Activator.CreateInstance(failure)!);
+        var monitor = Monitor(Source(BackupSourceKinds.Backrest), cronjob, Source(BackupSourceKinds.K8up));
+
+        await monitor.RefreshAsync(TestContext.Current.CancellationToken);
+
+        monitor.Current.Readings["cronjob@cluster"].Should().Match<SourceReading>(r => r.Error == reason && !r.NotSetUp);
+    }
+
+    [Fact]
+    public async Task should_not_abort_the_refresh_for_an_environment_the_catalog_no_longer_has()
+    {
+        var catalogService = Substitute.For<ICatalogService>();
+        var parsed = TestCatalog.Parse(Catalog);
+        // The data still names server-2's backrest, but the environment is gone from the catalog (a reload in between).
+        var withoutServer2 = parsed.Catalog with { Environments = parsed.Catalog.Environments.Where(e => e.Id != "server-2").ToList() };
+        catalogService.Current.Returns(new CatalogState(withoutServer2, "/config/catalog.yaml", true, [], Now));
+        var monitor = new BackupMonitor(catalogService, [Source(BackupSourceKinds.Backrest), Source(BackupSourceKinds.CronJob), Source(BackupSourceKinds.K8up)], _clock, NullLogger<BackupMonitor>.Instance);
+
+        var refresh = () => monitor.RefreshAsync(TestContext.Current.CancellationToken);
+
+        await refresh.Should().NotThrowAsync();
+        monitor.Current.Readings["backrest@server-2"].Should().Match<SourceReading>(r => r.Error == BackupMonitor.NoConnector);
+    }
+
+    [Fact]
+    public async Task should_go_on_after_a_refresh_that_throws_and_stop_when_cancelled()
+    {
+        var calls = 0;
+        var backrest = Source(BackupSourceKinds.Backrest);
+        backrest.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<BackupJob>>(_ => ++calls == 1 ? throw new InvalidProgramException("a bug") : []);
+        var monitor = Monitor(backrest, Source(BackupSourceKinds.CronJob), Source(BackupSourceKinds.K8up));
+        using var cancellation = new CancellationTokenSource();
+
+        await monitor.StartAsync(cancellation.Token);
+        await WaitUntilAsync(() => calls >= 1);
+        _clock.Advance(BackupMonitor.Interval);
+        await WaitUntilAsync(() => calls >= 2);
+        await cancellation.CancelAsync();
+        await monitor.StopAsync(TestContext.Current.CancellationToken);
+
+        calls.Should().BeGreaterThanOrEqualTo(2, "the loop survived the first refresh throwing");
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!condition())
+        {
+            if (DateTime.UtcNow > deadline)
+            {
+                throw new TimeoutException("Timed out waiting for the monitor.");
+            }
+
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        }
     }
 
     [Fact]

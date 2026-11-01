@@ -96,6 +96,12 @@ public sealed class DataService : IDataService
 {
     public const string NoRun = "no-run";
 
+    /// <summary>The reason of a source the monitor has not read yet.</summary>
+    public const string NotReadYet = "not-read-yet";
+
+    /// <summary>How far ahead a date the operator wrote by hand may be (clocks differ); beyond it, it is a typo.</summary>
+    private static readonly TimeSpan FutureTolerance = TimeSpan.FromDays(1);
+
     private readonly ICatalogService _catalogService;
     private readonly IBackupMonitor _backups;
     private readonly TimeProvider _timeProvider;
@@ -155,10 +161,15 @@ public sealed class DataService : IDataService
     /// </summary>
     public static SourceCheck Check(BackupSourceReference reference, SourceReading? reading, TimeSpan maxAge, DateTimeOffset now)
     {
-        if (reading is null || reading.Error is not null)
+        // Not read yet (the start, a catalog reload): not a tool that is not set up.
+        if (reading is null)
         {
-            var error = reading?.Error ?? BackupMonitor.NoConnector;
-            return Unjudged(reference, BackupMonitor.IsNotSetUp(error) ? CopyState.NotSetUp : CopyState.Unknown, error);
+            return Unjudged(reference, CopyState.Unknown, NotReadYet);
+        }
+
+        if (reading.Error is { } error)
+        {
+            return Unjudged(reference, reading.NotSetUp ? CopyState.NotSetUp : CopyState.Unknown, error);
         }
 
         var job = reading.Jobs.FirstOrDefault(j => j.Reference == reference.Reference);
@@ -170,7 +181,7 @@ public sealed class DataService : IDataService
         var run = job.Run;
         if (reference.Item is { } item && job.Snapshots is { Count: > 0 } snapshots)
         {
-            var matching = snapshots.Where(s => s.Paths.Any(path => path.Contains(item, StringComparison.Ordinal))).MaxBy(s => s.At);
+            var matching = snapshots.Where(s => s.Paths.Any(path => HoldsItem(path, item))).MaxBy(s => s.At);
             if (matching is null)
             {
                 return new SourceCheck(reference, CopyState.Missing, "not-in-snapshots", job.Name, job.Schedule, job.Repositories, job.Run);
@@ -209,9 +220,18 @@ public sealed class DataService : IDataService
         return now - success > maxAge + DataPolicy.Grace ? (CopyState.Late, null) : (CopyState.Protected, null);
     }
 
+    /// <summary>Whether a snapshot path is the item or lies under it, by whole path segments: item <c>db</c> is not <c>/data/db-old</c>.</summary>
+    private static bool HoldsItem(string path, string item) => $"/{path.Trim('/')}/".Contains($"/{item.Trim('/')}/", StringComparison.Ordinal);
+
     private static (CopyState State, string? Reason) JudgeManual(ManualCopy manual, TimeSpan maxAge, DateTimeOffset now)
     {
-        return manual.LastSuccess is { } at ? Judge(new BackupRun(at, BackupResult.Success, at), maxAge, now) : (CopyState.Unknown, "manual");
+        if (manual.LastSuccess is not { } at)
+        {
+            return (CopyState.Unknown, "manual");
+        }
+
+        // A date in the future is a typo, not a backup that has not happened yet: it would read as just made.
+        return at > now + FutureTolerance ? (CopyState.Unknown, "manual-in-the-future") : Judge(new BackupRun(at, BackupResult.Success, at), maxAge, now);
     }
 
     private static SourceCheck Unjudged(BackupSourceReference reference, CopyState state, string reason)
@@ -250,15 +270,15 @@ public sealed class DataService : IDataService
             reason = m.Reason;
         }
 
-        var successes = checks.Select(c => c.Run?.LastSuccessAt).Append(target.Manual?.LastSuccess).Where(d => d is not null).ToList();
+        var newest = checks.Select(c => c.Run?.LastSuccessAt).Append(target.Manual?.LastSuccess).Where(d => d is not null).Max();
         return new CopyView(
             target.Target,
             state,
             reason,
-            successes.Max(),
+            newest,
             best?.Run?.LastRunAt,
             best?.Run?.LastResult,
-            checks.Select(c => c.Run).FirstOrDefault(r => r?.LastSuccessAt == successes.Max())?.LastSizeBytes,
+            newest is null ? null : checks.Select(c => c.Run).FirstOrDefault(r => r?.LastSuccessAt == newest)?.LastSizeBytes,
             target.Manual,
             checks,
             state == CopyState.Waiting ? checks.Where(c => c.State == CopyState.Waiting).Min(c => c.NextRunAt) : null);
