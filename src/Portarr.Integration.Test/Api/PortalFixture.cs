@@ -64,6 +64,7 @@ public sealed class PortalFixture : IClassFixture<CatalogEditHosts>
     {
         await _hosts.ResetWritableAsync();
         using var client = await _hosts.Writable.CreateSignedInClientAsync();
+        var storedBefore = StoredLogos();
         var scripted = "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>"u8.ToArray();
         var oversized = Png.Concat(new byte[1024 * 1024]).ToArray();
 
@@ -79,7 +80,14 @@ public sealed class PortalFixture : IClassFixture<CatalogEditHosts>
         }
 
         tooBig.StatusCode.Should().BeOneOf(HttpStatusCode.BadRequest, HttpStatusCode.RequestEntityTooLarge);
-        Directory.Exists(Path.Combine(_hosts.Folder, "branding")).Should().BeFalse("nothing was stored");
+        StoredLogos().Should().Equal(storedBefore, "nothing was stored");
+    }
+
+    /// <summary>What the portal's branding folder holds: the folder is shared by the tests of this class, so a refusal is checked against what was there before.</summary>
+    private string[] StoredLogos()
+    {
+        var folder = Path.Combine(_hosts.Folder, "branding");
+        return Directory.Exists(folder) ? [.. Directory.GetFiles(folder).Select(f => $"{f}:{new FileInfo(f).Length}").Order(StringComparer.Ordinal)] : [];
     }
 
     [Fact]
