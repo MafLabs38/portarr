@@ -245,10 +245,16 @@ public static partial class CatalogParser
             return [.. _connectors.Where(c => c.IsRuntime).Select(c => c.Section)];
         }
 
-        private string RuntimeList()
+        private string RuntimeList(string last = " or ", string suffix = "")
         {
-            var runtimes = Runtimes();
-            return $"{string.Join(", ", runtimes.Take(runtimes.Count - 1))} or {runtimes[^1]}";
+            var runtimes = Runtimes().Select(runtime => runtime + suffix).ToList();
+            return runtimes.Count == 1 ? runtimes[0] : $"{string.Join(", ", runtimes.Take(runtimes.Count - 1))}{last}{runtimes[^1]}";
+        }
+
+        /// <summary>The fields an app can select the workloads of this environment with: its runtime connector's, else the name only.</summary>
+        private WorkloadMatchFields MatchFieldsOf(CatalogEnvironment environment)
+        {
+            return _connectors.FirstOrDefault(c => c.IsRuntime && c.Section == environment.Runtime)?.MatchFields ?? WorkloadMatchFields.Name;
         }
 
         /// <summary>
@@ -685,9 +691,9 @@ public static partial class CatalogParser
         {
             var separator = runtime.IndexOf('@', StringComparison.Ordinal);
             var kind = separator < 0 ? string.Empty : runtime[..separator];
-            if (kind is not (RuntimeNames.Docker or RuntimeNames.Cloudflare or RuntimeNames.Kubernetes))
+            if (!Runtimes().Contains(kind))
             {
-                _errors.Add($"App '{appId}': workload runtime '{runtime}' must be docker@<environment id>, cloudflare@<environment id> or kubernetes@<environment id>.");
+                _errors.Add($"App '{appId}': workload runtime '{runtime}' must be {RuntimeList(" or ", "@<environment id>")}.");
                 return null;
             }
 
@@ -710,7 +716,7 @@ public static partial class CatalogParser
         }
 
         /// <summary>
-        /// Docker and Cloudflare match by name. Kubernetes also matches by namespace, <c>app</c> label and name
+        /// A runtime matches by name; one whose connector says so (Kubernetes) also by namespace, <c>app</c> label and name
         /// prefix (D-56), and needs a name, a prefix or an app: a namespace alone would match all its pods.
         /// </summary>
         private WorkloadSelector? BuildMatch(string appId, SelectorDocument document, CatalogEnvironment environment)
@@ -721,11 +727,13 @@ public static partial class CatalogParser
             var app = CatalogValues.Blank(match.App);
             var prefix = CatalogValues.Blank(match.NamePrefix);
 
-            if (environment.Runtime != RuntimeNames.Kubernetes)
+            var fields = MatchFieldsOf(environment);
+            if (!fields.HasFlag(WorkloadMatchFields.NamePrefix))
             {
                 if (ns is not null || app is not null || prefix is not null)
                 {
-                    _errors.Add($"App '{appId}': match.namespace, match.app and match.namePrefix only apply to kubernetes workloads.");
+                    var labelled = string.Join(" or ", _connectors.Where(c => c.IsRuntime && c.MatchFields.HasFlag(WorkloadMatchFields.NamePrefix)).Select(c => c.Section));
+                    _errors.Add($"App '{appId}': match.namespace, match.app and match.namePrefix only apply to {labelled} workloads.");
                     return null;
                 }
 

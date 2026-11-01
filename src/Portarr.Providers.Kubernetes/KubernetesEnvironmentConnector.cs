@@ -117,6 +117,9 @@ public sealed class KubernetesEnvironmentConnector : IEnvironmentConnector
     /// <summary>A cluster is many machines: it cannot be a VM host, carry a Backrest or a host agent.</summary>
     public bool SingleMachine => false;
 
+    /// <summary>Pods are found by namespace, <c>app</c> label and name prefix as well as by name (D-56).</summary>
+    public WorkloadMatchFields MatchFields => WorkloadMatchFields.All;
+
     public EnvironmentConnectorResult? Parse(EnvironmentSectionContext context)
     {
         if (context.Read<KubernetesDocument>() is not { } cluster)
