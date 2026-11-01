@@ -46,6 +46,16 @@ describe('AssistantIndex', () => {
     expect(screen.getByText('Off')).toBeInTheDocument();
   });
 
+  it('says so when the server state or the knowledge base cannot be read', async () => {
+    server.use(
+      http.get('/api/v1/assistant', () => new HttpResponse(null, { status: 500 })),
+      http.get('/api/v1/assistant/knowledge', () => new HttpResponse(null, { status: 500 })),
+    );
+    renderWithProviders(<AssistantIndex />);
+
+    expect(await screen.findByText('Unable to load the assistant settings.')).toBeInTheDocument();
+  });
+
   it('marks the write tools and lists the latest catalog edits', async () => {
     renderWithProviders(<AssistantIndex />);
 

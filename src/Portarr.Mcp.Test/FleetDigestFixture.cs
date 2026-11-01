@@ -8,21 +8,36 @@ namespace Portarr.Mcp.Test;
 /// <summary>What the MCP tools tell an assistant (V5): the same verdicts as the pages, worst first, no secret.</summary>
 public sealed class FleetDigestFixture
 {
+    private static Overview OverviewOfADownAppAndAnUnreachableCluster() => new FleetBuilder()
+        .With("vm-1", FleetBuilder.Container("vm-1", "sonarr", WorkloadState.Exited, new WorkloadMount(MountKind.Bind, "/srv/sonarr", "/config")))
+        .Unreachable("cluster")
+        .Digest.GetOverview();
+
     [Fact]
     public void should_put_what_is_down_first_and_name_it_with_its_reason()
     {
-        var fleet = new FleetBuilder()
-            .With("vm-1", FleetBuilder.Container("vm-1", "sonarr", WorkloadState.Exited, new WorkloadMount(MountKind.Bind, "/srv/sonarr", "/config")))
-            .Unreachable("cluster");
-
-        var overview = fleet.Digest.GetOverview();
+        var overview = OverviewOfADownAppAndAnUnreachableCluster();
 
         overview.Apps.Should().Match<AppCounts>(a => a.Total == 2 && a.Down == 1 && a.Unknown == 1);
         overview.NeedsAttention.Select(f => f.Kind).Should().StartWith(["app-down", "environment-unreachable"]);
         overview.NeedsAttention[0].Subjects.Should().ContainSingle().Which.Should().StartWith("Sonarr (Exited");
+    }
+
+    [Fact]
+    public void should_say_which_data_is_missing_and_which_critical_data_has_no_offsite_copy()
+    {
+        var overview = OverviewOfADownAppAndAnUnreachableCluster();
+
         overview.NeedsAttention.Should().ContainSingle(f => f.Kind == "data-missing").Which.Subjects.Should().Equal("Sonarr config (critical)");
         overview.NeedsAttention.Should().ContainSingle(f => f.Kind == "critical-without-offsite").Which.Subjects.Should().Equal("Sonarr config");
         overview.Data.Should().Be(new DataCounts(1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0));
+    }
+
+    [Fact]
+    public void should_show_the_connection_of_each_environment_and_where_a_vm_is_hosted()
+    {
+        var overview = OverviewOfADownAppAndAnUnreachableCluster();
+
         overview.Environments.Single(e => e.Id == "cluster").Should().Match<EnvironmentLine>(e => e.Connection == "unreachable" && e.Error == "timeout");
         overview.Environments.Single(e => e.Id == "vm-1").HostedOn.Should().Be("Hypervisor");
     }
@@ -89,11 +104,37 @@ public sealed class FleetDigestFixture
     }
 
     [Theory]
+    [InlineData(0, 0, false)]
+    [InlineData(10, 10, false)]
+    [InlineData(11, 10, true)]
+    public void should_cap_only_beyond_the_maximum_and_say_one_more_when_it_is_one(int count, int kept, bool capped)
+    {
+        var subjects = FleetDigest.Cap(Enumerable.Range(1, count).Select(i => $"app-{i}"));
+
+        subjects.Take(kept).Should().HaveCount(kept);
+        (subjects.Count == kept + 1 && subjects[^1].StartsWith("and ", StringComparison.Ordinal)).Should().Be(capped);
+        if (capped)
+        {
+            subjects[^1].Should().Be("and 1 more");
+        }
+    }
+
+    [Theory]
     [InlineData("https://user:pass@app.homelab.example:8443/path?token=abc#x", "https://app.homelab.example:8443/path")]
     [InlineData("http://10.0.0.10:8096/", "http://10.0.0.10:8096/")]
+    [InlineData("https://app.homelab.example", "https://app.homelab.example/")]
+    [InlineData("https://app.homelab.example/a%20b?x=1", "https://app.homelab.example/a b")]
+    [InlineData("https://user@app.homelab.example/", "https://app.homelab.example/")]
+    [InlineData("https://app.homelab.example/#only-a-fragment", "https://app.homelab.example/")]
     public void should_strip_credentials_query_and_fragment_from_urls(string url, string expected)
     {
         SafeUrl.Of(new Uri(url)).Should().Be(expected);
+    }
+
+    [Fact]
+    public void should_say_nothing_of_a_url_that_is_not_absolute()
+    {
+        SafeUrl.Of(new Uri("/relative/path", UriKind.Relative)).Should().BeEmpty();
     }
 
     [Fact]
