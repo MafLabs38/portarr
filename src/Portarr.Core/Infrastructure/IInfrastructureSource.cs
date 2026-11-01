@@ -32,12 +32,6 @@ public interface IInfrastructureSource
 /// </summary>
 public sealed record InfrastructureSample(IReadOnlyList<MachineSample> Machines, IReadOnlyList<WorkloadUsageSample> Workloads, TimeSpan? Resolution = null);
 
-public enum MachineKind
-{
-    DockerHost,
-    KubernetesNode,
-}
-
 /// <summary>What a machine's usage measures: the sum of its containers (Docker alone) or the whole host.</summary>
 public enum UsageScope
 {
@@ -46,7 +40,7 @@ public enum UsageScope
 }
 
 /// <summary>
-/// A machine at one instant: its capacity (cores, memory) and its usage, in the units shared by every
+/// A machine at one instant: its <c>Kind</c> (what the connector calls it: <c>docker-host</c>, <c>kubernetes-node</c>, shown as is), its capacity (cores, memory) and its usage, in the units shared by every
 /// environment (D-33). Null values are unknown (not readable, or not measured yet). <c>MeasuredAt</c> is when
 /// the connector measured it, when it says so (metrics.k8s.io): a reading with the same timestamp as the last
 /// point is not a new point. <c>Address</c> is the machine's own address when its connector knows it (a node's
@@ -55,7 +49,7 @@ public enum UsageScope
 public sealed record MachineSample(
     string Id,
     string Name,
-    MachineKind Kind,
+    string Kind,
     double? CpuCapacityCores,
     long? MemoryCapacityBytes,
     double? CpuCores,

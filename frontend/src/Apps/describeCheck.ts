@@ -1,8 +1,6 @@
 import type { CheckResult } from 'typings/Check';
+import type Status from 'typings/Status';
 import translate from 'Utilities/String/translate';
-
-/** Days before expiry under which a certificate degrades the app (D-52, same threshold as the server). */
-export const certificateWarningDays = 14;
 
 const dayMs = 86_400_000;
 
@@ -35,9 +33,14 @@ export function describeError(error: string): string {
 
 /**
  * The tile line of a check: "200 · 140 ms", "HTTP 502", "Timeout", "Certificate expires in 6 days".
- * A failure wins over the certificate, an expiring certificate over the latency.
+ * A failure wins over the certificate, an expiring certificate over the latency. Whether a certificate is near its
+ * expiry is the server's call (D-52): the check's <c>status</c> says Degraded (expiring) or Down (expired).
  */
-export default function describeCheck(result: CheckResult | null, now: number): { text: string; tone: CheckTone } {
+export default function describeCheck(
+  result: CheckResult | null,
+  now: number,
+  status?: Status,
+): { text: string; tone: CheckTone } {
   if (!result) {
     return { text: translate('CheckPending'), tone: 'muted' };
   }
@@ -45,8 +48,8 @@ export default function describeCheck(result: CheckResult | null, now: number): 
     return { text: describeError(result.error), tone: 'bad' };
   }
   const days = certificateDaysLeft(result, now);
-  if (days !== null && days < certificateWarningDays) {
-    return { text: describeCertificate(days), tone: days < 0 ? 'bad' : 'warn' };
+  if (days !== null && (status?.status === 'Degraded' || status?.status === 'Down')) {
+    return { text: describeCertificate(days), tone: status.status === 'Down' ? 'bad' : 'warn' };
   }
   return {
     text: translate('CheckUpValue', { code: result.statusCode ?? '', latency: result.latencyMs ?? 0 }),

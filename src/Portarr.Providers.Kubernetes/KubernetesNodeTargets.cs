@@ -5,6 +5,9 @@ using Portarr.Core.Workloads;
 
 namespace Portarr.Providers.Kubernetes;
 
+/// <summary>The route of a node whose exporter is reached through the API server's pod proxy, on this port (D-72).</summary>
+internal sealed record PodProxyRoute(int Port);
+
 /// <summary>Where each node of a cluster is read: its route to node_exporter, from the nodes the infrastructure monitor last saw (D-72).</summary>
 internal static class KubernetesNodeTargets
 {
@@ -25,7 +28,7 @@ internal static class KubernetesNodeTargets
         return route.Access switch
         {
             NodeExporterAccess.Url => new HostMetricsTarget(environment, node.Id, route.Url),
-            NodeExporterAccess.ApiServer => new HostMetricsTarget(environment, node.Id, null, nodeExporter.Port),
+            NodeExporterAccess.ApiServer => new HostMetricsTarget(environment, node.Id, null, new PodProxyRoute(nodeExporter.Port)),
             NodeExporterAccess.Direct when node.Address is { } address
                 => IsReachableAddress(address)
                     ? new HostMetricsTarget(environment, node.Id, new UriBuilder(Uri.UriSchemeHttp, IPAddress.Parse(address).ToString(), nodeExporter.Port, "/metrics").Uri)

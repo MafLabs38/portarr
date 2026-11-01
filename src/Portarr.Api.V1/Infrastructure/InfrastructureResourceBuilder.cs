@@ -73,7 +73,7 @@ public static class InfrastructureResourceBuilder
         return new MachineResource(
             machine.Id,
             machine.Name,
-            machine.Kind.ToResource(),
+            machine.Kind,
             machine.Roles ?? [],
             machine.Ready,
             machine.CpuCapacityCores,

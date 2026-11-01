@@ -25,7 +25,7 @@ public sealed class KubernetesPodProxyHostMetricsContractFixture : HostMetricsSo
 
         return new HostMetricsHarness(
             source,
-            new HostMetricsTarget(environment, "worker", null, 9100),
+            new HostMetricsTarget(environment, "worker", null, new PodProxyRoute(9100)),
             new HostMetricsTarget(environment, "worker", new Uri("http://10.0.0.11:9100/metrics")),
             served => text = served,
             fault => cluster.Fault = fault,

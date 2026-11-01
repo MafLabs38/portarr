@@ -33,7 +33,7 @@ public sealed class FleetDigestFixture
         var fleet = new FleetBuilder().With("vm-1", FleetBuilder.Container("vm-1", "sonarr"));
         fleet.Metrics["vm-1"] = new EnvironmentMetrics(
             "vm-1",
-            [new MachineView(new MachineSample("vm-1", "VM 1", MachineKind.DockerHost, 4, 8L << 30, 1, 2L << 30, UsageScope.Containers), [], "hypervisor")],
+            [new MachineView(new MachineSample("vm-1", "VM 1", "docker-host", 4, 8L << 30, 1, 2L << 30, UsageScope.Containers), [], "hypervisor")],
             new Dictionary<string, WorkloadUsageSample> { ["sonarr"] = new("sonarr", 0.25, 1L << 30) },
             FleetBuilder.Now,
             null);
@@ -53,7 +53,7 @@ public sealed class FleetDigestFixture
         fleet.Metrics["cluster"] = new EnvironmentMetrics(
             "cluster",
             [new MachineView(
-                new MachineSample("node-1", "node-1", MachineKind.KubernetesNode, 4, 16L << 30, 2, 4L << 30, UsageScope.Host, Ready: true),
+                new MachineSample("node-1", "node-1", "kubernetes-node", 4, 16L << 30, 2, 4L << 30, UsageScope.Host, Ready: true),
                 [new MachinePoint(FleetBuilder.Now.AddMinutes(-5), 1, 3L << 30), new MachinePoint(FleetBuilder.Now, 3, 4L << 30)],
                 "hypervisor")],
             new Dictionary<string, WorkloadUsageSample> { ["shop/shop-abc"] = new("shop/shop-abc", 1.5, 2L << 30) },

@@ -73,7 +73,7 @@ public sealed class KubernetesMapperFixture
 
         var machine = KubernetesMapper.ToMachine(node, metrics);
 
-        machine.Should().Be(new MachineSample("node-1", "node-1", MachineKind.KubernetesNode, 4, 20_972_736_512, 0.04, 1_268_449_280, UsageScope.Host, machine.Roles, true));
+        machine.Should().Be(new MachineSample("node-1", "node-1", "kubernetes-node", 4, 20_972_736_512, 0.04, 1_268_449_280, UsageScope.Host, machine.Roles, true));
         machine.Roles.Should().Equal("control-plane", "etcd");
         KubernetesMapper.ToMachine(node, null).CpuCores.Should().BeNull();
     }

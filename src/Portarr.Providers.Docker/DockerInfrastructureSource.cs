@@ -16,6 +16,9 @@ namespace Portarr.Providers.Docker;
 /// </summary>
 public sealed partial class DockerInfrastructureSource : IInfrastructureSource
 {
+    /// <summary>What a Docker host is called on the dashboard.</summary>
+    public const string MachineKind = "docker-host";
+
     /// <summary>Stats requests in flight per host: a one-shot sample answers in a few milliseconds, 4 at a time read 40 containers in about 0.1 s.</summary>
     public const int MaxConcurrency = 4;
 
@@ -78,7 +81,7 @@ public sealed partial class DockerInfrastructureSource : IInfrastructureSource
         var machine = new MachineSample(
             environment.Id,
             environment.Name,
-            MachineKind.DockerHost,
+            MachineKind,
             info?.NCpu ?? read.Select(s => (double?)s.OnlineCpus).Max(),
             info?.MemTotal ?? read.Select(s => s.MemoryLimit).Max(),
             cpu.Count > 0 ? Math.Round(cpu.Sum(), 3) : null,
