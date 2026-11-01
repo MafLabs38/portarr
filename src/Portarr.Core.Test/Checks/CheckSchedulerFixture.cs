@@ -93,6 +93,24 @@ public sealed class CheckSchedulerFixture : CoreTest<CheckScheduler>
     }
 
     [Fact]
+    public async Task should_record_the_other_checks_when_one_probe_throws()
+    {
+        _apps.Add("other");
+        var calls = 0;
+        Mocker.Get<IHttpCheckRunner>().RunAsync(Target, Arg.Any<CheckDefinition>(), Arg.Any<CancellationToken>())
+            .Returns<CheckResult>(_ => Interlocked.Increment(ref calls) == 1
+                ? throw new InvalidOperationException("a bug in a runner")
+                : new CheckResult(Clock.GetUtcNow(), 200, TimeSpan.FromMilliseconds(5), null, null));
+
+        await Subject.RunDueAsync(TestContext.Current.CancellationToken);
+
+        var store = Mocker.Get<ICheckStore>();
+        var results = new[] { store.Get("app")!, store.Get("other")! }.Select(state => state.History.Should().ContainSingle().Subject).ToList();
+        results.Select(result => result.Up).Should().BeEquivalentTo([true, false]);
+        results.Select(result => result.Error).Should().Contain(CheckErrors.CheckFailed);
+    }
+
+    [Fact]
     public async Task should_probe_a_changed_check_at_once_instead_of_waiting_for_its_interval()
     {
         var runner = Mocker.Get<IHttpCheckRunner>();

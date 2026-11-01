@@ -14,17 +14,19 @@ test.describe('Infrastructure', { tag: '@smoke' }, () => {
 
     // The age moves with the clock and the samples: a live card shows more than one age and is never "stale".
     const seen = new Set<string>();
+    let sawStale = false;
     const agesSeen = async () => {
       const text =
         (await card
           .getByText(/^(Live|Stale) · /)
           .first()
           .textContent({ timeout: 1_000 })) ?? '';
-      expect(text).not.toMatch(/^Stale/);
+      sawStale ||= text.startsWith('Stale');
       seen.add(text);
       return seen.size;
     };
     await expect.poll(agesSeen, { timeout: 20_000 }).toBeGreaterThan(1);
+    expect(sawStale).toBe(false);
   });
 
   test('a card states how much CPU and memory the machine uses', async ({ page }) => {

@@ -60,7 +60,13 @@ public sealed class InfrastructureToolsFixture : IAsyncLifetime
         _factory = new PortarrFactory(
             options,
             new Dictionary<string, string?> { ["CLUSTER_TOKEN"] = "cluster-token" },
-            services => services.AddSingleton<IWorkloadSource, KubernetesWorkloadSource>());
+            services =>
+            {
+                services.AddSingleton<IWorkloadSource, KubernetesWorkloadSource>();
+
+                // The monitor is stopped on its own below: its loop then ends cancelled, which the host would take for a crash.
+                services.Configure<HostOptions>(options => options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore);
+            });
         _client = await _factory.CreateSignedInClientAsync();
 
         // The monitor's own 1 s loop runs on the shared fake clock: it would read the agents between the steps of a test that
