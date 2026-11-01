@@ -44,12 +44,12 @@ public sealed class BackrestBackupSource : IBackupSource
 
     public bool Supports(CatalogEnvironment environment)
     {
-        return environment.Backrest is not null;
+        return environment.Backrest() is not null;
     }
 
     public async Task<IReadOnlyList<BackupJob>> ListJobsAsync(CatalogEnvironment environment, CancellationToken cancellationToken)
     {
-        var endpoint = environment.Backrest ?? throw new InvalidOperationException($"Environment {environment.Id} has no Backrest.");
+        var endpoint = environment.Backrest() ?? throw new InvalidOperationException($"Environment {environment.Id} has no Backrest.");
         var authorization = Authorization(endpoint);
         using var client = _httpClientFactory.CreateClient(HttpClientName);
 

@@ -39,6 +39,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<ISystemStatusService, SystemStatusService>();
         services.AddSingleton<ILogLevelService, LogLevelService>();
 
+        services.AddSingleton<ICatalogParser, CatalogParserService>();
         services.AddSingleton<CatalogService>();
         services.AddSingleton<ICatalogService>(provider => provider.GetRequiredService<CatalogService>());
         services.AddHostedService(provider => provider.GetRequiredService<CatalogService>());

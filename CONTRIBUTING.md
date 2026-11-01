@@ -30,6 +30,8 @@ Direct pushes to `main` and `develop` are blocked for everyone.
 
 Providers follow the *arr `ThingiProvider` pattern: a settings class with `[FieldDefinition]` attributes (the UI form is generated from it), a factory, and one or more **capability** interfaces (`Inventory`, `State`, `Logs.Live`, `Metrics`…). Every capability comes with a contract test suite your provider must pass. See the spec, §7.
 
+A connector that owns a section of an environment in the catalog (`backrest:`, later `docker:`, `kubernetes:`…) registers an `IEnvironmentConnector` in its `Add…Provider()` extension, validates the section with the helpers of `CatalogValues`, exposes its typed settings through an extension on `CatalogEnvironment` (`environment.Backrest()`) and inherits `EnvironmentConnectorContract` in its tests. Core never reads a connector's settings. See [ADR 0013](docs/adr/0013-connectors-own-their-environment-settings.md); the Backrest connector is the worked example.
+
 ## Development setup
 
 Instructions will be added with phase 0 of the [implementation plan](docs/IMPLEMENTATION_PLAN.md).

@@ -40,9 +40,10 @@ public sealed record CatalogPortalColors(string? Name, string? Version);
 /// A host, a cluster or a hosting account. <c>Address</c> is its LAN address, used to build LAN URLs from
 /// published ports (D-46). At most one connector endpoint is set: <c>Docker</c>, <c>Cloudflare</c> or <c>Kubernetes</c>.
 /// <c>Host</c> is the environment this one runs on as a VM (D-59): the hypervisor's dashboard counts it as a guest.
-/// <c>HostMetrics</c> is the host agent of its single machine (a Docker host, D-72). <c>Backrest</c> is the
-/// backup tool running on it (D-80). <c>Notes</c>, <c>Access</c> and <c>Machines</c> are what the operator knows
-/// about it, for people and AI assistants (D-84).
+/// <c>HostMetrics</c> is the host agent of its single machine (a Docker host, D-72). <c>Notes</c>, <c>Access</c> and
+/// <c>Machines</c> are what the operator knows about it, for people and AI assistants (D-84). <c>Connectors</c> holds the
+/// settings each connector library read from the section it owns, keyed by that section (D-105): Core never looks inside.
+/// <c>MachineHosts</c> says which machines of the environment are VMs on another environment, as those connectors know them.
 /// </summary>
 public sealed record CatalogEnvironment(
     string Id,
@@ -53,18 +54,34 @@ public sealed record CatalogEnvironment(
     KubernetesCluster? Kubernetes = null,
     string? Host = null,
     HostMetricsEndpoint? HostMetrics = null,
-    BackrestEndpoint? Backrest = null,
     string? Notes = null,
     MachineAccess? Access = null,
-    IReadOnlyList<MachineKnowledge>? Machines = null)
+    IReadOnlyList<MachineKnowledge>? Machines = null,
+    IReadOnlyDictionary<string, object>? Connectors = null,
+    IReadOnlyDictionary<string, string>? MachineHosts = null)
 {
+    /// <summary>Whether this environment declares the section a connector owns.</summary>
+    public bool Declares(string section) => Connectors?.ContainsKey(section) == true;
+
+    /// <summary>The settings a connector read from its section of this environment, or null when the environment does not declare it.</summary>
+    public T? Settings<T>(string section)
+        where T : class
+    {
+        if (Connectors is null || !Connectors.TryGetValue(section, out var settings))
+        {
+            return null;
+        }
+
+        return settings as T ?? throw new InvalidOperationException($"The settings of '{section}' in environment '{Id}' are a {settings.GetType().Name}, not a {typeof(T).Name}.");
+    }
+
     /// <summary>
     /// The environment a machine of this environment is a VM on: its node's entry in <c>nodeHosts</c>, else the
     /// environment's <c>host</c>; null for a physical machine or a VPS whose hypervisor is not in the catalog.
     /// </summary>
     public string? HostOf(string machineId)
     {
-        return Kubernetes?.NodeHosts?.GetValueOrDefault(machineId) ?? Host;
+        return Kubernetes?.NodeHosts?.GetValueOrDefault(machineId) ?? MachineHosts?.GetValueOrDefault(machineId) ?? Host;
     }
 
     /// <summary>The connector kind: docker, cloudflare, kubernetes, or none (a launcher-only environment, D-32).</summary>

@@ -25,7 +25,7 @@ public sealed class BackrestBackupSourceContractFixture : BackupSourceContract
         factory.CreateClient(BackrestBackupSource.HttpClientName).Returns(_ => new HttpClient(new FakeBackrest(state, requests)));
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["BACKREST_USER"] = "portarr", ["BACKREST_PASSWORD"] = Secret }).Build();
 
-        var environment = new CatalogEnvironment("server-1", "Server 1", null, Backrest: new BackrestEndpoint(new Uri("http://10.0.0.10:9898/"), "BACKREST_USER", "BACKREST_PASSWORD"));
+        var environment = new CatalogEnvironment("server-1", "Server 1", null, Connectors: BackrestEnvironments.Declared(new BackrestEndpoint(new Uri("http://10.0.0.10:9898/"), "BACKREST_USER", "BACKREST_PASSWORD")));
         return new BackupToolHarness(
             new BackrestBackupSource(factory, configuration),
             environment,

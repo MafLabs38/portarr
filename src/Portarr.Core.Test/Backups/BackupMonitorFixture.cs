@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Portarr.Core.Backups;
 using Portarr.Core.Catalog;
+using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Backups;
 
@@ -114,7 +115,7 @@ public sealed class BackupMonitorFixture
 
     private BackupMonitor Monitor(params IBackupSource[] sources)
     {
-        var parsed = CatalogParser.Parse(Catalog);
+        var parsed = CatalogParser.Parse(Catalog, [new StubEnvironmentConnector("backrest")]);
         parsed.Errors.Should().BeEmpty();
         var catalogService = Substitute.For<ICatalogService>();
         catalogService.Current.Returns(new CatalogState(parsed.Catalog, "/config/catalog.yaml", true, [], Now));
@@ -127,7 +128,7 @@ public sealed class BackupMonitorFixture
         source.Kind.Returns(kind);
         source.Supports(Arg.Any<CatalogEnvironment>()).Returns(call => kind switch
         {
-            BackupSourceKinds.Backrest => call.Arg<CatalogEnvironment>().Backrest is not null,
+            BackupSourceKinds.Backrest => call.Arg<CatalogEnvironment>().Declares("backrest"),
             _ => call.Arg<CatalogEnvironment>().Kubernetes is not null,
         });
         source.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<CancellationToken>()).Returns(jobs);

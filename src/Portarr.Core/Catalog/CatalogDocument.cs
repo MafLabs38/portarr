@@ -1,3 +1,6 @@
+using YamlDotNet.Core.Events;
+using YamlDotNet.Serialization;
+
 namespace Portarr.Core.Catalog;
 
 // YAML shape of catalog.yaml. Kept separate from the domain records so the file format can
@@ -219,16 +222,6 @@ internal sealed class K8UpSourceDocument
     public string? Environment { get; set; }
 }
 
-/// <summary>The Backrest of an environment (D-80); the credentials are variable names.</summary>
-internal sealed class BackrestDocument
-{
-    public string? Url { get; set; }
-
-    public string? UserEnv { get; set; }
-
-    public string? PasswordEnv { get; set; }
-}
-
 internal sealed class EnvironmentDocument
 {
     public string? Id { get; set; }
@@ -255,8 +248,9 @@ internal sealed class EnvironmentDocument
     /// <summary>The host agent of a Docker host (D-72).</summary>
     public HostMetricsDocument? HostMetrics { get; set; }
 
-    /// <summary>The Backrest running on this machine (D-80).</summary>
-    public BackrestDocument? Backrest { get; set; }
+    /// <summary>The sections of connector libraries (D-105), set aside as their events: each connector reads its own.</summary>
+    [YamlIgnore]
+    public IReadOnlyDictionary<string, IReadOnlyList<ParsingEvent>> Sections { get; set; } = new Dictionary<string, IReadOnlyList<ParsingEvent>>();
 
     /// <summary>Free Markdown for people and AI assistants (D-84).</summary>
     public string? Notes { get; set; }

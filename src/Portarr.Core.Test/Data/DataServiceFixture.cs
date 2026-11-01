@@ -1,6 +1,7 @@
 using Portarr.Core.Backups;
 using Portarr.Core.Catalog;
 using Portarr.Core.Data;
+using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Data;
 
@@ -256,10 +257,10 @@ public sealed class DataServiceFixture
                 targets:
                   local: { cronjob: shop/dump }
                   offsite: { k8up: { schedule: shop/offsite, item: data-db-0 }, backrest: { plan: shop-offsite, environment: server-1 }, manual: true }
-            """);
+            """, [new StubEnvironmentConnector("backrest")]);
 
         parsed.Errors.Should().BeEmpty();
-        parsed.Catalog.Environments[0].Backrest.Should().Be(new BackrestEndpoint(new Uri("http://10.0.0.10:9898"), "BACKREST_USER", "BACKREST_PASSWORD"));
+        parsed.Catalog.Environments[0].Declares("backrest").Should().BeTrue();
         var data = parsed.Catalog.DataAssets.Single();
         data.Where.Should().Be(new DataLocation("cluster", "shop", "db-0", "data-db-0", null));
         data.Targets[0].Sources.Should().Equal(new BackupSourceReference("cronjob", "cluster", "shop/dump"));
@@ -290,22 +291,9 @@ public sealed class DataServiceFixture
         result.Errors.Should().ContainSingle().Which.Should().Contain(error);
     }
 
-    [Theory]
-    [InlineData("backrest: { url: \"http://10.0.0.10:9898\", userEnv: BACKREST_USER }", "must both name an environment variable")]
-    [InlineData("backrest: { url: \"http://user:pass@10.0.0.10:9898\" }", "without credentials")]
-    [InlineData("backrest: { url: \"http://10.0.0.10:9898\", userEnv: \"admin\", passwordEnv: \"pa ss\" }", "must both name an environment variable")]
-    public void should_reject_a_backrest_with_credentials_in_the_catalog(string backrest, string error)
-    {
-        var result = CatalogParser.Parse($"environments:\n  - {{ id: server-1, docker: {{ url: \"http://10.0.0.10:2375\" }}, {backrest} }}\n");
-
-        result.Errors.Should().ContainSingle().Which.Should().Contain(error);
-    }
-
     [Fact]
-    public void should_reject_a_backrest_on_a_cluster_and_the_retired_backups_section()
+    public void should_reject_the_retired_backups_section()
     {
-        CatalogParser.Parse("environments:\n  - { id: cluster, kubernetes: { server: \"https://10.0.0.20:6443\" }, backrest: { url: \"http://10.0.0.10:9898\" } }\n")
-            .Errors.Should().ContainSingle().Which.Should().Contain("not on a kubernetes or cloudflare environment");
         CatalogParser.Parse("backups:\n  - { id: old }\n").IsValid.Should().BeFalse("the backups section was replaced by data");
     }
 
