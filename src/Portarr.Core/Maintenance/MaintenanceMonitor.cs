@@ -118,7 +118,8 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
         {
             var state = _current;
             var codeAt = state.Repositories.At;
-            var next = codeAt is { } at && _scannedKey is not null ? at + (state.Repositories.Error is null ? RepositoryInterval : RepositoryRetryInterval) : (DateTimeOffset?)null;
+            var interval = state.Repositories.Error is null ? RepositoryInterval : RepositoryRetryInterval;
+            var next = codeAt is { } at && _scannedKey is not null ? at + interval : (DateTimeOffset?)null;
             var registriesAt = state.Registries.Count == 0 ? (DateTimeOffset?)null : state.Registries.Values.Max(lookup => lookup.CheckedAt);
             lock (_requestLock)
             {

@@ -44,16 +44,9 @@ public static class ProtectedSettings
             var sent = next[key];
             if (sent is null)
             {
-                if (before is not null)
-                {
-                    result = ReferenceEquals(result, next) ? next.DeepClone().AsObject() : result;
-                    result[key] = before.DeepClone();
-                }
-
-                continue;
+                result = Restore(result, next, key, before);
             }
-
-            if (before is null || YamlNodes.Canonical(before) != YamlNodes.Canonical(sent))
+            else if (before is null || YamlNodes.Canonical(before) != YamlNodes.Canonical(sent))
             {
                 refused.Add(key);
             }
@@ -66,6 +59,19 @@ public static class ProtectedSettings
                 $"{section} '{id}': {string.Join(", ", refused)} cannot be changed through the API or the MCP tools: they say how Portarr reaches a host and with which credential, so they are edited in the catalog file.");
         }
 
+        return result;
+    }
+
+    /// <summary>The setting the caller left out, put back as it is; the sent object is copied the first time, never changed.</summary>
+    private static JsonObject Restore(JsonObject result, JsonObject sent, string key, JsonNode? before)
+    {
+        if (before is null)
+        {
+            return result;
+        }
+
+        result = ReferenceEquals(result, sent) ? sent.DeepClone().AsObject() : result;
+        result[key] = before.DeepClone();
         return result;
     }
 

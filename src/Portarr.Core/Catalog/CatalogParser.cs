@@ -362,21 +362,6 @@ public static partial class CatalogParser
             return (DockerSection(new Uri(baseUrl, ReaderDockerPath), variable), HostMetricsSection(new Uri(baseUrl, ReaderHostPath), variable));
         }
 
-        /// <summary>
-        /// An optional <c>tokenEnv</c> on <c>docker:</c> or <c>hostMetrics:</c>: absent is fine, present must be a variable of the reader
-        /// namespace, never a token and never another secret of the process (the catalog can be edited by someone who must not read them).
-        /// </summary>
-        private bool TryTokenVariable(string environmentId, string key, string? value, out string? variable)
-        {
-            if (CatalogValues.ReaderTokenError(key, value, out variable) is not { } error)
-            {
-                return true;
-            }
-
-            _errors.Add($"Environment '{environmentId}': {error}");
-            return false;
-        }
-
         /// <summary>The <c>hostMetrics:</c> section a reader stands for: <c>{ nodeExporter, tokenEnv }</c>, as the events of a flow mapping.</summary>
         private static ParsingEvent[] HostMetricsSection(Uri url, string variable)
         {
@@ -471,14 +456,14 @@ public static partial class CatalogParser
         /// its own token. Like the other connectors, the token comes from an environment variable: without it the section
         /// still loads, shown as not connected.
         /// </summary>
-        private List<CodeSource>? BuildSources(GitHubSourcesDocument? document)
+        private List<ICodeSource>? BuildSources(GitHubSourcesDocument? document)
         {
             if (document is null)
             {
                 return null;
             }
 
-            var result = new List<CodeSource>();
+            var result = new List<ICodeSource>();
             foreach (var (account, index) in document.Accounts.Select((a, i) => (a, i)))
             {
                 var label = document.IsList ? $"sources.github[{index}]" : "sources.github";
@@ -543,9 +528,9 @@ public static partial class CatalogParser
                     _errors.Add($"{label}: apiUrl must be the https address of a GitHub Enterprise Server's API (https://github.example/api/v3/), without credentials, query or fragment.");
                     apiUrl = null;
                 }
-                else if (!apiUrl.AbsoluteUri.EndsWith('/'))
+                else if (!apiUrl.AbsoluteUri.EndsWith(Path.AltDirectorySeparatorChar))
                 {
-                    apiUrl = new Uri(apiUrl.AbsoluteUri + "/");
+                    apiUrl = new Uri(apiUrl.AbsoluteUri + Path.AltDirectorySeparatorChar);
                 }
             }
 
@@ -1004,7 +989,7 @@ public static partial class CatalogParser
                 return null;
             }
 
-            var environment = SourceEnvironment(dataId, target, "backrest", source.Environment, dataEnvironment, environments, RuntimeNames.Kubernetes, forbidden: true);
+            var environment = SourceEnvironment(dataId, $"{target}.backrest", source.Environment, dataEnvironment, environments, RuntimeNames.Kubernetes, forbidden: true);
             var plan = CatalogValues.Blank(source.Plan);
             if (plan is null || !PlanPattern().IsMatch(plan))
             {
@@ -1022,7 +1007,7 @@ public static partial class CatalogParser
                 return null;
             }
 
-            var environment = SourceEnvironment(dataId, target, "k8up", source.Environment, dataEnvironment, environments, RuntimeNames.Kubernetes, forbidden: false);
+            var environment = SourceEnvironment(dataId, $"{target}.k8up", source.Environment, dataEnvironment, environments, RuntimeNames.Kubernetes, forbidden: false);
             var schedule = CatalogValues.Blank(source.Schedule);
             if (schedule is null || !NamespacedNamePattern().IsMatch(schedule))
             {
@@ -1041,7 +1026,7 @@ public static partial class CatalogParser
                 return null;
             }
 
-            var environment = SourceEnvironment(dataId, target, "cronjob", null, dataEnvironment, environments, RuntimeNames.Kubernetes, forbidden: false);
+            var environment = SourceEnvironment(dataId, $"{target}.cronjob", null, dataEnvironment, environments, RuntimeNames.Kubernetes, forbidden: false);
             if (!NamespacedNamePattern().IsMatch(cronJob))
             {
                 _errors.Add($"Data '{dataId}': {target}.cronjob must be <namespace>/<cronjob name>.");
@@ -1055,20 +1040,20 @@ public static partial class CatalogParser
         /// The environment a source is read on: the one named, else the data's own. A Kubernetes source needs a
         /// Kubernetes environment; Backrest (<c>forbidden</c>) runs on a machine, never on a cluster.
         /// </summary>
-        private string? SourceEnvironment(string dataId, string target, string tool, string? named, string? dataEnvironment, Dictionary<string, CatalogEnvironment> environments, string kubernetes, bool forbidden)
+        private string? SourceEnvironment(string dataId, string label, string? named, string? dataEnvironment, Dictionary<string, CatalogEnvironment> environments, string kubernetes, bool forbidden)
         {
             var id = CatalogValues.Blank(named) ?? dataEnvironment;
             if (id is null || !environments.TryGetValue(id, out var environment))
             {
-                _errors.Add($"Data '{dataId}': {target}.{tool} environment '{id}' is not an environment of the catalog.");
+                _errors.Add($"Data '{dataId}': {label} environment '{id}' is not an environment of the catalog.");
                 return null;
             }
 
             if ((environment.Runtime == kubernetes) == forbidden)
             {
                 _errors.Add(forbidden
-                    ? $"Data '{dataId}': {target}.{tool} is read on a machine's environment, not on '{id}' (a cluster): set environment on the source."
-                    : $"Data '{dataId}': {target}.{tool} is read on a kubernetes environment, '{id}' is not one: set environment on the source.");
+                    ? $"Data '{dataId}': {label} is read on a machine's environment, not on '{id}' (a cluster): set environment on the source."
+                    : $"Data '{dataId}': {label} is read on a kubernetes environment, '{id}' is not one: set environment on the source.");
                 return null;
             }
 

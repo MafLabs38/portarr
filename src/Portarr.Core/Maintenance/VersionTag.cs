@@ -72,6 +72,14 @@ public sealed partial record VersionTag(string Tag, string Shape, IReadOnlyList<
         return byNumbers != 0 ? byNumbers : Compare(SuffixNumbers, other.SuffixNumbers);
     }
 
+    public static bool operator <(VersionTag? left, VersionTag? right) => left is null ? right is not null : left.CompareTo(right) < 0;
+
+    public static bool operator <=(VersionTag? left, VersionTag? right) => left is null || left.CompareTo(right) <= 0;
+
+    public static bool operator >(VersionTag? left, VersionTag? right) => left is not null && left.CompareTo(right) > 0;
+
+    public static bool operator >=(VersionTag? left, VersionTag? right) => left is null ? right is null : left.CompareTo(right) >= 0;
+
     /// <summary>How far <paramref name="newer"/> is from this tag (same shape, newer).</summary>
     public VersionChange ChangeTo(VersionTag newer)
     {

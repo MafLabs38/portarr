@@ -169,28 +169,28 @@ public static class PortalLogo
             var root = true;
             while (!reader.EOF)
             {
-                if (reader.NodeType == XmlNodeType.Element)
+                if (reader.NodeType != XmlNodeType.Element)
                 {
-                    if ((root && (reader.LocalName != "svg" || reader.NamespaceURI != SvgNamespace)) || IsActive(reader))
-                    {
-                        return false;
-                    }
-
-                    root = false;
-
-                    // A style sheet is allowed, but one that loads anything from outside is not. Reading its text moves past it.
-                    if (reader.LocalName == "style")
-                    {
-                        if (LoadsFromOutside(reader.ReadElementContentAsString()))
-                        {
-                            return false;
-                        }
-
-                        continue;
-                    }
+                    reader.Read();
+                    continue;
                 }
 
-                reader.Read();
+                if (!IsAllowedElement(reader, root))
+                {
+                    return false;
+                }
+
+                root = false;
+
+                // A style sheet is allowed, but one that loads anything from outside is not. Reading its text moves past it.
+                if (reader.LocalName != "style")
+                {
+                    reader.Read();
+                }
+                else if (LoadsFromOutside(reader.ReadElementContentAsString()))
+                {
+                    return false;
+                }
             }
 
             return !root;
@@ -200,6 +200,10 @@ public static class PortalLogo
             return false;
         }
     }
+
+    /// <summary>The first element must be the SVG root, and none may be active (see <see cref="IsActive"/>).</summary>
+    private static bool IsAllowedElement(XmlReader reader, bool root) =>
+        !((root && (reader.LocalName != "svg" || reader.NamespaceURI != SvgNamespace)) || IsActive(reader));
 
     /// <summary>CSS that imports a sheet or points <c>url()</c> anywhere but at a fragment of the same document.</summary>
     private static bool LoadsFromOutside(string css)

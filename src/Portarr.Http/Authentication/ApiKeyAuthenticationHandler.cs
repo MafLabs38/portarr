@@ -52,12 +52,9 @@ public sealed class ApiKeyAuthenticationHandler : AuthenticationHandler<Authenti
 
         // Every environment key is compared, whichever matches, so the time does not tell which one is set.
         HashSet<string>? systemPermissions = null;
-        foreach (var source in _systemKeys)
+        foreach (var source in _systemKeys.Where(k => ApiKeys.Matches(presented, k.Key)))
         {
-            if (ApiKeys.Matches(presented, source.Key))
-            {
-                (systemPermissions ??= new HashSet<string>(StringComparer.Ordinal)).UnionWith(source.Permissions);
-            }
+            (systemPermissions ??= new HashSet<string>(StringComparer.Ordinal)).UnionWith(source.Permissions);
         }
 
         if (systemPermissions is not null)

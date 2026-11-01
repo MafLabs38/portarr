@@ -77,7 +77,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
         var item = FindItem(text, section, id);
 
         // What an assistant reads leaves out how hosts are reached (addresses, credential variables); an edit that omits them keeps them.
-        return item is null ? null : new CatalogItem(CatalogVersion.Of(text), section, id, ProtectedSettings.Redact(item, ProtectedSettings.KeysOf(section, _parser.ConnectorSections)));
+        return item is null ? null : new CatalogItem(CatalogVersion.Of(text), section, id, ProtectedSettings.Redact(item, ProtectedSettings.KeysOf(section, _parser.GetConnectorSections())));
     }
 
     public async Task<IReadOnlyList<string>> GetIdsAsync(string section, CancellationToken cancellationToken)
@@ -145,7 +145,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
                 edit.Id,
                 current,
                 edit.Change(current?.DeepClone().AsObject()),
-                ProtectedSettings.KeysOf(edit.Section, _parser.ConnectorSections));
+                ProtectedSettings.KeysOf(edit.Section, _parser.GetConnectorSections()));
             if (YamlNodes.Canonical(current) == YamlNodes.Canonical(next))
             {
                 return new CatalogEditResult(CatalogEditStatus.Unchanged, version, [], []);

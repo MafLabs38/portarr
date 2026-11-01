@@ -134,7 +134,7 @@ public static class CronSchedule
         var slash = part.IndexOf('/', StringComparison.Ordinal);
         if (slash >= 0)
         {
-            if (!int.TryParse(part[(slash + 1)..], NumberStyles.None, CultureInfo.InvariantCulture, out step) || step < 1)
+            if (!TryStep(part[(slash + 1)..], out step))
             {
                 return false;
             }
@@ -142,29 +142,7 @@ public static class CronSchedule
             range = part[..slash];
         }
 
-        var (from, to) = (min, max);
-        if (range is not ("*" or "?"))
-        {
-            var bounds = range.Split('-');
-            if (bounds.Length > 2 || !TryValue(bounds[0], min, max, names, out from))
-            {
-                return false;
-            }
-
-            to = from;
-            if (bounds.Length == 2 && !TryValue(bounds[1], min, max, names, out to))
-            {
-                return false;
-            }
-
-            // "5/10" means from 5 to the end.
-            if (bounds.Length == 1 && slash >= 0)
-            {
-                to = max;
-            }
-        }
-
-        if (to < from)
+        if (!TryRange(range, slash >= 0, min, max, names, out var from, out var to) || to < from)
         {
             return false;
         }
@@ -172,6 +150,39 @@ public static class CronSchedule
         for (var value = from; value <= to; value += step)
         {
             values.Add(value);
+        }
+
+        return true;
+    }
+
+    private static bool TryStep(string text, out int step) =>
+        int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out step) && step >= 1;
+
+    /// <summary>The bounds of a field part without its step: <c>*</c> is all, <c>a-b</c> a range, <c>a</c> alone one value (or from a to the end when a step follows).</summary>
+    private static bool TryRange(string range, bool hasStep, int min, int max, string[]? names, out int from, out int to)
+    {
+        (from, to) = (min, max);
+        if (range is "*" or "?")
+        {
+            return true;
+        }
+
+        var bounds = range.Split('-');
+        if (bounds.Length > 2 || !TryValue(bounds[0], min, max, names, out from))
+        {
+            return false;
+        }
+
+        to = from;
+        if (bounds.Length == 2)
+        {
+            return TryValue(bounds[1], min, max, names, out to);
+        }
+
+        // "5/10" means from 5 to the end.
+        if (hasStep)
+        {
+            to = max;
         }
 
         return true;

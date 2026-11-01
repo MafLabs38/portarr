@@ -26,9 +26,9 @@ public sealed class MaintenanceMonitorFixture
             .Select(name => new Workload("server-1", name, name, "proxy:1", WorkloadState.Running, WorkloadHealth.None, "Up", _clock.GetUtcNow(), null, new Dictionary<string, string>()))
             .ToList();
         _inventory.Current.Returns(new Dictionary<string, EnvironmentInventory> { ["server-1"] = new("server-1", true, null, workloads, _clock.GetUtcNow()) });
-        _code.Supports(Arg.Any<CodeSource>()).Returns(true);
-        _code.GetConfigurationError(Arg.Any<CodeSource>()).Returns((string?)null);
-        _code.ScanAsync(Arg.Any<CodeSource>(), Arg.Any<CancellationToken>()).Returns([]);
+        _code.Supports(Arg.Any<ICodeSource>()).Returns(true);
+        _code.GetConfigurationError(Arg.Any<ICodeSource>()).Returns((string?)null);
+        _code.ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>()).Returns([]);
         _registry.ListTagsAsync(Arg.Any<ImageReference>(), Arg.Any<CancellationToken>()).Returns([new RegistryTag("1"), new RegistryTag("2")]);
     }
 
@@ -40,11 +40,11 @@ public sealed class MaintenanceMonitorFixture
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
         _clock.Advance(TimeSpan.FromMinutes(29));
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
-        await _code.Received(1).ScanAsync(Arg.Any<CodeSource>(), Arg.Any<CancellationToken>());
+        await _code.Received(1).ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>());
 
         _clock.Advance(TimeSpan.FromMinutes(1));
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
-        await _code.Received(2).ScanAsync(Arg.Any<CodeSource>(), Arg.Any<CancellationToken>());
+        await _code.Received(2).ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -79,13 +79,13 @@ public sealed class MaintenanceMonitorFixture
     public async Task should_scan_every_declared_account_and_merge_their_repositories()
     {
         _catalog.Current.Returns(new CatalogState(TestCatalog.Parse("sources:\n  github:\n    - { owners: [one], tokenEnv: T1 }\n    - { owners: [two], tokenEnv: T2 }\n").Catalog, "catalog.yaml", true, [], null));
-        _code.ScanAsync(Arg.Any<CodeSource>(), Arg.Any<CancellationToken>()).Returns(call => Task.FromResult<IReadOnlyList<CodeRepository>>([Repo(((GitHubSource)call.Arg<CodeSource>()).Owners[0], "app")]));
+        _code.ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>()).Returns(call => Task.FromResult<IReadOnlyList<CodeRepository>>([Repo(((GitHubSource)call.Arg<ICodeSource>()).Owners[0], "app")]));
         var monitor = Monitor();
 
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
 
         monitor.Current.Repositories.Repositories.Select(r => r.FullName).Should().BeEquivalentTo("one/app", "two/app");
-        await _code.Received(2).ScanAsync(Arg.Any<CodeSource>(), Arg.Any<CancellationToken>());
+        await _code.Received(2).ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -93,9 +93,9 @@ public sealed class MaintenanceMonitorFixture
     {
         _catalog.Current.Returns(new CatalogState(TestCatalog.Parse("sources:\n  github:\n    - { owners: [one], tokenEnv: T1 }\n    - { owners: [two], tokenEnv: T2 }\n").Catalog, "catalog.yaml", true, [], null));
         var fail = false;
-        _code.ScanAsync(Arg.Any<CodeSource>(), Arg.Any<CancellationToken>()).Returns(call =>
+        _code.ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
-            var owner = ((GitHubSource)call.Arg<CodeSource>()).Owners[0];
+            var owner = ((GitHubSource)call.Arg<ICodeSource>()).Owners[0];
             return fail && owner == "two" ? throw new HttpRequestException("down", null, System.Net.HttpStatusCode.BadGateway) : Task.FromResult<IReadOnlyList<CodeRepository>>([Repo(owner, "app")]);
         });
         var monitor = Monitor();
@@ -113,12 +113,12 @@ public sealed class MaintenanceMonitorFixture
     public async Task should_skip_a_source_no_connector_reads_and_scan_the_others()
     {
         _catalog.Current.Returns(new CatalogState(TestCatalog.Parse("sources:\n  github:\n    - { owners: [one], tokenEnv: T1 }\n    - { owners: [two], tokenEnv: T2 }\n").Catalog, "catalog.yaml", true, [], null));
-        _code.Supports(Arg.Is<CodeSource>(s => s.Logins.Contains("two"))).Returns(false);
+        _code.Supports(Arg.Is<ICodeSource>(s => s.Logins.Contains("two"))).Returns(false);
         var monitor = Monitor();
 
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
 
-        await _code.Received(1).ScanAsync(Arg.Any<CodeSource>(), Arg.Any<CancellationToken>());
+        await _code.Received(1).ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>());
     }
 
     private static CodeRepository Repo(string owner, string name) => new(owner, name, new Uri($"https://github.com/{owner}/{name}"), "public", null, null, null, "main", false, false, AlertScan.Off, AlertScan.Off, AlertScan.Off, null, null, null);
@@ -126,25 +126,25 @@ public sealed class MaintenanceMonitorFixture
     [Fact]
     public async Task should_scan_again_in_5_minutes_after_a_failed_scan_not_in_30()
     {
-        _code.ScanAsync(Arg.Any<CodeSource>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<CodeRepository>>(_ => throw new HttpRequestException("down", null, System.Net.HttpStatusCode.BadGateway));
+        _code.ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<CodeRepository>>(_ => throw new HttpRequestException("down", null, System.Net.HttpStatusCode.BadGateway));
         var monitor = Monitor();
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
         monitor.Refresh.CodeNextAt.Should().Be(_clock.GetUtcNow() + MaintenanceMonitor.RepositoryRetryInterval);
 
         _clock.Advance(MaintenanceMonitor.RepositoryRetryInterval - TimeSpan.FromSeconds(1));
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
-        await _code.Received(1).ScanAsync(Arg.Any<CodeSource>(), Arg.Any<CancellationToken>());
+        await _code.Received(1).ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>());
 
         _clock.Advance(TimeSpan.FromSeconds(1));
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
-        await _code.Received(2).ScanAsync(Arg.Any<CodeSource>(), Arg.Any<CancellationToken>());
+        await _code.Received(2).ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task should_not_leave_a_refresh_under_way_when_the_pass_fails()
     {
         _registry.ListTagsAsync(Arg.Any<ImageReference>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<RegistryTag>>(_ => throw new HttpRequestException("down", null, System.Net.HttpStatusCode.BadGateway));
-        _code.ScanAsync(Arg.Any<CodeSource>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<CodeRepository>>(_ => throw new InvalidProgramException("a bug in a connector"));
+        _code.ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<CodeRepository>>(_ => throw new InvalidProgramException("a bug in a connector"));
         var monitor = Monitor();
         monitor.RequestRefresh();
         monitor.Refresh.Refreshing.Should().BeTrue();
@@ -160,7 +160,7 @@ public sealed class MaintenanceMonitorFixture
     {
         var repository = new CodeRepository("example", "shop", new Uri("https://github.com/example/shop"), "public", null, null, null, "main", false, false, AlertScan.Off, AlertScan.Off, AlertScan.Off, null, null, null);
         var calls = 0;
-        _code.ScanAsync(Arg.Any<CodeSource>(), Arg.Any<CancellationToken>()).Returns(_ => ++calls == 1
+        _code.ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>()).Returns(_ => ++calls == 1
             ? Task.FromResult<IReadOnlyList<CodeRepository>>([repository])
             : throw new HttpRequestException("down", null, System.Net.HttpStatusCode.BadGateway));
         var monitor = Monitor();
@@ -175,13 +175,13 @@ public sealed class MaintenanceMonitorFixture
     [Fact]
     public async Task should_report_a_missing_token_without_calling_github()
     {
-        _code.GetConfigurationError(Arg.Any<CodeSource>()).Returns("token-missing");
+        _code.GetConfigurationError(Arg.Any<ICodeSource>()).Returns("token-missing");
         var monitor = Monitor();
 
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
 
         monitor.Current.Repositories.Error.Should().Be("token-missing");
-        await _code.DidNotReceive().ScanAsync(Arg.Any<CodeSource>(), Arg.Any<CancellationToken>());
+        await _code.DidNotReceive().ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -195,14 +195,14 @@ public sealed class MaintenanceMonitorFixture
         monitor.Refresh.Refreshing.Should().BeTrue();
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
 
-        await _code.Received(2).ScanAsync(Arg.Any<CodeSource>(), Arg.Any<CancellationToken>());
+        await _code.Received(2).ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>());
         await _registry.Received(2).ListTagsAsync(Arg.Any<ImageReference>(), Arg.Any<CancellationToken>());
         monitor.Refresh.Refreshing.Should().BeFalse();
 
         // The scan that answered the request is not repeated by the next pass.
         _clock.Advance(TimeSpan.FromMinutes(1));
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
-        await _code.Received(2).ScanAsync(Arg.Any<CodeSource>(), Arg.Any<CancellationToken>());
+        await _code.Received(2).ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -249,7 +249,7 @@ public sealed class MaintenanceMonitorFixture
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
 
         monitor.Current.Repositories.Should().Be(RepositoryScan.NotConfigured);
-        await _code.DidNotReceive().ScanAsync(Arg.Any<CodeSource>(), Arg.Any<CancellationToken>());
+        await _code.DidNotReceive().ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>());
         monitor.Refresh.CodeNextAt.Should().BeNull();
     }
 
@@ -257,7 +257,7 @@ public sealed class MaintenanceMonitorFixture
     public async Task should_stop_when_cancelled_instead_of_recording_a_failure()
     {
         using var cancellation = new CancellationTokenSource();
-        _code.ScanAsync(Arg.Any<CodeSource>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<CodeRepository>>(_ =>
+        _code.ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<CodeRepository>>(_ =>
         {
             cancellation.Cancel();
             throw new OperationCanceledException(cancellation.Token);

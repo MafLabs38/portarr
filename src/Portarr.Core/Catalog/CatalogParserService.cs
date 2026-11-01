@@ -10,7 +10,7 @@ public sealed class CatalogParserService : ICatalogParser
         _connectors = EnvironmentConnectorRegistry.Validate(connectors);
     }
 
-    public IReadOnlyList<string> ConnectorSections => _connectors.Select(c => c.Section).ToList();
+    public IReadOnlyList<string> GetConnectorSections() => _connectors.Select(c => c.Section).ToList();
 
     public CatalogParseResult Parse(string yaml) => CatalogParser.Parse(yaml, _connectors);
 }

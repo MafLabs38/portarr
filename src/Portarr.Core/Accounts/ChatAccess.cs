@@ -171,6 +171,7 @@ public sealed class ChatAccess : IChatAccess
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S1144:Unused private types or members should be removed", Justification = "Dapper sets the properties when it maps a row.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S3459:Unassigned members should be removed", Justification = "Dapper sets the properties when it maps a row.")]
     private sealed class OwnerRow
     {
         public string Id { get; set; } = string.Empty;
@@ -181,6 +182,7 @@ public sealed class ChatAccess : IChatAccess
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S1144:Unused private types or members should be removed", Justification = "Dapper sets the properties when it maps a row.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S3459:Unassigned members should be removed", Justification = "Dapper sets the properties when it maps a row.")]
     private sealed class TokenRow
     {
         public int Id { get; set; }

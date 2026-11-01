@@ -188,6 +188,7 @@ public sealed class ApiKeyService : IApiKeyService
     private const string Select = """SELECT "Id", "UserId", "Name", "Prefix", "Scope", "Created", "LastUsed", "Expires", "Revoked" FROM "ApiKeys" """;
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S1144:Unused private types or members should be removed", Justification = "Dapper sets the properties when it maps a row.")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Minor Code Smell", "S3459:Unassigned members should be removed", Justification = "Dapper sets the properties when it maps a row.")]
     private sealed class Row
     {
         public int Id { get; set; }

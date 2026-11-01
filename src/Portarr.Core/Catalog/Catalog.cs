@@ -11,7 +11,7 @@ public sealed record Catalog(
     IReadOnlyList<CatalogStack> Stacks,
     IReadOnlyList<CatalogApp> Apps,
     IReadOnlyList<DataAssetDefinition>? Data = null,
-    IReadOnlyList<CodeSource>? Sources = null,
+    IReadOnlyList<ICodeSource>? Sources = null,
     IReadOnlyList<CatalogLink>? Links = null,
     IReadOnlyList<CatalogProvider>? Providers = null,
     CatalogPortal? Portal = null)
@@ -21,7 +21,7 @@ public sealed record Catalog(
     public IReadOnlyList<DataAssetDefinition> DataAssets => Data ?? [];
 
     /// <summary>The code hosts whose repositories the Maintenance page scans (D-64), one entry per account.</summary>
-    public IReadOnlyList<CodeSource> CodeSources => Sources ?? [];
+    public IReadOnlyList<ICodeSource> CodeSources => Sources ?? [];
 
     /// <summary>Network links between environments and machines (D-84).</summary>
     public IReadOnlyList<CatalogLink> NetworkLinks => Links ?? [];
