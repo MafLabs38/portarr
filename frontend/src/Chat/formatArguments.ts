@@ -6,6 +6,7 @@ export default function formatArguments(input: unknown): string {
   try {
     return JSON.stringify(input, null, 2);
   } catch {
-    return String(input);
+    // Only an object that cannot be serialized (a cycle) ends up here.
+    return typeof input === 'object' ? '{…}' : String(input);
   }
 }

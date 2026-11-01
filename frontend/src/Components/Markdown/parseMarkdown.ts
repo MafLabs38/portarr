@@ -14,7 +14,18 @@ export type Block =
   | { type: 'list'; items: ListItem[] }
   | { type: 'table'; header: string[]; rows: string[][] };
 
-const headingPattern = /^(#{1,6})\s+(.*)$/;
+/** A heading is one to six `#`, a space, then its text. Read by hand: a regex with `\s+(.*)$` can backtrack on a long run of spaces. */
+function headingOf(line: string): { level: number; text: string } | null {
+  let level = 0;
+  while (line[level] === '#') {
+    level += 1;
+  }
+  const next = line[level];
+  return level >= 1 && level <= 6 && next !== undefined && next.trim() === ''
+    ? { level, text: line.slice(level).trim() }
+    : null;
+}
+
 const listPattern = /^( *)- (.*)$/;
 const separatorCell = /^:?-{3,}:?$/;
 
@@ -43,10 +54,10 @@ function parseList(lines: string[]): ListItem[] {
     }
     const depth = Math.floor((match[1] ?? '').length / 2);
     const item: ListItem = { text: match[2] ?? '', children: [] };
-    while (stack.length > 1 && (stack[stack.length - 1]?.depth ?? -1) >= depth) {
+    while (stack.length > 1 && (stack.at(-1)?.depth ?? -1) >= depth) {
       stack.pop();
     }
-    const parent = stack[stack.length - 1];
+    const parent = stack.at(-1);
     parent?.items.push(item);
     stack.push({ depth, items: item.children });
   }
@@ -69,11 +80,11 @@ export default function parseMarkdown(markdown: string): Block[] {
 
   while (index < lines.length) {
     const line = lines[index] ?? '';
-    const heading = headingPattern.exec(line);
+    const heading = headingOf(line);
     if (line.trim() === '') {
       index += 1;
     } else if (heading) {
-      blocks.push({ type: 'heading', level: heading[1]?.length ?? 1, text: heading[2] ?? '' });
+      blocks.push({ type: 'heading', level: heading.level, text: heading.text });
       index += 1;
     } else if (listPattern.test(line)) {
       blocks.push({ type: 'list', items: parseList(take((l) => listPattern.test(l))) });
@@ -82,7 +93,7 @@ export default function parseMarkdown(markdown: string): Block[] {
       blocks.push({ type: 'table', header: cells(rows[0] ?? ''), rows: rows.slice(1).map(cells) });
     } else {
       const text = take(
-        (l) => l.trim() !== '' && !headingPattern.test(l) && !listPattern.test(l) && !l.trimStart().startsWith('|'),
+        (l) => l.trim() !== '' && !headingOf(l) && !listPattern.test(l) && !l.trimStart().startsWith('|'),
       );
       blocks.push({ type: 'paragraph', text: text.join(' ') });
     }

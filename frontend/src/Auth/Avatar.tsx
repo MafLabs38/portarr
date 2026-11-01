@@ -22,7 +22,7 @@ export function initialsOf(displayName: string, username: string): string {
 function tokenOf(username: string): string {
   let hash = 0;
   for (const character of username.toLowerCase()) {
-    hash = (hash * 31 + character.charCodeAt(0)) % 997;
+    hash = (hash * 31 + (character.codePointAt(0) ?? 0)) % 997;
   }
 
   return tokens[hash % tokens.length] ?? 'accent';

@@ -35,6 +35,7 @@
 }
 
 .created {
+  display: block;
   margin: 12px 0;
   padding: 12px;
   border: var(--borderWidth) solid var(--accent);

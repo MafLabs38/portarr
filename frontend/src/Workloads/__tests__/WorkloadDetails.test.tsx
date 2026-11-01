@@ -7,7 +7,7 @@ import { server } from '__mocks__/server';
 import WorkloadDetails from 'Workloads/Details/WorkloadDetails';
 
 function renderAt(path: string) {
-  window.history.pushState({}, '', path);
+  globalThis.history.pushState({}, '', path);
   return renderWithProviders(
     <Routes>
       <Route element={<WorkloadDetails />} path="/workloads/:environmentId/:name" />

@@ -12,13 +12,13 @@ describe('AssistantIndex', () => {
 
     const card = await screen.findByRole('region', { name: 'MCP server' });
     expect(within(card).getByText('On')).toBeInTheDocument();
-    expect(within(card).getByText(`${window.location.origin}/mcp`)).toBeInTheDocument();
+    expect(within(card).getByText(`${globalThis.location.origin}/mcp`)).toBeInTheDocument();
     const tools = within(card).getByRole('list', { name: 'MCP tools' });
     expect(within(tools).getByText('get_overview')).toBeInTheDocument();
 
     const command = screen.getByLabelText('Claude Code command');
     expect(command).toHaveTextContent(
-      `claude mcp add --transport http portarr ${window.location.origin}/mcp --header "X-Api-Key: <your key>"`,
+      `claude mcp add --transport http portarr ${globalThis.location.origin}/mcp --header "X-Api-Key: <your key>"`,
     );
   });
 

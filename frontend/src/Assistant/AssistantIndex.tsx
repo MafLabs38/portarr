@@ -21,7 +21,7 @@ export default function AssistantIndex() {
   const status = useAssistantStatus();
   const knowledge = useKnowledge(status.isSuccess);
   const data = status.data;
-  const endpoint = data ? `${window.location.origin}${data.path}` : '';
+  const endpoint = data ? `${globalThis.location.origin}${data.path}` : '';
 
   return (
     <PageContent title={translate('Assistant')}>

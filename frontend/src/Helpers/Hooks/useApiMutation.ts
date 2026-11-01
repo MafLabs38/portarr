@@ -24,6 +24,11 @@ interface ApiMutationOptions<TBody> {
 /** Writes made with the session cookie carry this header (CSRF protection, V7): a cross-site form cannot add it. */
 export const csrfHeaders = { 'X-Requested-With': 'portarr' };
 
+/** A call without a body (a DELETE) sends none; any other sends its body as JSON. */
+function jsonOf(body: unknown): string | undefined {
+  return body === undefined ? undefined : JSON.stringify(body);
+}
+
 /**
  * The only way components write server data (DESIGN.md §1.1). On success, the response replaces
  * the cached query of the same path, so readers update without refetching; with `invalidate`, the
@@ -44,8 +49,8 @@ export default function useApiMutation<TBody, TResult>({
     meta: { refusalIsNotExpiry: refusalIsNotExpiry === true },
     mutationFn: async (body) => {
       const target = typeof path === 'function' ? path(body) : path;
-      // A call without a body (a DELETE) sends none, and no JSON content type; any other sends its body as JSON.
-      const payload = serialize ? serialize(body) : body === undefined ? undefined : JSON.stringify(body);
+      // Without a body there is no JSON content type either.
+      const payload = serialize ? serialize(body) : jsonOf(body);
       const response = await fetch(`/api/v1${target}`, {
         method,
         // An upload sets its own Content-Type, boundary included.

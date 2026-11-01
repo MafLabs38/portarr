@@ -75,7 +75,9 @@ async function main(): Promise<void> {
   process.on('SIGINT', stop);
 }
 
-main().catch((error: unknown) => {
+try {
+  await main();
+} catch (error: unknown) {
   process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
   process.exit(1);
-});
+}

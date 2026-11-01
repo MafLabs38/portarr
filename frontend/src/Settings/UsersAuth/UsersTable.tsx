@@ -272,7 +272,7 @@ function UserForm({ editing, roles, self, onSubmit, onCancel }: Readonly<UserFor
           <span className={form.help}>{translate('UsernameHelpText')}</span>
         </div>
       ) : null}
-      {editing.kind !== 'password' ? (
+      {editing.kind === 'password' ? null : (
         <div className={form.field}>
           <label className={form.label} htmlFor="user-display-name">
             {translate('DisplayName')}
@@ -286,8 +286,8 @@ function UserForm({ editing, roles, self, onSubmit, onCancel }: Readonly<UserFor
             value={displayName}
           />
         </div>
-      ) : null}
-      {editing.kind !== 'password' ? (
+      )}
+      {editing.kind === 'password' ? null : (
         <div className={form.field}>
           <label className={form.label} htmlFor="user-role">
             {translate('Role')}
@@ -307,7 +307,7 @@ function UserForm({ editing, roles, self, onSubmit, onCancel }: Readonly<UserFor
           </select>
           {self ? <span className={form.help}>{translate('OwnRoleHelpText')}</span> : null}
         </div>
-      ) : null}
+      )}
       {needsPassword ? (
         <div className={form.field}>
           <label className={form.label} htmlFor="user-password">

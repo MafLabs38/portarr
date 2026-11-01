@@ -26,8 +26,9 @@ export default function ProgressBar({
   const value = Math.min(Math.max(progress, 0), 1);
   const extra = stacked === undefined ? 0 : Math.min(Math.max(stacked, 0), 1 - value);
 
+  // A <progress> draws one segment; this bar can stack two (the total and its guests), so it is a progressbar role (S6819 does not apply).
   return (
-    <div
+    <div // NOSONAR
       aria-label={label}
       aria-valuemax={100}
       aria-valuemin={0}

@@ -44,7 +44,8 @@ export default function UserMenu() {
   };
 
   return (
-    <div className={styles.wrapper} onKeyDown={onKeyDown} ref={wrapper}>
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- Escape is heard here as it bubbles up from the button and the menu items, which are the interactive elements.
+    <div className={styles.wrapper} onKeyDown={onKeyDown} ref={wrapper} /* NOSONAR */>
       <button
         aria-expanded={open}
         aria-haspopup="menu"

@@ -228,6 +228,8 @@ export function createRunnerServer(
 ): Server {
   const route = routes(manager);
   return createServer((request, response) => {
+    // The base only lets URL parse a relative path: nothing is fetched from it.
+    // eslint-disable-next-line sonarjs/no-clear-text-protocols
     const url = new URL(request.url ?? '/', 'http://runner');
     if (url.pathname === '/healthz') {
       send(response, 200, { status: 'ok' });

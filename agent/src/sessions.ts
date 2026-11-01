@@ -279,7 +279,8 @@ export class SessionManager {
   /** Stops every process (shutdown). */
   shutdown(): void {
     clearInterval(this.sweeper);
-    for (const id of [...this.active.keys()]) {
+    // A copy: stopping a session removes it from the map being walked.
+    for (const id of Array.from(this.active.keys())) {
       this.stop(id);
     }
   }
