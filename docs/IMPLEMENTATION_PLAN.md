@@ -122,14 +122,14 @@ Portarr is the first of three products that plug into each other through their A
 | Product | Job | Relation to Portarr |
 |---|---|---|
 | **Portarr** | See and describe: the fleet, its apps, data and maintenance | — |
-| **Orchestrarr** (below) | Act: orchestrate agents that fix, update and verify | reads Portarr's findings, acts through its own powers |
+| **Orchestratarr** (below) | Act: orchestrate agents that fix, update and verify | reads Portarr's findings, acts through its own powers |
 | **A memory product** (name to be chosen) | Remember: a long-term knowledge base for people and AI assistants (notes, decisions, runbooks, session summaries), searchable by meaning | registered in Portarr as a companion; Portarr's MCP server points assistants to it, so any assistant connected to Portarr finds the operator's memory too |
 
 The memory product replaces today's ad-hoc setup (a Markdown wiki, a vector store and a document database that were never maintained as one project). Portarr does not store that memory (D-03): it links to it.
 
-#### Future product: Orchestrarr (noted, not planned)
+#### Future product: Orchestratarr (noted, not planned)
 
-Once the fleet is observable, the operator will want to act on it. That is **not Portarr's job** (D-31): a separate brick, plugged into Portarr's API, would run an **orchestrator agent** with real powers, coordinating worker agents to fix a vulnerable dependency, update a container, repair an application, and verify that nothing regressed — automated maintenance for a growing number of apps. Portarr provides the knowledge and the findings (Maintenance, Data, Infrastructure); Orchestrarr acts.
+Once the fleet is observable, the operator will want to act on it. That is **not Portarr's job** (D-31): a separate brick, plugged into Portarr's API, would run an **orchestrator agent** with real powers, coordinating worker agents to fix a vulnerable dependency, update a container, repair an application, and verify that nothing regressed — automated maintenance for a growing number of apps. Portarr provides the knowledge and the findings (Maintenance, Data, Infrastructure); Orchestratarr acts.
 
 
 ---
