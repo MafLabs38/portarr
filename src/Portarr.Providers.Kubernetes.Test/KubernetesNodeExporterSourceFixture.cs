@@ -6,6 +6,7 @@ using Microsoft.Extensions.Time.Testing;
 using Portarr.Core.Catalog;
 using Portarr.Core.Configuration;
 using Portarr.Core.Infrastructure;
+using Portarr.Core.Workloads;
 
 namespace Portarr.Providers.Kubernetes.Test;
 
@@ -22,7 +23,7 @@ public sealed class KubernetesNodeExporterSourceFixture
         node_memory_MemFree_bytes 4000
         """;
 
-    private static readonly CatalogEnvironment Environment = new("cluster", "Cluster", null, Kubernetes: new KubernetesCluster(
+    private static readonly CatalogEnvironment Environment = KubernetesEnvironments.With(new KubernetesCluster(
         new Uri("https://10.0.0.10:6443"),
         "CLUSTER_TOKEN",
         null,
@@ -37,6 +38,39 @@ public sealed class KubernetesNodeExporterSourceFixture
     private readonly List<string> _requests = [];
     private readonly Dictionary<string, (HttpStatusCode Status, string Body)> _responses = [];
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 1, 31, 12, 0, 0, TimeSpan.Zero));
+
+    [Fact]
+    public void should_resolve_the_nodes_of_a_cluster_by_their_access_route()
+    {
+        var routes = new Dictionary<string, NodeExporterRoute>
+        {
+            ["behind-tunnel"] = new(NodeExporterAccess.ApiServer),
+            ["elsewhere"] = new(NodeExporterAccess.Url, new Uri("http://10.0.0.30:9100/metrics")),
+            ["disabled"] = new(NodeExporterAccess.Off),
+        };
+        var environment = KubernetesEnvironments.With(new KubernetesCluster(new Uri("https://10.0.0.20:6443"), "CLUSTER_TOKEN", null, NodeExporter: new KubernetesNodeExporter(9100, NodeExporterAccess.Direct, routes)));
+        var metrics = new EnvironmentMetrics("cluster", [Node("home", "10.0.0.21"), Node("behind-tunnel", "10.0.0.22"), Node("elsewhere", null), Node("no-address", null), Node("disabled", "10.0.0.23"), Node("looped", "127.0.0.1")], new Dictionary<string, WorkloadUsageSample>(), _clock.GetUtcNow(), null);
+
+        var targets = Source().TargetsOf(environment, metrics);
+
+        targets.Select(t => (t.MachineId, t.Url?.ToString(), t.ApiServerPort, t.ConfigurationError)).Should().Equal(
+            ("home", "http://10.0.0.21:9100/metrics", null, null),
+            ("behind-tunnel", null, 9100, null),
+            ("elsewhere", "http://10.0.0.30:9100/metrics", null, null),
+            ("looped", null, null, ReasonCodes.InvalidAddress));
+    }
+
+    [Fact]
+    public void should_resolve_nothing_for_a_cluster_without_node_exporter_or_without_nodes()
+    {
+        var plain = KubernetesEnvironments.With(new KubernetesCluster(new Uri("https://10.0.0.20:6443"), "CLUSTER_TOKEN", null));
+
+        Source().TargetsOf(plain, new EnvironmentMetrics("cluster", [Node("home", "10.0.0.21")], new Dictionary<string, WorkloadUsageSample>(), _clock.GetUtcNow(), null)).Should().BeEmpty();
+        Source().TargetsOf(Environment, null).Should().BeEmpty();
+    }
+
+    private static MachineView Node(string name, string? address) =>
+        new(new MachineSample(name, name, MachineKind.KubernetesNode, 4, 8_000, null, null, UsageScope.Host, Address: address), []);
 
     [Fact]
     public async Task should_find_the_running_pod_of_the_node_and_read_it_through_the_pod_proxy()
@@ -139,7 +173,7 @@ public sealed class KubernetesNodeExporterSourceFixture
     public async Task should_use_the_namespace_and_selector_of_the_catalog_and_skip_terminating_pods()
     {
         var exporter = new KubernetesNodeExporter(9101, NodeExporterAccess.ApiServer, Namespace: "ops", Selector: "app=exporter");
-        var target = Target with { Environment = Environment with { Kubernetes = Environment.Kubernetes! with { NodeExporter = exporter } }, ApiServerPort = 9101 };
+        var target = Target with { Environment = Environment.Replace(Environment.Kubernetes()! with { NodeExporter = exporter }), ApiServerPort = 9101 };
         _responses["/api/v1/namespaces/ops/pods?labelSelector=app%3Dexporter&fieldSelector=spec.nodeName%3Dworker%2Cstatus.phase%3DRunning"] = (HttpStatusCode.OK, """
             { "items": [
               { "metadata": { "name": "ne-a", "deletionTimestamp": "2026-01-31T11:59:00Z" } },

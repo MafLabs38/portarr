@@ -38,7 +38,7 @@ public sealed record CatalogPortalColors(string? Name, string? Version);
 
 /// <summary>
 /// A host, a cluster or a hosting account. <c>Address</c> is its LAN address, used to build LAN URLs from
-/// published ports (D-46). At most one runtime is set: <c>Kubernetes</c> or, through a connector library, <c>ConnectorRuntime</c> (D-105).
+/// published ports (D-46). The runtime comes from a connector library (<c>ConnectorRuntime</c>, D-105); <c>SingleMachine</c> says whether the environment is one machine (a Docker host) or many (a cluster, an account).
 /// <c>Host</c> is the environment this one runs on as a VM (D-59): the hypervisor's dashboard counts it as a guest.
 /// <c>Notes</c>, <c>Access</c> and
 /// <c>Machines</c> are what the operator knows about it, for people and AI assistants (D-84). <c>Connectors</c> holds the
@@ -49,14 +49,14 @@ public sealed record CatalogEnvironment(
     string Id,
     string Name,
     string? Address = null,
-    KubernetesCluster? Kubernetes = null,
     string? Host = null,
     string? Notes = null,
     MachineAccess? Access = null,
     IReadOnlyList<MachineKnowledge>? Machines = null,
     IReadOnlyDictionary<string, object>? Connectors = null,
     IReadOnlyDictionary<string, string>? MachineHosts = null,
-    string? ConnectorRuntime = null)
+    string? ConnectorRuntime = null,
+    bool SingleMachine = true)
 {
     /// <summary>Whether this environment declares the section a connector owns.</summary>
     public bool Declares(string section) => Connectors?.ContainsKey(section) == true;
@@ -79,11 +79,11 @@ public sealed record CatalogEnvironment(
     /// </summary>
     public string? HostOf(string machineId)
     {
-        return Kubernetes?.NodeHosts?.GetValueOrDefault(machineId) ?? MachineHosts?.GetValueOrDefault(machineId) ?? Host;
+        return MachineHosts?.GetValueOrDefault(machineId) ?? Host;
     }
 
     /// <summary>The connector kind: docker, cloudflare, kubernetes, or none (a launcher-only environment, D-32).</summary>
-    public string Runtime => Kubernetes is not null ? RuntimeNames.Kubernetes : ConnectorRuntime ?? RuntimeNames.None;
+    public string Runtime => ConnectorRuntime ?? RuntimeNames.None;
 }
 
 public static class RuntimeNames
@@ -93,67 +93,6 @@ public static class RuntimeNames
     public const string Kubernetes = "kubernetes";
     public const string None = "none";
 }
-
-/// <summary>
-/// A Kubernetes API server (D-55). <c>TokenVariable</c> names the environment variable holding a read-only
-/// ServiceAccount token, never the token itself. <c>CaFile</c> is the cluster CA certificate (PEM), relative
-/// to the catalog folder or absolute; without it the system trust store is used. <c>NodeHosts</c> maps a node
-/// name to the environment the node is a VM on (D-59). <c>NodeExporter</c> says where each node's node_exporter is read (D-72).
-/// <c>AllowInsecure</c> accepts a plain-http <c>Server</c>: the ServiceAccount token then travels in clear, so it is for a lab or a test only.
-/// </summary>
-public sealed record KubernetesCluster(
-    Uri Server,
-    string TokenVariable,
-    string? CaFile,
-    IReadOnlyDictionary<string, string>? NodeHosts = null,
-    KubernetesNodeExporter? NodeExporter = null,
-    bool AllowInsecure = false);
-
-/// <summary>How a node's node_exporter is reached (D-72).</summary>
-public enum NodeExporterAccess
-{
-    /// <summary>At the node's InternalIP, on the configured port.</summary>
-    Direct,
-
-    /// <summary>
-    /// Through the API server's pod proxy to the node_exporter pod running on the node (needs <c>get</c> on
-    /// <c>pods/proxy</c> in the exporter's namespace only), for nodes Portarr cannot reach.
-    /// </summary>
-    ApiServer,
-
-    /// <summary>At an explicit URL.</summary>
-    Url,
-
-    /// <summary>Not read: the node keeps metrics-server's values.</summary>
-    Off,
-}
-
-/// <summary>One node's route to its node_exporter; <c>Url</c> only for <see cref="NodeExporterAccess.Url"/>.</summary>
-public sealed record NodeExporterRoute(NodeExporterAccess Access, Uri? Url = null);
-
-/// <summary>
-/// node_exporter on the nodes of a cluster (D-72), usually a DaemonSet: every node is read with <c>Access</c>
-/// (at its InternalIP on <c>Port</c>, or through the API server), unless <c>Nodes</c> says otherwise for it.
-/// <c>Namespace</c> and <c>Selector</c> (a label selector) find the exporter's pod on a node for the API server access.
-/// </summary>
-public sealed record KubernetesNodeExporter(
-    int Port,
-    NodeExporterAccess Access,
-    IReadOnlyDictionary<string, NodeExporterRoute>? Nodes = null,
-    string Namespace = KubernetesNodeExporter.DefaultNamespace,
-    string Selector = KubernetesNodeExporter.DefaultSelector)
-{
-    public const int DefaultPort = 9100;
-    public const string DefaultNamespace = "monitoring";
-    public const string DefaultSelector = "app.kubernetes.io/name=node-exporter";
-
-    public NodeExporterRoute RouteOf(string node)
-    {
-        return Nodes?.GetValueOrDefault(node) ?? new NodeExporterRoute(Access);
-    }
-}
-
-
 
 public sealed record CatalogStack(string Id, string Name, string? Description, IReadOnlyList<StackMember> Members, string? Notes = null);
 

@@ -129,7 +129,7 @@ public sealed class BackupMonitorFixture
         source.Supports(Arg.Any<CatalogEnvironment>()).Returns(call => kind switch
         {
             BackupSourceKinds.Backrest => call.Arg<CatalogEnvironment>().Declares("backrest"),
-            _ => call.Arg<CatalogEnvironment>().Kubernetes is not null,
+            _ => call.Arg<CatalogEnvironment>().Declares("kubernetes"),
         });
         source.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<CancellationToken>()).Returns(jobs);
         return source;

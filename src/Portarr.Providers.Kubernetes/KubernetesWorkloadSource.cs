@@ -31,12 +31,12 @@ public sealed partial class KubernetesWorkloadSource : IWorkloadSource
 
     public bool Supports(CatalogEnvironment environment)
     {
-        return environment.Kubernetes is not null;
+        return environment.Kubernetes() is not null;
     }
 
     public string? GetConfigurationError(CatalogEnvironment environment)
     {
-        return environment.Kubernetes is null ? null : _client.GetConfigurationError(environment.Kubernetes);
+        return environment.Kubernetes() is { } cluster ? _client.GetConfigurationError(cluster) : null;
     }
 
     public async Task<IReadOnlyList<Workload>> ListAsync(CatalogEnvironment environment, CancellationToken cancellationToken)
@@ -111,7 +111,7 @@ public sealed partial class KubernetesWorkloadSource : IWorkloadSource
 
     private static KubernetesCluster Cluster(CatalogEnvironment environment)
     {
-        return environment.Kubernetes ?? throw new InvalidOperationException($"Environment {environment.Id} has no Kubernetes cluster.");
+        return environment.Kubernetes() ?? throw new InvalidOperationException($"Environment {environment.Id} has no Kubernetes cluster.");
     }
 
     /// <summary>Namespaces and pod names go into URL paths: only DNS-1123 names are accepted.</summary>

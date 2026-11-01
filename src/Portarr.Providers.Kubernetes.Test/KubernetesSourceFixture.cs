@@ -11,7 +11,7 @@ namespace Portarr.Providers.Kubernetes.Test;
 
 public sealed class KubernetesSourceFixture : IDisposable
 {
-    private static readonly CatalogEnvironment Environment = new("cluster", "Cluster", null, Kubernetes: new KubernetesCluster(new Uri("https://10.0.0.10:6443"), "CLUSTER_TOKEN", null));
+    private static readonly CatalogEnvironment Environment = KubernetesEnvironments.With(new KubernetesCluster(new Uri("https://10.0.0.10:6443"), "CLUSTER_TOKEN", null));
 
     private readonly List<HttpRequestMessage> _requests = [];
     private readonly Dictionary<string, string> _responses = [];
@@ -105,7 +105,7 @@ public sealed class KubernetesSourceFixture : IDisposable
     {
         Workloads().GetConfigurationError(Environment).Should().BeNull();
 
-        var withCa = Environment with { Kubernetes = Environment.Kubernetes! with { CaFile = "cluster-ca.crt" } };
+        var withCa = Environment.Replace(Environment.Kubernetes()! with { CaFile = "cluster-ca.crt" });
         Workloads().GetConfigurationError(withCa).Should().Be(KubernetesApiClient.CaMissing);
 
         File.WriteAllText(Path.Combine(_folder, "cluster-ca.crt"), "not a certificate");

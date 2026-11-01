@@ -118,9 +118,9 @@ public sealed class KnowledgeBase
         }
 
         // Nodes of a cluster that are VMs on this environment (D-59).
-        foreach (var cluster in catalog.Environments.Where(e => e.Kubernetes?.NodeHosts is not null))
+        foreach (var cluster in catalog.Environments.Where(e => e.MachineHosts is not null))
         {
-            foreach (var node in cluster.Kubernetes!.NodeHosts!.Where(n => n.Value == environment.Id).Select(n => n.Key).Order(StringComparer.Ordinal))
+            foreach (var node in cluster.MachineHosts!.Where(n => n.Value == environment.Id).Select(n => n.Key).Order(StringComparer.Ordinal))
             {
                 Line(md, $"{indent}  - VM: node `{node}` of **{cluster.Name}** (`{cluster.Id}`)");
             }

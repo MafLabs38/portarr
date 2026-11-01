@@ -283,7 +283,7 @@ public sealed partial class InfrastructureMonitor : BackgroundService, IInfrastr
         {
             var metrics = _current.GetValueOrDefault(environment.Id);
             var sampled = metrics?.Machines ?? [];
-            var declared = environment.Kubernetes is null ? [environment.Id] : environment.Kubernetes.NodeHosts?.Keys ?? [];
+            var declared = environment.SingleMachine ? [environment.Id] : environment.MachineHosts?.Keys ?? [];
             var ids = sampled.Select(m => m.Machine.Id).Union(declared, StringComparer.Ordinal);
 
             foreach (var id in ids.Where(id => environment.HostOf(id) == hostEnvironmentId))
@@ -292,7 +292,7 @@ public sealed partial class InfrastructureMonitor : BackgroundService, IInfrastr
                 guests.Add(new GuestMachine(
                     environment.Id,
                     id,
-                    machine?.Name ?? (environment.Kubernetes is null ? environment.Name : id),
+                    machine?.Name ?? (environment.SingleMachine ? environment.Name : id),
                     machine?.Kind,
                     machine?.CpuCapacityCores,
                     machine?.MemoryCapacityBytes,

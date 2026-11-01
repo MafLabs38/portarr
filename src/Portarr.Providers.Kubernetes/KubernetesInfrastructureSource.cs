@@ -26,12 +26,12 @@ public sealed class KubernetesInfrastructureSource : IInfrastructureSource
 
     public bool Supports(CatalogEnvironment environment)
     {
-        return environment.Kubernetes is not null;
+        return environment.Kubernetes() is not null;
     }
 
     public async Task<InfrastructureSample> SampleAsync(CatalogEnvironment environment, IReadOnlyList<Workload> workloads, CancellationToken cancellationToken)
     {
-        var cluster = environment.Kubernetes ?? throw new InvalidOperationException($"Environment {environment.Id} has no Kubernetes cluster.");
+        var cluster = environment.Kubernetes() ?? throw new InvalidOperationException($"Environment {environment.Id} has no Kubernetes cluster.");
 
         var nodesTask = _client.GetAsync(cluster, "api/v1/nodes", KubernetesJsonContext.Default.NodeList, cancellationToken);
         var nodeMetricsTask = _client.GetAsync(cluster, "apis/metrics.k8s.io/v1beta1/nodes", KubernetesJsonContext.Default.NodeMetricsList, cancellationToken);

@@ -23,12 +23,12 @@ public sealed class KubernetesCronJobBackupSource : IBackupSource
 
     public bool Supports(CatalogEnvironment environment)
     {
-        return environment.Kubernetes is not null;
+        return environment.Kubernetes() is not null;
     }
 
     public async Task<IReadOnlyList<BackupJob>> ListJobsAsync(CatalogEnvironment environment, CancellationToken cancellationToken)
     {
-        var cluster = environment.Kubernetes!;
+        var cluster = environment.Kubernetes()!;
         if (_client.GetConfigurationError(cluster) is { } error)
         {
             throw new BackupSourceUnavailableException(error);

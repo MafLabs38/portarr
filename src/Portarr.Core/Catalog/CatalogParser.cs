@@ -17,7 +17,6 @@ public sealed record CatalogParseResult(Catalog Catalog, IReadOnlyList<string> E
 /// </summary>
 public static partial class CatalogParser
 {
-    private const string DefaultKubernetesTokenVariable = "K8S_TOKEN";
 
     private static readonly TimeSpan MinInterval = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan MaxInterval = TimeSpan.FromHours(24);
@@ -73,10 +72,6 @@ public static partial class CatalogParser
 
     /// <summary>The host agent section of an environment, which the <c>reader:</c> shortcut also stands for.</summary>
     private const string HostMetricsSectionName = "hostMetrics";
-
-    /// <summary>A Kubernetes namespace: a DNS label.</summary>
-    [GeneratedRegex("^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$")]
-    private static partial Regex NamespacePattern();
 
     /// <summary><c>60</c> (seconds), <c>30s</c>, <c>5m</c>, <c>1h</c>.</summary>
     [GeneratedRegex("^(?<value>[0-9]{1,6})(?<unit>[smh]?)$")]
@@ -161,10 +156,9 @@ public static partial class CatalogParser
                 var sections = reader is null
                     ? document.Sections
                     : new Dictionary<string, IReadOnlyList<ParsingEvent>>(document.Sections) { [RuntimeNames.Docker] = reader.Value.Docker, [HostMetricsSectionName] = reader.Value.HostMetrics };
-                var kubernetes = BuildKubernetes(id, document);
-                var connectors = BuildConnectors(id, kubernetes is null, document, sections);
+                var connectors = BuildConnectors(id, document, sections);
 
-                if ((kubernetes is null ? 0 : 1) + connectors.Runtimes.Count > 1)
+                if (connectors.Runtimes.Count > 1)
                 {
                     _errors.Add($"Environment '{id}': declare one connector ({RuntimeList()}), not several.");
                 }
@@ -173,14 +167,14 @@ public static partial class CatalogParser
                     id,
                     document.Name ?? id,
                     string.IsNullOrWhiteSpace(document.Address) ? null : document.Address.Trim(),
-                    kubernetes,
                     string.IsNullOrWhiteSpace(document.Host) ? null : document.Host.Trim(),
                     BuildNotes($"Environment '{id}'", document.Notes),
                     BuildAccess($"Environment '{id}'", "access", document.Access),
                     BuildMachines(id, document.Machines),
                     connectors.Settings,
                     connectors.MachineHosts,
-                    connectors.Runtimes.FirstOrDefault()));
+                    connectors.Runtimes.FirstOrDefault(),
+                    connectors.SingleMachine));
             }
 
             ValidateHosts(result);
@@ -188,7 +182,7 @@ public static partial class CatalogParser
         }
 
         /// <summary>What the connector libraries made of an environment's sections: their settings, the hosts they know, the runtimes found.</summary>
-        private sealed record ConnectorBuild(Dictionary<string, object> Settings, Dictionary<string, string>? MachineHosts, List<string> Runtimes);
+        private sealed record ConnectorBuild(Dictionary<string, object> Settings, Dictionary<string, string>? MachineHosts, List<string> Runtimes, bool SingleMachine);
 
         private static readonly ParsingEvent[] EmptySection = [new MappingStart(AnchorName.Empty, TagName.Empty, true, MappingStyle.Flow), new MappingEnd()];
 
@@ -196,13 +190,13 @@ public static partial class CatalogParser
         /// Gives each section a connector library owns to that library (D-105), and gathers what they made of them. A runtime named
         /// by <c>runtime:</c> is read even without its section, as an empty one, so that it reports what it needs.
         /// </summary>
-        private ConnectorBuild BuildConnectors(string environmentId, bool notACluster, EnvironmentDocument document, IReadOnlyDictionary<string, IReadOnlyList<ParsingEvent>> sections)
+        private ConnectorBuild BuildConnectors(string environmentId, EnvironmentDocument document, IReadOnlyDictionary<string, IReadOnlyList<ParsingEvent>> sections)
         {
             var settings = new Dictionary<string, object>(StringComparer.Ordinal);
             var runtimes = new List<string>();
             Dictionary<string, string>? machineHosts = null;
             var owned = _connectors.Where(c => sections.ContainsKey(c.Section) || (c.IsRuntime && document.Runtime == c.Section)).ToList();
-            var singleMachine = notACluster && owned.Where(c => c.IsRuntime).All(c => c.SingleMachine);
+            var singleMachine = owned.Where(c => c.IsRuntime).All(c => c.SingleMachine);
             var hasRuntime = owned.Any(c => c.IsRuntime);
             foreach (var connector in owned)
             {
@@ -236,7 +230,7 @@ public static partial class CatalogParser
                 }
             }
 
-            return new ConnectorBuild(settings, machineHosts, runtimes);
+            return new ConnectorBuild(settings, machineHosts, runtimes, singleMachine);
         }
 
         /// <summary>A section with no value: <c>cloudflare:</c> followed by nothing, <c>~</c> or <c>null</c>.</summary>
@@ -245,10 +239,10 @@ public static partial class CatalogParser
             return events is [Scalar { Value: "" or "~" or "null" }];
         }
 
-        /// <summary>The runtimes an environment can have, as the message names them: the connector libraries', then kubernetes.</summary>
+        /// <summary>The runtimes an environment can have, as the message names them: those the connector libraries register.</summary>
         private IReadOnlyList<string> Runtimes()
         {
-            return [.. _connectors.Where(c => c.IsRuntime).Select(c => c.Section), RuntimeNames.Kubernetes];
+            return [.. _connectors.Where(c => c.IsRuntime).Select(c => c.Section)];
         }
 
         private string RuntimeList()
@@ -267,7 +261,7 @@ public static partial class CatalogParser
             var byId = environments.ToDictionary(e => e.Id, StringComparer.Ordinal);
             foreach (var environment in environments)
             {
-                var hosts = (environment.Kubernetes?.NodeHosts?.Values ?? []).Concat(environment.MachineHosts?.Values ?? []).Append(environment.Host).OfType<string>().Distinct(StringComparer.Ordinal);
+                var hosts = (environment.MachineHosts?.Values ?? []).Append(environment.Host).OfType<string>().Distinct(StringComparer.Ordinal);
                 foreach (var host in hosts)
                 {
                     if (!byId.TryGetValue(host, out var target))
@@ -278,7 +272,7 @@ public static partial class CatalogParser
                     {
                         _errors.Add($"Environment '{environment.Id}': an environment cannot be its own host.");
                     }
-                    else if (target.Runtime is RuntimeNames.Kubernetes or RuntimeNames.Cloudflare)
+                    else if (!target.SingleMachine)
                     {
                         _errors.Add($"Environment '{environment.Id}': host '{host}' must be a single machine (a docker or launcher-only environment), not a {target.Runtime} environment.");
                     }
@@ -318,7 +312,7 @@ public static partial class CatalogParser
                 return false;
             }
 
-            var declared = Runtimes().Where(runtime => runtime == RuntimeNames.Kubernetes ? document.Kubernetes is not null : document.Sections.ContainsKey(runtime));
+            var declared = Runtimes().Where(runtime => document.Sections.ContainsKey(runtime));
             if (declared.FirstOrDefault(runtime => runtime != document.Runtime) is { } other)
             {
                 _errors.Add($"Environment '{environmentId}': a {document.Runtime} environment cannot declare {other}.");
@@ -326,60 +320,6 @@ public static partial class CatalogParser
             }
 
             return true;
-        }
-
-        /// <summary>
-        /// A Kubernetes API server (D-55). Like Cloudflare, the token comes from an environment variable: an
-        /// environment without it still loads and is shown as not connected.
-        /// </summary>
-        private KubernetesCluster? BuildKubernetes(string environmentId, EnvironmentDocument document)
-        {
-            if (document.Runtime != RuntimeNames.Kubernetes && document.Kubernetes is null)
-            {
-                return null;
-            }
-
-            var cluster = document.Kubernetes;
-            if (!Uri.TryCreate(cluster?.Server, UriKind.Absolute, out var server) || server.Scheme is not (HttpsScheme or HttpScheme) || server.UserInfo.Length > 0)
-            {
-                _errors.Add($"Environment '{environmentId}': kubernetes.server must be the API server URL (e.g. https://10.0.0.10:6443), without credentials.");
-                return null;
-            }
-
-            if (server.Scheme == HttpScheme && !cluster.AllowInsecure)
-            {
-                _errors.Add($"Environment '{environmentId}': kubernetes.server must be https: the ServiceAccount token travels in it (kubernetes.allowInsecure: true accepts http, for a lab or a test only).");
-                return null;
-            }
-
-            var variable = cluster.TokenEnv ?? DefaultKubernetesTokenVariable;
-            if (!CatalogValues.IsVariableName(variable))
-            {
-                _errors.Add($"Environment '{environmentId}': kubernetes.tokenEnv must be the name of an environment variable (e.g. {DefaultKubernetesTokenVariable}), never the token itself.");
-                return null;
-            }
-
-            if (cluster.CaFile is { } caFile && string.IsNullOrWhiteSpace(caFile))
-            {
-                _errors.Add($"Environment '{environmentId}': kubernetes.caFile must be the path of the cluster CA certificate (relative to the catalog), or be omitted.");
-                return null;
-            }
-
-            var nodeHosts = cluster.NodeHosts?
-                .Where(entry => !string.IsNullOrWhiteSpace(entry.Key) && !string.IsNullOrWhiteSpace(entry.Value))
-                .ToDictionary(entry => entry.Key.Trim(), entry => entry.Value.Trim(), StringComparer.Ordinal);
-            if (nodeHosts is not null && nodeHosts.Count != cluster.NodeHosts!.Count)
-            {
-                _errors.Add($"Environment '{environmentId}': kubernetes.nodeHosts maps node names to environment ids (e.g. {{ node-1: server-1 }}).");
-                return null;
-            }
-
-            if (!TryBuildNodeExporter(environmentId, cluster.NodeExporter, out var nodeExporter))
-            {
-                return null;
-            }
-
-            return new KubernetesCluster(server, variable, cluster.CaFile?.Trim(), nodeHosts is { Count: > 0 } ? nodeHosts : null, nodeExporter, cluster.AllowInsecure);
         }
 
         private (IReadOnlyList<ParsingEvent> Docker, IReadOnlyList<ParsingEvent> HostMetrics)? BuildReader(string environmentId, EnvironmentDocument document)
@@ -468,64 +408,6 @@ public static partial class CatalogParser
         /// overrides (direct, api-server, off, or a URL). <c>namespace</c> and <c>selector</c> find the exporter's
         /// pod for api-server access.
         /// </summary>
-        private bool TryBuildNodeExporter(string environmentId, NodeExporterDocument? document, out KubernetesNodeExporter? nodeExporter)
-        {
-            nodeExporter = null;
-            if (document is null)
-            {
-                return true;
-            }
-
-            var port = document.Port ?? KubernetesNodeExporter.DefaultPort;
-            var access = ParseAccess(document.Access ?? "direct");
-            if (port is < 1 or > 65535 || access is not (NodeExporterAccess.Direct or NodeExporterAccess.ApiServer))
-            {
-                _errors.Add($"Environment '{environmentId}': kubernetes.nodeExporter needs a port (1-65535, default {KubernetesNodeExporter.DefaultPort}) and an access of direct or api-server.");
-                return false;
-            }
-
-            var podNamespace = (document.Namespace ?? KubernetesNodeExporter.DefaultNamespace).Trim();
-            var selector = (document.Selector ?? KubernetesNodeExporter.DefaultSelector).Trim();
-            if (!NamespacePattern().IsMatch(podNamespace) || selector.Length is 0 or > 512)
-            {
-                _errors.Add($"Environment '{environmentId}': kubernetes.nodeExporter.namespace must be a namespace name (default {KubernetesNodeExporter.DefaultNamespace}) and selector a pod label selector (default {KubernetesNodeExporter.DefaultSelector}).");
-                return false;
-            }
-
-            var nodes = new Dictionary<string, NodeExporterRoute>(StringComparer.Ordinal);
-            foreach (var (node, value) in document.Nodes ?? [])
-            {
-                NodeExporterRoute? route = null;
-                if (ParseAccess(value) is { } nodeAccess)
-                {
-                    route = new NodeExporterRoute(nodeAccess);
-                }
-                else if (CatalogValues.HttpUrl(value) is { } url)
-                {
-                    route = new NodeExporterRoute(NodeExporterAccess.Url, url);
-                }
-
-                if (string.IsNullOrWhiteSpace(node) || route is null)
-                {
-                    _errors.Add($"Environment '{environmentId}': kubernetes.nodeExporter.nodes maps a node name to direct, api-server, off or a metrics URL (e.g. {{ node-2: api-server }}).");
-                    return false;
-                }
-
-                nodes[node.Trim()] = route;
-            }
-
-            nodeExporter = new KubernetesNodeExporter(port, access.Value, nodes.Count > 0 ? nodes : null, podNamespace, selector);
-            return true;
-        }
-
-        private static NodeExporterAccess? ParseAccess(string? value) => value?.Trim() switch
-        {
-            "direct" => NodeExporterAccess.Direct,
-            "api-server" => NodeExporterAccess.ApiServer,
-            "off" => NodeExporterAccess.Off,
-            _ => null,
-        };
-
         private List<CatalogApp> BuildApps(List<AppDocument> documents, Dictionary<string, CatalogEnvironment> environments)
         {
             var result = new List<CatalogApp>();

@@ -1,4 +1,3 @@
-using System.Net;
 using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -122,79 +121,10 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
-    /// <summary>The machines whose host agent is declared, with where to read it.</summary>
+    /// <summary>The machines whose host agent is declared, with where to read it: what each source resolves for each environment (D-105).</summary>
     public IReadOnlyList<HostMetricsTarget> ResolveTargets(Catalog.Catalog catalog, IReadOnlyDictionary<string, EnvironmentMetrics> infrastructure)
     {
-        var targets = new List<HostMetricsTarget>();
-        foreach (var environment in catalog.Environments)
-        {
-            var declared = _sources.SelectMany(source => source.TargetsOf(environment, infrastructure.GetValueOrDefault(environment.Id))).ToList();
-            if (declared.Count > 0)
-            {
-                targets.AddRange(declared);
-                continue;
-            }
-
-            if (environment.Kubernetes?.NodeExporter is not { } nodeExporter)
-            {
-                continue;
-            }
-
-            foreach (var node in (infrastructure.GetValueOrDefault(environment.Id)?.Machines ?? []).Select(machine => machine.Machine))
-            {
-                if (NodeTarget(environment, nodeExporter, node) is { } target)
-                {
-                    targets.Add(target);
-                }
-            }
-        }
-
-        return targets;
-    }
-
-    /// <summary>Where one node of a cluster is read, by the access route the catalog gives it; none when it is not read.</summary>
-    private static HostMetricsTarget? NodeTarget(CatalogEnvironment environment, KubernetesNodeExporter nodeExporter, MachineSample node)
-    {
-        var route = nodeExporter.RouteOf(node.Id);
-        return route.Access switch
-        {
-            NodeExporterAccess.Url => new HostMetricsTarget(environment, node.Id, route.Url),
-            NodeExporterAccess.ApiServer => new HostMetricsTarget(environment, node.Id, null, nodeExporter.Port),
-            NodeExporterAccess.Direct when node.Address is { } address
-                => IsReachableAddress(address)
-                    ? new HostMetricsTarget(environment, node.Id, new UriBuilder(Uri.UriSchemeHttp, IPAddress.Parse(address).ToString(), nodeExporter.Port, "/metrics").Uri)
-                    : new HostMetricsTarget(environment, node.Id, null, null, ReasonCodes.InvalidAddress),
-            _ => null,
-        };
-    }
-
-    /// <summary>
-    /// A node address worth connecting to: an IP literal (a node's InternalIP always is), private ranges included, that does not lead back to
-    /// Portarr or to a neighbour that answers to anyone: not unspecified, loopback, link-local, multicast or broadcast, whether written as
-    /// IPv4, IPv4-mapped, IPv4-compatible or through the NAT64 prefix. A name is refused too, since it is resolved at connect time.
-    /// </summary>
-    internal static bool IsReachableAddress(string address)
-    {
-        if (!IPAddress.TryParse(address, out var ip))
-        {
-            return false;
-        }
-
-        var bytes = (ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip).GetAddressBytes();
-        return bytes.Length == 4 ? IsRoutableIPv4(bytes) : IsRoutableIPv6(bytes);
-    }
-
-    private static bool IsRoutableIPv4(byte[] bytes)
-    {
-        return bytes[0] is not (0 or 127 or >= 224) && !(bytes[0] == 169 && bytes[1] == 254);
-    }
-
-    private static bool IsRoutableIPv6(byte[] bytes)
-    {
-        var embedded = bytes.AsSpan(0, 12).IndexOfAnyExcept((byte)0) < 0; // ::, ::1 and the IPv4-compatible ::a.b.c.d
-        var nat64 = bytes[0] == 0x00 && bytes[1] == 0x64 && bytes[2] == 0xff && bytes[3] == 0x9b && bytes.AsSpan(4, 8).IndexOfAnyExcept((byte)0) < 0;
-        var linkLocal = bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80;
-        return !embedded && !nat64 && !linkLocal && bytes[0] != 0xff;
+        return [.. catalog.Environments.SelectMany(environment => _sources.SelectMany(source => source.TargetsOf(environment, infrastructure.GetValueOrDefault(environment.Id))))];
     }
 
     private void StartDueReads(CancellationToken stoppingToken)
