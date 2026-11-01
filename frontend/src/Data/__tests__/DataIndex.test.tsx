@@ -1,8 +1,10 @@
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DataIndex from 'Data/DataIndex';
+import { http, HttpResponse } from 'msw';
 
 import renderWithProviders from '__mocks__/renderWithProviders';
+import { dataReport, server } from '__mocks__/server';
 
 describe('DataIndex', () => {
   it('sums up what is followed, what is at risk and how many critical assets are off-site', async () => {
@@ -113,5 +115,24 @@ describe('DataIndex', () => {
 
     await user.click(screen.getByRole('button', { name: /Clear the filter/ }));
     expect(await screen.findByRole('listitem', { name: 'Sonarr config' })).toBeInTheDocument();
+  });
+
+  it('says so when the data could not be loaded', async () => {
+    server.use(http.get('/api/v1/data', () => new HttpResponse(null, { status: 500 })));
+    renderWithProviders(<DataIndex />);
+
+    expect(await screen.findByText('Unable to load the data and backups.')).toBeInTheDocument();
+  });
+
+  it('explains how to follow data when the catalog follows none', async () => {
+    server.use(
+      http.get('/api/v1/data', () =>
+        HttpResponse.json({ ...dataReport, summary: { ...dataReport.summary, followed: 0 }, assets: [], sources: [] }),
+      ),
+    );
+    renderWithProviders(<DataIndex />);
+
+    expect(await screen.findByText(/No data followed yet/)).toBeInTheDocument();
+    expect(screen.getByRole('listitem', { name: 'Data followed: 0' })).toBeInTheDocument();
   });
 });

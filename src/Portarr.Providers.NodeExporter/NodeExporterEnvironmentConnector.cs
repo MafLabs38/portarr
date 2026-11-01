@@ -59,7 +59,7 @@ public sealed class NodeExporterEnvironmentConnector : IEnvironmentConnector
         }
 
         TimeSpan? interval = null;
-        if (document.Interval is not null && (interval = CatalogValues.ParseInterval(document.Interval, HostMetricsIntervals.Min, HostMetricsIntervals.Max)) is null)
+        if (document.Interval is not null && (interval = CatalogValues.ParseDuration(document.Interval, HostMetricsIntervals.Min, HostMetricsIntervals.Max)) is null)
         {
             context.Error("hostMetrics.interval must be a duration of 1 second to 5 minutes (e.g. 5s, 1m), or be omitted to read every second.");
             return null;

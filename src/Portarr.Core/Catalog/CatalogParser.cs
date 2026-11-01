@@ -74,15 +74,11 @@ public static partial class CatalogParser
     private const string HostMetricsSectionName = "hostMetrics";
 
     /// <summary><c>60</c> (seconds), <c>30s</c>, <c>5m</c>, <c>1h</c>.</summary>
-    [GeneratedRegex("^(?<value>[0-9]{1,6})(?<unit>[smh]?)$")]
-    private static partial Regex DurationPattern();
 
     [GeneratedRegex("^(?<from>[1-5][0-9]{2})(-(?<to>[1-5][0-9]{2}))?$")]
     private static partial Regex StatusRangePattern();
 
     /// <summary>A duration: <c>30m</c>, <c>24h</c>, <c>7d</c>.</summary>
-    [GeneratedRegex("^(?<value>[0-9]{1,4})(?<unit>[mhd])$")]
-    private static partial Regex EveryPattern();
 
     /// <summary>A Backrest plan id.</summary>
     [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")]
@@ -635,20 +631,14 @@ public static partial class CatalogParser
                 return fallback;
             }
 
-            var match = DurationPattern().Match(value.Trim());
-            if (!match.Success)
+            // The bounds are checked by the caller, with a message of their own: here only the grammar.
+            if (CatalogValues.ParseDuration(value, TimeSpan.Zero, TimeSpan.MaxValue) is not { } duration)
             {
-                _errors.Add($"App '{appId}': check.{key} '{value}' must be a number of seconds or a duration such as 30s or 5m.");
+                _errors.Add($"App '{appId}': check.{key} '{value}' must be a number of seconds or a duration such as 30s, 5m, 24h or 7d.");
                 return fallback;
             }
 
-            var amount = int.Parse(match.Groups["value"].Value, System.Globalization.CultureInfo.InvariantCulture);
-            return match.Groups["unit"].Value switch
-            {
-                "m" => TimeSpan.FromMinutes(amount),
-                "h" => TimeSpan.FromHours(amount),
-                _ => TimeSpan.FromSeconds(amount),
-            };
+            return duration;
         }
 
         private StatusCodeRange? ParseStatusRange(string appId, string value)
@@ -962,20 +952,14 @@ public static partial class CatalogParser
 
         private TimeSpan ParseEvery(string dataId, string key, string value)
         {
-            var match = EveryPattern().Match(value.Trim());
-            if (!match.Success || match.Groups["value"].Value.All(c => c == '0'))
+            // At least a minute, so that a bare number (seconds) cannot pass for hours; at most ten years.
+            if (CatalogValues.ParseDuration(value, TimeSpan.FromMinutes(1), TimeSpan.FromDays(3650)) is not { } duration)
             {
-                _errors.Add($"Data '{dataId}': {key} '{value}' must be a duration such as 30m, 24h or 7d.");
+                _errors.Add($"Data '{dataId}': {key} '{value}' must be a duration of at least a minute such as 30m, 24h or 7d.");
                 return TimeSpan.Zero;
             }
 
-            var amount = int.Parse(match.Groups["value"].Value, System.Globalization.CultureInfo.InvariantCulture);
-            return match.Groups["unit"].Value switch
-            {
-                "m" => TimeSpan.FromMinutes(amount),
-                "h" => TimeSpan.FromHours(amount),
-                _ => TimeSpan.FromDays(amount),
-            };
+            return duration;
         }
 
         private List<DataTargetDefinition> BuildTargets(string dataId, Dictionary<string, TargetDocument?>? documents, string? dataEnvironment, Dictionary<string, CatalogEnvironment> environments)
