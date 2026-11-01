@@ -71,7 +71,7 @@ public sealed class DockerReaderTokenFixture
     public void should_report_a_missing_token_as_not_connected_before_calling(string? token, string? expected)
     {
         using var clients = new DockerHttpClientFactory(Configuration(token));
-        var environment = new CatalogEnvironment("server-1", "Server 1", Reader);
+        var environment = DockerEnvironments.With("server-1", "Server 1", Reader);
 
         new DockerWorkloadSource(clients).GetConfigurationError(environment).Should().Be(expected);
     }
@@ -80,10 +80,10 @@ public sealed class DockerReaderTokenFixture
     public void should_report_no_configuration_error_for_an_endpoint_that_asks_for_no_token()
     {
         using var clients = new DockerHttpClientFactory(Configuration("secret-token"));
-        var environment = new CatalogEnvironment("server-1", "Server 1", new DockerEndpoint(new Uri("http://socket-proxy:2375")));
+        var environment = DockerEnvironments.With("server-1", "Server 1", new DockerEndpoint(new Uri("http://socket-proxy:2375")));
 
         new DockerWorkloadSource(clients).GetConfigurationError(environment).Should().BeNull();
-        clients.Get(environment.Docker!).BaseAddress.Should().Be(new Uri("http://socket-proxy:2375/"));
+        clients.Get(environment.Docker()!).BaseAddress.Should().Be(new Uri("http://socket-proxy:2375/"));
     }
 
     private sealed class RecordingHandler : HttpMessageHandler

@@ -1,6 +1,7 @@
 using Portarr.Core.Catalog;
 using Portarr.Core.Maintenance;
 using Portarr.Core.Workloads;
+using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Maintenance;
 
@@ -69,7 +70,7 @@ public sealed class MaintenanceReportFixture
 
     private static MaintenanceReport Build(IReadOnlyList<CodeRepository> repositories, Dictionary<string, RegistryLookup> registries, params Workload[] workloads)
     {
-        var parsed = CatalogParser.Parse(Catalog);
+        var parsed = TestCatalog.Parse(Catalog);
         parsed.Errors.Should().BeEmpty();
         var inventory = new Dictionary<string, EnvironmentInventory> { ["server-1"] = new("server-1", true, null, workloads, Now) };
         return MaintenanceService.Build(parsed.Catalog, inventory, new MaintenanceState(new RepositoryScan(repositories, null, Now), registries));

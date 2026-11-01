@@ -115,7 +115,7 @@ public sealed class BackupMonitorFixture
 
     private BackupMonitor Monitor(params IBackupSource[] sources)
     {
-        var parsed = CatalogParser.Parse(Catalog, [new StubEnvironmentConnector("backrest")]);
+        var parsed = TestCatalog.Parse(Catalog);
         parsed.Errors.Should().BeEmpty();
         var catalogService = Substitute.For<ICatalogService>();
         catalogService.Current.Returns(new CatalogState(parsed.Catalog, "/config/catalog.yaml", true, [], Now));

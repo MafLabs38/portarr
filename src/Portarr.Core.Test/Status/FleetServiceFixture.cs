@@ -7,7 +7,7 @@ namespace Portarr.Core.Test.Status;
 
 public sealed class FleetServiceFixture : CoreTest<FleetService>
 {
-    private static readonly CatalogEnvironment Server = new("server-1", "Server 1", new DockerEndpoint(new Uri("http://proxy:2375")), "10.0.0.10");
+    private static readonly CatalogEnvironment Server = TestEnvironments.DockerHost("server-1", "Server 1", "10.0.0.10");
 
     [Theory]
     [InlineData("10.0.0.10", "http://10.0.0.10:8096")]

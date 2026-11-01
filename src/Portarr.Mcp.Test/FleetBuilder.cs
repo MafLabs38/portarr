@@ -9,6 +9,7 @@ using Portarr.Core.Status;
 using Portarr.Core.Workloads;
 using Portarr.Mcp.Digest;
 using Portarr.Mcp.Knowledge;
+using Portarr.Test.Common;
 
 namespace Portarr.Mcp.Test;
 
@@ -97,7 +98,7 @@ internal sealed class FleetBuilder
 
     private (FleetDigest Digest, KnowledgeBase Knowledge) Build()
     {
-        var parsed = CatalogParser.Parse(CatalogText);
+        var parsed = TestCatalog.Parse(CatalogText);
         parsed.Errors.Should().BeEmpty();
         var catalogService = Substitute.For<ICatalogService>();
         catalogService.Current.Returns(new CatalogState(parsed.Catalog, "/config/catalog.yaml", true, [], Now));

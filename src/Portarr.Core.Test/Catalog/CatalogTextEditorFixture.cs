@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Portarr.Core.Catalog;
 using Portarr.Core.Catalog.Editing;
+using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Catalog;
 
@@ -65,7 +66,7 @@ public sealed class CatalogTextEditorFixture
 
     private static void ShouldBeValid(string text)
     {
-        var result = CatalogParser.Parse(text);
+        var result = TestCatalog.Parse(text);
         result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
     }
 
@@ -116,7 +117,7 @@ public sealed class CatalogTextEditorFixture
                   Ask before upgrading.
               # --- Tools
             """);
-        CatalogParser.Parse(after).Catalog.Apps.Single(a => a.Id == "sonarr").Notes.Should().Be("Runs nightly.\nAsk before upgrading.");
+        TestCatalog.Parse(after).Catalog.Apps.Single(a => a.Id == "sonarr").Notes.Should().Be("Runs nightly.\nAsk before upgrading.");
     }
 
     [Fact]
@@ -125,7 +126,7 @@ public sealed class CatalogTextEditorFixture
         var after = Apply(Catalog, "apps", "jellyfin", Json("""{ "id": "jellyfin", "name": "Jellyfin", "notes": "One.\nTwo." }"""));
 
         after.Should().Contain("  - id: jellyfin\n    name: Jellyfin\n    notes: |-\n      One.\n      Two.\n    # main\n");
-        CatalogParser.Parse(after).Catalog.Apps.Single(a => a.Id == "jellyfin").Notes.Should().Be("One.\nTwo.");
+        TestCatalog.Parse(after).Catalog.Apps.Single(a => a.Id == "jellyfin").Notes.Should().Be("One.\nTwo.");
     }
 
     [Fact]
@@ -241,7 +242,7 @@ public sealed class CatalogTextEditorFixture
         var after = Apply(Catalog, "apps", "sonarr", Json("""{ "id": "sonarr", "name": "yes", "description": "a: b # c", "tags": ["1.0", "null", "- x"], "type": "service" }"""));
 
         Diff(Catalog, after).Added.Should().Equal("  - { id: sonarr, name: \"yes\", description: \"a: b # c\", tags: [\"1.0\", \"null\", \"- x\"], type: service }");
-        var sonarr = CatalogParser.Parse(after).Catalog.Apps.Single(a => a.Id == "sonarr");
+        var sonarr = TestCatalog.Parse(after).Catalog.Apps.Single(a => a.Id == "sonarr");
         sonarr.Name.Should().Be("yes");
         sonarr.Tags.Should().Equal("1.0", "null", "- x");
     }
@@ -254,7 +255,7 @@ public sealed class CatalogTextEditorFixture
         var after = Apply(crlf, "apps", "grafana", Json("""{ "id": "grafana", "name": "Grafana", "urls": [{ "href": "https://grafana.homelab.example" }], "notes": "Two\nlines" }"""));
 
         after.Replace("\r\n", string.Empty, StringComparison.Ordinal).Should().NotContain("\n");
-        CatalogParser.Parse(after).Catalog.Apps.Single(a => a.Id == "grafana").Notes.Should().Be("Two\nlines");
+        TestCatalog.Parse(after).Catalog.Apps.Single(a => a.Id == "grafana").Notes.Should().Be("Two\nlines");
     }
 
     [Fact]

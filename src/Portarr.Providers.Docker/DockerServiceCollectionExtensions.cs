@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Portarr.Core.Catalog;
 using Portarr.Core.Infrastructure;
 using Portarr.Core.Workloads;
 
@@ -11,6 +12,7 @@ public static class DockerServiceCollectionExtensions
         services.AddSingleton<DockerHttpClientFactory>();
         services.AddSingleton<IWorkloadSource, DockerWorkloadSource>();
         services.AddSingleton<IInfrastructureSource, DockerInfrastructureSource>();
+        services.AddSingleton<IEnvironmentConnector, DockerEnvironmentConnector>();
 
         return services;
     }

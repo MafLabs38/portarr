@@ -36,7 +36,7 @@ public sealed class CatalogParserConnectorFixture
     [Fact]
     public void should_give_each_section_to_its_own_connector()
     {
-        var parsed = CatalogParser.Parse("environments:\n  - { id: server-1, alpha: {}, beta: {} }\n", [new StubEnvironmentConnector("alpha"), new StubEnvironmentConnector("beta")]);
+        var parsed = TestCatalog.Parse("environments:\n  - { id: server-1, alpha: {}, beta: {} }\n", [new StubEnvironmentConnector("alpha"), new StubEnvironmentConnector("beta")]);
 
         parsed.Errors.Should().BeEmpty();
         var environment = parsed.Catalog.Environments.Single();
@@ -48,7 +48,7 @@ public sealed class CatalogParserConnectorFixture
     [Fact]
     public void should_refuse_a_section_nobody_owns_naming_its_line()
     {
-        var parsed = CatalogParser.Parse("environments:\n  - id: server-1\n    alpha: {}\n", [new StubEnvironmentConnector("beta")]);
+        var parsed = TestCatalog.Parse("environments:\n  - id: server-1\n    alpha: {}\n", [new StubEnvironmentConnector("beta")]);
 
         parsed.Errors.Should().ContainSingle().Which.Should().StartWith("Invalid YAML at line 3").And.Contain("alpha");
     }
@@ -56,7 +56,7 @@ public sealed class CatalogParserConnectorFixture
     [Fact]
     public void should_refuse_a_section_declared_twice()
     {
-        var parsed = CatalogParser.Parse("environments:\n  - { id: server-1, alpha: { a: 1 }, alpha: { a: 2 } }\n", [new StubEnvironmentConnector("alpha")]);
+        var parsed = TestCatalog.Parse("environments:\n  - { id: server-1, alpha: { a: 1 }, alpha: { a: 2 } }\n", [new StubEnvironmentConnector("alpha")]);
 
         parsed.Errors.Should().ContainSingle().Which.Should().StartWith("Invalid YAML at line 2").And.Contain("declared twice");
     }
@@ -64,7 +64,7 @@ public sealed class CatalogParserConnectorFixture
     [Fact]
     public void should_refuse_a_key_that_is_not_a_plain_word()
     {
-        var parsed = CatalogParser.Parse("environments:\n  - { id: server-1, [a, b]: 1 }\n", [new StubEnvironmentConnector("alpha")]);
+        var parsed = TestCatalog.Parse("environments:\n  - { id: server-1, [a, b]: 1 }\n", [new StubEnvironmentConnector("alpha")]);
 
         parsed.Errors.Should().ContainSingle().Which.Should().StartWith("Invalid YAML at line 2").And.Contain("plain word");
     }
@@ -72,7 +72,7 @@ public sealed class CatalogParserConnectorFixture
     [Fact]
     public void should_leave_the_environment_undeclared_when_the_connector_makes_nothing_of_the_section()
     {
-        var parsed = CatalogParser.Parse("environments:\n  - { id: server-1, alpha: {} }\n", [new RecordingConnector("alpha", _ => null)]);
+        var parsed = TestCatalog.Parse("environments:\n  - { id: server-1, alpha: {} }\n", [new RecordingConnector("alpha", _ => null)]);
 
         parsed.Errors.Should().BeEmpty();
         parsed.Catalog.Environments.Single().Declares("alpha").Should().BeFalse();
@@ -87,7 +87,7 @@ public sealed class CatalogParserConnectorFixture
             return null;
         });
 
-        var parsed = CatalogParser.Parse("environments:\n  - { id: server-1, alpha: {} }\n", [connector]);
+        var parsed = TestCatalog.Parse("environments:\n  - { id: server-1, alpha: {} }\n", [connector]);
 
         parsed.Errors.Should().Equal("Environment 'server-1': alpha.size must be a number.");
     }
@@ -97,13 +97,13 @@ public sealed class CatalogParserConnectorFixture
     {
         var connector = new RecordingConnector("alpha");
 
-        var parsed = CatalogParser.Parse("""
+        var parsed = TestCatalog.Parse("""
             environments:
               - { id: host, docker: { url: "http://10.0.0.10:2375" }, alpha: {} }
               - { id: bare, alpha: {} }
               - { id: cluster, kubernetes: { server: "https://10.0.0.20:6443" }, alpha: {} }
               - { id: edge, cloudflare: { accountId: abc123 }, alpha: {} }
-            """, [connector, new StubEnvironmentConnector("cloudflare", isRuntime: true, singleMachine: false)]);
+            """, [connector]);
 
         parsed.Errors.Should().BeEmpty();
         connector.SingleMachineSeen.Should().Equal(true, true, false, false);
@@ -112,7 +112,7 @@ public sealed class CatalogParserConnectorFixture
     [Fact]
     public void should_take_the_runtime_of_an_environment_from_its_runtime_connector()
     {
-        var parsed = CatalogParser.Parse("environments:\n  - { id: edge, edge: {} }\n  - { id: bare }\n", [new StubEnvironmentConnector("edge", isRuntime: true, singleMachine: false)]);
+        var parsed = TestCatalog.Parse("environments:\n  - { id: edge, edge: {} }\n  - { id: bare }\n", [new StubEnvironmentConnector("edge", isRuntime: true, singleMachine: false)]);
 
         parsed.Errors.Should().BeEmpty();
         parsed.Catalog.Environments.Select(e => e.Runtime).Should().Equal("edge", "none");
@@ -121,9 +121,9 @@ public sealed class CatalogParserConnectorFixture
     [Fact]
     public void should_refuse_two_runtimes_in_one_environment()
     {
-        var parsed = CatalogParser.Parse("environments:\n  - { id: edge, docker: { url: \"http://10.0.0.10:2375\" }, edge: {} }\n", [new StubEnvironmentConnector("edge", isRuntime: true)]);
+        var parsed = TestCatalog.Parse("environments:\n  - { id: edge, docker: { url: \"http://10.0.0.10:2375\" }, edge: {} }\n", [new StubEnvironmentConnector("edge", isRuntime: true)]);
 
-        parsed.Errors.Should().ContainSingle().Which.Should().Contain("declare one connector (docker, edge or kubernetes), not several");
+        parsed.Errors.Should().ContainSingle().Which.Should().Contain("declare one connector (cloudflare, docker, edge or kubernetes), not several");
     }
 
     [Fact]
@@ -135,9 +135,9 @@ public sealed class CatalogParserConnectorFixture
             return null;
         }, isRuntime: true);
 
-        var missing = CatalogParser.Parse("environments:\n  - { id: edge, runtime: edge }\n", [connector]);
-        var empty = CatalogParser.Parse("environments:\n  - id: edge\n    runtime: edge\n    edge:\n", [connector]);
-        var undeclared = CatalogParser.Parse("environments:\n  - id: edge\n    edge:\n", [connector]);
+        var missing = TestCatalog.Parse("environments:\n  - { id: edge, runtime: edge }\n", [connector]);
+        var empty = TestCatalog.Parse("environments:\n  - id: edge\n    runtime: edge\n    edge:\n", [connector]);
+        var undeclared = TestCatalog.Parse("environments:\n  - id: edge\n    edge:\n", [connector]);
 
         missing.Errors.Should().Equal("Environment 'edge': edge.account is required.");
         empty.Errors.Should().Equal("Environment 'edge': edge.account is required.");
@@ -147,7 +147,7 @@ public sealed class CatalogParserConnectorFixture
     [Fact]
     public void should_refuse_a_runtime_that_disagrees_with_the_section_declared()
     {
-        var parsed = CatalogParser.Parse("environments:\n  - { id: edge, runtime: docker, edge: {} }\n", [new StubEnvironmentConnector("edge", isRuntime: true)]);
+        var parsed = TestCatalog.Parse("environments:\n  - { id: edge, runtime: docker, edge: {} }\n", [new StubEnvironmentConnector("edge", isRuntime: true)]);
 
         parsed.Errors.Should().ContainSingle().Which.Should().Contain("a docker environment cannot declare edge");
     }
@@ -157,8 +157,8 @@ public sealed class CatalogParserConnectorFixture
     {
         var connector = new RecordingConnector("alpha", _ => new EnvironmentConnectorResult(new object(), new Dictionary<string, string> { ["vm-1"] = "hypervisor" }));
 
-        var known = CatalogParser.Parse("environments:\n  - { id: hypervisor, docker: { url: \"http://10.0.0.10:2375\" } }\n  - { id: cluster, alpha: {} }\n", [connector]);
-        var unknown = CatalogParser.Parse("environments:\n  - { id: cluster, alpha: {} }\n", [connector]);
+        var known = TestCatalog.Parse("environments:\n  - { id: hypervisor, docker: { url: \"http://10.0.0.10:2375\" } }\n  - { id: cluster, alpha: {} }\n", [connector]);
+        var unknown = TestCatalog.Parse("environments:\n  - { id: cluster, alpha: {} }\n", [connector]);
 
         known.Errors.Should().BeEmpty();
         known.Catalog.Environments.Single(e => e.Id == "cluster").HostOf("vm-1").Should().Be("hypervisor");
@@ -171,7 +171,7 @@ public sealed class CatalogParserConnectorFixture
         var alpha = new RecordingConnector("alpha", _ => new EnvironmentConnectorResult(new object(), new Dictionary<string, string> { ["vm-1"] = "one" }));
         var beta = new RecordingConnector("beta", _ => new EnvironmentConnectorResult(new object(), new Dictionary<string, string> { ["vm-1"] = "two" }));
 
-        var parsed = CatalogParser.Parse("environments:\n  - { id: one, docker: { url: \"http://10.0.0.10:2375\" } }\n  - { id: two, docker: { url: \"http://10.0.0.11:2375\" } }\n  - { id: cluster, alpha: {}, beta: {} }\n", [alpha, beta]);
+        var parsed = TestCatalog.Parse("environments:\n  - { id: one, docker: { url: \"http://10.0.0.10:2375\" } }\n  - { id: two, docker: { url: \"http://10.0.0.11:2375\" } }\n  - { id: cluster, alpha: {}, beta: {} }\n", [alpha, beta]);
 
         parsed.Errors.Should().ContainSingle().Which.Should().Contain("machine 'vm-1' is given the hosts 'one' and 'two'");
     }
@@ -181,8 +181,8 @@ public sealed class CatalogParserConnectorFixture
     {
         const string Yaml = "environments:\n  - { id: server-1, alpha: {}, beta: {} }\n";
 
-        var one = CatalogParser.Parse(Yaml, [new StubEnvironmentConnector("alpha"), new StubEnvironmentConnector("beta")]);
-        var other = CatalogParser.Parse(Yaml, [new StubEnvironmentConnector("beta"), new StubEnvironmentConnector("alpha")]);
+        var one = TestCatalog.Parse(Yaml, [new StubEnvironmentConnector("alpha"), new StubEnvironmentConnector("beta")]);
+        var other = TestCatalog.Parse(Yaml, [new StubEnvironmentConnector("beta"), new StubEnvironmentConnector("alpha")]);
 
         one.Errors.Should().BeEmpty();
         other.Errors.Should().BeEmpty();
@@ -192,13 +192,13 @@ public sealed class CatalogParserConnectorFixture
     [Fact]
     public void should_not_accept_two_connectors_for_one_section()
     {
-        var register = () => CatalogParser.Parse("environments: []\n", [new StubEnvironmentConnector("alpha"), new StubEnvironmentConnector("alpha")]);
+        var register = () => TestCatalog.Parse("environments: []\n", [new StubEnvironmentConnector("alpha"), new StubEnvironmentConnector("alpha")]);
 
         register.Should().Throw<InvalidOperationException>().Which.Message.Should().Contain("'alpha' is owned by two connectors");
     }
 
     [Theory]
-    [InlineData("docker")]
+    [InlineData("hostMetrics")]
     [InlineData("kubernetes")]
     [InlineData("id")]
     [InlineData("notes")]
@@ -212,7 +212,7 @@ public sealed class CatalogParserConnectorFixture
     [Fact]
     public void should_not_hand_back_settings_of_another_type()
     {
-        var parsed = CatalogParser.Parse("environments:\n  - { id: server-1, alpha: {} }\n", [new StubEnvironmentConnector("alpha")]);
+        var parsed = TestCatalog.Parse("environments:\n  - { id: server-1, alpha: {} }\n", [new StubEnvironmentConnector("alpha")]);
         var environment = parsed.Catalog.Environments.Single();
 
         var read = () => environment.Settings<string>("alpha");

@@ -231,8 +231,6 @@ internal sealed class EnvironmentDocument
     /// <summary>docker, cloudflare or kubernetes; inferred from the connector block when omitted.</summary>
     public string? Runtime { get; set; }
 
-    public DockerDocument? Docker { get; set; }
-
     /// <summary>The Portarr reader of this machine, in place of <c>docker</c> and <c>hostMetrics</c> (D-100, D-101).</summary>
     public ReaderDocument? Reader { get; set; }
 
@@ -305,14 +303,6 @@ internal sealed class KubernetesDocument
 
     /// <summary>node_exporter on the nodes (D-72).</summary>
     public NodeExporterDocument? NodeExporter { get; set; }
-}
-
-internal sealed class DockerDocument
-{
-    public string? Url { get; set; }
-
-    /// <summary>The environment variable holding a bearer token, when something in front of Docker asks for one.</summary>
-    public string? TokenEnv { get; set; }
 }
 
 /// <summary>

@@ -38,7 +38,7 @@ public sealed record CatalogPortalColors(string? Name, string? Version);
 
 /// <summary>
 /// A host, a cluster or a hosting account. <c>Address</c> is its LAN address, used to build LAN URLs from
-/// published ports (D-46). At most one runtime is set: <c>Docker</c>, <c>Kubernetes</c> or, through a connector library, <c>ConnectorRuntime</c> (D-105).
+/// published ports (D-46). At most one runtime is set: <c>Kubernetes</c> or, through a connector library, <c>ConnectorRuntime</c> (D-105).
 /// <c>Host</c> is the environment this one runs on as a VM (D-59): the hypervisor's dashboard counts it as a guest.
 /// <c>HostMetrics</c> is the host agent of its single machine (a Docker host, D-72). <c>Notes</c>, <c>Access</c> and
 /// <c>Machines</c> are what the operator knows about it, for people and AI assistants (D-84). <c>Connectors</c> holds the
@@ -48,7 +48,6 @@ public sealed record CatalogPortalColors(string? Name, string? Version);
 public sealed record CatalogEnvironment(
     string Id,
     string Name,
-    DockerEndpoint? Docker,
     string? Address = null,
     KubernetesCluster? Kubernetes = null,
     string? Host = null,
@@ -85,12 +84,7 @@ public sealed record CatalogEnvironment(
     }
 
     /// <summary>The connector kind: docker, cloudflare, kubernetes, or none (a launcher-only environment, D-32).</summary>
-    public string Runtime => (Docker, Kubernetes) switch
-    {
-        ({ }, _) => RuntimeNames.Docker,
-        (_, { }) => RuntimeNames.Kubernetes,
-        _ => ConnectorRuntime ?? RuntimeNames.None,
-    };
+    public string Runtime => Kubernetes is not null ? RuntimeNames.Kubernetes : ConnectorRuntime ?? RuntimeNames.None;
 }
 
 public static class RuntimeNames
@@ -166,12 +160,6 @@ public sealed record KubernetesNodeExporter(
     }
 }
 
-/// <summary>
-/// Docker Engine API endpoint: <c>unix:///var/run/docker.sock</c> or <c>http://host:2375</c> (socket proxy). <c>TokenVariable</c>
-/// names the environment variable holding a bearer token when something in front of Docker asks for one (the Portarr reader
-/// does, D-100): never the token itself.
-/// </summary>
-public sealed record DockerEndpoint(Uri Url, string? TokenVariable = null);
 
 
 public sealed record CatalogStack(string Id, string Name, string? Description, IReadOnlyList<StackMember> Members, string? Notes = null);

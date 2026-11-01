@@ -1,3 +1,5 @@
+using Portarr.Test.Common;
+
 namespace Portarr.Mcp.Test;
 
 /// <summary>The Markdown map an assistant reads at once (V5, D-69).</summary>
@@ -44,7 +46,7 @@ public sealed class KnowledgeBaseFixture
     [Fact]
     public void should_narrow_the_knowledge_to_one_environment()
     {
-        var catalog = Portarr.Core.Catalog.CatalogParser.Parse(FleetBuilder.Catalog).Catalog;
+        var catalog = TestCatalog.Parse(FleetBuilder.Catalog).Catalog;
 
         var vm = Knowledge.EnvironmentKnowledgeBuilder.Build(catalog, "vm-1");
         var cluster = Knowledge.EnvironmentKnowledgeBuilder.Build(catalog, "Cluster");

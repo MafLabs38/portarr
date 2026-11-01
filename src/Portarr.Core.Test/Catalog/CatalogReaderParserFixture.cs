@@ -1,4 +1,5 @@
 using Portarr.Core.Catalog;
+using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Catalog;
 
@@ -8,7 +9,7 @@ public sealed class CatalogReaderParserFixture
     [Fact]
     public void should_read_a_reader_as_the_docker_window_and_the_host_metrics_with_its_token_variable()
     {
-        var result = CatalogParser.Parse("""
+        var result = TestCatalog.Parse("""
             environments:
               - id: server-1
                 name: Server 1
@@ -17,7 +18,8 @@ public sealed class CatalogReaderParserFixture
 
         result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
         var environment = result.Catalog.Environments.Should().ContainSingle().Subject;
-        environment.Docker.Should().Be(new DockerEndpoint(new Uri("http://10.0.0.10:8485/v1/docker/"), "PORTARR_READER_SERVER_1"));
+        // The reader is read as the docker section it stands for: the Docker library reads that section (its own tests).
+        environment.Settings<Dictionary<string, string>>("docker").Should().BeEquivalentTo(new Dictionary<string, string> { ["url"] = "http://10.0.0.10:8485/v1/docker/", ["tokenEnv"] = "PORTARR_READER_SERVER_1" });
         environment.HostMetrics.Should().Be(new HostMetricsEndpoint(new Uri("http://10.0.0.10:8485/v1/host"), "PORTARR_READER_SERVER_1"));
         environment.Runtime.Should().Be(RuntimeNames.Docker);
     }
@@ -28,7 +30,7 @@ public sealed class CatalogReaderParserFixture
     [InlineData("https://reader.homelab.example/", "https://reader.homelab.example/v1/docker/", "https://reader.homelab.example/v1/host")]
     public void should_resolve_the_routes_under_the_readers_own_path_behind_a_reverse_proxy(string url, string docker, string host)
     {
-        var result = CatalogParser.Parse($$"""
+        var result = TestCatalog.Parse($$"""
             environments:
               - id: server-1
                 reader: { url: "{{url}}", tokenEnv: PORTARR_READER_SERVER_1 }
@@ -36,7 +38,7 @@ public sealed class CatalogReaderParserFixture
 
         result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
         var environment = result.Catalog.Environments.Single();
-        environment.Docker!.Url.Should().Be(new Uri(docker));
+        environment.Settings<Dictionary<string, string>>("docker")!["url"].Should().Be(docker);
         environment.HostMetrics!.NodeExporter.Should().Be(new Uri(host));
     }
 
@@ -46,7 +48,7 @@ public sealed class CatalogReaderParserFixture
     [InlineData("runtime: kubernetes", "cannot declare a reader")]
     public void should_refuse_a_reader_next_to_what_it_replaces(string other, string message)
     {
-        var result = CatalogParser.Parse($$"""
+        var result = TestCatalog.Parse($$"""
             environments:
               - id: server-1
                 {{other}}
@@ -67,7 +69,7 @@ public sealed class CatalogReaderParserFixture
     [InlineData("url: \"http://10.0.0.10:8485\", tokenEnv: \"0123456789abcdef0123456789abcdef-secret\"", "reader.tokenEnv")]
     public void should_refuse_a_reader_without_an_address_and_a_variable_name(string reader, string key)
     {
-        var result = CatalogParser.Parse($$"""
+        var result = TestCatalog.Parse($$"""
             environments:
               - id: server-1
                 reader: { {{reader}} }
@@ -84,17 +86,12 @@ public sealed class CatalogReaderParserFixture
     [InlineData("portarr_reader_lower")]
     public void should_refuse_to_send_any_other_variable_of_the_process_to_a_url(string variable)
     {
-        var reader = CatalogParser.Parse($$"""
+        var reader = TestCatalog.Parse($$"""
             environments:
               - id: server-1
                 reader: { url: "http://attacker.example:8485", tokenEnv: {{variable}} }
             """);
-        var docker = CatalogParser.Parse($$"""
-            environments:
-              - id: server-1
-                docker: { url: "http://attacker.example:2375", tokenEnv: {{variable}} }
-            """);
-        var hostMetrics = CatalogParser.Parse($$"""
+        var hostMetrics = TestCatalog.Parse($$"""
             environments:
               - id: server-1
                 docker: { url: "unix:///var/run/docker.sock" }
@@ -102,14 +99,13 @@ public sealed class CatalogReaderParserFixture
             """);
 
         reader.Errors.Should().ContainSingle().Which.Should().Contain("reader.tokenEnv").And.Contain("PORTARR_READER_");
-        docker.Errors.Should().ContainSingle().Which.Should().Contain("docker.tokenEnv").And.Contain("PORTARR_READER_");
         hostMetrics.Errors.Should().ContainSingle().Which.Should().Contain("hostMetrics.tokenEnv").And.Contain("PORTARR_READER_");
     }
 
     [Fact]
     public void should_accept_a_token_variable_of_the_reader_namespace_on_docker_and_host_metrics()
     {
-        var result = CatalogParser.Parse("""
+        var result = TestCatalog.Parse("""
             environments:
               - id: server-1
                 docker: { url: "http://proxy.homelab.example:2375", tokenEnv: PORTARR_READER_PROXY }
@@ -117,7 +113,7 @@ public sealed class CatalogReaderParserFixture
             """);
 
         result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
-        result.Catalog.Environments.Single().Docker!.TokenVariable.Should().Be("PORTARR_READER_PROXY");
+        result.Catalog.Environments.Single().Settings<Dictionary<string, string>>("docker")!["tokenEnv"].Should().Be("PORTARR_READER_PROXY");
         result.Catalog.Environments.Single().HostMetrics!.TokenVariable.Should().Be("PORTARR_READER_EXPORTER");
     }
 }

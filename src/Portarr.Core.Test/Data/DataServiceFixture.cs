@@ -230,7 +230,7 @@ public sealed class DataServiceFixture
     [InlineData("comfort", 24 * 30)]
     public void should_derive_the_loss_window_from_the_importance_unless_max_age_says_otherwise(string importance, double hours)
     {
-        var parsed = CatalogParser.Parse(Catalog + $"\ndata:\n  - {{ id: a, app: shop, kind: files, importance: {importance}, where: {{ environment: server-1 }}, targets: {{ local: {{}} }} }}\n"
+        var parsed = TestCatalog.Parse(Catalog + $"\ndata:\n  - {{ id: a, app: shop, kind: files, importance: {importance}, where: {{ environment: server-1 }}, targets: {{ local: {{}} }} }}\n"
             + $"  - {{ id: b, app: shop, kind: files, importance: {importance}, maxAge: 36h, where: {{ environment: server-1 }}, targets: {{ local: {{}} }} }}\n");
 
         parsed.Errors.Should().BeEmpty();
@@ -241,7 +241,7 @@ public sealed class DataServiceFixture
     [Fact]
     public void should_read_the_data_section_with_its_sources_and_the_backrest_of_an_environment()
     {
-        var parsed = CatalogParser.Parse("""
+        var parsed = TestCatalog.Parse("""
             environments:
               - { id: server-1, docker: { url: "http://10.0.0.10:2375" }, backrest: { url: "http://10.0.0.10:9898", userEnv: BACKREST_USER, passwordEnv: BACKREST_PASSWORD } }
               - { id: cluster, kubernetes: { server: "https://10.0.0.20:6443" } }
@@ -257,7 +257,7 @@ public sealed class DataServiceFixture
                 targets:
                   local: { cronjob: shop/dump }
                   offsite: { k8up: { schedule: shop/offsite, item: data-db-0 }, backrest: { plan: shop-offsite, environment: server-1 }, manual: true }
-            """, [new StubEnvironmentConnector("backrest")]);
+            """);
 
         parsed.Errors.Should().BeEmpty();
         parsed.Catalog.Environments[0].Declares("backrest").Should().BeTrue();
@@ -286,7 +286,7 @@ public sealed class DataServiceFixture
     [InlineData("{ id: a, app: shop, kind: files, importance: comfort, where: { environment: server-1 }, targets: { local: { manual: yesterday } } }", "manual must be true")]
     public void should_reject_an_invalid_data_entry(string entry, string error)
     {
-        var result = CatalogParser.Parse(Catalog + $"\ndata:\n  - {entry}\n");
+        var result = TestCatalog.Parse(Catalog + $"\ndata:\n  - {entry}\n");
 
         result.Errors.Should().ContainSingle().Which.Should().Contain(error);
     }
@@ -294,12 +294,12 @@ public sealed class DataServiceFixture
     [Fact]
     public void should_reject_the_retired_backups_section()
     {
-        CatalogParser.Parse("backups:\n  - { id: old }\n").IsValid.Should().BeFalse("the backups section was replaced by data");
+        TestCatalog.Parse("backups:\n  - { id: old }\n").IsValid.Should().BeFalse("the backups section was replaced by data");
     }
 
     private static DataReport Build(string data, params SourceReading[] readings)
     {
-        var parsed = CatalogParser.Parse(Catalog + "\n" + data);
+        var parsed = TestCatalog.Parse(Catalog + "\n" + data);
         parsed.Errors.Should().BeEmpty();
         return DataService.Build(parsed.Catalog, new BackupMonitorState(readings.ToDictionary(r => r.Key)), Now);
     }

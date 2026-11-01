@@ -42,12 +42,12 @@ public sealed partial class DockerInfrastructureSource : IInfrastructureSource
 
     public bool Supports(CatalogEnvironment environment)
     {
-        return environment.Docker is not null;
+        return environment.Docker() is not null;
     }
 
     public async Task<InfrastructureSample> SampleAsync(CatalogEnvironment environment, IReadOnlyList<Workload> workloads, CancellationToken cancellationToken)
     {
-        var client = _clients.Get(environment.Docker ?? throw new InvalidOperationException($"Environment {environment.Id} has no Docker endpoint."));
+        var client = _clients.Get(environment.Docker() ?? throw new InvalidOperationException($"Environment {environment.Id} has no Docker endpoint."));
         var info = await GetInfoAsync(environment.Id, client, cancellationToken);
 
         var running = workloads.Where(w => w.State == WorkloadState.Running && ContainerIdPattern().IsMatch(w.Id)).ToList();

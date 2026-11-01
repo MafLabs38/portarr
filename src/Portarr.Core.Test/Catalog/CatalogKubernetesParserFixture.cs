@@ -1,5 +1,6 @@
 using Portarr.Core.Catalog;
 using Portarr.Core.Workloads;
+using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Catalog;
 
@@ -58,7 +59,7 @@ public sealed class CatalogKubernetesParserFixture
     [InlineData("docker: { url: \"http://p:2375\" }\n    kubernetes: { server: \"https://10.0.0.10:6443\" }", "declare one connector")]
     public void should_reject_an_invalid_kubernetes_environment(string body, string error)
     {
-        var result = CatalogParser.Parse($"environments:\n  - id: cluster\n    {body}\n");
+        var result = TestCatalog.Parse($"environments:\n  - id: cluster\n    {body}\n");
 
         result.Errors.Should().ContainSingle().Which.Should().Contain(error);
     }
@@ -92,7 +93,7 @@ public sealed class CatalogKubernetesParserFixture
     [InlineData("selector: \" \"")]
     public void should_reject_an_invalid_node_exporter_namespace_or_selector(string body)
     {
-        var result = CatalogParser.Parse($"environments: [{{ id: cluster, kubernetes: {{ server: \"https://10.0.0.10:6443\", nodeExporter: {{ {body} }} }} }}]");
+        var result = TestCatalog.Parse($"environments: [{{ id: cluster, kubernetes: {{ server: \"https://10.0.0.10:6443\", nodeExporter: {{ {body} }} }} }}]");
 
         result.Errors.Should().ContainSingle().Which.Should().Contain("kubernetes.nodeExporter.namespace");
     }
@@ -122,7 +123,7 @@ public sealed class CatalogKubernetesParserFixture
     [InlineData("docker@host", "{ name: web, app: web }", "only apply to kubernetes workloads")]
     public void should_reject_an_ambiguous_selector(string runtime, string match, string error)
     {
-        var result = CatalogParser.Parse($$"""
+        var result = TestCatalog.Parse($$"""
             environments:
               - { id: cluster, kubernetes: { server: "https://10.0.0.10:6443" } }
               - { id: host, docker: { url: "http://p:2375" } }
@@ -156,7 +157,7 @@ public sealed class CatalogKubernetesParserFixture
 
     private static Portarr.Core.Catalog.Catalog Parse(string yaml)
     {
-        var result = CatalogParser.Parse(yaml);
+        var result = TestCatalog.Parse(yaml);
         result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
         return result.Catalog;
     }
