@@ -16,6 +16,15 @@ public abstract class EnvironmentConnectorContract
     /// <summary>A valid value of the section, as a YAML flow mapping: <c>{ url: "http://10.0.0.10:9898" }</c>.</summary>
     protected abstract string ValidSection { get; }
 
+    /// <summary>
+    /// What else the environment declares, as one YAML line of keys, for a section that is only valid next to another (a host agent
+    /// needs a runtime), or null.
+    /// </summary>
+    protected virtual string? OtherKeys => null;
+
+    /// <summary>The connectors of those other keys (stand-ins are enough).</summary>
+    protected virtual IReadOnlyList<IEnvironmentConnector> Companions => [];
+
     /// <summary>The section with credentials in its URL, or null (said on purpose) when the section has no URL.</summary>
     protected abstract string? SectionWithCredentialsInUrl { get; }
 
@@ -45,13 +54,14 @@ public abstract class EnvironmentConnectorContract
     {
         var result = Parse(ValidSection.TrimEnd().TrimEnd('}').TrimEnd() + ", unexpectedKey: 1 }");
 
-        result.Errors.Should().ContainSingle().Which.Should().StartWith($"Environment 'server-1': {Connector.Section}: Invalid YAML at line 3").And.Contain("unexpectedKey");
+        var line = OtherKeys is null ? 3 : 4;
+        result.Errors.Should().ContainSingle().Which.Should().StartWith($"Environment 'server-1': {Connector.Section}: Invalid YAML at line {line}").And.Contain("unexpectedKey");
     }
 
     [Fact]
     public void should_leave_an_empty_section_undeclared_without_an_error()
     {
-        var result = CatalogParser.Parse($"environments:\n  - id: server-1\n    {Connector.Section}:\n", [Connector]);
+        var result = CatalogParser.Parse($"environments:\n  - id: server-1\n{Others()}    {Connector.Section}:\n", [Connector, .. Companions]);
 
         result.Errors.Should().BeEmpty();
         result.Catalog.Environments.Single().Declares(Connector.Section).Should().BeFalse();
@@ -105,6 +115,8 @@ public abstract class EnvironmentConnectorContract
 
     private CatalogParseResult Parse(string section)
     {
-        return CatalogParser.Parse($"environments:\n  - id: server-1\n    {Connector.Section}: {section}\n", [Connector]);
+        return CatalogParser.Parse($"environments:\n  - id: server-1\n{Others()}    {Connector.Section}: {section}\n", [Connector, .. Companions]);
     }
+
+    private string Others() => OtherKeys is null ? string.Empty : $"    {OtherKeys}\n";
 }

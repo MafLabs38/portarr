@@ -43,11 +43,12 @@ public sealed class EnvironmentSectionContext
     private readonly IDeserializer _deserializer;
     private readonly Action<string> _addError;
 
-    internal EnvironmentSectionContext(string environmentId, string section, bool singleMachine, IReadOnlyList<ParsingEvent> events, IDeserializer deserializer, Action<string> addError)
+    internal EnvironmentSectionContext(string environmentId, string section, bool singleMachine, bool hasRuntime, IReadOnlyList<ParsingEvent> events, IDeserializer deserializer, Action<string> addError)
     {
         EnvironmentId = environmentId;
         Section = section;
         SingleMachine = singleMachine;
+        HasRuntime = hasRuntime;
         _events = events;
         _deserializer = deserializer;
         _addError = addError;
@@ -63,6 +64,9 @@ public sealed class EnvironmentSectionContext
     /// an environment without a runtime (a launcher-only one, D-32), false for a cluster or an account.
     /// </summary>
     public bool SingleMachine { get; }
+
+    /// <summary>Whether the environment has a runtime connector: a Docker host does, a launcher-only environment does not.</summary>
+    public bool HasRuntime { get; }
 
     /// <summary>The section as a document of the connector's own type, read strictly: an unknown key is an error naming its line.</summary>
     public T? Read<T>()

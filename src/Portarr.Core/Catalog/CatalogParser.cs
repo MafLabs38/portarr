@@ -71,6 +71,9 @@ public static partial class CatalogParser
 
     private const string ReaderHostPath = "v1/host";
 
+    /// <summary>The host agent section of an environment, which the <c>reader:</c> shortcut also stands for.</summary>
+    private const string HostMetricsSectionName = "hostMetrics";
+
     /// <summary>A Kubernetes namespace: a DNS label.</summary>
     [GeneratedRegex("^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$")]
     private static partial Regex NamespacePattern();
@@ -155,7 +158,9 @@ public static partial class CatalogParser
                 }
 
                 // The reader is catalog syntax: it is read as the docker section it stands for (D-102, D-105).
-                var sections = reader is null ? document.Sections : new Dictionary<string, IReadOnlyList<ParsingEvent>>(document.Sections) { [RuntimeNames.Docker] = reader.Value.Docker };
+                var sections = reader is null
+                    ? document.Sections
+                    : new Dictionary<string, IReadOnlyList<ParsingEvent>>(document.Sections) { [RuntimeNames.Docker] = reader.Value.Docker, [HostMetricsSectionName] = reader.Value.HostMetrics };
                 var kubernetes = BuildKubernetes(id, document);
                 var connectors = BuildConnectors(id, kubernetes is null, document, sections);
 
@@ -170,7 +175,6 @@ public static partial class CatalogParser
                     string.IsNullOrWhiteSpace(document.Address) ? null : document.Address.Trim(),
                     kubernetes,
                     string.IsNullOrWhiteSpace(document.Host) ? null : document.Host.Trim(),
-                    reader?.HostMetrics ?? BuildHostMetrics(id, document, connectors.Settings.ContainsKey(RuntimeNames.Docker)),
                     BuildNotes($"Environment '{id}'", document.Notes),
                     BuildAccess($"Environment '{id}'", "access", document.Access),
                     BuildMachines(id, document.Machines),
@@ -199,6 +203,7 @@ public static partial class CatalogParser
             Dictionary<string, string>? machineHosts = null;
             var owned = _connectors.Where(c => sections.ContainsKey(c.Section) || (c.IsRuntime && document.Runtime == c.Section)).ToList();
             var singleMachine = notACluster && owned.Where(c => c.IsRuntime).All(c => c.SingleMachine);
+            var hasRuntime = owned.Any(c => c.IsRuntime);
             foreach (var connector in owned)
             {
                 var events = sections.GetValueOrDefault(connector.Section);
@@ -207,7 +212,7 @@ public static partial class CatalogParser
                     events = EmptySection;
                 }
 
-                var context = new EnvironmentSectionContext(environmentId, connector.Section, singleMachine, events, _plain, _errors.Add);
+                var context = new EnvironmentSectionContext(environmentId, connector.Section, singleMachine, hasRuntime, events, _plain, _errors.Add);
                 if (connector.Parse(context) is not { } result)
                 {
                     continue;
@@ -377,45 +382,14 @@ public static partial class CatalogParser
             return new KubernetesCluster(server, variable, cluster.CaFile?.Trim(), nodeHosts is { Count: > 0 } ? nodeHosts : null, nodeExporter, cluster.AllowInsecure);
         }
 
-        /// <summary>
-        /// <c>hostMetrics:</c> (D-72) names the node_exporter of a Docker host, the only single machine with a
-        /// card; a cluster declares <c>kubernetes.nodeExporter</c> instead.
-        /// </summary>
-        private HostMetricsEndpoint? BuildHostMetrics(string environmentId, EnvironmentDocument document, bool isDockerHost)
-        {
-            if (document.HostMetrics is null)
-            {
-                return null;
-            }
-
-            if (!isDockerHost)
-            {
-                _errors.Add($"Environment '{environmentId}': hostMetrics is for a docker environment; a kubernetes environment declares kubernetes.nodeExporter.");
-                return null;
-            }
-
-            if (CatalogValues.HttpUrl(document.HostMetrics.NodeExporter) is not { } url)
-            {
-                _errors.Add($"Environment '{environmentId}': hostMetrics.nodeExporter must be node_exporter's metrics URL (e.g. http://10.0.0.10:9100/metrics), without credentials.");
-                return null;
-            }
-
-            return TryTokenVariable(environmentId, "hostMetrics.tokenEnv", document.HostMetrics.TokenEnv, out var variable) ? new HostMetricsEndpoint(url, variable) : null;
-        }
-
-        /// <summary>
-        /// <c>reader:</c> (D-100, D-101): the Portarr reader of a machine, one address and one token variable, read as the
-        /// Docker window at <c>/v1/docker/</c> and the node_exporter text at <c>/v1/host</c>. It replaces <c>docker</c> and
-        /// <c>hostMetrics</c>: declaring both is an error that names them.
-        /// </summary>
-        private (IReadOnlyList<ParsingEvent> Docker, HostMetricsEndpoint HostMetrics)? BuildReader(string environmentId, EnvironmentDocument document)
+        private (IReadOnlyList<ParsingEvent> Docker, IReadOnlyList<ParsingEvent> HostMetrics)? BuildReader(string environmentId, EnvironmentDocument document)
         {
             if (document.Reader is null)
             {
                 return null;
             }
 
-            if (document.Sections.ContainsKey(RuntimeNames.Docker) || document.HostMetrics is not null)
+            if (document.Sections.ContainsKey(RuntimeNames.Docker) || document.Sections.ContainsKey(HostMetricsSectionName))
             {
                 _errors.Add($"Environment '{environmentId}': reader replaces docker and hostMetrics; declare the reader, or docker and hostMetrics, not both.");
                 return null;
@@ -443,7 +417,7 @@ public static partial class CatalogParser
 
             // A trailing slash makes the reader's own path a base: the routes are resolved under it, whatever it is.
             var baseUrl = url.AbsolutePath.EndsWith('/') ? url : new Uri(url.GetLeftPart(UriPartial.Path) + Path.AltDirectorySeparatorChar);
-            return (DockerSection(new Uri(baseUrl, ReaderDockerPath), variable), new HostMetricsEndpoint(new Uri(baseUrl, ReaderHostPath), variable));
+            return (DockerSection(new Uri(baseUrl, ReaderDockerPath), variable), HostMetricsSection(new Uri(baseUrl, ReaderHostPath), variable));
         }
 
         /// <summary>
@@ -459,6 +433,20 @@ public static partial class CatalogParser
 
             _errors.Add($"Environment '{environmentId}': {error}");
             return false;
+        }
+
+        /// <summary>The <c>hostMetrics:</c> section a reader stands for: <c>{ nodeExporter, tokenEnv }</c>, as the events of a flow mapping.</summary>
+        private static ParsingEvent[] HostMetricsSection(Uri url, string variable)
+        {
+            return
+            [
+                new MappingStart(AnchorName.Empty, TagName.Empty, true, MappingStyle.Flow),
+                new Scalar("nodeExporter"),
+                new Scalar(url.ToString()),
+                new Scalar("tokenEnv"),
+                new Scalar(variable),
+                new MappingEnd(),
+            ];
         }
 
         /// <summary>The <c>docker:</c> section a reader stands for: <c>{ url, tokenEnv }</c>, as the events of a flow mapping.</summary>

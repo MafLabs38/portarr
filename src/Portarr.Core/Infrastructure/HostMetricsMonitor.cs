@@ -123,14 +123,15 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
     }
 
     /// <summary>The machines whose host agent is declared, with where to read it.</summary>
-    public static IReadOnlyList<HostMetricsTarget> ResolveTargets(Catalog.Catalog catalog, IReadOnlyDictionary<string, EnvironmentMetrics> infrastructure)
+    public IReadOnlyList<HostMetricsTarget> ResolveTargets(Catalog.Catalog catalog, IReadOnlyDictionary<string, EnvironmentMetrics> infrastructure)
     {
         var targets = new List<HostMetricsTarget>();
         foreach (var environment in catalog.Environments)
         {
-            if (environment.HostMetrics is { } endpoint)
+            var declared = _sources.SelectMany(source => source.TargetsOf(environment, infrastructure.GetValueOrDefault(environment.Id))).ToList();
+            if (declared.Count > 0)
             {
-                targets.Add(new HostMetricsTarget(environment, environment.Id, endpoint.NodeExporter));
+                targets.AddRange(declared);
                 continue;
             }
 

@@ -78,7 +78,7 @@ public sealed class NodeExporterBearerFixture
 
     private static HostMetricsTarget Target(Uri url)
     {
-        var environment = new CatalogEnvironment("server-1", "Server 1", null, HostMetrics: new HostMetricsEndpoint(ReaderUrl, "PORTARR_READER_TEST"));
+        var environment = NodeExporterEnvironments.With(new HostMetricsEndpoint(ReaderUrl, "PORTARR_READER_TEST"));
         return new HostMetricsTarget(environment, "server-1", url);
     }
 

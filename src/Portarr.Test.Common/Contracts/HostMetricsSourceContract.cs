@@ -13,7 +13,8 @@ public sealed record HostMetricsHarness(
     HostMetricsTarget UnsupportedTarget,
     Action<string> Serve,
     Action<ToolFault> Fail,
-    Func<IReadOnlyList<RecordedRequest>> Requests);
+    Func<IReadOnlyList<RecordedRequest>> Requests,
+    CatalogEnvironment? Environment = null);
 
 /// <summary>
 /// The contract of the host metrics capability (<see cref="IHostMetricsSource"/>, D-72), run against every connector
@@ -43,6 +44,19 @@ public abstract class HostMetricsSourceContract
 
         harness.Source.Supports(harness.Target).Should().BeTrue();
         harness.Source.Supports(harness.UnsupportedTarget).Should().BeFalse();
+    }
+
+    [Fact]
+    public void should_resolve_the_target_of_the_environment_it_reads_and_none_for_another()
+    {
+        var harness = Arrange();
+        if (harness.Environment is null)
+        {
+            return; // this connector does not resolve its targets itself yet
+        }
+
+        harness.Source.TargetsOf(harness.Environment, null).Should().ContainSingle().Which.Url.Should().Be(harness.Target.Url);
+        harness.Source.TargetsOf(new CatalogEnvironment("elsewhere", "Elsewhere"), null).Should().BeEmpty();
     }
 
     [Fact]

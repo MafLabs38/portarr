@@ -18,6 +18,12 @@ public interface IHostMetricsSource
     string? GetConfigurationError(HostMetricsTarget target) => null;
 
     /// <summary>
+    /// The machines of <paramref name="environment"/> whose agent this connector reads (D-105): where each is read, from what the
+    /// environment declares and, for a cluster, from what the infrastructure monitor last saw of its nodes. None by default.
+    /// </summary>
+    IEnumerable<HostMetricsTarget> TargetsOf(CatalogEnvironment environment, EnvironmentMetrics? infrastructure) => [];
+
+    /// <summary>
     /// Reads the machine once. The CPU is measured between two reads: the first read of a target (or the
     /// first after its counters went backwards, e.g. a reboot) has no CPU yet. Throws when the agent cannot be read.
     /// </summary>
