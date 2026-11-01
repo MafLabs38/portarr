@@ -23,7 +23,11 @@ The images are built with the version `X.Y.Z.<n>`, where `<n>` is the number of 
 
 1. `develop` is green and holds what should ship.
 2. Open a pull request **`develop` → `main`**. The title does not matter for the version (the commits do).
-3. A maintainer reviews it and merges it with a **merge commit**, never a squash (a squash would hide every `feat` and `fix` from the analyzer).
+3. A maintainer reviews it and merges it with a **merge commit**, never a squash (a squash would hide every `feat` and `fix` from the analyzer: the
+   first release came out empty that way). The repository allows both only because `merge.allow_merge_commit: true` is set for it in `repos/portarr.yaml`
+   of the Terraform repository; every other pull request is squash-merged. If `develop` and `main` have diverged (a release squash-merged by mistake),
+   a plain `develop` → `main` pull request can conflict: merge `develop` into a branch cut from `main`, resolve, and open the release pull request from
+   that branch (`release/X.Y.Z`).
 4. The pipeline runs on `main`: tests, scans, end-to-end smoke test, then `release` (tag and notes) and `image` (the three images under the new version).
 5. A deployment that follows the version tags picks the new version up on its own ([deployment.md](deployment.md#following-the-releases)).
 
