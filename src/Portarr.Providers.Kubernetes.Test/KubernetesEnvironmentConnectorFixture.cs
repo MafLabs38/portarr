@@ -9,7 +9,7 @@ public sealed class KubernetesEnvironmentConnectorFixture : EnvironmentConnector
 {
     protected override IEnvironmentConnector Connector { get; } = new KubernetesEnvironmentConnector();
 
-    protected override string ValidSection => "{ server: \"https://10.0.0.10:6443\", tokenEnv: CLUSTER_TOKEN }";
+    protected override string ValidSection => "{ server: \"https://10.0.0.10:6443\", tokenEnv: PORTARR_K8S_CLUSTER }";
 
     protected override string? SectionWithCredentialsInUrl => "{ server: \"https://admin:secret@10.0.0.10:6443\" }";
 
@@ -18,7 +18,6 @@ public sealed class KubernetesEnvironmentConnectorFixture : EnvironmentConnector
     // The ServiceAccount token variable is not confined to a Portarr namespace yet (issue #45).
     protected override string? SectionWithSecretOutsideNamespace => "{ server: \"https://attacker.example:6443\", tokenEnv: GITHUB_TOKEN }";
 
-    protected override bool SecretVariablesAreUnconfined => true;
 
     private static CatalogParseResult Parse(string yaml) => CatalogParser.Parse(yaml, [new KubernetesEnvironmentConnector(), new StubEnvironmentConnector("docker", isRuntime: true), new StubEnvironmentConnector("cloudflare", isRuntime: true, singleMachine: false)]);
 
@@ -32,11 +31,11 @@ public sealed class KubernetesEnvironmentConnectorFixture : EnvironmentConnector
     [Fact]
     public void should_read_a_cluster_with_a_token_variable_and_a_ca_file()
     {
-        var parsed = Parse("environments:\n  - id: cluster\n    runtime: kubernetes\n    kubernetes: { server: \"https://10.0.0.10:6443\", tokenEnv: CLUSTER_TOKEN, caFile: cluster-ca.crt }\n");
+        var parsed = Parse("environments:\n  - id: cluster\n    runtime: kubernetes\n    kubernetes: { server: \"https://10.0.0.10:6443\", tokenEnv: PORTARR_K8S_CLUSTER, caFile: cluster-ca.crt }\n");
 
         parsed.Errors.Should().BeEmpty();
         var environment = parsed.Catalog.Environments.Single();
-        environment.Kubernetes().Should().Be(new KubernetesCluster(new Uri("https://10.0.0.10:6443"), "CLUSTER_TOKEN", "cluster-ca.crt"));
+        environment.Kubernetes().Should().Be(new KubernetesCluster(new Uri("https://10.0.0.10:6443"), "PORTARR_K8S_CLUSTER", "cluster-ca.crt"));
         environment.Runtime.Should().Be(RuntimeNames.Kubernetes);
         environment.SingleMachine.Should().BeFalse();
     }
@@ -67,6 +66,17 @@ public sealed class KubernetesEnvironmentConnectorFixture : EnvironmentConnector
         cluster.TokenVariable.Should().Be("K8S_TOKEN");
         cluster.CaFile.Should().BeNull();
         cluster.AllowInsecure.Should().BeFalse();
+    }
+
+    [Fact]
+    public void should_keep_the_default_variable_and_let_the_operator_allow_another_name()
+    {
+        const string Section = "environments:\n  - id: cluster\n    runtime: kubernetes\n    kubernetes: { server: \"https://10.0.0.10:6443\", tokenEnv: OLD_CLUSTER_TOKEN }\n";
+        var connectors = new IEnvironmentConnector[] { new KubernetesEnvironmentConnector() };
+
+        CatalogParser.Parse(Section, connectors).Errors.Should().ContainSingle().Which.Should().Contain("PORTARR_K8S_");
+        CatalogParser.Parse(Section, connectors, new HashSet<string> { "OLD_CLUSTER_TOKEN" }).Errors.Should().BeEmpty();
+        CatalogParser.Parse(Section.Replace("OLD_CLUSTER_TOKEN", "K8S_TOKEN", StringComparison.Ordinal), connectors).Errors.Should().BeEmpty();
     }
 
     [Theory]

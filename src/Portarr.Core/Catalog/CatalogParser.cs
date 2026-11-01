@@ -29,7 +29,13 @@ public static partial class CatalogParser
     /// Reads a catalog. <paramref name="connectors"/> are the connector libraries' sections of an environment (D-105); a section
     /// nobody registered is an unknown key, like any other.
     /// </summary>
-    public static CatalogParseResult Parse(string yaml, IEnumerable<IEnvironmentConnector> connectors)
+    public static CatalogParseResult Parse(string yaml, IEnumerable<IEnvironmentConnector> connectors) => Parse(yaml, connectors, null);
+
+    /// <summary>
+    /// As above, with the secret variable names the operator allows outside each connector's namespace
+    /// (<c>Catalog:SecretVariables</c>).
+    /// </summary>
+    public static CatalogParseResult Parse(string yaml, IEnumerable<IEnvironmentConnector> connectors, IReadOnlySet<string>? allowedSecretVariables)
     {
         var registered = EnvironmentConnectorRegistry.Validate(connectors);
         var (full, plain) = CatalogDeserializers.For(registered.Select(c => c.Section).ToHashSet(StringComparer.Ordinal));
@@ -43,7 +49,7 @@ public static partial class CatalogParser
             return new CatalogParseResult(Catalog.Empty, [$"Invalid YAML at line {exception.Start.Line}: {Innermost(exception).Message}"]);
         }
 
-        return new Builder(registered, plain).Build(document ?? new CatalogDocument());
+        return new Builder(registered, plain, allowedSecretVariables ?? new HashSet<string>()).Build(document ?? new CatalogDocument());
     }
 
     private static Exception Innermost(Exception exception)
@@ -97,11 +103,13 @@ public static partial class CatalogParser
         private readonly List<string> _errors = [];
         private readonly IReadOnlyList<IEnvironmentConnector> _connectors;
         private readonly IDeserializer _plain;
+        private readonly IReadOnlySet<string> _allowedSecretVariables;
 
-        public Builder(IReadOnlyList<IEnvironmentConnector> connectors, IDeserializer plain)
+        public Builder(IReadOnlyList<IEnvironmentConnector> connectors, IDeserializer plain, IReadOnlySet<string> allowedSecretVariables)
         {
             _connectors = connectors;
             _plain = plain;
+            _allowedSecretVariables = allowedSecretVariables;
         }
 
         public CatalogParseResult Build(CatalogDocument document)
@@ -202,7 +210,7 @@ public static partial class CatalogParser
                     events = EmptySection;
                 }
 
-                var context = new EnvironmentSectionContext(environmentId, connector.Section, singleMachine, hasRuntime, events, _plain, _errors.Add);
+                var context = new EnvironmentSectionContext(environmentId, connector.Section, singleMachine, hasRuntime, events, _plain, _errors.Add) { AllowedSecretVariables = _allowedSecretVariables };
                 if (connector.Parse(context) is not { } result)
                 {
                     continue;
@@ -507,11 +515,12 @@ public static partial class CatalogParser
                 _errors.Add($"{label}: exclude entry '{pattern}' must be owner/name, * allowed (e.g. example/test-*).");
             }
 
-            var variable = document.TokenEnv ?? GitHubSource.DefaultTokenVariable;
-            if (!CatalogValues.IsVariableName(variable))
+            if (CatalogValues.SecretVariableError("tokenEnv", document.TokenEnv, GitHubSource.TokenPrefix, GitHubSource.DefaultTokenVariable, "token", _allowedSecretVariables, out _) is { } tokenError)
             {
-                _errors.Add($"{label}: tokenEnv must be the name of an environment variable (e.g. {GitHubSource.DefaultTokenVariable}), never the token itself.");
+                _errors.Add($"{label}: {tokenError}");
             }
+
+            var variable = CatalogValues.Blank(document.TokenEnv) ?? GitHubSource.DefaultTokenVariable;
 
             var months = document.PushedWithinMonths ?? GitHubSource.DefaultPushedWithinMonths;
             if (months is < 0 or > 120)

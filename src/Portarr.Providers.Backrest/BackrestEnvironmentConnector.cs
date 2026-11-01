@@ -29,6 +29,9 @@ public sealed class BackrestEnvironmentConnector : IEnvironmentConnector
 {
     public const string SectionName = "backrest";
 
+    /// <summary>The namespace of the variables a catalog may name as Backrest's login.</summary>
+    public const string VariablePrefix = "PORTARR_BACKREST_";
+
     public string Section => SectionName;
 
     public EnvironmentConnectorResult? Parse(EnvironmentSectionContext context)
@@ -52,9 +55,18 @@ public sealed class BackrestEnvironmentConnector : IEnvironmentConnector
 
         var user = CatalogValues.Blank(document.UserEnv);
         var password = CatalogValues.Blank(document.PasswordEnv);
-        if ((user is null) != (password is null) || (user is not null && !CatalogValues.IsVariableName(user)) || (password is not null && !CatalogValues.IsVariableName(password)))
+        if ((user is null) != (password is null))
         {
             context.Error($"backrest.userEnv and passwordEnv must both name an environment variable (never the credentials themselves), or both be omitted when Backrest has no authentication.");
+            return null;
+        }
+
+        // Backrest's login is an administrator's: it goes only to the Backrest address, from a variable of its own namespace (no default name).
+        var userError = CatalogValues.SecretVariableError("backrest.userEnv", user, VariablePrefix, string.Empty, "credentials", context.AllowedSecretVariables, out _);
+        var passwordError = CatalogValues.SecretVariableError("backrest.passwordEnv", password, VariablePrefix, string.Empty, "credentials", context.AllowedSecretVariables, out _);
+        if ((userError ?? passwordError) is { } variableError)
+        {
+            context.Error(variableError);
             return null;
         }
 

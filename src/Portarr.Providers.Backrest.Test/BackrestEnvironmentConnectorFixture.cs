@@ -9,14 +9,11 @@ public sealed class BackrestEnvironmentConnectorFixture : EnvironmentConnectorCo
 {
     protected override IEnvironmentConnector Connector { get; } = new BackrestEnvironmentConnector();
 
-    protected override string ValidSection => "{ url: \"http://10.0.0.10:9898\", allowInsecure: true, userEnv: BACKREST_USER, passwordEnv: BACKREST_PASSWORD }";
+    protected override string ValidSection => "{ url: \"http://10.0.0.10:9898\", allowInsecure: true, userEnv: PORTARR_BACKREST_USER, passwordEnv: PORTARR_BACKREST_PASSWORD }";
 
     protected override string? SectionWithCredentialsInUrl => "{ url: \"http://user:pass@10.0.0.10:9898\" }";
 
     protected override string? SectionWithSecretOutsideNamespace => "{ url: \"http://10.0.0.10:9898\", allowInsecure: true, userEnv: SOME_OTHER_USER, passwordEnv: SOME_OTHER_SECRET }";
-
-    // Backrest's credential variables are not confined to a Portarr namespace yet (issue #45).
-    protected override bool SecretVariablesAreUnconfined => true;
 
     protected override string? SectionWithLiteralSecret => "{ url: \"http://10.0.0.10:9898\", allowInsecure: true, userEnv: \"admin\", passwordEnv: \"pa ss\" }";
 
@@ -28,11 +25,11 @@ public sealed class BackrestEnvironmentConnectorFixture : EnvironmentConnectorCo
     {
         var parsed = Parse("""
             environments:
-              - { id: server-1, docker: { url: "http://10.0.0.10:2375" }, backrest: { url: "http://10.0.0.10:9898", allowInsecure: true, userEnv: BACKREST_USER, passwordEnv: BACKREST_PASSWORD } }
+              - { id: server-1, docker: { url: "http://10.0.0.10:2375" }, backrest: { url: "http://10.0.0.10:9898", allowInsecure: true, userEnv: PORTARR_BACKREST_USER, passwordEnv: PORTARR_BACKREST_PASSWORD } }
             """);
 
         parsed.Errors.Should().BeEmpty();
-        parsed.Catalog.Environments[0].Backrest().Should().Be(new BackrestEndpoint(new Uri("http://10.0.0.10:9898/"), "BACKREST_USER", "BACKREST_PASSWORD", AllowInsecure: true));
+        parsed.Catalog.Environments[0].Backrest().Should().Be(new BackrestEndpoint(new Uri("http://10.0.0.10:9898/"), "PORTARR_BACKREST_USER", "PORTARR_BACKREST_PASSWORD", AllowInsecure: true));
     }
 
     [Fact]
@@ -57,7 +54,7 @@ public sealed class BackrestEnvironmentConnectorFixture : EnvironmentConnectorCo
     [Fact]
     public void should_ask_for_both_credentials_variables_or_none()
     {
-        var result = Parse("environments:\n  - { id: server-1, backrest: { url: \"http://10.0.0.10:9898\", allowInsecure: true, userEnv: BACKREST_USER } }\n");
+        var result = Parse("environments:\n  - { id: server-1, backrest: { url: \"http://10.0.0.10:9898\", allowInsecure: true, userEnv: PORTARR_BACKREST_USER } }\n");
 
         result.Errors.Should().ContainSingle().Which.Should().Contain("must both name an environment variable");
     }
@@ -65,8 +62,8 @@ public sealed class BackrestEnvironmentConnectorFixture : EnvironmentConnectorCo
     [Fact]
     public void should_refuse_credentials_over_plain_http_unless_the_operator_accepts_it()
     {
-        var refused = Parse("environments:\n  - { id: server-1, backrest: { url: \"http://10.0.0.10:9898\", userEnv: BACKREST_USER, passwordEnv: BACKREST_PASSWORD } }\n");
-        var secure = Parse("environments:\n  - { id: server-1, backrest: { url: \"https://backrest.homelab.example\", userEnv: BACKREST_USER, passwordEnv: BACKREST_PASSWORD } }\n");
+        var refused = Parse("environments:\n  - { id: server-1, backrest: { url: \"http://10.0.0.10:9898\", userEnv: PORTARR_BACKREST_USER, passwordEnv: PORTARR_BACKREST_PASSWORD } }\n");
+        var secure = Parse("environments:\n  - { id: server-1, backrest: { url: \"https://backrest.homelab.example\", userEnv: PORTARR_BACKREST_USER, passwordEnv: PORTARR_BACKREST_PASSWORD } }\n");
         var plainWithoutLogin = Parse("environments:\n  - { id: server-1, backrest: { url: \"http://10.0.0.10:9898\" } }\n");
 
         refused.Errors.Should().ContainSingle().Which.Should().Contain("must be https when userEnv and passwordEnv are set").And.Contain("allowInsecure");

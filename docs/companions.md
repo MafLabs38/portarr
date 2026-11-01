@@ -178,7 +178,7 @@ The catalog declares the instance on the environment that runs it:
 environments:
   - id: server-1
     docker: { url: "http://10.0.0.10:2375" }
-    backrest: { url: "https://backrest.homelab.example", userEnv: BACKREST_USER, passwordEnv: BACKREST_PASSWORD }
+    backrest: { url: "https://backrest.homelab.example", userEnv: PORTARR_BACKREST_USER, passwordEnv: PORTARR_BACKREST_PASSWORD }
 ```
 
 Backrest speaks the [Connect protocol](https://connectrpc.com): every call is a `POST` of JSON to `/v1.Backrest/<Method>`. Portarr calls exactly two methods, **`GetConfig`** (plan ids, their repository id and schedule) and **`GetOperations`** (the last 200 operations of one plan), and never a method that starts, forgets, restores, changes the configuration or cancels. A backup operation is a success or a warning (a snapshot was made), or an error; pending, running, cancelled and dry-run operations are not attempts. Details: [verticals/V3-data-backups.md](verticals/V3-data-backups.md#connectors-d-80-d-81-d-62).

@@ -26,9 +26,9 @@ The token is **never written in the catalog**: give it through an environment va
 sources:
   github:
     - owners: [example]                 # one entry per account, each with the token whose resource owner it is
-      tokenEnv: GITHUB_TOKEN_EXAMPLE
+      tokenEnv: PORTARR_GITHUB_EXAMPLE
     - owners: [example-org]
-      tokenEnv: GITHUB_TOKEN_ORG
+      tokenEnv: PORTARR_GITHUB_ORG
       pushedWithinMonths: 6
       exclude: ["example-org/test-*"]
       # apiUrl: https://github.example/api/v3/   # a GitHub Enterprise Server (https only); absent: github.com

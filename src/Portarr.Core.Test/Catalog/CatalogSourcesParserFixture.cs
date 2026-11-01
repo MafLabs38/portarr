@@ -30,7 +30,7 @@ public sealed class CatalogSourcesParserFixture
             sources:
               github:
                 owners: [example]
-                tokenEnv: MY_GH_TOKEN
+                tokenEnv: PORTARR_GITHUB_MINE
                 include: [other/lib, Other/Lib]
                 pushedWithinMonths: 0
                 forks: true
@@ -38,7 +38,7 @@ public sealed class CatalogSourcesParserFixture
             """);
 
         result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
-        result.Catalog.CodeSources.Should().ContainSingle().Which.Should().BeEquivalentTo(new GitHubSource(["example"], "MY_GH_TOKEN", 0, ["other/lib"], [], true, true), "an include listed twice, in any case, is kept once");
+        result.Catalog.CodeSources.Should().ContainSingle().Which.Should().BeEquivalentTo(new GitHubSource(["example"], "PORTARR_GITHUB_MINE", 0, ["other/lib"], [], true, true), "an include listed twice, in any case, is kept once");
     }
 
     [Fact]
@@ -72,12 +72,12 @@ public sealed class CatalogSourcesParserFixture
         var result = TestCatalog.Parse("""
             sources:
               github:
-                - { owners: [example], tokenEnv: GITHUB_TOKEN_EXAMPLE }
-                - { owners: [example-org], tokenEnv: GITHUB_TOKEN_ORG, exclude: ["example-org/test-*"] }
+                - { owners: [example], tokenEnv: PORTARR_GITHUB_EXAMPLE }
+                - { owners: [example-org], tokenEnv: PORTARR_GITHUB_ORG, exclude: ["example-org/test-*"] }
             """);
 
         result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
-        result.Catalog.CodeSources.Cast<GitHubSource>().Select(s => (s.Owners.Single(), s.TokenVariable)).Should().Equal(("example", "GITHUB_TOKEN_EXAMPLE"), ("example-org", "GITHUB_TOKEN_ORG"));
+        result.Catalog.CodeSources.Cast<GitHubSource>().Select(s => (s.Owners.Single(), s.TokenVariable)).Should().Equal(("example", "PORTARR_GITHUB_EXAMPLE"), ("example-org", "PORTARR_GITHUB_ORG"));
     }
 
     [Fact]

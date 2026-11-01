@@ -59,6 +59,41 @@ public static partial class CatalogValues
     }
 
     /// <summary>
+    /// The optional secret variable of a section that sends a credential to a catalog URL (Kubernetes, Backrest, Cloudflare, GitHub):
+    /// absent is fine (the connector's own default applies), present must be one of the connector's namespace (<paramref name="prefix"/>),
+    /// the connector's default name, or a name the operator allows outside the catalog (<c>PORTARR__CATALOG__SECRETVARIABLES</c>).
+    /// So that someone who can write the catalog cannot point a section at an unrelated secret of the process and a URL they own (issue #45).
+    /// </summary>
+    public static string? SecretVariableError(string key, string? value, string prefix, string defaultVariable, string noun, IReadOnlySet<string> allowed, out string? variable)
+    {
+        variable = Blank(value);
+        if (variable is null)
+        {
+            return null;
+        }
+
+        if (!IsVariableName(variable))
+        {
+            return $"{key} must be the name of an environment variable (e.g. {prefix}TOKEN), never the {noun} itself.";
+        }
+
+        var inNamespace = variable.StartsWith(prefix, StringComparison.Ordinal) && variable.Length > prefix.Length;
+        if (inNamespace || variable == defaultVariable || allowed.Contains(variable))
+        {
+            return null;
+        }
+
+        return $"{key} must be the name of an environment variable starting with {prefix} (e.g. {prefix}TOKEN), or {defaultVariable}; the operator can allow another name in PORTARR__CATALOG__SECRETVARIABLES. A catalog cannot make Portarr send an unrelated secret to a URL.";
+    }
+
+    /// <summary>The names an operator allows (comma, semicolon or space separated), the valid variable names only.</summary>
+    public static IReadOnlySet<string> ParseVariableList(string? value)
+    {
+        var names = (value ?? string.Empty).Split([',', ';', ' ', '\t', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return names.Where(IsVariableName).ToHashSet(StringComparer.Ordinal);
+    }
+
+    /// <summary>
     /// A duration in the catalog's one grammar (<c>5</c> or <c>5s</c> seconds, <c>2m</c>, <c>24h</c>, <c>7d</c>), between
     /// <paramref name="min"/> and <paramref name="max"/>; null when the text is none of these or out of bounds.
     /// </summary>

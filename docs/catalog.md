@@ -16,7 +16,7 @@ environments:
     hostMetrics: { nodeExporter: "http://10.0.0.10:9100/metrics" }   # host agent, read every second (D-72)
     # or, in place of the two lines above, one line for the Portarr reader of the machine (D-100, D-101):
     # reader: { url: "http://10.0.0.10:8485", tokenEnv: PORTARR_READER_SERVER_1 }
-    backrest: { url: "http://10.0.0.10:9898", userEnv: BACKREST_USER, passwordEnv: BACKREST_PASSWORD }   # backup tool of this machine (D-80)
+    backrest: { url: "http://10.0.0.10:9898", userEnv: PORTARR_BACKREST_USER, passwordEnv: PORTARR_BACKREST_PASSWORD }   # backup tool of this machine (D-80)
   - id: cdn
     name: Cloudflare
     runtime: cloudflare               # Pages projects and Workers (connectors/cloudflare.md)
@@ -125,6 +125,20 @@ curl -s -X PUT localhost:8484/api/v1/portal -H "X-Api-Key: $KEY" -H 'Content-Typ
 curl -s -X PUT localhost:8484/api/v1/portal/logo -H "X-Api-Key: $KEY" -F file=@logo.png
 ```
 
+## Secret variables
+
+The catalog never holds a secret: a section that sends a credential to a URL names an **environment variable** of the Portarr process (`tokenEnv`, `userEnv`, `passwordEnv`). So that someone who can write the catalog (the API, the MCP tools) cannot point a section at an unrelated secret and a URL they own, each connector confines the names it accepts:
+
+| Section | Variable names accepted |
+|---|---|
+| `reader`, `docker.tokenEnv`, `hostMetrics.tokenEnv` | `PORTARR_READER_…` |
+| `kubernetes.tokenEnv` | `PORTARR_K8S_…`, or the default `K8S_TOKEN` |
+| `backrest.userEnv`, `backrest.passwordEnv` | `PORTARR_BACKREST_…` |
+| `cloudflare.tokenEnv` | `PORTARR_CLOUDFLARE_…`, or the default `CLOUDFLARE_API_TOKEN` |
+| `sources.github.tokenEnv` | `PORTARR_GITHUB_…`, or the default `GITHUB_TOKEN` |
+
+A catalog that names anything else is refused, with the way out in the message. An existing setup keeps its variable names without touching the catalog: whoever runs Portarr lists them in `PORTARR__CATALOG__SECRETVARIABLES` (comma separated, for example `BACKREST_USER,BACKREST_PASSWORD`). That list is outside the catalog on purpose: the catalog cannot widen it.
+
 ## Durations
 
 Every duration of the catalog (a check's `interval` and `timeout`, a data asset's `maxAge`, a host agent's `interval`) is written the same way: a whole number and a unit, `30s`, `5m`, `24h`, `7d`; a bare number is seconds. Each key has its own bounds and says so when the value is outside them (`maxAge` is at least a minute, so a bare `24` is refused rather than read as 24 seconds).
@@ -208,8 +222,8 @@ environments:
     docker: { url: "http://10.0.0.10:2375" }
     backrest:                              # the Backrest of this machine (optional, one per Docker or launcher-only environment)
       url: "https://backrest.homelab.example"   # no credentials in the URL; https when userEnv is set (its login is an admin's)
-      userEnv: BACKREST_USER               # names of environment variables, never the credentials; both or neither
-      passwordEnv: BACKREST_PASSWORD
+      userEnv: PORTARR_BACKREST_USER               # names of environment variables, never the credentials; both or neither
+      passwordEnv: PORTARR_BACKREST_PASSWORD
       # allowInsecure: true                # accept http with a login, on a network you trust (the login travels in clear)
 
 data:

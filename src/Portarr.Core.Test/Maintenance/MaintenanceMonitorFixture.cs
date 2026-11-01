@@ -78,7 +78,7 @@ public sealed class MaintenanceMonitorFixture
     [Fact]
     public async Task should_scan_every_declared_account_and_merge_their_repositories()
     {
-        _catalog.Current.Returns(new CatalogState(TestCatalog.Parse("sources:\n  github:\n    - { owners: [one], tokenEnv: T1 }\n    - { owners: [two], tokenEnv: T2 }\n").Catalog, "catalog.yaml", true, [], null));
+        _catalog.Current.Returns(new CatalogState(TestCatalog.Parse("sources:\n  github:\n    - { owners: [one], tokenEnv: PORTARR_GITHUB_T1 }\n    - { owners: [two], tokenEnv: PORTARR_GITHUB_T2 }\n").Catalog, "catalog.yaml", true, [], null));
         _code.ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>()).Returns(call => Task.FromResult<IReadOnlyList<CodeRepository>>([Repo(((GitHubSource)call.Arg<ICodeSource>()).Owners[0], "app")]));
         var monitor = Monitor();
 
@@ -91,7 +91,7 @@ public sealed class MaintenanceMonitorFixture
     [Fact]
     public async Task should_keep_what_was_known_of_the_account_that_failed_and_report_its_error()
     {
-        _catalog.Current.Returns(new CatalogState(TestCatalog.Parse("sources:\n  github:\n    - { owners: [one], tokenEnv: T1 }\n    - { owners: [two], tokenEnv: T2 }\n").Catalog, "catalog.yaml", true, [], null));
+        _catalog.Current.Returns(new CatalogState(TestCatalog.Parse("sources:\n  github:\n    - { owners: [one], tokenEnv: PORTARR_GITHUB_T1 }\n    - { owners: [two], tokenEnv: PORTARR_GITHUB_T2 }\n").Catalog, "catalog.yaml", true, [], null));
         var fail = false;
         _code.ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
@@ -112,7 +112,7 @@ public sealed class MaintenanceMonitorFixture
     [Fact]
     public async Task should_skip_a_source_no_connector_reads_and_scan_the_others()
     {
-        _catalog.Current.Returns(new CatalogState(TestCatalog.Parse("sources:\n  github:\n    - { owners: [one], tokenEnv: T1 }\n    - { owners: [two], tokenEnv: T2 }\n").Catalog, "catalog.yaml", true, [], null));
+        _catalog.Current.Returns(new CatalogState(TestCatalog.Parse("sources:\n  github:\n    - { owners: [one], tokenEnv: PORTARR_GITHUB_T1 }\n    - { owners: [two], tokenEnv: PORTARR_GITHUB_T2 }\n").Catalog, "catalog.yaml", true, [], null));
         _code.Supports(Arg.Is<ICodeSource>(s => s.Logins.Contains("two"))).Returns(false);
         var monitor = Monitor();
 
