@@ -77,7 +77,7 @@ public sealed class PortalController : ControllerBase
         Response.Headers.XContentTypeOptions = "nosniff";
 
         var etag = new Microsoft.Net.Http.Headers.EntityTagHeaderValue($"\"{logo.Hash}\"");
-        return PhysicalFile(logo.Path, logo.ContentType, new DateTimeOffset(global::System.IO.File.GetLastWriteTimeUtc(logo.Path)), etag);
+        return File(logo.Content, logo.ContentType, logo.Modified, etag);
     }
 
     /// <summary>Sets the name of the infrastructure (empty goes back to Portarr's own) and/or the colors of the badge texts (empty goes back to the accent).</summary>
@@ -104,7 +104,13 @@ public sealed class PortalController : ControllerBase
             return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
         }
 
-        return await EditAsync(request.Name is null ? "set-colors" : "set-name", request.Version, CatalogEdits.SetPortal(request.Name, null, request.Colors?.Name, request.Colors?.Version), cancellationToken);
+        var operation = (request.Name, request.Colors) switch
+        {
+            (not null, not null) => "set-identity",
+            (not null, null) => "set-name",
+            _ => "set-colors",
+        };
+        return await EditAsync(operation, request.Version, CatalogEdits.SetPortal(request.Name, null, request.Colors?.Name, request.Colors?.Version), cancellationToken);
     }
 
     /// <summary>

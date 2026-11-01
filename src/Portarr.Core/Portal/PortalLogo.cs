@@ -93,10 +93,32 @@ public static class PortalLogo
             return null;
         }
 
-        // A link must not lead out of the folder either.
-        var target = new FileInfo(full).ResolveLinkTarget(returnFinalTarget: true);
-        return target is null || IsInside(root, target.FullName) ? full : null;
+        return StaysInside(root, full) ? full : null;
     }
+
+    /// <summary>
+    /// Whether walking from the root to the file, resolving every link on the way (a linked folder as well as a linked
+    /// file), never leaves the root: a symlinked directory inside the catalog folder cannot lead a logo out of it.
+    /// </summary>
+    private static bool StaysInside(string root, string full)
+    {
+        var realRoot = Real(new DirectoryInfo(root));
+        var current = realRoot;
+        foreach (var segment in Path.GetRelativePath(root, full).Split(Path.DirectorySeparatorChar))
+        {
+            var next = Path.Combine(current, segment);
+            FileSystemInfo info = Directory.Exists(next) ? new DirectoryInfo(next) : new FileInfo(next);
+            current = Real(info);
+            if (!IsInside(realRoot, current))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string Real(FileSystemInfo info) => (info.ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? info.FullName).TrimEnd(Path.DirectorySeparatorChar);
 
     /// <summary>
     /// Checks the bytes of a logo against its extension: the signature of a png or a webp, or a well-formed svg without
@@ -145,19 +167,30 @@ public static class PortalLogo
         {
             using var reader = XmlReader.Create(new MemoryStream(content.ToArray()), settings);
             var root = true;
-            while (reader.Read())
+            while (!reader.EOF)
             {
-                if (reader.NodeType != XmlNodeType.Element)
+                if (reader.NodeType == XmlNodeType.Element)
                 {
-                    continue;
+                    if ((root && (reader.LocalName != "svg" || reader.NamespaceURI != SvgNamespace)) || IsActive(reader))
+                    {
+                        return false;
+                    }
+
+                    root = false;
+
+                    // A style sheet is allowed, but one that loads anything from outside is not. Reading its text moves past it.
+                    if (reader.LocalName == "style")
+                    {
+                        if (LoadsFromOutside(reader.ReadElementContentAsString()))
+                        {
+                            return false;
+                        }
+
+                        continue;
+                    }
                 }
 
-                if ((root && (reader.LocalName != "svg" || reader.NamespaceURI != SvgNamespace)) || IsActive(reader))
-                {
-                    return false;
-                }
-
-                root = false;
+                reader.Read();
             }
 
             return !root;
@@ -168,7 +201,27 @@ public static class PortalLogo
         }
     }
 
-    /// <summary>An element that can run code or load content: a script, a foreign object, an event handler, a script link.</summary>
+    /// <summary>CSS that imports a sheet or points <c>url()</c> anywhere but at a fragment of the same document.</summary>
+    private static bool LoadsFromOutside(string css)
+    {
+        if (css.Contains("@import", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        for (var start = css.IndexOf("url(", StringComparison.OrdinalIgnoreCase); start >= 0; start = css.IndexOf("url(", start + 4, StringComparison.OrdinalIgnoreCase))
+        {
+            var argument = css[(start + 4)..].TrimStart(' ', '"', '\'');
+            if (!argument.StartsWith('#'))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>An element that can run code or load content: a script, a foreign object, an event handler, a script link, a link to another document, a style sheet that loads from outside.</summary>
     private static bool IsActive(XmlReader element)
     {
         if (element.LocalName is "script" or "foreignObject")
@@ -181,7 +234,9 @@ public static class PortalLogo
             var value = element.Value.TrimStart();
             if (element.LocalName.StartsWith("on", StringComparison.OrdinalIgnoreCase)
                 || value.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase)
-                || value.StartsWith("data:text/html", StringComparison.OrdinalIgnoreCase))
+                || value.StartsWith("data:text/html", StringComparison.OrdinalIgnoreCase)
+                || (element.LocalName == "href" && value.Length > 0 && !value.StartsWith('#'))
+                || (element.LocalName == "style" && LoadsFromOutside(value)))
             {
                 return true;
             }

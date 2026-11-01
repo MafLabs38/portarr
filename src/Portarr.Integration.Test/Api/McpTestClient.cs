@@ -10,7 +10,7 @@ internal static class McpTestClient
     public const string Initialize = """{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}""";
 
     /// <summary>One JSON-RPC request, with the key as <c>X-Api-Key</c> when there is one.</summary>
-    public static HttpRequestMessage Request(string method, string parameters, string? key)
+    public static HttpRequestMessage Request(string method, string parameters, string? key, string? origin = null)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, "/mcp")
         {
@@ -24,13 +24,18 @@ internal static class McpTestClient
             request.Headers.Add("X-Api-Key", key);
         }
 
+        if (origin is not null)
+        {
+            request.Headers.Add("X-Portarr-Origin", origin);
+        }
+
         return request;
     }
 
     /// <summary>The whole JSON-RPC answer (<c>result</c> or <c>error</c>), sent as JSON or as one server-sent event.</summary>
-    public static async Task<JsonElement> SendAsync(HttpClient client, string method, string parameters, string? key)
+    public static async Task<JsonElement> SendAsync(HttpClient client, string method, string parameters, string? key, string? origin = null)
     {
-        using var request = Request(method, parameters, key);
+        using var request = Request(method, parameters, key, origin);
         using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
@@ -38,8 +43,8 @@ internal static class McpTestClient
         return JsonDocument.Parse(json).RootElement.Clone();
     }
 
-    public static Task<JsonElement> CallRawAsync(HttpClient client, string tool, string arguments, string? key) =>
-        SendAsync(client, "tools/call", $$"""{"name":"{{tool}}","arguments":{{arguments}}}""", key);
+    public static Task<JsonElement> CallRawAsync(HttpClient client, string tool, string arguments, string? key, string? origin = null) =>
+        SendAsync(client, "tools/call", $$"""{"name":"{{tool}}","arguments":{{arguments}}}""", key, origin);
 
     /// <summary>The first text of a tool answer; fails the test when the tool reported an error.</summary>
     public static async Task<string> CallAsync(HttpClient client, string tool, string arguments, string? key)

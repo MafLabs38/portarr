@@ -10,7 +10,8 @@ using Portarr.Core.Configuration;
 namespace Portarr.Core.Portal;
 
 /// <summary>A logo that passed the checks: where it is, how it is served and a hash of its bytes (cache busting, ETag).</summary>
-public sealed record PortalLogoFile(string Path, string ContentType, string Hash);
+/// <summary>A logo that passed inspection: the bytes that were inspected (they are what is served), their type, hash and last write.</summary>
+public sealed record PortalLogoFile(string Path, string ContentType, string Hash, byte[] Content, DateTimeOffset Modified);
 
 /// <summary>
 /// The identity as the portal shows it. <c>Logo</c> is the path the catalog declares; <c>LogoFile</c> is the file when
@@ -121,13 +122,20 @@ public sealed partial class PortalService : IPortalService
         }
 
         var relative = $"{PortalLogo.Folder}/{StoredName(fileName)}.{format.Extension}";
-        await WriteAtomicallyAsync(Path.Combine(_catalogFolder, relative), content, cancellationToken);
+        var full = Path.Combine(_catalogFolder, relative);
+        var previous = File.Exists(full) ? await File.ReadAllBytesAsync(full, cancellationToken) : null;
+        await WriteAtomicallyAsync(full, content, cancellationToken);
         LogStored(relative, content.Length, actor.Channel);
 
         var edit = await _editor.EditAsync(
             new CatalogEdit(CatalogSections.Portal, CatalogSections.Portal, "set-logo", version, actor, CatalogEdits.SetPortal(null, relative)),
             cancellationToken);
-        if (edit.Succeeded)
+        if (!edit.Succeeded)
+        {
+            // A refused edit (stale version, invalid catalog) must not leave the new file in place of the live one.
+            await RestoreAsync(full, previous);
+        }
+        else
         {
             // The file may have replaced one of the same name while the catalog stays as it was: the upload is audited by itself.
             await _auditLog.AppendAsync(
@@ -136,6 +144,18 @@ public sealed partial class PortalService : IPortalService
         }
 
         return new PortalLogoUpload(edit, relative);
+    }
+
+    /// <summary>Puts the logo file back as it was before an upload whose catalog edit was refused: the previous bytes, or no file.</summary>
+    private static async Task RestoreAsync(string path, byte[]? previous)
+    {
+        if (previous is null)
+        {
+            File.Delete(path);
+            return;
+        }
+
+        await File.WriteAllBytesAsync(path, previous, CancellationToken.None);
     }
 
     /// <summary>A file name reduced to what a catalog path takes: lowercase letters, digits and dashes (<c>My Logo.PNG</c> becomes <c>my-logo</c>).</summary>
@@ -237,15 +257,16 @@ public sealed partial class PortalService : IPortalService
         {
             bytes = File.ReadAllBytes(full);
         }
-        catch (IOException exception)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            return (null, exception.Message);
+            // The exception names an absolute path of the server: the answer is a fixed sentence.
+            return (null, "The logo file could not be read.");
         }
 
         var (format, error) = PortalLogo.Inspect(bytes, Path.GetExtension(full));
         return format is null
             ? (null, error)
-            : (new PortalLogoFile(full, format.ContentType, Convert.ToHexStringLower(SHA256.HashData(bytes))[..12]), null);
+            : (new PortalLogoFile(full, format.ContentType, Convert.ToHexStringLower(SHA256.HashData(bytes))[..12], bytes, new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero)), null);
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Portal logo {Path} stored ({Bytes} bytes) through {Channel}")]
