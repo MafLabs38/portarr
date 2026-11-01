@@ -17,3 +17,4 @@ An accepted ADR is never edited to change its decision: a new ADR supersedes it.
 | [0010](0010-optional-read-only-agent.md) | An optional, read-only Portarr agent as the simple way to connect a machine (superseded by 0011 for the name, the API and the connector) | D-100, D-101 |
 | [0011](0011-reader-speaking-the-existing-protocols.md) | The reader: a read-only component that speaks the protocols Portarr already reads | D-102 |
 | [0012](0012-kubernetes-reuses-the-node-exporter-parser.md) | The Kubernetes connector reuses the node_exporter parser | D-72 |
+| [0013](0013-connectors-own-their-environment-settings.md) | Connectors own their environment settings | D-105 |
