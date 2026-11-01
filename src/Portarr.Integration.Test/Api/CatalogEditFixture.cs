@@ -149,6 +149,28 @@ public sealed class CatalogEditFixture : IClassFixture<CatalogEditHosts>
     }
 
     [Fact]
+    public async Task should_answer_each_kind_of_refusal_with_its_own_status_and_title()
+    {
+        await _hosts.ResetWritableAsync();
+        using var client = await _writable.CreateSignedInClientAsync();
+        var version = await VersionAsync(client);
+
+        var missing = await client.SendAsync(Request(HttpMethod.Put, "/api/v1/catalog/apps/nope/notes", new { version, notes = "x" }, Key), Token);
+        var exists = await client.SendAsync(Request(HttpMethod.Post, "/api/v1/catalog/apps", new { version, item = new { id = "jellyfin", name = "Again" } }, Key), Token);
+        var stale = await client.SendAsync(Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin/notes", new { version = "0000000000000000", notes = "x" }, Key), Token);
+        var readOnly = await _readOnly.CreateSignedInClientAsync();
+        var refused = await readOnly.SendAsync(Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin/notes", new { version, notes = "x" }, Key), Token);
+        readOnly.Dispose();
+
+        missing.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        exists.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await exists.Content.ReadAsStringAsync(Token)).Should().Contain("Already exists");
+        stale.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await stale.Content.ReadAsStringAsync(Token)).Should().Contain("Version mismatch");
+        refused.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task should_write_audit_and_refuse_stale_or_invalid_edits()
     {
         await _hosts.ResetWritableAsync();

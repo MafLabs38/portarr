@@ -115,8 +115,14 @@ describe('chat', () => {
   });
 
   it('has no header icon when the chat is off', async () => {
+    // Wait for the answer "off" to arrive, not for a clock, then check that nothing was drawn.
+    const answered = new Promise<void>((resolve) => server.events.on('response:mocked', () => resolve()));
     renderWithProviders(<ChatToggle />);
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await act(async () => {
+      await answered;
+    });
+    server.events.removeAllListeners();
+
     expect(screen.queryByRole('button', { name: 'Chat' })).not.toBeInTheDocument();
   });
 
@@ -263,5 +269,24 @@ describe('chatItems', () => {
     expect(items.map((item) => item.kind)).toEqual(['user', 'tool', 'text', 'permission']);
     expect(items[1]).toMatchObject({ result: { isError: false } });
     expect(items[3]).toMatchObject({ state: 'cancelled' });
+  });
+
+  it('says the agent can only read when the catalog cannot be changed through MCP', async () => {
+    server.use(
+      http.get('/api/v1/assistant/chat', () =>
+        HttpResponse.json({
+          enabled: true,
+          reachable: true,
+          agents: [],
+          mcpEnabled: true,
+          mcpWriteTools: false,
+          catalogWritable: true,
+        }),
+      ),
+    );
+    useChatStore.setState({ open: true, conversationId: null, agent: null, model: null });
+    renderWithProviders(<ChatPanel />);
+
+    expect(await screen.findByText(/can read the fleet but not change the catalog/)).toBeInTheDocument();
   });
 });

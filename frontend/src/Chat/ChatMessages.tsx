@@ -29,7 +29,7 @@ function Item({
     case 'text':
       return (
         <div className={styles.text}>
-          <MarkdownView headingLevel={3} markdown={item.text} />
+          <MarkdownView headingLevel={3} markdown={item.text} plainUrls />
         </div>
       );
     case 'thinking':

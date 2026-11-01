@@ -471,6 +471,8 @@ const en: Record<string, string> = {
   ChatRequestFailed: 'The request failed ({status}).',
   ChatScope:
     'Its only tool is Portarr: it reads the fleet and edits the catalog with your approval. No shell, no access to the machines.',
+  ChatReadOnlyHint:
+    'The agent can read the fleet but not change the catalog: that needs PORTARR__MCP__ENABLED, PORTARR__MCP__WRITETOOLS and PORTARR__CATALOG__WRITABLE.',
   ChatUnreachable: 'The agent runner does not answer. Check the portarr-agent container and PORTARR__AGENT__URL.',
   ChatWaitingApproval: 'waiting for your approval',
   ChatWorking: 'Working…',

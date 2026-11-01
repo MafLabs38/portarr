@@ -44,14 +44,15 @@ export default function useApiMutation<TBody, TResult>({
     meta: { refusalIsNotExpiry: refusalIsNotExpiry === true },
     mutationFn: async (body) => {
       const target = typeof path === 'function' ? path(body) : path;
-      const payload = serialize ? serialize(body) : JSON.stringify(body ?? {});
+      // A call without a body (a DELETE) sends none, and no JSON content type; any other sends its body as JSON.
+      const payload = serialize ? serialize(body) : body === undefined ? undefined : JSON.stringify(body);
       const response = await fetch(`/api/v1${target}`, {
         method,
         // An upload sets its own Content-Type, boundary included.
         headers: {
           Accept: 'application/json',
           ...csrfHeaders,
-          ...(payload instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+          ...(payload === undefined || payload instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
           ...headers?.(body),
         },
         body: payload,
