@@ -14,21 +14,31 @@ const references = (items: { reference: string }[]) => items.map((item) => item.
 describe('maintenanceFilters', () => {
   const { repositories, images } = maintenanceReport;
 
-  it('keeps the repositories each figure of the summary counts', () => {
-    expect(names(filterRepositories(repositories, 'severe'))).toEqual(['example/shop']);
-    expect(names(filterRepositories(repositories, 'ci-failing'))).toEqual(['example/shop']);
-    expect(names(filterRepositories(repositories, 'dependabot-off'))).toEqual(['example/desktop']);
-    expect(names(filterRepositories(repositories, 'code-scanning-off'))).toEqual(['example/shop', 'example/desktop']);
-    expect(names(filterRepositories(repositories, 'moderate'))).toEqual(['example/shop']);
-    expect(filterRepositories(repositories, 'secrets')).toEqual([]);
+  it.each([
+    ['severe', ['example/shop']],
+    ['ci-failing', ['example/shop']],
+    ['dependabot-off', ['example/desktop']],
+    ['code-scanning-off', ['example/shop', 'example/desktop']],
+    ['moderate', ['example/shop']],
+    ['secrets', []],
+  ] as const)('keeps the repositories the "%s" figure of the summary counts', (filter, expected) => {
+    expect(names(filterRepositories(repositories, filter))).toEqual(expected);
   });
 
-  it('keeps the images each figure of the summary counts', () => {
-    expect(references(filterImages(images, 'behind'))).toEqual(['postgres:16-alpine']);
-    expect(references(filterImages(images, 'major'))).toEqual(['postgres:16-alpine']);
-    expect(filterImages(images, 'behind-minor')).toEqual([]);
-    expect(references(filterImages(images, 'cannot-tell'))).toEqual(['grafana/grafana:latest']);
-    expect(filterImages(images, 'up-to-date')).toEqual([]);
+  it.each([
+    ['behind', ['postgres:16-alpine']],
+    ['major', ['postgres:16-alpine']],
+    ['behind-minor', []],
+    ['cannot-tell', ['grafana/grafana:latest']],
+    ['up-to-date', []],
+  ] as const)('keeps the images the "%s" figure of the summary counts', (filter, expected) => {
+    expect(references(filterImages(images, filter))).toEqual(expected);
+  });
+
+  it('keeps nothing for a figure the report has no match for, instead of everything', () => {
+    // 'secrets' has no repository in the mock: an empty list, not the unfiltered one.
+    expect(filterRepositories(repositories, 'secrets')).not.toBe(repositories);
+    expect(filterRepositories([], 'severe')).toEqual([]);
   });
 
   it('shows everything when there is no filter', () => {

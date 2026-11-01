@@ -6,13 +6,8 @@ using Portarr.Providers.GitHub;
 
 namespace Portarr.Integration.Test.Api;
 
-/// <summary>
-/// V4 over the real HTTP pipeline: the Maintenance report built from the GitHub API (played by WireMock) for the
-/// owners the catalog names. Filters, alert counts and rate limits are unit-tested (GitHubRepositorySourceFixture,
-/// MaintenanceServiceFixture); this proves the wiring from catalog and token to the report and the roles.
-/// </summary>
-[Trait("Category", "Integration")]
-public sealed class MaintenanceToolsFixture : IAsyncLifetime
+/// <summary>The one scan MaintenanceToolsFixture reads: GitHub played by a fake server, the monitor run once, the report fetched once.</summary>
+public sealed class MaintenanceScan : IAsyncLifetime
 {
     private const string Catalog = """
         sources:
@@ -24,18 +19,20 @@ public sealed class MaintenanceToolsFixture : IAsyncLifetime
         """;
 
     private readonly TestDatabase _database;
-    private readonly ToolServer _github = new();
     private PortarrFactory _factory = null!;
-    private HttpClient _client = null!;
 
-    public MaintenanceToolsFixture(TestDatabase database)
+    public MaintenanceScan(TestDatabase database)
     {
         _database = database;
     }
 
+    public ToolServer GitHub { get; } = new();
+
+    public JsonElement Report { get; private set; }
+
     public async ValueTask InitializeAsync()
     {
-        _github
+        GitHub
             .Serve("GET", "/user", """{ "login": "someone" }""")
             .Serve("GET", "/users/example-org", """{ "login": "example-org", "type": "Organization" }""")
             .Serve("GET", "/orgs/example-org/repos", $"[{Repo("shop")}, {Repo("tool")}]")
@@ -52,22 +49,46 @@ public sealed class MaintenanceToolsFixture : IAsyncLifetime
             services =>
             {
                 services.AddSingleton<ICodeRepositorySource, GitHubRepositorySource>();
-                services.AddHttpClient(GitHubRepositorySource.HttpClientName).ConfigureHttpClient(client => client.BaseAddress = new Uri(_github.Url + "/"));
+                services.AddHttpClient(GitHubRepositorySource.HttpClientName).ConfigureHttpClient(client => client.BaseAddress = new Uri(GitHub.Url + "/"));
             });
-        _client = await _factory.CreateSignedInClientAsync();
+
+        // The pass is run here, not waited for: no polling, one scan for every fact below.
+        await _factory.Services.GetRequiredService<IMaintenanceMonitor>().RefreshAsync(TestContext.Current.CancellationToken);
+        using var client = await _factory.CreateSignedInClientAsync();
+        Report = await client.GetFromJsonAsync<JsonElement>("/api/v1/maintenance", TestContext.Current.CancellationToken);
     }
 
     public async ValueTask DisposeAsync()
     {
-        _client.Dispose();
         await _factory.DisposeAsync();
-        _github.Dispose();
+        GitHub.Dispose();
+    }
+
+    private static string Repo(string name) => $$"""
+        { "full_name": "example-org/{{name}}", "name": "{{name}}", "owner": { "login": "example-org" }, "html_url": "https://github.com/example-org/{{name}}",
+          "pushed_at": "2025-12-20T00:00:00Z", "default_branch": "main", "archived": false, "fork": false, "private": false, "visibility": "public" }
+        """;
+}
+
+/// <summary>
+/// V4 over the real HTTP pipeline: the Maintenance report built from the GitHub API (played by a fake server) for the
+/// owners the catalog names. Filters, alert counts and rate limits are unit-tested (GitHubRepositorySourceFixture,
+/// MaintenanceReportFixture); this proves the wiring from catalog and token to the report and the roles.
+/// </summary>
+[Trait("Category", "Integration")]
+public sealed class MaintenanceToolsFixture : IClassFixture<MaintenanceScan>
+{
+    private readonly MaintenanceScan _scan;
+
+    public MaintenanceToolsFixture(MaintenanceScan scan)
+    {
+        _scan = scan;
     }
 
     [Fact]
-    public async Task should_build_the_report_from_the_repositories_of_the_owners_in_the_catalog()
+    public void should_build_the_report_from_the_repositories_of_the_owners_in_the_catalog()
     {
-        var report = await ScannedReportAsync();
+        var report = _scan.Report;
 
         report.GetProperty("codeSource").GetProperty("configured").GetBoolean().Should().BeTrue();
         report.GetProperty("codeSource").GetProperty("error").ValueKind.Should().Be(JsonValueKind.Null);
@@ -84,9 +105,9 @@ public sealed class MaintenanceToolsFixture : IAsyncLifetime
     }
 
     [Fact]
-    public async Task should_summarize_what_needs_attention_with_off_features_counted_apart_from_alerts()
+    public void should_summarize_what_needs_attention_with_off_features_counted_apart_from_alerts()
     {
-        var report = await ScannedReportAsync();
+        var report = _scan.Report;
 
         var summary = report.GetProperty("summary");
         summary.GetProperty("repositories").GetInt32().Should().Be(2);
@@ -97,35 +118,9 @@ public sealed class MaintenanceToolsFixture : IAsyncLifetime
     }
 
     [Fact]
-    public async Task should_only_read_github_with_the_token_of_the_environment()
+    public void should_only_read_github_with_the_token_of_the_environment()
     {
-        await ScannedReportAsync();
-
-        _github.Calls.Should().NotBeEmpty().And.OnlyContain(c => c.StartsWith("GET ", StringComparison.Ordinal), "Portarr never writes to GitHub");
-        _github.Authorizations.Should().OnlyContain(a => a == "Bearer gh-token");
+        _scan.GitHub.Calls.Should().NotBeEmpty().And.OnlyContain(c => c.StartsWith("GET ", StringComparison.Ordinal), "Portarr never writes to GitHub");
+        _scan.GitHub.Authorizations.Should().OnlyContain(a => a == "Bearer gh-token");
     }
-
-    private async Task<JsonElement> ScannedReportAsync()
-    {
-        var accepted = await _client.PostAsync("/api/v1/maintenance/refresh", null, TestContext.Current.CancellationToken);
-        accepted.StatusCode.Should().Be(System.Net.HttpStatusCode.Accepted);
-
-        // The scan runs in the background: wait for its result.
-        var deadline = DateTime.UtcNow.AddSeconds(20);
-        while (true)
-        {
-            var report = await _client.GetFromJsonAsync<JsonElement>("/api/v1/maintenance", TestContext.Current.CancellationToken);
-            if (report.GetProperty("repositories").GetArrayLength() > 0 || DateTime.UtcNow > deadline)
-            {
-                return report;
-            }
-
-            await Task.Delay(100, TestContext.Current.CancellationToken);
-        }
-    }
-
-    private static string Repo(string name) => $$"""
-        { "full_name": "example-org/{{name}}", "name": "{{name}}", "owner": { "login": "example-org" }, "html_url": "https://github.com/example-org/{{name}}",
-          "pushed_at": "2025-12-20T00:00:00Z", "default_branch": "main", "archived": false, "fork": false, "private": false, "visibility": "public" }
-        """;
 }
