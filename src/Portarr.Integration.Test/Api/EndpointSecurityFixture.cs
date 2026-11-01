@@ -66,6 +66,11 @@ public sealed partial class EndpointSecurityFixture
             return "9999";
         }
 
+        if (m.Value.Contains(":catalogSection", StringComparison.Ordinal))
+        {
+            return "apps";
+        }
+
         return FirstAlternative().Match(m.Value) is { Success: true } alternative ? alternative.Groups[1].Value : "x";
     });
 

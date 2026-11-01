@@ -80,7 +80,8 @@ public static class HttpServiceCollectionExtensions
         return services.AddControllers();
     }
 
-    private static string ClientKey(HttpContext context)
+    /// <summary>The key the rate limiters count a client under: its address.</summary>
+    public static string ClientKey(HttpContext context)
     {
         return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
     }

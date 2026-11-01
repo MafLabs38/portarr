@@ -4,4 +4,7 @@ namespace Portarr.Core.Catalog;
 public interface ICatalogParser
 {
     CatalogParseResult Parse(string yaml);
+
+    /// <summary>The environment sections the registered connectors own (<c>docker</c>, <c>kubernetes</c>…).</summary>
+    IReadOnlyList<string> ConnectorSections { get; }
 }

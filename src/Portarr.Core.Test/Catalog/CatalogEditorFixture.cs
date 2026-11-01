@@ -55,6 +55,57 @@ public sealed class CatalogEditorFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_answer_applied_when_the_edit_is_written_but_the_audit_trail_cannot_be_written()
+    {
+        var audit = Substitute.For<ICatalogAuditLog>();
+        audit.AppendAsync(Arg.Any<CatalogAuditEntry>(), Arg.Any<CancellationToken>()).Returns(Task.FromException(new IOException("disk full")));
+        using var subject = new CatalogEditor(Options.Create(_options), _catalogService, new CatalogParserService([]), audit, _clock, NullLogger<CatalogEditor>.Instance);
+
+        var result = await subject.EditAsync(new CatalogEdit("apps", "sonarr", "set-notes", await subject.GetVersionAsync(Token), Actor, CatalogEdits.SetNotes("apps", "sonarr", "Written.")), Token);
+
+        result.Status.Should().Be(CatalogEditStatus.Applied, "the file is written; a failing trail does not turn it into a 500");
+        _catalogService.Current.Catalog.Apps.Single().Notes.Should().Be("Written.", "and the catalog is reloaded");
+    }
+
+    [Fact]
+    public async Task should_report_a_read_only_folder_as_read_only_instead_of_failing_the_first_edit()
+    {
+        if (OperatingSystem.IsWindows() || Environment.UserName == "root")
+        {
+            return; // a read-only folder cannot be made for these
+        }
+
+        File.SetUnixFileMode(_folder, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        try
+        {
+            using var subject = new CatalogEditor(Options.Create(_options), _catalogService, new CatalogParserService([]), new CatalogAuditLog(Options.Create(_options)), _clock, NullLogger<CatalogEditor>.Instance);
+
+            subject.Writable.Should().BeFalse();
+            var result = await subject.EditAsync(new CatalogEdit("apps", "sonarr", "set-notes", await subject.GetVersionAsync(Token), Actor, CatalogEdits.SetNotes("apps", "sonarr", "No.")), Token);
+
+            result.Status.Should().Be(CatalogEditStatus.ReadOnly);
+            result.Errors.Single().Should().Contain("folder is not writable");
+        }
+        finally
+        {
+            File.SetUnixFileMode(_folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+    }
+
+    [Fact]
+    public async Task should_read_the_audit_trail_on_into_the_rotated_file()
+    {
+        var path = Path.Combine(_folder, "catalog.audit.jsonl");
+        string Line(string id) => $$"""{"at":"2026-01-31T10:00:00+00:00","channel":"api","operation":"set-notes","section":"apps","id":"{{id}}","versionBefore":"a","versionAfter":"b","changes":[]}""";
+        await File.WriteAllLinesAsync(path + ".1", [Line("older-1"), Line("older-2")], Token);
+        await File.WriteAllLinesAsync(path, [Line("newer-1")], Token);
+
+        var entries = await new CatalogAuditLog(Options.Create(_options)).ReadAsync(10, Token);
+
+        entries.Select(e => e.Id).Should().Equal("newer-1", "older-2", "older-1");
+    }
+
+    [Fact]
     public async Task should_write_the_edit_keep_the_previous_version_audit_it_and_reload_the_catalog()
     {
         var before = await _subject.GetVersionAsync(Token);

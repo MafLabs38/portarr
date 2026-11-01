@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi;
+using Portarr.Api.V1.Catalog;
 using Scalar.AspNetCore;
 
 namespace Portarr.Api.V1;
@@ -19,6 +20,7 @@ public static class ApiV1ServiceCollectionExtensions
     public static IMvcBuilder AddPortarrApiV1(this IMvcBuilder mvc)
     {
         mvc.Services.AddValidatorsFromAssemblyContaining(typeof(ApiV1ServiceCollectionExtensions), ServiceLifetime.Singleton);
+        mvc.Services.Configure<RouteOptions>(options => options.ConstraintMap[CatalogSectionConstraint.Name] = typeof(CatalogSectionConstraint));
 
         // Summaries come from the XML doc comments of the controllers. Only /api/v1 is documented: the health
         // probes, /metrics and the MCP endpoint have their own contracts.

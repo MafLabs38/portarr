@@ -179,6 +179,11 @@ public sealed partial class CatalogTools
         CancellationToken cancellationToken = default)
     {
         CheckSection(section);
+        if (section == CatalogSections.Apps)
+        {
+            throw new McpException("Use remove_app to remove an app.");
+        }
+
         return EditAsync(section, id, "remove", version, CatalogEdits.Remove(section, id), cancellationToken);
     }
 

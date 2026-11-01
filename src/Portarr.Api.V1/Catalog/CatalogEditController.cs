@@ -19,10 +19,14 @@ namespace Portarr.Api.V1.Catalog;
 /// </summary>
 [ApiController]
 [Route("api/v1/catalog")]
+[RequestSizeLimit(MaxBodyBytes)]
 [Produces("application/json")]
 public sealed class CatalogEditController : ControllerBase
 {
-    private const string Section = "{section:regex(^(environments|stacks|apps|data|links|providers)$)}";
+    private const string Section = "{section:" + CatalogSectionConstraint.Name + "}";
+
+    /// <summary>An item is a few KiB of YAML as JSON; every write re-parses the whole catalog under a lock, so a body beyond this is refused before it is read.</summary>
+    private const int MaxBodyBytes = 256 * 1024;
     private const string Channel = "api";
     private const int MaxAuditEntries = 200;
 

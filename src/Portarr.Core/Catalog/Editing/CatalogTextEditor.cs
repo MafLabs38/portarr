@@ -99,7 +99,8 @@ internal sealed class CatalogTextEditor
     private static YamlMappingNode? Root(string text)
     {
         var stream = new YamlStream();
-        stream.Load(new StringReader(text));
+        using var reader = new StringReader(text);
+        stream.Load(reader);
         if (stream.Documents.Count == 0)
         {
             return null;
