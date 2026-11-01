@@ -179,7 +179,8 @@ public sealed class AccountsFixture
         (await Send(anonymous, HttpMethod.Get, "/api/v1/apps", read)).Should().Be(HttpStatusCode.OK);
         (await Send(anonymous, HttpMethod.Get, "/api/v1/users", read)).Should().Be(HttpStatusCode.Forbidden);
         (await Send(anonymous, HttpMethod.Put, "/api/v1/system/logging", read)).Should().Be(HttpStatusCode.Forbidden, "a read-only key cannot write");
-        (await Send(anonymous, HttpMethod.Get, "/api/v1/users", full)).Should().Be(HttpStatusCode.OK);
+        (await Send(anonymous, HttpMethod.Put, "/api/v1/system/logging", full)).Should().NotBe(HttpStatusCode.Forbidden, "a full key of an Admin can write");
+        (await Send(anonymous, HttpMethod.Get, "/api/v1/users", full)).Should().Be(HttpStatusCode.Forbidden, "users and roles are managed from a session, never with a key");
         (await Send(anonymous, HttpMethod.Get, "/api/v1/users", observerFull)).Should().Be(HttpStatusCode.Forbidden, "a full key of an Observer is still an Observer");
         (await Send(anonymous, HttpMethod.Post, "/api/v1/auth/keys", full)).Should().Be(HttpStatusCode.Forbidden, "keys are managed from a session");
         (await Send(anonymous, HttpMethod.Get, "/api/v1/apps", "ptr_unknown")).Should().Be(HttpStatusCode.Unauthorized);
@@ -206,17 +207,10 @@ public sealed class AccountsFixture
         (await admin.PutAsJsonAsync($"/api/v1/users/{me.Id}", new { disabled = true }, Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         (await admin.DeleteAsync($"/api/v1/users/{me.Id}", Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
-        // A custom role that manages users, to act on the Admins from outside.
+        // users.manage can make an Admin, so only Admin holds it: a custom role cannot be given it.
         var managers = await admin.PostAsJsonAsync("/api/v1/roles", new { name = "Managers", permissions = new[] { "users.manage", "apps.view" } }, Token);
-        var managerRole = (await managers.Content.ReadFromJsonAsync<RoleResource>(Token))!.Id;
-        var second = await CreateUserAsync(admin, "second-admin", adminRole);
-        await CreateUserAsync(admin, "manager", managerRole);
-        using var manager = await factory.CreateSignedInClientAsync("Managers");
-
-        (await manager.PutAsJsonAsync($"/api/v1/users/{me.Id}", new { disabled = true }, Token)).StatusCode.Should().Be(HttpStatusCode.OK, "another Admin remains");
-        (await manager.PutAsJsonAsync($"/api/v1/users/{second.Id}", new { disabled = true }, Token)).StatusCode.Should().Be(HttpStatusCode.Conflict);
-        (await manager.DeleteAsync($"/api/v1/users/{second.Id}", Token)).StatusCode.Should().Be(HttpStatusCode.Conflict);
-        (await manager.PutAsJsonAsync($"/api/v1/users/{second.Id}", new { roleId = managerRole }, Token)).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        managers.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await CreateUserAsync(admin, "second-admin", adminRole)).Should().NotBeNull();
     }
 
     [Fact]

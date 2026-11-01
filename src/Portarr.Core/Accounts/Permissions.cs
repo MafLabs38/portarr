@@ -3,7 +3,7 @@ namespace Portarr.Core.Accounts;
 /// <summary>One permission: its key, the area the roles editor groups it under, and whether it is reserved.</summary>
 /// <param name="Key">The stable key (<c>apps.view</c>), also the name of its authorization policy.</param>
 /// <param name="Area">Where the roles editor lists it (Apps, Infrastructure, Data, Maintenance, Assistant, Catalog, System, Administration).</param>
-/// <param name="Reserved">Defined for a feature that does not exist yet: only Admin holds it, a custom role cannot be given it.</param>
+/// <param name="Reserved">Only Admin holds it, a custom role cannot be given it: defined for a feature that does not exist yet, or too powerful to delegate (<see cref="Permissions.UsersManage"/> creates Admins).</param>
 public sealed record PermissionInfo(string Key, string Area, bool Reserved = false)
 {
     /// <summary>A view permission: what a read-only API key keeps of its owner's role.</summary>
@@ -33,6 +33,7 @@ public static class Permissions
 
     public const string SystemView = "system.view";
     public const string SettingsManage = "settings.manage";
+    /// <summary>Users and roles. Reserved: whoever holds it can make an Admin, so only an Admin does.</summary>
     public const string UsersManage = "users.manage";
 
     /// <summary>Reserved for the day secrets can be revealed (audited); nothing uses it yet.</summary>
@@ -49,7 +50,7 @@ public static class Permissions
         new(CatalogWrite, "Catalog"),
         new(SystemView, "System"),
         new(SettingsManage, "Administration"),
-        new(UsersManage, "Administration"),
+        new(UsersManage, "Administration", Reserved: true),
         new(SecretsView, "Administration", Reserved: true),
     ];
 
