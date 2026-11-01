@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Portarr.Core.Catalog;
+using Portarr.Core.Configuration;
 using Portarr.Core.Workloads;
 
 namespace Portarr.Core.Maintenance;
@@ -64,6 +66,9 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
     /// <summary>A manual refresh is accepted at most this often: GitHub's and the registries' limits matter more than impatience.</summary>
     public static readonly TimeSpan RefreshCooldown = TimeSpan.FromSeconds(60);
 
+    /// <summary>The reason an image has no verdict when the registry lookups are switched off.</summary>
+    public const string DisabledReason = "disabled";
+
     /// <summary>Image repositories looked up per pass: a first start spreads its lookups over a few minutes.</summary>
     public const int RegistryLookupsPerPass = 25;
 
@@ -74,6 +79,7 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
     private readonly IWorkloadInventory _inventory;
     private readonly IEnumerable<ICodeRepositorySource> _codeSources;
     private readonly IEnumerable<IImageRegistry> _registries;
+    private readonly bool _imageUpdates;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<MaintenanceMonitor> _logger;
     private readonly SemaphoreSlim _refreshing = new(1, 1);
@@ -91,6 +97,7 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
         IWorkloadInventory inventory,
         IEnumerable<ICodeRepositorySource> codeSources,
         IEnumerable<IImageRegistry> registries,
+        IOptions<PortarrOptions> options,
         TimeProvider timeProvider,
         ILogger<MaintenanceMonitor> logger)
     {
@@ -98,6 +105,7 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
         _inventory = inventory;
         _codeSources = codeSources;
         _registries = registries;
+        _imageUpdates = options.Value.ImageUpdates;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -282,6 +290,12 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
             .Where(pair => !pair.Image.IsImageId)
             .GroupBy(pair => pair.Image.RepositoryKey, StringComparer.Ordinal)
             .ToList();
+
+        if (!_imageUpdates)
+        {
+            // Switched off (PORTARR__IMAGEUPDATES=false): no registry is asked, and each image says why it has no verdict.
+            return inUse.ToDictionary(group => group.Key, _ => new RegistryLookup([], DisabledReason, now), StringComparer.Ordinal);
+        }
 
         var due = inUse
             .Where(group => !previous.TryGetValue(group.Key, out var lookup)

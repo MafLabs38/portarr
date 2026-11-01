@@ -1,3 +1,4 @@
+import SummaryTile, { type Tile } from 'Components/SummaryTile/SummaryTile';
 import * as icons from 'Helpers/Props/icons';
 import * as kinds from 'Helpers/Props/kinds';
 import type { DataSummary } from 'typings/Data';
@@ -5,7 +6,6 @@ import translate from 'Utilities/String/translate';
 
 import { type DataFilter, dataSearch } from './dataFilters';
 import styles from './DataSummaryBar.module.css';
-import SummaryTile, { type Tile } from './SummaryTile';
 
 interface DataSummaryBarProps {
   summary: DataSummary;

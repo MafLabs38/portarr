@@ -336,6 +336,7 @@ const en: Record<string, string> = {
   FromLabelHint: 'Floating tag: this version is read from the image label org.opencontainers.image.version.',
   GitHubNotReadYet: 'GitHub not read yet',
   GitHubUpdated: 'GitHub updated {age}',
+  ImageReason_disabled: 'image update checks are turned off (PORTARR__IMAGEUPDATES)',
   ImageReason_floating: 'floating tag, no version label: cannot tell',
   'ImageReason_image-id': 'started from an image id: registry unknown',
   'ImageReason_invalid-response': 'unexpected registry answer',

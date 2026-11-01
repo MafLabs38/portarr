@@ -1,5 +1,7 @@
 # V4 — Maintenance
 
+> **Naming:** this page is called V4 because it was the fourth vertical built in the sandbox order; the implementation plan calls the same work **V12 Maintenance**. The page keeps its name so existing links hold.
+
 > Status: **in progress** (sandbox, phase 1). Pulls forward plan entry V12 Maintenance ("Maintainer priorities (2026-10-30)"); the plan entry V4 Kubernetes keeps its row (its connector already shipped with V2). Features: F-SEC-04 (Dependabot and code scanning alerts), F-UPD-01 (outdated images, partial), F-UPD-04 (version inventory, deployed and available only), F-UPD-07 (first step: Dependabot pull requests waiting). Decisions: D-64 to D-67, D-75. Screen: E-06, first slice.
 
 ## Need
@@ -113,7 +115,7 @@ Maintenance findings are not app statuses: an app is not Down because a newer ve
 - [x] Each image repository is looked up at most every 6 hours; repositories at most every 30 minutes
 - [x] The attention list mixes both halves, worst first, and names what each finding concerns
 - [x] Summary figures and attention lines filter the page (URL query string, pill with a clear button); the page says when GitHub and the registries were read; a rate-limited manual refresh (D-75)
-- [ ] Integration tests against WireMock (GitHub, a registry) and an E2E test of the page (phase 2, before the PR)
+- [x] Integration tests of the tools over HTTP with a fake code source and a fake registry (`MaintenanceToolsFixture`), and an E2E test of the page (`maintenance.spec.ts`)
 
 ## First run on the maintainer's fleet (sandbox, 2026-10-30)
 
