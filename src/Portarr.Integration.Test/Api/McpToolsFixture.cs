@@ -114,6 +114,13 @@ public sealed class McpToolsFixture : IClassFixture<McpToolsHosts>
     {
         var text = await CallAsync(ReadOnly, tool, arguments);
 
+        // The fleet is read in the background: until its first reading is in, a tool answers with what it has. Wait for it, at most 10 s.
+        for (var attempt = 0; attempt < 50 && !text.Contains(expected, StringComparison.Ordinal); attempt++)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken);
+            text = await CallAsync(ReadOnly, tool, arguments);
+        }
+
         text.Should().Contain(expected, because: $"{tool} reads the fleet").And.NotContain(Key);
     }
 
