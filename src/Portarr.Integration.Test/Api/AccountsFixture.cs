@@ -194,6 +194,29 @@ public sealed class AccountsFixture
     }
 
     [Fact]
+    public async Task should_let_an_admin_list_and_revoke_the_keys_of_a_user_and_revoke_them_all_on_a_password_reset()
+    {
+        await using var factory = await FactoryAsync();
+        using var admin = await factory.CreateSignedInClientAsync();
+        using var observer = await factory.CreateSignedInClientAsync("Observer");
+        using var anonymous = factory.CreateClient();
+        var observerId = (await admin.GetFromJsonAsync<List<UserResource>>("/api/v1/users", Token))!.Single(u => u.Username == "observer-user").Id;
+        var first = await CreateKeyAsync(observer, "read");
+        var second = await CreateKeyAsync(observer, "full");
+
+        var listed = (await admin.GetFromJsonAsync<List<ApiKeyResource>>($"/api/v1/users/{observerId}/keys", Token))!;
+        listed.Should().HaveCount(2).And.OnlyContain(k => k.Active);
+        (await admin.DeleteAsync($"/api/v1/users/{observerId}/keys/{listed.Single(k => k.Scope == "read").Id}", Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await Send(anonymous, HttpMethod.Get, "/api/v1/apps", first)).Should().Be(HttpStatusCode.Unauthorized, "an admin revoked it");
+        (await Send(anonymous, HttpMethod.Get, "/api/v1/apps", second)).Should().Be(HttpStatusCode.OK);
+        (await admin.DeleteAsync($"/api/v1/users/{observerId}/keys/9999", Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await admin.GetAsync("/api/v1/users/9999/keys", Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        (await admin.PostAsJsonAsync($"/api/v1/users/{observerId}/password", new { password = "a brand new password" }, Token)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await Send(anonymous, HttpMethod.Get, "/api/v1/apps", second)).Should().Be(HttpStatusCode.Unauthorized, "a password reset revokes the keys");
+    }
+
+    [Fact]
     public async Task should_keep_an_admin_and_protect_ones_own_account()
     {
         await using var factory = await FactoryAsync();

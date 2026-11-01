@@ -311,7 +311,7 @@ public sealed partial class AccountService : IAccountService
             return AccountResult<AccountUser>.Fail(AccountError.Invalid, invalid);
         }
 
-        await _store.SetPasswordAsync(id, Hasher.HashPassword(row.Username, newPassword), AccountStore.NewStamp(), cancellationToken);
+        await _store.SetPasswordAsync(id, Hasher.HashPassword(row.Username, newPassword), AccountStore.NewStamp(), Iso.Format(_timeProvider.GetUtcNow()), cancellationToken);
         Invalidate();
         await _audit.AppendAsync("user.password-reset", actor.Name, row.Username, null, actor.Client, cancellationToken);
         return await UserOrNotFoundAsync(id, cancellationToken);
@@ -339,7 +339,7 @@ public sealed partial class AccountService : IAccountService
             return AccountResult<AccountIdentity>.Fail(AccountError.Forbidden, "The current password is not right.");
         }
 
-        await _store.SetPasswordAsync(row.Id, Hasher.HashPassword(row.Username, newPassword), AccountStore.NewStamp(), cancellationToken);
+        await _store.SetPasswordAsync(row.Id, Hasher.HashPassword(row.Username, newPassword), AccountStore.NewStamp(), Iso.Format(_timeProvider.GetUtcNow()), cancellationToken);
         Invalidate();
         await _audit.AppendAsync("password.change", row.Username, row.Username, null, actor.Client, cancellationToken);
         return await ResolveAsync(row.Id, null, cancellationToken) is { } identity

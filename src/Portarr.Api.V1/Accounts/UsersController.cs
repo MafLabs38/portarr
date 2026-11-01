@@ -20,12 +20,14 @@ public sealed class UsersController : ControllerBase
     private const int MaxActivity = 200;
 
     private readonly IAccountService _accounts;
+    private readonly IApiKeyService _apiKeys;
     private readonly IAuthAuditLog _audit;
     private readonly TimeProvider _timeProvider;
 
-    public UsersController(IAccountService accounts, IAuthAuditLog audit, TimeProvider timeProvider)
+    public UsersController(IAccountService accounts, IApiKeyService apiKeys, IAuthAuditLog audit, TimeProvider timeProvider)
     {
         _accounts = accounts;
+        _apiKeys = apiKeys;
         _audit = audit;
         _timeProvider = timeProvider;
     }
@@ -62,7 +64,7 @@ public sealed class UsersController : ControllerBase
         return result.Succeeded ? Ok(result.Value!.ToResource(_timeProvider.GetUtcNow())) : this.ToProblem(result);
     }
 
-    /// <summary>Sets a new password; the user's sessions end.</summary>
+    /// <summary>Sets a new password; the user's sessions end and their API keys and chat tokens are revoked.</summary>
     [HttpPost("{id:int}/password")]
     [ProducesResponseType<UserResource>(StatusCodes.Status200OK)]
     public async Task<IActionResult> ResetPasswordAsync(int id, PasswordResetRequest request, CancellationToken cancellationToken)
@@ -79,6 +81,31 @@ public sealed class UsersController : ControllerBase
     public async Task<IActionResult> DeleteAsync(int id, CancellationToken cancellationToken)
     {
         var result = await _accounts.DeleteUserAsync(Actor(), id, cancellationToken);
+        return result.Succeeded ? Ok(result.Value!.ToResource(_timeProvider.GetUtcNow())) : this.ToProblem(result);
+    }
+
+    /// <summary>A user's API keys, newest first (prefix, scope, dates; never the key), for a user manager who suspects one leaked.</summary>
+    /// <response code="404">No such user.</response>
+    [HttpGet("{id:int}/keys")]
+    [ProducesResponseType<IReadOnlyList<ApiKeyResource>>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListKeysAsync(int id, CancellationToken cancellationToken)
+    {
+        if (await _accounts.GetUserAsync(id, cancellationToken) is null)
+        {
+            return NotFound();
+        }
+
+        var now = _timeProvider.GetUtcNow();
+        return Ok((await _apiKeys.ListAsync(id, cancellationToken)).Select(k => k.ToResource(now)).ToList());
+    }
+
+    /// <summary>Revokes a key of that user; it stops working at once and the revocation is audited.</summary>
+    /// <response code="404">No such key for that user.</response>
+    [HttpDelete("{id:int}/keys/{keyId:int}")]
+    [ProducesResponseType<ApiKeyResource>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> RevokeKeyAsync(int id, int keyId, CancellationToken cancellationToken)
+    {
+        var result = await _apiKeys.RevokeForAsync(Actor(), id, keyId, cancellationToken);
         return result.Succeeded ? Ok(result.Value!.ToResource(_timeProvider.GetUtcNow())) : this.ToProblem(result);
     }
 
