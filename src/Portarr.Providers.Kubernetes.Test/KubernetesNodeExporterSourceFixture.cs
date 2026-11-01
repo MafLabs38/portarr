@@ -10,7 +10,7 @@ using Portarr.Core.Infrastructure;
 namespace Portarr.Providers.Kubernetes.Test;
 
 /// <summary>A node's node_exporter through the API server's pod proxy (D-72): pod lookup, cache and refresh, URL, 403.</summary>
-public sealed class KubernetesNodeExporterSourceFixture : IDisposable
+public sealed class KubernetesNodeExporterSourceFixture
 {
     private const string PodsPath = "/api/v1/namespaces/monitoring/pods?labelSelector=app.kubernetes.io%2Fname%3Dnode-exporter&fieldSelector=spec.nodeName%3Dworker%2Cstatus.phase%3DRunning";
 
@@ -30,10 +30,13 @@ public sealed class KubernetesNodeExporterSourceFixture : IDisposable
 
     private static readonly HostMetricsTarget Target = new(Environment, "worker", null, 9100);
 
+    // Never read nor written: no environment of these tests names a file next to the catalog. A folder nobody creates, so a
+    // future test that makes the client read one fails loudly.
+    private static readonly string CatalogFile = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "catalog.yaml");
+
     private readonly List<string> _requests = [];
     private readonly Dictionary<string, (HttpStatusCode Status, string Body)> _responses = [];
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 1, 31, 12, 0, 0, TimeSpan.Zero));
-    private readonly string _folder = Directory.CreateTempSubdirectory("portarr-k8s-").FullName;
 
     [Fact]
     public async Task should_find_the_running_pod_of_the_node_and_read_it_through_the_pod_proxy()
@@ -159,11 +162,6 @@ public sealed class KubernetesNodeExporterSourceFixture : IDisposable
         source.Supports(Target with { Url = new Uri("http://10.0.0.11:9100/metrics") }).Should().BeFalse();
     }
 
-    public void Dispose()
-    {
-        Directory.Delete(_folder, recursive: true);
-    }
-
     private void Pods(params string[] names)
     {
         var items = string.Join(",", names.Select(name => $$"""{ "metadata": { "name": "{{name}}" } }"""));
@@ -178,7 +176,7 @@ public sealed class KubernetesNodeExporterSourceFixture : IDisposable
     private KubernetesNodeExporterSource Source()
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["CLUSTER_TOKEN"] = "test-token" }).Build();
-        var options = Options.Create(new PortarrOptions { CatalogFile = Path.Combine(_folder, "catalog.yaml") });
+        var options = Options.Create(new PortarrOptions { CatalogFile = CatalogFile });
         return new KubernetesNodeExporterSource(new KubernetesApiClient(configuration, options, (_, _) => new Handler(this)), _clock);
     }
 

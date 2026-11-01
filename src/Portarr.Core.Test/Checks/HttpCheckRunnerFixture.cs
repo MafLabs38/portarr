@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Sockets;
 using Portarr.Core.Catalog;
 using Portarr.Core.Checks;
 using Portarr.Test.Common;
@@ -72,6 +74,92 @@ public sealed class HttpCheckRunnerFixture : CoreTest<HttpCheckRunner>
         var result = await Subject.RunAsync(Target, CheckDefinition.Default with { Keyword = "Grafana" }, TestContext.Current.CancellationToken);
 
         result.Error.Should().Be("keyword-missing");
+    }
+
+    [Fact]
+    public async Task should_not_find_a_keyword_cut_by_the_64_kib_limit()
+    {
+        Given(Answer(HttpStatusCode.OK, new string('a', HttpCheckRunner.MaxBodyBytes - 3) + "Grafana"));
+
+        var result = await Subject.RunAsync(Target, CheckDefinition.Default with { Keyword = "Grafana" }, TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be("keyword-missing");
+    }
+
+    [Fact]
+    public async Task should_find_a_keyword_that_ends_exactly_at_the_64_kib_limit()
+    {
+        Given(Answer(HttpStatusCode.OK, new string('a', HttpCheckRunner.MaxBodyBytes - "Grafana".Length) + "Grafana"));
+
+        var result = await Subject.RunAsync(Target, CheckDefinition.Default with { Keyword = "Grafana" }, TestContext.Current.CancellationToken);
+
+        result.Up.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task should_report_a_redirect_as_the_answer_without_following_it()
+    {
+        // The real handler of the checks client against a real server on the loopback: the redirect target would be asked next.
+        using var server = StartLoopbackServer(out var port);
+        var asked = new ConcurrentQueue<string>();
+        var serving = Task.Run(async () =>
+        {
+            while (server.IsListening)
+            {
+                try
+                {
+                    var context = await server.GetContextAsync();
+                    asked.Enqueue(context.Request.RawUrl!);
+                    context.Response.StatusCode = (int)HttpStatusCode.Found;
+                    context.Response.RedirectLocation = "/elsewhere";
+                    context.Response.Close();
+                }
+                catch (Exception exception) when (exception is HttpListenerException or ObjectDisposedException)
+                {
+                    return;
+                }
+            }
+        }, TestContext.Current.CancellationToken);
+        using var client = new HttpClient(HttpCheckRunner.CreateHandler());
+        Mocker.Get<IHttpClientFactory>().CreateClient(HttpCheckRunner.HttpClientName).Returns(client);
+
+        try
+        {
+            var result = await Subject.RunAsync(new Uri($"http://127.0.0.1:{port}/"), CheckDefinition.Default, TestContext.Current.CancellationToken);
+
+            result.StatusCode.Should().Be(302);
+            result.Up.Should().BeTrue();
+            asked.Should().Equal("/");
+        }
+        finally
+        {
+            server.Stop();
+            await serving;
+        }
+    }
+
+    /// <summary>A listener cannot ask for a free port: pick one and retry when another test took it in between.</summary>
+    private static HttpListener StartLoopbackServer(out int port)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            var probe = new TcpListener(IPAddress.Loopback, 0);
+            probe.Start();
+            port = ((IPEndPoint)probe.LocalEndpoint).Port;
+            probe.Stop();
+
+            var server = new HttpListener();
+            server.Prefixes.Add($"http://127.0.0.1:{port}/");
+            try
+            {
+                server.Start();
+                return server;
+            }
+            catch (HttpListenerException) when (attempt < 5)
+            {
+                server.Close();
+            }
+        }
     }
 
     [Fact]

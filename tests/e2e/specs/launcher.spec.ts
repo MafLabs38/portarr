@@ -34,5 +34,8 @@ test.describe('Apps launcher', { tag: '@smoke' }, () => {
       await menu.getByRole('link', { name }).click();
       await expect(page).toHaveURL(url);
     }
+
+    // The Workloads page was folded into Infrastructure: it is not a menu entry any more.
+    await expect(menu.getByRole('link', { name: 'Workloads' })).toHaveCount(0);
   });
 });

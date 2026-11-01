@@ -9,19 +9,25 @@ public sealed class CheckSchedulerFixture : CoreTest<CheckScheduler>
 {
     private static readonly Uri Target = new("https://app.homelab.example/");
 
+    private readonly List<string> _apps = ["app"];
+    private bool _fleetForgetsTheState;
+
     public CheckSchedulerFixture()
     {
         var store = Mocker.Use<ICheckStore>(new CheckStore());
         var definition = CheckDefinition.Default;
-        var app = new CatalogApp("app", "App", AppType.Web, null, null, [], [], [], definition);
 
         // The fleet reads the store, like the real one: a recorded result gives the check a state.
-        Mocker.Get<IFleetService>().GetApps().Returns(_ =>
-        [
-            new AppView(app, new ResolvedStatus(HealthStatus.Unknown, string.Empty), null, null, [], [], null, new AppCheckView(definition, Target, store.Get("app"), new ResolvedStatus(HealthStatus.Unknown, string.Empty))),
-        ]);
+        Mocker.Get<IFleetService>().GetApps().Returns(_ => _apps.Select(id => ViewOf(id, definition, _fleetForgetsTheState ? null : store.Get(id))).ToList());
         Mocker.Get<IHttpCheckRunner>().RunAsync(Target, definition, Arg.Any<CancellationToken>())
             .Returns(_ => new CheckResult(Clock.GetUtcNow(), 200, TimeSpan.FromMilliseconds(5), null, null));
+    }
+
+    private static AppView ViewOf(string id, CheckDefinition definition, CheckState? state)
+    {
+        var app = new CatalogApp(id, id, AppType.Web, null, null, [], [], [], definition);
+        var unknown = new ResolvedStatus(HealthStatus.Unknown, string.Empty);
+        return new AppView(app, unknown, null, null, [], [], null, new AppCheckView(definition, Target, state, unknown));
     }
 
     [Fact]
@@ -84,5 +90,92 @@ public sealed class CheckSchedulerFixture : CoreTest<CheckScheduler>
 
         await run.Should().NotThrowAsync();
         Mocker.Get<ICheckStore>().Get("app")!.History.Should().ContainSingle().Which.Error.Should().Be(CheckErrors.CheckFailed);
+    }
+
+    [Fact]
+    public async Task should_record_the_other_checks_when_one_probe_throws()
+    {
+        _apps.Add("other");
+        var calls = 0;
+        Mocker.Get<IHttpCheckRunner>().RunAsync(Target, Arg.Any<CheckDefinition>(), Arg.Any<CancellationToken>())
+            .Returns<CheckResult>(_ => Interlocked.Increment(ref calls) == 1
+                ? throw new InvalidOperationException("a bug in a runner")
+                : new CheckResult(Clock.GetUtcNow(), 200, TimeSpan.FromMilliseconds(5), null, null));
+
+        await Subject.RunDueAsync(TestContext.Current.CancellationToken);
+
+        var store = Mocker.Get<ICheckStore>();
+        var results = new[] { store.Get("app")!, store.Get("other")! }.Select(state => state.History.Should().ContainSingle().Subject).ToList();
+        results.Select(result => result.Up).Should().BeEquivalentTo([true, false]);
+        results.Select(result => result.Error).Should().Contain(CheckErrors.CheckFailed);
+    }
+
+    [Fact]
+    public async Task should_probe_a_changed_check_at_once_instead_of_waiting_for_its_interval()
+    {
+        var runner = Mocker.Get<IHttpCheckRunner>();
+        await Subject.RunDueAsync(TestContext.Current.CancellationToken);
+
+        _fleetForgetsTheState = true; // the catalog changed the check: the fleet has no state for the new one
+        await Subject.RunDueAsync(TestContext.Current.CancellationToken);
+
+        await runner.Received(2).RunAsync(Target, Arg.Any<CheckDefinition>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task should_forget_the_results_of_an_app_that_left_the_catalog()
+    {
+        await Subject.RunDueAsync(TestContext.Current.CancellationToken);
+        Mocker.Get<ICheckStore>().Get("app").Should().NotBeNull();
+
+        _apps.Clear();
+        await Subject.RunDueAsync(TestContext.Current.CancellationToken);
+
+        Mocker.Get<ICheckStore>().Get("app").Should().BeNull();
+    }
+
+    [Fact]
+    public async Task should_cap_the_concurrent_probes()
+    {
+        _apps.Clear();
+        _apps.AddRange(Enumerable.Range(1, 10).Select(n => $"app-{n}"));
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sixRunning = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var counters = new object();
+        int running = 0, peak = 0;
+        Mocker.Get<IHttpCheckRunner>().RunAsync(Target, Arg.Any<CheckDefinition>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Probe());
+
+        async Task<CheckResult> Probe()
+        {
+            lock (counters)
+            {
+                peak = Math.Max(peak, ++running);
+                if (running == CheckScheduler.MaxConcurrency)
+                {
+                    sixRunning.TrySetResult();
+                }
+            }
+
+            await gate.Task;
+            lock (counters)
+            {
+                running--;
+            }
+
+            return new CheckResult(Clock.GetUtcNow(), 200, TimeSpan.FromMilliseconds(5), null, null);
+        }
+
+        var run = Subject.RunDueAsync(TestContext.Current.CancellationToken);
+        await sixRunning.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        // A probe over the cap would start right now: a test that nothing happens needs a window. It can only let a broken cap
+        // pass by luck, never fail a good one.
+        await Task.Delay(TimeSpan.FromMilliseconds(50), TestContext.Current.CancellationToken);
+        gate.SetResult();
+        await run;
+
+        peak.Should().Be(CheckScheduler.MaxConcurrency);
+        await Mocker.Get<IHttpCheckRunner>().Received(10).RunAsync(Target, Arg.Any<CheckDefinition>(), Arg.Any<CancellationToken>());
     }
 }
