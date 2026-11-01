@@ -2380,10 +2380,10 @@ chardet@^2.1.1:
   resolved "https://registry.yarnpkg.com/chardet/-/chardet-2.2.0.tgz#005d664f2cbd4961888d2e2c32c5a69e59d8eec4"
   integrity sha512-rddelWYNPRrXq6PtNEN2S3f6t9ILzvqaN5pVgi4kqt9jHQaXIial9PznB5iSPVlQSLNaaH22ItWz3EJtQ10+OA==
 
-chart.js@4.5.0:
-  version "4.5.0"
-  resolved "https://registry.yarnpkg.com/chart.js/-/chart.js-4.5.0.tgz#11a1ef6c4befc514b1b0b613ebac226c4ad2740b"
-  integrity sha512-aYeC/jDgSEx8SHWZvANYMioYMZ2KX02W6f6uVfyteuCGcadDLcYVHdfdygsTQkQ4TKn5lghoojAsPj5pu0SnvQ==
+chart.js@4.6.1:
+  version "4.6.1"
+  resolved "https://registry.yarnpkg.com/chart.js/-/chart.js-4.6.1.tgz#40a924bc0b92544ed66fa3f4873981152fc62c52"
+  integrity sha512-hJyniucsFmq//EvXYvJ6c6mahPoI3kaxdjVH8awTaJ/fDNWeSqqqArixMJWkWNN6fcYvPU3HneSANFNYtRi61g==
   dependencies:
     "@kurkle/color" "^0.3.0"
 
@@ -4663,10 +4663,10 @@ lru-cache@^5.1.1:
   dependencies:
     yallist "^3.0.2"
 
-lucide-react@1.63.0:
-  version "1.63.0"
-  resolved "https://registry.yarnpkg.com/lucide-react/-/lucide-react-1.63.0.tgz#eb7e0d4304030b4fb06b427db397b82ce18e2b35"
-  integrity sha512-GkBfQG+FUJ41x6y3/lNXiOziVU0Rcqqq0TCzhHS8avsFXHZmOdmfBqsVTvHSaVmbI+wbdGkxHRmhYWhD3N4/yA==
+lucide-react@1.64.0:
+  version "1.64.0"
+  resolved "https://registry.yarnpkg.com/lucide-react/-/lucide-react-1.64.0.tgz#d83b6ce19b780f332acbfa73331b07cbc0bf9c17"
+  integrity sha512-v626F/bcLNvFom6vzztHILtG9tUgXXbgA5AGkd82YkV401+Ko/NHyrWafbPwGofa+6p/EgDJcvEkIwsMH9098w==
 
 lz-string@^1.5.0:
   version "1.5.0"
@@ -5867,10 +5867,10 @@ rc@^1.2.8:
     minimist "^1.2.0"
     strip-json-comments "~2.0.1"
 
-react-chartjs-2@5.3.0:
-  version "5.3.0"
-  resolved "https://registry.yarnpkg.com/react-chartjs-2/-/react-chartjs-2-5.3.0.tgz#2d3286339a742bc7f77b5829c33ebab215f714cc"
-  integrity sha512-UfZZFnDsERI3c3CZGxzvNJd02SHjaSJ8kgW1djn65H1KK8rehwTjyrRKOG3VTMG8wtHZ5rgAO5oTHtHi9GCCmw==
+react-chartjs-2@5.3.1:
+  version "5.3.1"
+  resolved "https://registry.yarnpkg.com/react-chartjs-2/-/react-chartjs-2-5.3.1.tgz#2b29995ce8b07f5c95c6ea3696838569e88453aa"
+  integrity sha512-h5IPXKg9EXpjoBzUfyWJvllMjG2mQ4EiuHQFhms/AjUm0XSZHhyRy2xVmLXHKrtcdrPO4mnGqRtYoD0vp95A0A==
 
 react-dom@18.3.1:
   version "18.3.1"
