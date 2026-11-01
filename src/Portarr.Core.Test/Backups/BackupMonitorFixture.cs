@@ -123,6 +123,21 @@ public sealed class BackupMonitorFixture
     }
 
     [Fact]
+    public async Task should_carry_a_reason_code_and_never_the_text_of_a_failure_that_may_hold_a_secret()
+    {
+        var cronjob = Source(BackupSourceKinds.CronJob);
+        cronjob.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
+            .Returns<IReadOnlyList<BackupJob>>(_ => throw new HttpRequestException("the tool answered: token=s3cret-from-the-body", null, System.Net.HttpStatusCode.BadGateway));
+        var monitor = Monitor(Source(BackupSourceKinds.Backrest), cronjob, Source(BackupSourceKinds.K8up));
+
+        await monitor.RefreshAsync(TestContext.Current.CancellationToken);
+
+        var reading = monitor.Current.Readings["cronjob@cluster"];
+        reading.Error.Should().Be("http-502");
+        reading.ToString().Should().NotContain("s3cret-from-the-body");
+    }
+
+    [Fact]
     public async Task should_not_abort_the_refresh_for_an_environment_the_catalog_no_longer_has()
     {
         var catalogService = Substitute.For<ICatalogService>();

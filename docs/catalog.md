@@ -75,7 +75,7 @@ apps:
       url: "http://10.0.0.10:3000/api/health"   # default: the public URL, else the LAN URL
       expect: [200, 401, 500-504]     # status codes or ranges; default 200-399 (redirects are not followed)
       keyword: database               # must appear in the first 64 KiB of the body
-      interval: 5m                    # seconds or 30s / 5m / 1h; default 60s, 10s to 24h
+      interval: 5m                    # a duration: 30s / 5m / 1h / 1d, a bare number is seconds; default 60s, 10s to 24h
       timeout: 15s                    # default 10s, at most 60s and the interval
       critical: false                 # default true: a failing check turns the app Down; false only degrades it
     workloads:
@@ -124,6 +124,10 @@ curl -s -X PUT localhost:8484/api/v1/portal -H "X-Api-Key: $KEY" -H 'Content-Typ
 curl -s -X PUT localhost:8484/api/v1/portal -H "X-Api-Key: $KEY" -H 'Content-Type: application/json' -d '{"colors":{"name":"#ffc145","version":"inkMuted"}}'
 curl -s -X PUT localhost:8484/api/v1/portal/logo -H "X-Api-Key: $KEY" -F file=@logo.png
 ```
+
+## Durations
+
+Every duration of the catalog (a check's `interval` and `timeout`, a data asset's `maxAge`, a host agent's `interval`) is written the same way: a whole number and a unit, `30s`, `5m`, `24h`, `7d`; a bare number is seconds. Each key has its own bounds and says so when the value is outside them (`maxAge` is at least a minute, so a bare `24` is refused rather than read as 24 seconds).
 
 ## HTTP checks
 

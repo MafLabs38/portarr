@@ -28,16 +28,21 @@ test.describe('Data', { tag: '@smoke' }, () => {
     await expect(clear).toHaveCount(0);
   });
 
-  test('each followed asset shows its local and its off-site copy with a state', async ({ page }) => {
+  test('the asset the stack follows shows its local copy (made by hand, undated) and its off-site copy (nothing produces it)', async ({
+    page,
+  }) => {
+    // tests/e2e/stack/catalog.yaml follows one asset: a critical "Web content" with a manual local copy and no off-site source.
     await page.goto('/data');
-    const assets = page.locator('main li[aria-label]').filter({ has: page.getByRole('group', { name: 'Local copy' }) });
-    test.skip((await assets.count()) === 0, 'This catalog follows no data.');
+    const asset = page.getByRole('listitem', { name: /^Web content/ });
+    await expect(asset).toBeVisible();
 
-    const first = assets.first();
-    await expect(first.getByRole('group', { name: /^Local copy/ })).toBeVisible();
-    await expect(first.getByRole('group', { name: /^Off-site copy/ })).toBeVisible();
-    await expect(
-      first.getByText(/Protected|Waiting for first run|Not set up|Unknown|Late|Failed|Missing/).first(),
-    ).toBeVisible();
+    const local = asset.getByRole('group', { name: /^Local copy/ });
+    await expect(local).toBeVisible();
+    await expect(local.getByText('made by hand, date unknown')).toBeVisible();
+
+    const offsite = asset.getByRole('group', { name: /^Off-site copy/ });
+    await expect(offsite).toBeVisible();
+    await expect(offsite.getByText('declared, and nothing produces it yet')).toBeVisible();
+    await expect(offsite.getByText('Missing')).toBeVisible();
   });
 });

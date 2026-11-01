@@ -141,4 +141,35 @@ public sealed class CatalogSourcesParserFixture
     {
         new GitHubSource([], "T", 6, [], [pattern], false, false).IsExcluded(repository).Should().Be(excluded);
     }
+
+    [Theory]
+    [InlineData("90s", true)]
+    [InlineData("12h", true)]
+    [InlineData("30d", true)]
+    [InlineData("24", false)]
+    [InlineData("0m", false)]
+    [InlineData("soon", false)]
+    public void should_read_the_loss_window_of_a_data_asset_in_the_same_durations_as_a_check(string maxAge, bool valid)
+    {
+        var result = TestCatalog.Parse($"environments:\n  - {{ id: server-1, docker: {{ url: \"http://10.0.0.10:2375\" }} }}\napps:\n  - {{ id: shop }}\ndata:\n  - {{ id: files, app: shop, kind: files, importance: critical, maxAge: {maxAge}, where: {{ environment: server-1 }}, targets: {{ local: {{ manual: true }} }} }}\n");
+
+        result.IsValid.Should().Be(valid, string.Join("; ", result.Errors));
+        if (!valid)
+        {
+            result.Errors.Should().ContainSingle().Which.Should().Contain("must be a duration of at least a minute");
+        }
+    }
+
+    [Theory]
+    [InlineData("2d", false)]
+    [InlineData("1d", true)]
+    [InlineData("24h", true)]
+    [InlineData("90", true)]
+    [InlineData("1m", true)]
+    public void should_read_the_interval_of_a_check_in_the_same_durations_as_a_loss_window(string interval, bool valid)
+    {
+        var result = TestCatalog.Parse($"apps:\n  - {{ id: shop, urls: [{{ href: \"https://shop.homelab.example\" }}], check: {{ interval: {interval} }} }}\n");
+
+        result.IsValid.Should().Be(valid, string.Join("; ", result.Errors));
+    }
 }

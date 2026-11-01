@@ -11,9 +11,9 @@ public static partial class CatalogValues
     [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]{0,127}$")]
     private static partial Regex VariableNamePattern();
 
-    /// <summary>A refresh interval: a number of seconds or minutes, <c>5</c>, <c>5s</c>, <c>2m</c>.</summary>
-    [GeneratedRegex("^(?<value>[0-9]{1,4})(?<unit>[sm]?)$")]
-    private static partial Regex IntervalPattern();
+    /// <summary>The one duration grammar of the catalog: a whole number and a unit, <c>30s</c>, <c>5m</c>, <c>24h</c>, <c>7d</c>; a bare number is seconds.</summary>
+    [GeneratedRegex("^(?<value>[0-9]{1,6})(?<unit>[smhd]?)$")]
+    private static partial Regex DurationPattern();
 
     /// <summary>A Kubernetes namespace: a DNS label.</summary>
     [GeneratedRegex("^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$")]
@@ -59,20 +59,26 @@ public static partial class CatalogValues
     }
 
     /// <summary>
-    /// A refresh interval written <c>5</c> or <c>5s</c> (seconds) or <c>2m</c> (minutes), between <paramref name="min"/> and
-    /// <paramref name="max"/>; null when the text is none of these.
+    /// A duration in the catalog's one grammar (<c>5</c> or <c>5s</c> seconds, <c>2m</c>, <c>24h</c>, <c>7d</c>), between
+    /// <paramref name="min"/> and <paramref name="max"/>; null when the text is none of these or out of bounds.
     /// </summary>
-    public static TimeSpan? ParseInterval(string? value, TimeSpan min, TimeSpan max)
+    public static TimeSpan? ParseDuration(string? value, TimeSpan min, TimeSpan max)
     {
-        var match = IntervalPattern().Match(value?.Trim() ?? string.Empty);
+        var match = DurationPattern().Match(value?.Trim() ?? string.Empty);
         if (!match.Success)
         {
             return null;
         }
 
         var amount = int.Parse(match.Groups["value"].Value, System.Globalization.CultureInfo.InvariantCulture);
-        var interval = match.Groups["unit"].Value == "m" ? TimeSpan.FromMinutes(amount) : TimeSpan.FromSeconds(amount);
-        return interval >= min && interval <= max ? interval : null;
+        var duration = match.Groups["unit"].Value switch
+        {
+            "m" => TimeSpan.FromMinutes(amount),
+            "h" => TimeSpan.FromHours(amount),
+            "d" => TimeSpan.FromDays(amount),
+            _ => TimeSpan.FromSeconds(amount),
+        };
+        return duration >= min && duration <= max ? duration : null;
     }
 
     /// <summary>A Kubernetes label key (<c>app</c>, <c>app.kubernetes.io/name</c>).</summary>
