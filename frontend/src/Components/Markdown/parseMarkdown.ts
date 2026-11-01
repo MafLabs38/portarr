@@ -21,9 +21,7 @@ function headingOf(line: string): { level: number; text: string } | null {
     level += 1;
   }
   const next = line[level];
-  return level >= 1 && level <= 6 && next !== undefined && next.trim() === ''
-    ? { level, text: line.slice(level).trim() }
-    : null;
+  return level >= 1 && level <= 6 && next?.trim() === '' ? { level, text: line.slice(level).trim() } : null;
 }
 
 const listPattern = /^( *)- (.*)$/;

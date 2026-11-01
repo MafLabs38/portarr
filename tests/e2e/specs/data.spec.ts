@@ -38,7 +38,7 @@ test.describe('Data', { tag: '@smoke' }, () => {
 
     const local = asset.getByRole('group', { name: /^Local copy/ });
     await expect(local).toBeVisible();
-    await expect(local.getByText('made by hand, date unknown')).toBeVisible();
+    await expect(local.getByText('Made by hand')).toBeVisible();
 
     const offsite = asset.getByRole('group', { name: /^Off-site copy/ });
     await expect(offsite).toBeVisible();
