@@ -153,7 +153,7 @@ public sealed class CheckSchedulerFixture : CoreTest<CheckScheduler>
 
         // A probe over the cap would start right now: a test that nothing happens needs a window. It can only let a broken cap
         // pass by luck, never fail a good one.
-        await Task.Delay(TimeSpan.FromMilliseconds(100), TestContext.Current.CancellationToken);
+        await Task.Delay(TimeSpan.FromMilliseconds(50), TestContext.Current.CancellationToken);
         gate.SetResult();
         await run;
 

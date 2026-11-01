@@ -37,6 +37,7 @@ describe('InfrastructureIndex', () => {
       const machine = await screen.findByRole('article', { name: 'Server 1' });
       expect(within(machine).getByText('Live · 2 s ago')).toBeInTheDocument();
 
+      // 2 s + 118 s: "2 min" covers 120 to 179 s, so the real time that also moves the clock cannot cross the boundary.
       await act(async () => {
         vi.advanceTimersByTime(118_000);
       });

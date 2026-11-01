@@ -14,7 +14,8 @@ public interface IHostMetricsMonitor
 
     /// <summary>
     /// Every new read of a machine, as it happens (one per machine per second), until <paramref name="cancellationToken"/>
-    /// is cancelled. A slow reader loses the oldest reads, never blocks the monitor. Views carry no history.
+    /// is cancelled. The subscription is active as soon as enumeration starts. A slow reader loses the oldest reads, never blocks the
+    /// monitor. Views carry no history.
     /// </summary>
     IAsyncEnumerable<HostMetricsView> WatchAsync(CancellationToken cancellationToken);
 }
@@ -68,7 +69,7 @@ public sealed partial class HostMetricsMonitor : BackgroundService, IHostMetrics
     {
         var channel = Channel.CreateBounded<HostMetricsView>(new BoundedChannelOptions(SubscriberBuffer) { FullMode = BoundedChannelFullMode.DropOldest, SingleReader = true });
 
-        // The subscription is registered when the first MoveNextAsync starts, before any wait: the tests rely on it.
+        // Subscribed before the first wait: a read published once enumeration has started is never missed.
         lock (_gate)
         {
             _subscribers.Add(channel);

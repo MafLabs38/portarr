@@ -33,8 +33,10 @@ public sealed class KubernetesNodeExporterSourceFixture
     private readonly List<string> _requests = [];
     private readonly Dictionary<string, (HttpStatusCode Status, string Body)> _responses = [];
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 1, 31, 12, 0, 0, TimeSpan.Zero));
-    // Never read nor written: no environment of these tests names a file next to the catalog.
-    private static readonly string CatalogFile = Path.Combine(Path.GetTempPath(), "portarr-k8s-unused", "catalog.yaml");
+
+    // Never read nor written: no environment of these tests names a file next to the catalog. The folder does not exist, so a
+    // future test that makes the client read one fails loudly.
+    private static readonly string CatalogFile = Path.Combine(Path.GetPathRoot(System.Environment.CurrentDirectory)!, "nonexistent", "catalog.yaml");
 
     [Fact]
     public async Task should_find_the_running_pod_of_the_node_and_read_it_through_the_pod_proxy()

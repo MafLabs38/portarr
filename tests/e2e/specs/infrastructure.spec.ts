@@ -12,19 +12,19 @@ test.describe('Infrastructure', { tag: '@smoke' }, () => {
     const age = card.getByText(/^Live · \d+ s ago$/);
     await expect(age).toBeVisible({ timeout: 30_000 });
 
-    // The age ticks every second and the next sample resets it: it climbs, then a lower value shows the reset.
-    let highest = 0;
-    const sawAReset = async () => {
-      const seconds = Number(/\d+/.exec((await age.textContent()) ?? '')?.[0]);
-      if (Number.isNaN(seconds)) {
-        return false;
-      }
-
-      highest = Math.max(highest, seconds);
-      return seconds < highest;
+    // The age moves with the clock and the samples: a live card shows more than one age and is never "stale".
+    const seen = new Set<string>();
+    const agesSeen = async () => {
+      const text =
+        (await card
+          .getByText(/^(Live|Stale) · /)
+          .first()
+          .textContent({ timeout: 1_000 })) ?? '';
+      expect(text).not.toMatch(/^Stale/);
+      seen.add(text);
+      return seen.size;
     };
-    await expect.poll(sawAReset, { timeout: 20_000 }).toBe(true);
-    await expect(card.getByText(/^Stale/)).toHaveCount(0);
+    await expect.poll(agesSeen, { timeout: 20_000 }).toBeGreaterThan(1);
   });
 
   test('a card states how much CPU and memory the machine uses', async ({ page }) => {

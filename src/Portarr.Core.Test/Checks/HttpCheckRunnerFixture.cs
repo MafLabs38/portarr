@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using Portarr.Core.Catalog;
@@ -98,15 +99,9 @@ public sealed class HttpCheckRunnerFixture : CoreTest<HttpCheckRunner>
     [Fact]
     public async Task should_report_a_redirect_as_the_answer_without_following_it()
     {
-        // The real handler of the checks client against a real local server: the redirect target would be asked next.
-        var probe = new TcpListener(IPAddress.Loopback, 0);
-        probe.Start();
-        var port = ((IPEndPoint)probe.LocalEndpoint).Port;
-        probe.Stop();
-        using var server = new HttpListener();
-        server.Prefixes.Add($"http://127.0.0.1:{port}/");
-        server.Start();
-        var asked = new List<string>();
+        // The real handler of the checks client against a real server on the loopback: the redirect target would be asked next.
+        using var server = StartLoopbackServer(out var port);
+        var asked = new ConcurrentQueue<string>();
         var serving = Task.Run(async () =>
         {
             while (server.IsListening)
@@ -114,7 +109,7 @@ public sealed class HttpCheckRunnerFixture : CoreTest<HttpCheckRunner>
                 try
                 {
                     var context = await server.GetContextAsync();
-                    asked.Add(context.Request.RawUrl!);
+                    asked.Enqueue(context.Request.RawUrl!);
                     context.Response.StatusCode = (int)HttpStatusCode.Found;
                     context.Response.RedirectLocation = "/elsewhere";
                     context.Response.Close();
@@ -125,7 +120,8 @@ public sealed class HttpCheckRunnerFixture : CoreTest<HttpCheckRunner>
                 }
             }
         }, TestContext.Current.CancellationToken);
-        Mocker.Get<IHttpClientFactory>().CreateClient(HttpCheckRunner.HttpClientName).Returns(_ => new HttpClient(HttpCheckRunner.CreateHandler()));
+        using var client = new HttpClient(HttpCheckRunner.CreateHandler());
+        Mocker.Get<IHttpClientFactory>().CreateClient(HttpCheckRunner.HttpClientName).Returns(client);
 
         try
         {
@@ -139,6 +135,30 @@ public sealed class HttpCheckRunnerFixture : CoreTest<HttpCheckRunner>
         {
             server.Stop();
             await serving;
+        }
+    }
+
+    /// <summary>A listener cannot ask for a free port: pick one and retry when another test took it in between.</summary>
+    private static HttpListener StartLoopbackServer(out int port)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            var probe = new TcpListener(IPAddress.Loopback, 0);
+            probe.Start();
+            port = ((IPEndPoint)probe.LocalEndpoint).Port;
+            probe.Stop();
+
+            var server = new HttpListener();
+            server.Prefixes.Add($"http://127.0.0.1:{port}/");
+            try
+            {
+                server.Start();
+                return server;
+            }
+            catch (HttpListenerException) when (attempt < 5)
+            {
+                server.Close();
+            }
         }
     }
 

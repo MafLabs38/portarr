@@ -125,6 +125,27 @@ public sealed class HostMetricsMonitorFixture
     }
 
     [Fact]
+    public async Task should_stop_quietly_when_the_service_is_stopped()
+    {
+        Answer(Reading(cpu: 12, usedBytes: 6_000));
+        var monitor = Monitor();
+        await monitor.StartAsync(TestContext.Current.CancellationToken);
+
+        // Stopped before its first pass, the loop never starts and its task is simply cancelled: wait until it has read once.
+        var started = Task.Run(async () =>
+        {
+            while (!monitor.Current.ContainsKey(Machine))
+            {
+                await Task.Delay(10, TestContext.Current.CancellationToken);
+            }
+        }, TestContext.Current.CancellationToken);
+        await started.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await monitor.StopAsync(TestContext.Current.CancellationToken);
+
+        monitor.ExecuteTask!.Status.Should().Be(TaskStatus.RanToCompletion, "the host takes a cancelled loop for a crash");
+    }
+
+    [Fact]
     public async Task should_stream_each_new_reading_without_its_history()
     {
         Answer(Reading(cpu: 12, usedBytes: 6_000));
