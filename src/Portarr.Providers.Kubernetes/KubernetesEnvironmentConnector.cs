@@ -115,6 +115,9 @@ public sealed class KubernetesEnvironmentConnector : IEnvironmentConnector
 
     public const string DefaultTokenVariable = "K8S_TOKEN";
 
+    /// <summary>The namespace of the variables a catalog may name as a ServiceAccount token.</summary>
+    public const string TokenPrefix = "PORTARR_K8S_";
+
     public string Section => SectionName;
 
     public bool IsRuntime => true;
@@ -144,12 +147,13 @@ public sealed class KubernetesEnvironmentConnector : IEnvironmentConnector
             return null;
         }
 
-        var variable = cluster.TokenEnv ?? DefaultTokenVariable;
-        if (!CatalogValues.IsVariableName(variable))
+        if (CatalogValues.SecretVariableError("kubernetes.tokenEnv", cluster.TokenEnv, TokenPrefix, DefaultTokenVariable, "token", context.AllowedSecretVariables, out _) is { } tokenError)
         {
-            context.Error($"kubernetes.tokenEnv must be the name of an environment variable (e.g. {DefaultTokenVariable}), never the token itself.");
+            context.Error(tokenError);
             return null;
         }
+
+        var variable = CatalogValues.Blank(cluster.TokenEnv) ?? DefaultTokenVariable;
 
         if (cluster.CaFile is { } caFile && string.IsNullOrWhiteSpace(caFile))
         {

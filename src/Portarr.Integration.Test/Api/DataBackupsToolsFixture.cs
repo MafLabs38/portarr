@@ -50,9 +50,9 @@ public sealed class DataBackupsToolsFixture : IAsyncLifetime
 
         var catalog = $$"""
             environments:
-              - { id: server-1, name: Server 1, docker: { url: "http://socket-proxy:2375" }, backrest: { url: "{{_backrest.Url}}", allowInsecure: true, userEnv: BACKREST_USER, passwordEnv: BACKREST_PASSWORD } }
+              - { id: server-1, name: Server 1, docker: { url: "http://socket-proxy:2375" }, backrest: { url: "{{_backrest.Url}}", allowInsecure: true, userEnv: PORTARR_BACKREST_USER, passwordEnv: PORTARR_BACKREST_PASSWORD } }
               - { id: server-2, name: Server 2, docker: { url: "http://socket-proxy-2:2375" } }
-              - { id: cluster, name: Cluster, kubernetes: { server: "{{_cluster.Url}}", allowInsecure: true, tokenEnv: CLUSTER_TOKEN } }
+              - { id: cluster, name: Cluster, kubernetes: { server: "{{_cluster.Url}}", allowInsecure: true, tokenEnv: PORTARR_K8S_CLUSTER } }
             apps:
               - { id: shop, name: Shop }
               - { id: media, name: Media }
@@ -87,9 +87,9 @@ public sealed class DataBackupsToolsFixture : IAsyncLifetime
         await File.WriteAllTextAsync(Path.Combine(options.DataFolder, "catalog.yaml"), catalog);
         _factory = new PortarrFactory(options, new Dictionary<string, string?>
         {
-            ["BACKREST_USER"] = "portarr",
-            ["BACKREST_PASSWORD"] = "s3cret",
-            ["CLUSTER_TOKEN"] = "cluster-token",
+            ["PORTARR_BACKREST_USER"] = "portarr",
+            ["PORTARR_BACKREST_PASSWORD"] = "s3cret",
+            ["PORTARR_K8S_CLUSTER"] = "cluster-token",
         });
         _client = await _factory.CreateSignedInClientAsync();
         await _factory.Services.GetRequiredService<IBackupMonitor>().RefreshAsync(TestContext.Current.CancellationToken);

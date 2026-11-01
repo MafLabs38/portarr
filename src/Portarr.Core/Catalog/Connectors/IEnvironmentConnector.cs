@@ -73,6 +73,9 @@ public sealed class EnvironmentSectionContext
 
     public string EnvironmentId { get; }
 
+    /// <summary>The secret variable names the operator allows besides each connector's namespace (see <see cref="CatalogValues.SecretVariableError"/>).</summary>
+    public IReadOnlySet<string> AllowedSecretVariables { get; internal init; } = new HashSet<string>();
+
     /// <summary>The key being read.</summary>
     public string Section { get; }
 

@@ -48,6 +48,9 @@ public sealed record GitHubSource(
     public string Fingerprint => string.Join('|', string.Join(',', Owners), TokenVariable, PushedWithinMonths, string.Join(',', Include), string.Join(',', Exclude), Forks, Archived, ApiUrl);
 
     public const string DefaultTokenVariable = "GITHUB_TOKEN";
+
+    /// <summary>The namespace of the variables a catalog may name as a GitHub token.</summary>
+    public const string TokenPrefix = "PORTARR_GITHUB_";
     public const int DefaultPushedWithinMonths = 6;
 
     /// <summary>Whether a repository (<c>owner/name</c>) is excluded; case-insensitive like GitHub names.</summary>

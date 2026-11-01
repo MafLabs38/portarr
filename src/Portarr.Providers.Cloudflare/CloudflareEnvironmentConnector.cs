@@ -27,6 +27,9 @@ public sealed class CloudflareEnvironmentConnector : IEnvironmentConnector
 
     public const string DefaultTokenVariable = "CLOUDFLARE_API_TOKEN";
 
+    /// <summary>The namespace of the variables a catalog may name as an API token.</summary>
+    public const string TokenPrefix = "PORTARR_CLOUDFLARE_";
+
     public string Section => SectionName;
 
     public bool IsRuntime => true;
@@ -47,12 +50,13 @@ public sealed class CloudflareEnvironmentConnector : IEnvironmentConnector
             return null;
         }
 
-        var variable = document.TokenEnv ?? DefaultTokenVariable;
-        if (!CatalogValues.IsVariableName(variable))
+        if (CatalogValues.SecretVariableError("cloudflare.tokenEnv", document.TokenEnv, TokenPrefix, DefaultTokenVariable, "token", context.AllowedSecretVariables, out _) is { } tokenError)
         {
-            context.Error($"cloudflare.tokenEnv must be the name of an environment variable (e.g. {DefaultTokenVariable}), never the token itself.");
+            context.Error(tokenError);
             return null;
         }
+
+        var variable = CatalogValues.Blank(document.TokenEnv) ?? DefaultTokenVariable;
 
         return new EnvironmentConnectorResult(new CloudflareAccount(document.AccountId.Trim(), variable));
     }

@@ -9,12 +9,12 @@ public sealed class CloudflareEnvironmentConnectorFixture : EnvironmentConnector
 {
     protected override IEnvironmentConnector Connector { get; } = new CloudflareEnvironmentConnector();
 
-    protected override string ValidSection => "{ accountId: \"0123456789abcdef0123456789abcdef\", tokenEnv: CF_TOKEN }";
+    protected override string ValidSection => "{ accountId: \"0123456789abcdef0123456789abcdef\", tokenEnv: PORTARR_CLOUDFLARE_TOKEN }";
 
     // The token goes to Cloudflare's own API, never to an address the catalog names.
     protected override string? SectionWithCredentialsInUrl => null;
 
-    protected override string? SectionWithSecretOutsideNamespace => null;
+    protected override string? SectionWithSecretOutsideNamespace => "{ accountId: \"0123456789abcdef0123456789abcdef\", tokenEnv: GITHUB_TOKEN }";
 
     protected override string? SectionWithLiteralSecret => "{ accountId: abc, tokenEnv: \"cf-token-value!\" }";
 
