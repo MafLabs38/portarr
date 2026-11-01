@@ -8,12 +8,18 @@ namespace Portarr.Test.Common;
 /// </summary>
 public sealed class StubEnvironmentConnector : IEnvironmentConnector
 {
-    public StubEnvironmentConnector(string section)
+    public StubEnvironmentConnector(string section, bool isRuntime = false, bool singleMachine = true)
     {
         Section = section;
+        IsRuntime = isRuntime;
+        SingleMachine = singleMachine;
     }
 
     public string Section { get; }
+
+    public bool IsRuntime { get; }
+
+    public bool SingleMachine { get; }
 
     public EnvironmentConnectorResult? Parse(EnvironmentSectionContext context) => new(new object());
 }

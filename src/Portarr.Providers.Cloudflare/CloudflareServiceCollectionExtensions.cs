@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Portarr.Core.Catalog;
 using Portarr.Core.Workloads;
 
 namespace Portarr.Providers.Cloudflare;
@@ -17,6 +18,7 @@ public static class CloudflareServiceCollectionExtensions
             client.MaxResponseContentBufferSize = MaxResponseBytes;
         });
         services.AddSingleton<IWorkloadSource, CloudflareWorkloadSource>();
+        services.AddSingleton<IEnvironmentConnector, CloudflareEnvironmentConnector>();
 
         return services;
     }

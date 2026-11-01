@@ -236,8 +236,6 @@ internal sealed class EnvironmentDocument
     /// <summary>The Portarr reader of this machine, in place of <c>docker</c> and <c>hostMetrics</c> (D-100, D-101).</summary>
     public ReaderDocument? Reader { get; set; }
 
-    public CloudflareDocument? Cloudflare { get; set; }
-
     public KubernetesDocument? Kubernetes { get; set; }
 
     public string? Address { get; set; }
@@ -287,14 +285,6 @@ internal sealed class NodeExporterDocument
 
     /// <summary>Per node name: direct, api-server, off, or a metrics URL.</summary>
     public Dictionary<string, string>? Nodes { get; set; }
-}
-
-internal sealed class CloudflareDocument
-{
-    public string? AccountId { get; set; }
-
-    /// <summary>Name of the environment variable holding the API token (never the token itself).</summary>
-    public string? TokenEnv { get; set; }
 }
 
 internal sealed class KubernetesDocument

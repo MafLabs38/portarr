@@ -41,12 +41,12 @@ public sealed partial class CloudflareWorkloadSource : IWorkloadSource
 
     public bool Supports(CatalogEnvironment environment)
     {
-        return environment.Cloudflare is not null;
+        return environment.Cloudflare() is not null;
     }
 
     public string? GetConfigurationError(CatalogEnvironment environment)
     {
-        var account = environment.Cloudflare;
+        var account = environment.Cloudflare();
         if (account is null)
         {
             return null;
@@ -63,7 +63,7 @@ public sealed partial class CloudflareWorkloadSource : IWorkloadSource
 
     public async Task<IReadOnlyList<Workload>> ListAsync(CatalogEnvironment environment, CancellationToken cancellationToken)
     {
-        var account = environment.Cloudflare ?? throw new InvalidOperationException($"Environment {environment.Id} has no Cloudflare account.");
+        var account = environment.Cloudflare() ?? throw new InvalidOperationException($"Environment {environment.Id} has no Cloudflare account.");
         if (GetConfigurationError(environment) is { } error)
         {
             throw new InvalidOperationException($"Environment {environment.Id} is not configured: {error}.");

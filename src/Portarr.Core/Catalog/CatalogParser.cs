@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using YamlDotNet.Core;
+using YamlDotNet.Core.Events;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -16,7 +17,6 @@ public sealed record CatalogParseResult(Catalog Catalog, IReadOnlyList<string> E
 /// </summary>
 public static partial class CatalogParser
 {
-    private const string DefaultTokenVariable = "CLOUDFLARE_API_TOKEN";
     private const string DefaultKubernetesTokenVariable = "K8S_TOKEN";
 
     private static readonly TimeSpan MinInterval = TimeSpan.FromSeconds(10);
@@ -162,50 +162,70 @@ public static partial class CatalogParser
                 }
 
                 var docker = reader?.Docker ?? BuildDocker(id, document.Docker);
-                var cloudflare = BuildCloudflare(id, document);
                 var kubernetes = BuildKubernetes(id, document);
+                var connectors = BuildConnectors(id, kubernetes is null, document);
 
-                if (new object?[] { docker, cloudflare, kubernetes }.Count(c => c is not null) > 1)
+                if ((docker is null ? 0 : 1) + (kubernetes is null ? 0 : 1) + connectors.Runtimes.Count > 1)
                 {
-                    _errors.Add($"Environment '{id}': declare one connector (docker, cloudflare or kubernetes), not several.");
+                    _errors.Add($"Environment '{id}': declare one connector ({RuntimeList()}), not several.");
                 }
-
-                var (settings, machineHosts) = BuildConnectors(id, kubernetes is null && cloudflare is null, document);
 
                 result.Add(new CatalogEnvironment(
                     id,
                     document.Name ?? id,
                     docker,
                     string.IsNullOrWhiteSpace(document.Address) ? null : document.Address.Trim(),
-                    cloudflare,
                     kubernetes,
                     string.IsNullOrWhiteSpace(document.Host) ? null : document.Host.Trim(),
                     reader?.HostMetrics ?? BuildHostMetrics(id, document, docker),
                     BuildNotes($"Environment '{id}'", document.Notes),
                     BuildAccess($"Environment '{id}'", "access", document.Access),
                     BuildMachines(id, document.Machines),
-                    settings,
-                    machineHosts));
+                    connectors.Settings,
+                    connectors.MachineHosts,
+                    connectors.Runtimes.FirstOrDefault()));
             }
 
             ValidateHosts(result);
             return result;
         }
 
-        /// <summary>Gives each section a connector library owns to that library (D-105), and gathers what they made of them.</summary>
-        private (Dictionary<string, object> Settings, Dictionary<string, string>? MachineHosts) BuildConnectors(string environmentId, bool singleMachine, EnvironmentDocument document)
+        /// <summary>What the connector libraries made of an environment's sections: their settings, the hosts they know, the runtimes found.</summary>
+        private sealed record ConnectorBuild(Dictionary<string, object> Settings, Dictionary<string, string>? MachineHosts, List<string> Runtimes);
+
+        private static readonly ParsingEvent[] EmptySection = [new MappingStart(AnchorName.Empty, TagName.Empty, true, MappingStyle.Flow), new MappingEnd()];
+
+        /// <summary>
+        /// Gives each section a connector library owns to that library (D-105), and gathers what they made of them. A runtime named
+        /// by <c>runtime:</c> is read even without its section, as an empty one, so that it reports what it needs.
+        /// </summary>
+        private ConnectorBuild BuildConnectors(string environmentId, bool notACluster, EnvironmentDocument document)
         {
             var settings = new Dictionary<string, object>(StringComparer.Ordinal);
+            var runtimes = new List<string>();
             Dictionary<string, string>? machineHosts = null;
-            foreach (var connector in _connectors.Where(c => document.Sections.ContainsKey(c.Section)))
+            var owned = _connectors.Where(c => document.Sections.ContainsKey(c.Section) || (c.IsRuntime && document.Runtime == c.Section)).ToList();
+            var singleMachine = notACluster && owned.Where(c => c.IsRuntime).All(c => c.SingleMachine);
+            foreach (var connector in owned)
             {
-                var context = new EnvironmentSectionContext(environmentId, connector.Section, singleMachine, document.Sections[connector.Section], _plain, _errors.Add);
+                var events = document.Sections.GetValueOrDefault(connector.Section);
+                if (events is null || (document.Runtime == connector.Section && IsNull(events)))
+                {
+                    events = EmptySection;
+                }
+
+                var context = new EnvironmentSectionContext(environmentId, connector.Section, singleMachine, events, _plain, _errors.Add);
                 if (connector.Parse(context) is not { } result)
                 {
                     continue;
                 }
 
                 settings[connector.Section] = result.Settings;
+                if (connector.IsRuntime)
+                {
+                    runtimes.Add(connector.Section);
+                }
+
                 foreach (var (machine, host) in result.MachineHosts ?? new Dictionary<string, string>())
                 {
                     machineHosts ??= new Dictionary<string, string>(StringComparer.Ordinal);
@@ -218,7 +238,25 @@ public static partial class CatalogParser
                 }
             }
 
-            return (settings, machineHosts);
+            return new ConnectorBuild(settings, machineHosts, runtimes);
+        }
+
+        /// <summary>A section with no value: <c>cloudflare:</c> followed by nothing, <c>~</c> or <c>null</c>.</summary>
+        private static bool IsNull(IReadOnlyList<ParsingEvent> events)
+        {
+            return events is [Scalar { Value: "" or "~" or "null" }];
+        }
+
+        /// <summary>The runtimes an environment can have, as the message names them: docker, the connector libraries', kubernetes.</summary>
+        private IReadOnlyList<string> Runtimes()
+        {
+            return [RuntimeNames.Docker, .. _connectors.Where(c => c.IsRuntime).Select(c => c.Section), RuntimeNames.Kubernetes];
+        }
+
+        private string RuntimeList()
+        {
+            var runtimes = Runtimes();
+            return $"{string.Join(", ", runtimes.Take(runtimes.Count - 1))} or {runtimes[^1]}";
         }
 
         /// <summary>
@@ -276,20 +314,19 @@ public static partial class CatalogParser
                 return true;
             }
 
-            if (document.Runtime is not (RuntimeNames.Docker or RuntimeNames.Cloudflare or RuntimeNames.Kubernetes))
+            if (!Runtimes().Contains(document.Runtime))
             {
-                _errors.Add($"Environment '{environmentId}': runtime must be docker, cloudflare or kubernetes.");
+                _errors.Add($"Environment '{environmentId}': runtime must be {RuntimeList()}.");
                 return false;
             }
 
-            var other = (document.Runtime, document.Docker, document.Cloudflare, document.Kubernetes) switch
+            var declared = Runtimes().Where(runtime => runtime switch
             {
-                (not RuntimeNames.Docker, { }, _, _) => RuntimeNames.Docker,
-                (not RuntimeNames.Cloudflare, _, { }, _) => RuntimeNames.Cloudflare,
-                (not RuntimeNames.Kubernetes, _, _, { }) => RuntimeNames.Kubernetes,
-                _ => null,
-            };
-            if (other is not null)
+                RuntimeNames.Docker => document.Docker is not null,
+                RuntimeNames.Kubernetes => document.Kubernetes is not null,
+                _ => document.Sections.ContainsKey(runtime),
+            });
+            if (declared.FirstOrDefault(runtime => runtime != document.Runtime) is { } other)
             {
                 _errors.Add($"Environment '{environmentId}': a {document.Runtime} environment cannot declare {other}.");
                 return false;
@@ -312,33 +349,6 @@ public static partial class CatalogParser
 
             _errors.Add($"Environment '{environmentId}': docker.url must be unix:///path/to/docker.sock or http(s)://host:port.");
             return null;
-        }
-
-        /// <summary>
-        /// A Cloudflare account (D-53). The account id is only required here: a placeholder still loads,
-        /// and the connector reports the environment as not connected until it is a real id.
-        /// </summary>
-        private CloudflareAccount? BuildCloudflare(string environmentId, EnvironmentDocument document)
-        {
-            if (document.Runtime != RuntimeNames.Cloudflare && document.Cloudflare is null)
-            {
-                return null;
-            }
-
-            if (string.IsNullOrWhiteSpace(document.Cloudflare?.AccountId))
-            {
-                _errors.Add($"Environment '{environmentId}': cloudflare.accountId is required (the id in the Cloudflare dashboard URL).");
-                return null;
-            }
-
-            var variable = document.Cloudflare.TokenEnv ?? DefaultTokenVariable;
-            if (!CatalogValues.IsVariableName(variable))
-            {
-                _errors.Add($"Environment '{environmentId}': cloudflare.tokenEnv must be the name of an environment variable (e.g. {DefaultTokenVariable}), never the token itself.");
-                return null;
-            }
-
-            return new CloudflareAccount(document.Cloudflare.AccountId.Trim(), variable);
         }
 
         /// <summary>

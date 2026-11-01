@@ -10,13 +10,19 @@ public sealed class CatalogParserConnectorFixture
     {
         private readonly Func<EnvironmentSectionContext, EnvironmentConnectorResult?>? _parse;
 
-        public RecordingConnector(string section, Func<EnvironmentSectionContext, EnvironmentConnectorResult?>? parse = null)
+        public RecordingConnector(string section, Func<EnvironmentSectionContext, EnvironmentConnectorResult?>? parse = null, bool isRuntime = false, bool singleMachine = true)
         {
             Section = section;
             _parse = parse;
+            IsRuntime = isRuntime;
+            SingleMachine = singleMachine;
         }
 
         public string Section { get; }
+
+        public bool IsRuntime { get; }
+
+        public bool SingleMachine { get; }
 
         public List<bool> SingleMachineSeen { get; } = [];
 
@@ -97,10 +103,53 @@ public sealed class CatalogParserConnectorFixture
               - { id: bare, alpha: {} }
               - { id: cluster, kubernetes: { server: "https://10.0.0.20:6443" }, alpha: {} }
               - { id: edge, cloudflare: { accountId: abc123 }, alpha: {} }
-            """, [connector]);
+            """, [connector, new StubEnvironmentConnector("cloudflare", isRuntime: true, singleMachine: false)]);
 
         parsed.Errors.Should().BeEmpty();
         connector.SingleMachineSeen.Should().Equal(true, true, false, false);
+    }
+
+    [Fact]
+    public void should_take_the_runtime_of_an_environment_from_its_runtime_connector()
+    {
+        var parsed = CatalogParser.Parse("environments:\n  - { id: edge, edge: {} }\n  - { id: bare }\n", [new StubEnvironmentConnector("edge", isRuntime: true, singleMachine: false)]);
+
+        parsed.Errors.Should().BeEmpty();
+        parsed.Catalog.Environments.Select(e => e.Runtime).Should().Equal("edge", "none");
+    }
+
+    [Fact]
+    public void should_refuse_two_runtimes_in_one_environment()
+    {
+        var parsed = CatalogParser.Parse("environments:\n  - { id: edge, docker: { url: \"http://10.0.0.10:2375\" }, edge: {} }\n", [new StubEnvironmentConnector("edge", isRuntime: true)]);
+
+        parsed.Errors.Should().ContainSingle().Which.Should().Contain("declare one connector (docker, edge or kubernetes), not several");
+    }
+
+    [Fact]
+    public void should_read_a_declared_runtime_without_its_section_as_an_empty_one_so_it_says_what_it_needs()
+    {
+        var connector = new RecordingConnector("edge", context =>
+        {
+            context.Error("edge.account is required.");
+            return null;
+        }, isRuntime: true);
+
+        var missing = CatalogParser.Parse("environments:\n  - { id: edge, runtime: edge }\n", [connector]);
+        var empty = CatalogParser.Parse("environments:\n  - id: edge\n    runtime: edge\n    edge:\n", [connector]);
+        var undeclared = CatalogParser.Parse("environments:\n  - id: edge\n    edge:\n", [connector]);
+
+        missing.Errors.Should().Equal("Environment 'edge': edge.account is required.");
+        empty.Errors.Should().Equal("Environment 'edge': edge.account is required.");
+        undeclared.Errors.Should().Equal("Environment 'edge': edge.account is required."); // the section is given to its connector even with no value
+    }
+
+    [Fact]
+    public void should_refuse_a_runtime_that_disagrees_with_the_section_declared()
+    {
+        var parsed = CatalogParser.Parse("environments:\n  - { id: edge, runtime: docker, edge: {} }\n", [new StubEnvironmentConnector("edge", isRuntime: true)]);
+
+        parsed.Errors.Should().ContainSingle().Which.Should().Contain("a docker environment cannot declare edge");
     }
 
     [Fact]
