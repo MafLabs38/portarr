@@ -24,6 +24,9 @@ export const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a
 /** A conversation keeps its latest events only: enough to read it back, bounded on disk. */
 export const maxStoredEvents = 2000;
 
+/** ... and in size: a conversation of long answers drops its oldest events beyond this many bytes of JSON. */
+export const maxStoredBytes = 4 * 1024 * 1024;
+
 export class ConversationStore {
   private readonly dir: string;
   private readonly writes = new Map<string, Promise<void>>();
@@ -71,9 +74,14 @@ export class ConversationStore {
     if (conversation.events.length > maxStoredEvents) {
       conversation.events.splice(0, conversation.events.length - maxStoredEvents);
     }
+    let json = JSON.stringify(conversation);
+    while (json.length > maxStoredBytes && conversation.events.length > 1) {
+      conversation.events.splice(0, Math.max(1, Math.ceil(conversation.events.length / 10)));
+      json = JSON.stringify(conversation);
+    }
     const file = join(this.dir, `${conversation.id}.json`);
     const temporary = `${file}.tmp`;
-    await writeFile(temporary, JSON.stringify(conversation), { mode: 0o600 });
+    await writeFile(temporary, json, { mode: 0o600 });
     await rename(temporary, file);
   }
 }

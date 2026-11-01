@@ -69,7 +69,22 @@ export class FakeAdapter implements AgentAdapter {
   }
 }
 
-export async function newManager(maxSessions = 2, portarrMcpKey: string | null = 'k'.repeat(40)) {
+/** Polls until the condition holds (bounded), instead of sleeping for a guessed time. */
+export async function waitFor(condition: () => boolean, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) {
+      throw new Error('Timed out waiting for the condition.');
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+}
+
+export async function newManager(
+  maxSessions = 2,
+  portarrMcpKey: string | null = 'k'.repeat(40),
+  maxConversations?: number,
+) {
   const dataDir = mkdtempSync(join(tmpdir(), 'portarr-agent-test-'));
   const store = new ConversationStore(dataDir);
   await store.init();
@@ -81,6 +96,7 @@ export async function newManager(maxSessions = 2, portarrMcpKey: string | null =
     runDir: dataDir,
     portarrMcpUrl: 'http://portarr.example:8484/mcp',
     portarrMcpKey: portarrMcpKey ?? undefined,
+    maxConversations,
   });
   await manager.init();
   return { manager, adapter, store, dataDir };

@@ -35,9 +35,19 @@ async function main(): Promise<void> {
 
   const store = new ConversationStore(config.dataDir);
   await store.init();
-  const adapters = [new ClaudeCodeAdapter(config.claudeCommand, dirs.claudeConfig, dirs.home)];
+  const adapters = [
+    new ClaudeCodeAdapter(
+      config.claudeCommand,
+      dirs.claudeConfig,
+      dirs.home,
+      process.env,
+      config.models,
+      config.defaultModel,
+    ),
+  ];
   const manager = new SessionManager(adapters, store, {
     maxSessions: config.maxSessions,
+    maxConversations: config.maxConversations,
     idleTimeoutMs: config.idleTimeoutMs,
     workDir: dirs.workDir,
     runDir: dirs.runDir,

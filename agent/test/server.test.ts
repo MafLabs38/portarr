@@ -85,3 +85,45 @@ test('a message may carry the per-user MCP token; a malformed one is refused', a
   assert.equal((await send(`ptc_${'b'.repeat(43)}`)).status, 202);
   await fetch(`${base}/v1/conversations/${id}`, { method: 'DELETE', headers: auth });
 });
+
+test('GET /v1/agents lists the agents, their models and whether they can run', async () => {
+  const response = await fetch(`${base}/v1/agents`, { headers: auth });
+
+  assert.equal(response.status, 200);
+  const agents = (await response.json()) as {
+    id: string;
+    name: string;
+    available: boolean;
+    defaultModel: string;
+    models: { id: string; label: string }[];
+  }[];
+  assert.deepEqual(agents, [
+    {
+      id: 'fake',
+      name: 'Fake CLI',
+      available: true,
+      defaultModel: 'small',
+      models: [
+        { id: 'small', label: 'Small' },
+        { id: 'large', label: 'Large' },
+      ],
+    },
+  ]);
+});
+
+test('a body that is not a JSON object is a 400', async () => {
+  for (const body of ['{not json', '[1,2]', '"text"']) {
+    const response = await fetch(`${base}/v1/conversations`, { method: 'POST', headers: auth, body });
+    assert.equal(response.status, 400, body);
+  }
+});
+
+test('a body beyond the limit is a 413', async () => {
+  const response = await fetch(`${base}/v1/conversations`, {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({ title: 'x'.repeat(200_000) }),
+  });
+
+  assert.equal(response.status, 413);
+});

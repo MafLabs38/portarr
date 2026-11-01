@@ -1,0 +1,21 @@
+# The chat's agent runner (D-87 to D-90): one container behind Portarr's chat panel, beside Portarr.
+# See docs/companions.md#agent-runner. Pin a version; no port is published: only Portarr talks to it.
+services:
+  portarr:
+    environment:
+      PORTARR__AGENT__URL: http://portarr-agent:8488
+      PORTARR__AGENT__SECRET: ${AGENT_SECRET}                  # 32 characters or more: openssl rand -hex 32
+  portarr-agent:
+    image: ghcr.io/<owner>/portarr-agent:<tag>
+    restart: unless-stopped
+    environment:
+      PORTARR_AGENT_SECRET: ${AGENT_SECRET}
+      PORTARR_MCP_URL: http://portarr:8484/mcp
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN}      # claude setup-token, or ANTHROPIC_API_KEY
+      # PORTARR_AGENT_MODELS: sonnet,opus:Opus                 # models offered (id or id:Label); default sonnet,opus,haiku
+      # PORTARR_AGENT_DEFAULT_MODEL: sonnet
+      # PORTARR_AGENT_MAX_CONVERSATIONS: 200                   # kept on disk; the oldest idle one makes room
+    volumes:
+      - agent-data:/data
+volumes:
+  agent-data:

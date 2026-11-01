@@ -292,10 +292,11 @@ Until they are granted, the sources answer `http-403`: the copies they should pr
 
 ### Install
 
-Requirements: Portarr's MCP server on with its write tools and catalog edits (`PORTARR__MCP__ENABLED`, `PORTARR__MCP__APIKEY`, `PORTARR__MCP__WRITETOOLS`, `PORTARR__CATALOG__WRITABLE`), and a Claude credential.
+Requirements: Portarr's MCP server on with its write tools and catalog edits (`PORTARR__MCP__ENABLED`, `PORTARR__MCP__WRITETOOLS`, `PORTARR__CATALOG__WRITABLE`; the chat uses a token Portarr mints for each message, so no shared MCP key is needed), and a Claude credential. The chat panel says when one of the three is missing.
+
+The image is published with Portarr's: `ghcr.io/<owner>/portarr-agent:<tag>`. A compose example is in [`deploy/companions/portarr-agent/`](../deploy/companions/portarr-agent/docker-compose.yml). To build it yourself: `docker build -t portarr-agent agent/`.
 
 ```bash
-docker build -t portarr-agent agent/
 openssl rand -hex 32   # the shared secret, set on both sides
 ```
 
@@ -306,7 +307,7 @@ services:
       PORTARR__AGENT__URL: http://portarr-agent:8488
       PORTARR__AGENT__SECRET: ${AGENT_SECRET}
   portarr-agent:
-    image: portarr-agent
+    image: ghcr.io/<owner>/portarr-agent:<tag>
     environment:
       PORTARR_AGENT_SECRET: ${AGENT_SECRET}
       PORTARR_MCP_URL: http://portarr:8484/mcp
@@ -326,6 +327,8 @@ volumes:
 | `CLAUDE_CODE_OAUTH_TOKEN` / `ANTHROPIC_API_KEY` | — | A subscription token (`claude setup-token`) or an API key; without one the agent is listed as unavailable |
 | `PORTARR_AGENT_PORT`, `PORTARR_AGENT_HOST` | `8488`, `0.0.0.0` | Listening address |
 | `PORTARR_AGENT_DATA` | `/data` | Conversations (`conversations/*.json`), the CLI's state, its empty working directory |
+| `PORTARR_AGENT_MAX_CONVERSATIONS` | `200` | Conversations kept on disk; the oldest idle one is deleted to make room (429 when every one is running). A conversation also keeps at most 2000 events and 4 MiB |
+| `PORTARR_AGENT_MODELS`, `PORTARR_AGENT_DEFAULT_MODEL` | `sonnet,opus,haiku`, `sonnet` | The models offered, `id` or `id:Label` separated by commas, and the one used when none is chosen |
 | `PORTARR_AGENT_MAX_SESSIONS` | `3` | CLI processes at once; the least recently used idle one makes room |
 | `PORTARR_AGENT_IDLE_MINUTES` | `15` | An idle conversation's process stops; the next message resumes it |
 | `CLAUDE_BIN` | `claude` | The Claude Code executable |

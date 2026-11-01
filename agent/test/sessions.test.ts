@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import type { ChatEventEnvelope } from '../src/events.ts';
 import { classify } from '../src/policy.ts';
 import { ChatError } from '../src/sessions.ts';
-import { newManager } from './fakes.ts';
+import { newManager, waitFor } from './fakes.ts';
 
 test('classify: Portarr reads run, Portarr writes ask, anything else is forbidden', () => {
   assert.equal(classify('mcp__portarr__get_overview'), 'read');
@@ -118,8 +118,12 @@ test('stored events leave out live-only ones; a reopened conversation resumes th
   assert.equal(adapter.processes.length, 2);
   assert.equal(adapter.last.options.resume, process.options.sessionId);
 
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  const file = JSON.parse(readFileSync(`${dataDir}/conversations/${id}.json`, 'utf8'));
+  // The save is asynchronous: wait for the file to hold the resumed session, not for a guessed time.
+  const path = `${dataDir}/conversations/${id}.json`;
+  await waitFor(
+    () => existsSync(path) && JSON.parse(readFileSync(path, 'utf8')).agentSessionId === process.options.sessionId,
+  );
+  const file = JSON.parse(readFileSync(path, 'utf8'));
   assert.equal(file.agentSessionId, process.options.sessionId);
   assert.ok(!file.events.some((event: { type: string }) => event.type === 'text-delta' || event.type === 'status'));
 });
@@ -181,4 +185,26 @@ test('a message with neither a token nor a shared key is refused instead of reac
     () => manager.send(conversation.id, 'hello'),
     (error: ChatError) => error.status === 400,
   );
+});
+
+test('at the conversation cap the oldest idle conversation makes room for a new one', async () => {
+  const { manager } = await newManager(2, null, 2);
+  const first = await manager.create(undefined, undefined, 'first');
+  await new Promise((resolve) => setImmediate(resolve));
+  const second = await manager.create(undefined, undefined, 'second');
+
+  const third = await manager.create(undefined, undefined, 'third');
+
+  const ids = manager.list().map((conversation) => conversation.id);
+  assert.equal(ids.length, 2);
+  assert.ok(!ids.includes(first.id), 'the oldest went');
+  assert.ok(ids.includes(second.id) && ids.includes(third.id));
+});
+
+test('when every conversation at the cap is running, a new one waits', async () => {
+  const { manager } = await newManager(2, null, 1);
+  const only = await manager.create(undefined, undefined, undefined);
+  manager.send(only.id, 'hello', undefined, `ptc_${'a'.repeat(43)}`);
+
+  await assert.rejects(manager.create(undefined, undefined, undefined), (error: ChatError) => error.status === 429);
 });
