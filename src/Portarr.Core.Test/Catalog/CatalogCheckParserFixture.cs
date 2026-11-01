@@ -85,6 +85,25 @@ public sealed class CatalogCheckParserFixture
     }
 
     [Fact]
+    public void should_read_the_type_of_a_check_and_default_it_to_http()
+    {
+        var typed = Parse("apps: [{ id: web, check: { type: http, url: \"https://web.homelab.example/health\" } }]").Apps[0].Check!;
+        var plain = Parse("apps: [{ id: web, check: { url: \"https://web.homelab.example/health\" } }]").Apps[0].Check!;
+
+        typed.Type.Should().Be("http");
+        plain.Type.Should().Be("http");
+        typed.Should().Be(plain);
+    }
+
+    [Fact]
+    public void should_refuse_a_check_type_nobody_runs()
+    {
+        var result = TestCatalog.Parse("apps: [{ id: web, check: { type: ping, url: \"https://web.homelab.example/\" } }]");
+
+        result.Errors.Should().ContainSingle().Which.Should().Contain("check.type must be http");
+    }
+
+    [Fact]
     public void should_name_the_runtimes_that_are_known_when_one_is_not()
     {
         var result = TestCatalog.Parse("environments:\n  - id: cdn\n    runtime: nomad\n");

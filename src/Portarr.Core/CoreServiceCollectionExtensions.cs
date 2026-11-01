@@ -68,7 +68,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IMaintenanceService, MaintenanceService>();
 
         services.AddSingleton<ICheckStore, CheckStore>();
-        services.AddSingleton<IHttpCheckRunner, HttpCheckRunner>();
+        services.AddSingleton<ICheckRunner, HttpCheckRunner>();
         services.AddHostedService<CheckScheduler>();
 
         // Timeouts are per check (catalog), not per client.

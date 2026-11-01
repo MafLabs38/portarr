@@ -531,7 +531,7 @@ public static partial class CatalogParser
         {
             if (document?.InvalidScalar is not null)
             {
-                _errors.Add($"App '{appId}': check must be false, true or a mapping (url, expect, keyword, interval, timeout, critical).");
+                _errors.Add($"App '{appId}': check must be false, true or a mapping (type, url, expect, keyword, interval, timeout, critical).");
                 return null;
             }
 
@@ -551,6 +551,11 @@ public static partial class CatalogParser
         private CheckDefinition? BuildCheckBody(string appId, CheckBodyDocument body)
         {
             var errors = _errors.Count;
+
+            if (body.Type is not null && !CheckTypes.All.Contains(body.Type))
+            {
+                _errors.Add($"App '{appId}': check.type must be {string.Join(" or ", CheckTypes.All)}.");
+            }
 
             Uri? url = null;
             if (body.Url is not null && (!Uri.TryCreate(body.Url, UriKind.Absolute, out url) || url.Scheme is not (HttpScheme or HttpsScheme) || url.UserInfo.Length > 0))
@@ -582,7 +587,7 @@ public static partial class CatalogParser
                 _errors.Add($"App '{appId}': check.keyword must not be empty.");
             }
 
-            return _errors.Count > errors ? null : new CheckDefinition(url, expect, body.Keyword, interval, timeout, body.Critical ?? true);
+            return _errors.Count > errors ? null : new CheckDefinition(url, expect, body.Keyword, interval, timeout, body.Critical ?? true, body.Type ?? CheckTypes.Http);
         }
 
         private TimeSpan ParseDuration(string appId, string key, string? value, TimeSpan fallback)

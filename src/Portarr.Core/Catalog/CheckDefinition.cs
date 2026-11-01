@@ -11,7 +11,8 @@ public sealed record CheckDefinition(
     string? Keyword,
     TimeSpan Interval,
     TimeSpan Timeout,
-    bool Critical)
+    bool Critical,
+    string Type = CheckTypes.Http)
 {
     public static readonly TimeSpan DefaultInterval = TimeSpan.FromSeconds(60);
 
@@ -34,10 +35,19 @@ public sealed record CheckDefinition(
             && Keyword == other.Keyword
             && Interval == other.Interval
             && Timeout == other.Timeout
-            && Critical == other.Critical;
+            && Critical == other.Critical
+            && Type == other.Type;
     }
 
-    public override int GetHashCode() => HashCode.Combine(Url, Expect.Count, Keyword, Interval, Timeout, Critical);
+    public override int GetHashCode() => HashCode.Combine(Url, Expect.Count, Keyword, Interval, Timeout, Critical, Type);
+}
+
+/// <summary>The kinds of check an app can have (D-50): each has its runner (<c>ICheckRunner</c>); <c>http</c> is the only one today.</summary>
+public static class CheckTypes
+{
+    public const string Http = "http";
+
+    public static IReadOnlyList<string> All { get; } = [Http];
 }
 
 /// <summary>An inclusive range of HTTP status codes; a single code is a range of one.</summary>

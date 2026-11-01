@@ -327,6 +327,9 @@ internal sealed class CheckDocument
 
 internal sealed class CheckBodyDocument
 {
+    /// <summary>The kind of check (default <c>http</c>).</summary>
+    public string? Type { get; set; }
+
     public string? Url { get; set; }
 
     /// <summary>Status codes (<c>200</c>) or ranges (<c>200-299</c>).</summary>
