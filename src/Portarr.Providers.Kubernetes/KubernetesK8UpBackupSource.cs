@@ -33,7 +33,7 @@ public sealed class KubernetesK8UpBackupSource : IBackupSource
         return environment.Kubernetes() is not null;
     }
 
-    public async Task<IReadOnlyList<BackupJob>> ListJobsAsync(CatalogEnvironment environment, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<BackupJob>> ListJobsAsync(CatalogEnvironment environment, IReadOnlyCollection<string> references, CancellationToken cancellationToken)
     {
         var cluster = environment.Kubernetes()!;
         if (_client.GetConfigurationError(cluster) is { } error)
@@ -41,23 +41,30 @@ public sealed class KubernetesK8UpBackupSource : IBackupSource
             throw new BackupSourceUnavailableException(error, notSetUp: true);
         }
 
-        // A 404 is a cluster without the K8up CRDs: nothing to read, not an error.
-        var schedules = await _client.ListAsync(cluster, "apis/k8up.io/v1/schedules", KubernetesJsonContext.Default.ObjectListK8UpSchedule, cancellationToken) ?? [];
-        if (schedules.Count == 0)
+        // The references name their namespace (namespace/name): read those namespaces, not the whole cluster.
+        var result = new List<BackupJob>();
+        foreach (var scope in KubernetesScopes.Of(references))
         {
-            return [];
+            // A 404 is a cluster without the K8up CRDs: nothing to read, not an error.
+            var schedules = await _client.ListAsync(cluster, KubernetesScopes.Path(scope, "apis/k8up.io/v1", "schedules"), KubernetesJsonContext.Default.ObjectListK8UpSchedule, cancellationToken) ?? [];
+            if (schedules.Count == 0)
+            {
+                continue;
+            }
+
+            var backups = await _client.ListAsync(cluster, KubernetesScopes.Path(scope, "apis/k8up.io/v1", "backups"), KubernetesJsonContext.Default.ObjectListK8UpBackup, cancellationToken) ?? [];
+            var snapshots = await ReadSnapshotsAsync(cluster, scope, cancellationToken);
+            result.AddRange(schedules.Select(schedule => ToJob(schedule, backups, snapshots)));
         }
 
-        var backups = await _client.ListAsync(cluster, "apis/k8up.io/v1/backups", KubernetesJsonContext.Default.ObjectListK8UpBackup, cancellationToken) ?? [];
-        var snapshots = await ReadSnapshotsAsync(cluster, cancellationToken);
-        return schedules.Select(schedule => ToJob(schedule, backups, snapshots)).ToList();
+        return result;
     }
 
-    private async Task<IReadOnlyList<K8UpSnapshot>> ReadSnapshotsAsync(KubernetesCluster cluster, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<K8UpSnapshot>> ReadSnapshotsAsync(KubernetesCluster cluster, string? scope, CancellationToken cancellationToken)
     {
         try
         {
-            return await _client.ListAsync(cluster, "apis/k8up.io/v1/snapshots", KubernetesJsonContext.Default.ObjectListK8UpSnapshot, cancellationToken) ?? [];
+            return await _client.ListAsync(cluster, KubernetesScopes.Path(scope, "apis/k8up.io/v1", "snapshots"), KubernetesJsonContext.Default.ObjectListK8UpSnapshot, cancellationToken) ?? [];
         }
         catch (HttpRequestException exception) when (exception.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.Unauthorized)
         {

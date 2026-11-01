@@ -6,7 +6,7 @@ namespace Portarr.Providers.Backrest;
 /// A Backrest instance (D-80). The credentials are read from the environment variables the catalog names, never
 /// written in it; a Backrest without authentication needs neither.
 /// </summary>
-public sealed record BackrestEndpoint(Uri Url, string? UserVariable, string? PasswordVariable);
+public sealed record BackrestEndpoint(Uri Url, string? UserVariable, string? PasswordVariable, bool AllowInsecure = false);
 
 /// <summary>The <c>backrest:</c> section of an environment (D-80); the credentials are variable names.</summary>
 internal sealed class BackrestDocument
@@ -16,6 +16,9 @@ internal sealed class BackrestDocument
     public string? UserEnv { get; set; }
 
     public string? PasswordEnv { get; set; }
+
+    /// <summary>Accepts http with credentials: Backrest's admin login then travels in clear (no read-only role exists).</summary>
+    public bool? AllowInsecure { get; set; }
 }
 
 /// <summary>
@@ -55,7 +58,17 @@ public sealed class BackrestEnvironmentConnector : IEnvironmentConnector
             return null;
         }
 
-        return new EnvironmentConnectorResult(new BackrestEndpoint(url, user, password));
+        // Backrest has no read-only role: its login is an admin's, and it is sent every minute. In clear only if the operator says so.
+        var insecure = document.AllowInsecure == true;
+        if (user is not null && url.Scheme != Uri.UriSchemeHttps && !insecure)
+        {
+            context.Error("backrest.url must be https when userEnv and passwordEnv are set: Backrest's login is an administrator's and would travel in clear. Put Backrest behind TLS, or add allowInsecure: true to accept it on a network you trust.");
+            return null;
+        }
+
+        // The requests are built from this address: without a trailing slash the last segment of a path prefix would be dropped and the credentials sent to another app.
+        var normalized = new UriBuilder(url) { Path = url.AbsolutePath.TrimEnd('/') + "/" }.Uri;
+        return new EnvironmentConnectorResult(new BackrestEndpoint(normalized, user, password, insecure));
     }
 }
 

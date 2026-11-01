@@ -203,9 +203,10 @@ environments:
   - id: server-1
     docker: { url: "http://10.0.0.10:2375" }
     backrest:                              # the Backrest of this machine (optional, one per Docker or launcher-only environment)
-      url: "http://10.0.0.10:9898"         # no credentials in the URL
+      url: "https://backrest.homelab.example"   # no credentials in the URL; https when userEnv is set (its login is an admin's)
       userEnv: BACKREST_USER               # names of environment variables, never the credentials; both or neither
       passwordEnv: BACKREST_PASSWORD
+      # allowInsecure: true                # accept http with a login, on a network you trust (the login travels in clear)
 
 data:
   - id: shop-db                            # required, unique

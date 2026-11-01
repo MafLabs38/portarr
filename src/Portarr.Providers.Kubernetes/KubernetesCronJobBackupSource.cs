@@ -26,7 +26,7 @@ public sealed class KubernetesCronJobBackupSource : IBackupSource
         return environment.Kubernetes() is not null;
     }
 
-    public async Task<IReadOnlyList<BackupJob>> ListJobsAsync(CatalogEnvironment environment, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<BackupJob>> ListJobsAsync(CatalogEnvironment environment, IReadOnlyCollection<string> references, CancellationToken cancellationToken)
     {
         var cluster = environment.Kubernetes()!;
         if (_client.GetConfigurationError(cluster) is { } error)
@@ -34,17 +34,25 @@ public sealed class KubernetesCronJobBackupSource : IBackupSource
             throw new BackupSourceUnavailableException(error, notSetUp: true);
         }
 
-        var cronJobs = await _client.ListAsync(cluster, "apis/batch/v1/cronjobs", KubernetesJsonContext.Default.ObjectListCronJob, cancellationToken) ?? [];
-        var jobs = await ReadJobsAsync(cluster, cancellationToken);
-        return cronJobs.Select(cronJob => ToJob(cronJob, jobs)).ToList();
+        // The references name their namespace (namespace/name): read those namespaces, not the whole cluster, so the
+        // ServiceAccount can be a Role per namespace and no pod template of another namespace is ever listed.
+        var result = new List<BackupJob>();
+        foreach (var scope in KubernetesScopes.Of(references))
+        {
+            var cronJobs = await _client.ListAsync(cluster, KubernetesScopes.Path(scope, "apis/batch/v1", "cronjobs"), KubernetesJsonContext.Default.ObjectListCronJob, cancellationToken) ?? [];
+            var jobs = await ReadJobsAsync(cluster, scope, cancellationToken);
+            result.AddRange(cronJobs.Select(cronJob => ToJob(cronJob, jobs)));
+        }
+
+        return result;
     }
 
     /// <summary>Optional: without the Jobs, a failure after the last success cannot be seen.</summary>
-    private async Task<IReadOnlyList<BatchJob>> ReadJobsAsync(KubernetesCluster cluster, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<BatchJob>> ReadJobsAsync(KubernetesCluster cluster, string? scope, CancellationToken cancellationToken)
     {
         try
         {
-            return await _client.ListAsync(cluster, "apis/batch/v1/jobs", KubernetesJsonContext.Default.ObjectListBatchJob, cancellationToken) ?? [];
+            return await _client.ListAsync(cluster, KubernetesScopes.Path(scope, "apis/batch/v1", "jobs"), KubernetesJsonContext.Default.ObjectListBatchJob, cancellationToken) ?? [];
         }
         catch (HttpRequestException exception) when (exception.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.Unauthorized)
         {

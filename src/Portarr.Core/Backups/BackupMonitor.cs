@@ -63,12 +63,12 @@ public sealed partial class BackupMonitor : BackgroundService, IBackupMonitor
         var environments = catalog.Environments.ToDictionary(e => e.Id, StringComparer.Ordinal);
         var wanted = catalog.DataAssets
             .SelectMany(asset => asset.Targets.SelectMany(target => target.Sources))
-            .Select(source => (source.Kind, source.EnvironmentId))
-            .Distinct()
+            .GroupBy(source => (source.Kind, source.EnvironmentId))
+            .Select(group => (group.Key.Kind, group.Key.EnvironmentId, References: (IReadOnlyCollection<string>)group.Select(s => s.Reference).Distinct(StringComparer.Ordinal).ToList()))
             .ToList();
 
         var readings = await Task.WhenAll(wanted.Select(w => environments.TryGetValue(w.EnvironmentId, out var environment)
-            ? ReadAsync(w.Kind, environment, cancellationToken)
+            ? ReadAsync(w.Kind, environment, w.References, cancellationToken)
             : Task.FromResult(new SourceReading(w.Kind, w.EnvironmentId, [], NoConnector, _timeProvider.GetUtcNow(), NotSetUp: true))));
         _current = new BackupMonitorState(readings.ToDictionary(r => r.Key, StringComparer.Ordinal));
     }
@@ -90,7 +90,7 @@ public sealed partial class BackupMonitor : BackgroundService, IBackupMonitor
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
-    private async Task<SourceReading> ReadAsync(string kind, CatalogEnvironment environment, CancellationToken cancellationToken)
+    private async Task<SourceReading> ReadAsync(string kind, CatalogEnvironment environment, IReadOnlyCollection<string> references, CancellationToken cancellationToken)
     {
         var now = _timeProvider.GetUtcNow();
         var source = _sources.FirstOrDefault(s => s.Kind == kind && s.Supports(environment));
@@ -101,7 +101,7 @@ public sealed partial class BackupMonitor : BackgroundService, IBackupMonitor
 
         try
         {
-            return new SourceReading(kind, environment.Id, await source.ListJobsAsync(environment, cancellationToken), null, now);
+            return new SourceReading(kind, environment.Id, await source.ListJobsAsync(environment, references, cancellationToken), null, now);
         }
         catch (BackupSourceUnavailableException unavailable)
         {

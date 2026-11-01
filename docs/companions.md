@@ -178,14 +178,14 @@ The catalog declares the instance on the environment that runs it:
 environments:
   - id: server-1
     docker: { url: "http://10.0.0.10:2375" }
-    backrest: { url: "http://10.0.0.10:9898", userEnv: BACKREST_USER, passwordEnv: BACKREST_PASSWORD }
+    backrest: { url: "https://backrest.homelab.example", userEnv: BACKREST_USER, passwordEnv: BACKREST_PASSWORD }
 ```
 
 Backrest speaks the [Connect protocol](https://connectrpc.com): every call is a `POST` of JSON to `/v1.Backrest/<Method>`. Portarr calls exactly two methods, **`GetConfig`** (plan ids, their repository id and schedule) and **`GetOperations`** (the last 200 operations of one plan), and never a method that starts, forgets, restores, changes the configuration or cancels. A backup operation is a success or a warning (a snapshot was made), or an error; pending, running, cancelled and dry-run operations are not attempts. Details: [verticals/V3-data-backups.md](verticals/V3-data-backups.md#connectors-d-80-d-81-d-62).
 
 ### Read-only credentials
 
-**Backrest has no read-only role**: it has users with a password (basic authentication), all with full access to its API. Create a dedicated user for Portarr (so its calls can be told apart and revoked), put the user and password in two environment variables of Portarr's process (`userEnv`, `passwordEnv` name them; the values never go in the catalog), and **restrict the network**: Backrest listens on the LAN address, and only Portarr's host may reach port 9898, for example with `ufw allow from 10.0.0.5 to any port 9898 proto tcp`. Backrest's answer to `GetConfig` contains the repository passwords and hook tokens: Portarr's connector keeps plan ids, repository ids and schedules, and nothing else. A Backrest without authentication (a trusted network only) takes `backrest: { url }` with no variables.
+**Backrest has no read-only role**: it has users with a password (basic authentication), all with full access to its API. Create a dedicated user for Portarr (so its calls can be told apart and revoked), put the user and password in two environment variables of Portarr's process (`userEnv`, `passwordEnv` name them; the values never go in the catalog), **serve Backrest over https** (a reverse proxy in front of it is enough): its login is an administrator's and Portarr sends it every minute, so with `userEnv`/`passwordEnv` set the catalog refuses an `http://` address unless you add `allowInsecure: true`, which accepts the login travelling in clear on a network you trust; and **restrict the network**: Backrest listens on the LAN address, and only Portarr's host may reach port 9898, for example with `ufw allow from 10.0.0.5 to any port 9898 proto tcp`. Backrest's answer to `GetConfig` contains the repository passwords and hook tokens: Portarr's connector keeps plan ids, repository ids and schedules, and nothing else. A Backrest without authentication (a trusted network only) takes `backrest: { url }` with no variables.
 
 ### Verification
 
@@ -259,13 +259,12 @@ A Schedule's Backups are those it owns (`ownerReferences`); its Snapshots are th
 
 ### Read-only credentials
 
-`get` and `list`, no write verb, no Secrets ([`portarr-reader.yaml`](../deploy/companions/k8up/portarr-reader.yaml)):
+`get` and `list`, no write verb, no Secrets, no volumes ([`portarr-reader.yaml`](../deploy/companions/k8up/portarr-reader.yaml)). Portarr reads **only the namespaces your catalog's references name** (`shop/dump` reads `shop`), so these rules can be a namespaced `Role` and `RoleBinding` in each of those namespaces rather than a `ClusterRole`; a cluster-wide grant lets whoever holds the token list the pod templates, and their env values, of every namespace:
 
 ```yaml
 rules:
   - { apiGroups: [k8up.io], resources: [schedules, backups, snapshots], verbs: [get, list] }
   - { apiGroups: [batch], resources: [cronjobs, jobs], verbs: [get, list] }
-  - { apiGroups: [""], resources: [persistentvolumeclaims], verbs: [get, list] }
 ```
 
 Until they are granted, the sources answer `http-403`: the copies they should prove show **Unknown** ("access refused (missing permission)"), not failed. A cluster without the K8up CRDs answers 404: no job, the copy is **Missing**.
