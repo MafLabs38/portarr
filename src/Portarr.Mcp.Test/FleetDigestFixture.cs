@@ -165,6 +165,10 @@ public sealed class FleetDigestFixture
         var overview = new FleetBuilder
         {
             CatalogText = FleetBuilder.Catalog.Replace("offsite: {}", "offsite: { backrest: { plan: sonarr-offsite } }", StringComparison.Ordinal).Replace("importance: critical", "importance: important", StringComparison.Ordinal),
+            Backups = new BackupMonitorState(new Dictionary<string, SourceReading>
+            {
+                ["backrest@vm-1"] = new("backrest", "vm-1", [], "no-connector", FleetBuilder.Now, NotSetUp: true),
+            }),
         }.Digest.GetOverview();
 
         overview.NeedsAttention.Should().ContainSingle(f => f.Kind == "backup-tool-not-set-up").Which.Level.Should().Be("warning");

@@ -1,0 +1,2 @@
+# A deliberate fake secret in a test input (a failure text that "may hold a secret"), kept in the history by one commit; the file no longer holds it.
+9b2be43aed5904690620145d292f0ea67a0627b4:src/Portarr.Core.Test/Backups/BackupMonitorFixture.cs:generic-api-key:130
