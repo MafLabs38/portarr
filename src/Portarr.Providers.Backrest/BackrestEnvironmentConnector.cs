@@ -37,13 +37,13 @@ public sealed class BackrestEnvironmentConnector : IEnvironmentConnector
 
         if (!context.SingleMachine)
         {
-            context.Error($"Environment '{context.EnvironmentId}': backrest runs on a docker host (or an environment without connector), not on a kubernetes or cloudflare environment.");
+            context.Error($"backrest runs on a docker host (or an environment without connector), not on a kubernetes or cloudflare environment.");
             return null;
         }
 
         if (CatalogValues.HttpUrl(document.Url) is not { } url)
         {
-            context.Error($"Environment '{context.EnvironmentId}': backrest.url must be Backrest's address (e.g. http://10.0.0.10:9898), without credentials.");
+            context.Error($"backrest.url must be Backrest's address (e.g. http://10.0.0.10:9898), without credentials.");
             return null;
         }
 
@@ -51,7 +51,7 @@ public sealed class BackrestEnvironmentConnector : IEnvironmentConnector
         var password = CatalogValues.Blank(document.PasswordEnv);
         if ((user is null) != (password is null) || (user is not null && !CatalogValues.IsVariableName(user)) || (password is not null && !CatalogValues.IsVariableName(password)))
         {
-            context.Error($"Environment '{context.EnvironmentId}': backrest.userEnv and passwordEnv must both name an environment variable (never the credentials themselves), or both be omitted when Backrest has no authentication.");
+            context.Error($"backrest.userEnv and passwordEnv must both name an environment variable (never the credentials themselves), or both be omitted when Backrest has no authentication.");
             return null;
         }
 

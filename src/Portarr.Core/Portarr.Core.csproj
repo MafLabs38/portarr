@@ -18,5 +18,6 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Portarr.Core.Test" />
+    <InternalsVisibleTo Include="Portarr.Mcp.Test" />
   </ItemGroup>
 </Project>

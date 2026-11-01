@@ -31,12 +31,11 @@ public sealed class EnvironmentSectionContext
     private readonly IDeserializer _deserializer;
     private readonly Action<string> _addError;
 
-    internal EnvironmentSectionContext(string environmentId, string section, bool singleMachine, IReadOnlySet<string> sections, IReadOnlyList<ParsingEvent> events, IDeserializer deserializer, Action<string> addError)
+    internal EnvironmentSectionContext(string environmentId, string section, bool singleMachine, IReadOnlyList<ParsingEvent> events, IDeserializer deserializer, Action<string> addError)
     {
         EnvironmentId = environmentId;
         Section = section;
         SingleMachine = singleMachine;
-        Sections = sections;
         _events = events;
         _deserializer = deserializer;
         _addError = addError;
@@ -53,9 +52,6 @@ public sealed class EnvironmentSectionContext
     /// </summary>
     public bool SingleMachine { get; }
 
-    /// <summary>Every connector section this environment declares.</summary>
-    public IReadOnlySet<string> Sections { get; }
-
     /// <summary>The section as a document of the connector's own type, read strictly: an unknown key is an error naming its line.</summary>
     public T? Read<T>()
         where T : class
@@ -66,15 +62,15 @@ public sealed class EnvironmentSectionContext
         }
         catch (YamlException exception)
         {
-            Error($"Invalid YAML at line {exception.Start.Line}: {Innermost(exception).Message}");
+            Error($"{Section}: Invalid YAML at line {exception.Start.Line}: {Innermost(exception).Message}");
             return null;
         }
     }
 
-    /// <summary>Adds an error: <c>Environment 'id': …</c> is the connector's to write, as it names the key it means.</summary>
+    /// <summary>Adds an error, prefixed with the environment it concerns: the connector's message names the key it means.</summary>
     public void Error(string message)
     {
-        _addError(message);
+        _addError($"Environment '{EnvironmentId}': {message}");
     }
 
     private static Exception Innermost(Exception exception)

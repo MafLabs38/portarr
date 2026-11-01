@@ -67,7 +67,12 @@ public sealed record CatalogEnvironment(
     public T? Settings<T>(string section)
         where T : class
     {
-        return Connectors is not null && Connectors.TryGetValue(section, out var settings) ? settings as T : null;
+        if (Connectors is null || !Connectors.TryGetValue(section, out var settings))
+        {
+            return null;
+        }
+
+        return settings as T ?? throw new InvalidOperationException($"The settings of '{section}' in environment '{Id}' are a {settings.GetType().Name}, not a {typeof(T).Name}.");
     }
 
     /// <summary>

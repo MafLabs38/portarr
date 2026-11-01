@@ -16,14 +16,14 @@ public abstract class EnvironmentConnectorContract
     /// <summary>A valid value of the section, as a YAML flow mapping: <c>{ url: "http://10.0.0.10:9898" }</c>.</summary>
     protected abstract string ValidSection { get; }
 
-    /// <summary>The section with credentials in its URL, or null when the section has no URL.</summary>
-    protected virtual string? SectionWithCredentialsInUrl => null;
+    /// <summary>The section with credentials in its URL, or null (said on purpose) when the section has no URL.</summary>
+    protected abstract string? SectionWithCredentialsInUrl { get; }
 
-    /// <summary>The section with a literal secret where a variable name is expected, or null when it has no such key.</summary>
-    protected virtual string? SectionWithLiteralSecret => null;
+    /// <summary>The section with a literal secret where a variable name is expected, or null (said on purpose) when it has no such key.</summary>
+    protected abstract string? SectionWithLiteralSecret { get; }
 
-    /// <summary>The section with a secret variable outside the <c>PORTARR_READER_</c> namespace, or null when it names none.</summary>
-    protected virtual string? SectionWithSecretOutsideNamespace => null;
+    /// <summary>The section with a secret variable outside the <c>PORTARR_READER_</c> namespace, or null (said on purpose) when it names none.</summary>
+    protected abstract string? SectionWithSecretOutsideNamespace { get; }
 
     /// <summary>
     /// True for a connector that does not confine its secret variables yet (issue #45): the section above is then accepted, and
@@ -45,15 +45,16 @@ public abstract class EnvironmentConnectorContract
     {
         var result = Parse(ValidSection.TrimEnd().TrimEnd('}').TrimEnd() + ", unexpectedKey: 1 }");
 
-        result.Errors.Should().ContainSingle().Which.Should().StartWith("Invalid YAML at line 3").And.Contain("unexpectedKey");
+        result.Errors.Should().ContainSingle().Which.Should().StartWith($"Environment 'server-1': {Connector.Section}: Invalid YAML at line 3").And.Contain("unexpectedKey");
     }
 
     [Fact]
-    public void should_not_fail_on_an_empty_section()
+    public void should_leave_an_empty_section_undeclared_without_an_error()
     {
-        var read = () => CatalogParser.Parse($"environments:\n  - id: server-1\n    {Connector.Section}:\n", [Connector]);
+        var result = CatalogParser.Parse($"environments:\n  - id: server-1\n    {Connector.Section}:\n", [Connector]);
 
-        read.Should().NotThrow();
+        result.Errors.Should().BeEmpty();
+        result.Catalog.Environments.Single().Declares(Connector.Section).Should().BeFalse();
     }
 
     [Fact]

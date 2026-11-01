@@ -30,11 +30,15 @@ internal sealed class EnvironmentDocumentConverter : IYamlTypeConverter
         MappingEnd end;
         while (!parser.TryConsume(out end!))
         {
-            var key = parser.Consume<Scalar>();
+            var key = parser.Current as Scalar ?? throw new YamlException(parser.Current?.Start ?? Mark.Empty, parser.Current?.End ?? Mark.Empty, "An environment key must be a plain word.");
+            parser.MoveNext();
             var value = ReadNode(parser);
             if (_sections.Contains(key.Value))
             {
-                sections[key.Value] = value;
+                if (!sections.TryAdd(key.Value, value))
+                {
+                    throw new YamlException(key.Start, key.End, $"Key '{key.Value}' is declared twice.");
+                }
             }
             else
             {
@@ -99,6 +103,7 @@ internal sealed class EventReplayParser : IParser
 /// <summary>The catalog's deserializers: one per set of connector sections, built once.</summary>
 internal static class CatalogDeserializers
 {
+    // One entry per set of sections; the set is fixed by the connectors registered at startup, so the cache stays small.
     private static readonly ConcurrentDictionary<string, (IDeserializer Full, IDeserializer Plain)> Cache = new(StringComparer.Ordinal);
 
     /// <summary>

@@ -79,7 +79,7 @@ public static partial class CatalogParser
 
                 if (!RejectSecret(owner, $"{key}.consoles", console.Href))
                 {
-                    consoles.Add(new AccessConsole(Blank(console.Label) ?? href.Host, href));
+                    consoles.Add(new AccessConsole(CatalogValues.Blank(console.Label) ?? href.Host, href));
                 }
             }
 
@@ -124,7 +124,7 @@ public static partial class CatalogParser
                 return null;
             }
 
-            return new SshAccess(Blank(document.Host), document.Port, Blank(document.User), Blank(document.Key), Blank(document.Jump), Blank(document.Alias));
+            return new SshAccess(CatalogValues.Blank(document.Host), document.Port, CatalogValues.Blank(document.User), CatalogValues.Blank(document.Key), CatalogValues.Blank(document.Jump), CatalogValues.Blank(document.Alias));
         }
 
         private bool Check(string? value, Regex pattern, string owner, string key, string expected)
@@ -194,13 +194,13 @@ public static partial class CatalogParser
                     _errors.Add($"{owner}: kind must be one of {string.Join(", ", LinkKinds.All)}.");
                 }
 
-                var network = Blank(document.Network);
+                var network = CatalogValues.Blank(document.Network);
                 if (network is not null && !IPNetwork.TryParse(network, out _))
                 {
                     _errors.Add($"{owner}: network must be an address range in CIDR notation (e.g. 10.0.0.0/24).");
                 }
 
-                var name = Blank(document.Name);
+                var name = CatalogValues.Blank(document.Name);
                 RejectSecret(owner, "name", name);
                 result.Add(new CatalogLink(id, from ?? string.Empty, to ?? string.Empty, kind ?? string.Empty, name, network, BuildNotes(owner, document.Notes)));
             }
@@ -231,7 +231,7 @@ public static partial class CatalogParser
 
         private string? ResolveEnd(string owner, string key, string? value, List<CatalogEnvironment> environments, Dictionary<string, List<string>> machines)
         {
-            var reference = Blank(value);
+            var reference = CatalogValues.Blank(value);
             if (reference is null)
             {
                 _errors.Add($"{owner}: {key} is required: an environment id, a machine name or environment/machine.");
@@ -304,7 +304,7 @@ public static partial class CatalogParser
                     _errors.Add($"{owner}: usedBy '{user}' is neither an app nor an environment of the catalog.");
                 }
 
-                var account = Blank(document.Account);
+                var account = CatalogValues.Blank(document.Account);
                 if (account is { Length: > 200 })
                 {
                     _errors.Add($"{owner}: account must be at most 200 characters (a name or an e-mail hint).");
@@ -313,7 +313,7 @@ public static partial class CatalogParser
                 RejectSecret(owner, "account", account);
                 RejectSecret(owner, "console", document.Console);
                 RejectSecret(owner, "name", document.Name);
-                result.Add(new CatalogProvider(id, Blank(document.Name) ?? id, kind ?? string.Empty, console, account, document.UsedBy ?? [], BuildNotes(owner, document.Notes)));
+                result.Add(new CatalogProvider(id, CatalogValues.Blank(document.Name) ?? id, kind ?? string.Empty, console, account, document.UsedBy ?? [], BuildNotes(owner, document.Notes)));
             }
 
             return result;

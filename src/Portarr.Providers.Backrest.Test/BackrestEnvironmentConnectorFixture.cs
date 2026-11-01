@@ -52,21 +52,40 @@ public sealed class BackrestEnvironmentConnectorFixture : EnvironmentConnectorCo
         parsed.Catalog.Environments[0].Declares("backrest").Should().BeFalse();
     }
 
-    [Theory]
-    [InlineData("backrest: { url: \"http://10.0.0.10:9898\", userEnv: BACKREST_USER }", "must both name an environment variable")]
-    [InlineData("backrest: { url: \"http://user:pass@10.0.0.10:9898\" }", "without credentials")]
-    [InlineData("backrest: { url: \"http://10.0.0.10:9898\", userEnv: \"admin\", passwordEnv: \"pa ss\" }", "must both name an environment variable")]
-    public void should_reject_a_backrest_with_credentials_in_the_catalog(string backrest, string error)
+    [Fact]
+    public void should_ask_for_both_credentials_variables_or_none()
     {
-        var result = Parse($"environments:\n  - {{ id: server-1, docker: {{ url: \"http://10.0.0.10:2375\" }}, {backrest} }}\n");
+        var result = Parse("environments:\n  - { id: server-1, backrest: { url: \"http://10.0.0.10:9898\", userEnv: BACKREST_USER } }\n");
 
-        result.Errors.Should().ContainSingle().Which.Should().Contain(error);
+        result.Errors.Should().ContainSingle().Which.Should().Contain("must both name an environment variable");
+    }
+
+    [Theory]
+    [InlineData("ftp://10.0.0.10:9898")]
+    [InlineData("10.0.0.10:9898")]
+    [InlineData("")]
+    public void should_refuse_an_address_that_is_not_http(string url)
+    {
+        var result = Parse($"environments:\n  - {{ id: server-1, backrest: {{ url: \"{url}\" }} }}\n");
+
+        result.Errors.Should().ContainSingle().Which.Should().Contain("backrest.url must be Backrest's address");
     }
 
     [Fact]
-    public void should_reject_a_backrest_on_a_cluster()
+    public void should_accept_https_and_treat_a_blank_variable_as_omitted()
     {
-        var result = Parse("environments:\n  - { id: cluster, kubernetes: { server: \"https://10.0.0.20:6443\" }, backrest: { url: \"http://10.0.0.10:9898\" } }\n");
+        var parsed = Parse("environments:\n  - { id: server-1, backrest: { url: \"https://backrest.homelab.example\", userEnv: \"\", passwordEnv: \"\" } }\n");
+
+        parsed.Errors.Should().BeEmpty();
+        parsed.Catalog.Environments[0].Backrest().Should().Be(new BackrestEndpoint(new Uri("https://backrest.homelab.example"), null, null));
+    }
+
+    [Theory]
+    [InlineData("kubernetes: { server: \"https://10.0.0.20:6443\" }")]
+    [InlineData("cloudflare: { accountId: abc123 }")]
+    public void should_reject_a_backrest_on_a_cluster_or_an_account(string connector)
+    {
+        var result = Parse($"environments:\n  - {{ id: cluster, {connector}, backrest: {{ url: \"http://10.0.0.10:9898\" }} }}\n");
 
         result.Errors.Should().ContainSingle().Which.Should().Contain("not on a kubernetes or cloudflare environment");
     }
@@ -74,8 +93,8 @@ public sealed class BackrestEnvironmentConnectorFixture : EnvironmentConnectorCo
     [Fact]
     public void should_refuse_the_section_when_no_connector_owns_it()
     {
-        var result = CatalogParser.Parse("environments:\n  - { id: server-1, backrest: { url: \"http://10.0.0.10:9898\" } }\n");
+        var result = CatalogParser.Parse("environments:\n  - { id: server-1, backrest: { url: \"http://10.0.0.10:9898\" } }\n", []);
 
-        result.IsValid.Should().BeFalse("an unknown key is an error, a section nobody registered is one");
+        result.Errors.Should().ContainSingle().Which.Should().Contain("backrest").And.Contain("line 2");
     }
 }
