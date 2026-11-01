@@ -25,7 +25,7 @@ The images are built with the version `X.Y.Z.<n>`, where `<n>` is the number of 
 2. Open a pull request **`develop` → `main`**. The title does not matter for the version (the commits do).
 3. A maintainer reviews it and merges it with a **merge commit**, never a squash (a squash would hide every `feat` and `fix` from the analyzer).
 4. The pipeline runs on `main`: tests, scans, end-to-end smoke test, then `release` (tag and notes) and `image` (the three images under the new version).
-5. A deployment that follows the version tags picks the new version up on its own.
+5. A deployment that follows the version tags picks the new version up on its own ([deployment.md](deployment.md#following-the-releases)).
 
 A run on `main` that finds nothing worth releasing (only `chore`, `docs`…) publishes no version: the `main` and commit images are built, and nothing is deployed.
 

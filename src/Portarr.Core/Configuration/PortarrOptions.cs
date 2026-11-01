@@ -9,8 +9,18 @@ namespace Portarr.Core.Configuration;
 /// </summary>
 public sealed class PortarrOptions
 {
-    /// <summary>Folder holding the SQLite database and future backups. Created if missing.</summary>
-    public string DataFolder { get; set; } = DefaultDataFolder();
+    private string? _dataFolder;
+
+    /// <summary>
+    /// Folder holding the SQLite database and future backups. Created if missing. The per-user default (which creates
+    /// <c>~/.local/share</c>) is worked out only when nothing sets the folder: a container with a read-only root file system and
+    /// <c>PORTARR__DATAFOLDER</c> must not try to write to a home directory it never uses.
+    /// </summary>
+    public string DataFolder
+    {
+        get => _dataFolder ??= DefaultDataFolder();
+        set => _dataFolder = value;
+    }
 
     public DatabaseOptions Database { get; set; } = new();
 
