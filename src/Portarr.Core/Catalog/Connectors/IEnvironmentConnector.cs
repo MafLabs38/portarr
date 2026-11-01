@@ -14,6 +14,18 @@ public interface IEnvironmentConnector
     /// <summary>The key of the environment this connector owns: <c>docker</c>, <c>kubernetes</c>, <c>backrest</c>…</summary>
     string Section { get; }
 
+    /// <summary>
+    /// True for a runtime (docker, kubernetes, cloudflare…): the connector an environment's workloads are read from. At most one per
+    /// environment; <c>hostMetrics</c> and <c>backrest</c> are auxiliary.
+    /// </summary>
+    bool IsRuntime => false;
+
+    /// <summary>
+    /// Whether an environment of this runtime is one machine (a Docker host: it can be a VM host, carry a Backrest). False for a cluster
+    /// or an account. Meaningful for a runtime only.
+    /// </summary>
+    bool SingleMachine => true;
+
     /// <summary>Validates the section and returns its typed settings, or null after adding the errors to the context.</summary>
     EnvironmentConnectorResult? Parse(EnvironmentSectionContext context);
 }

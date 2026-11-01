@@ -10,7 +10,7 @@ public sealed class CloudflareWorkloadSourceFixture
 {
     private const string AccountId = "0123456789abcdef0123456789abcdef";
 
-    private static readonly CatalogEnvironment Environment = new("cdn", "CDN", null, null, new CloudflareAccount(AccountId, "CF_TOKEN"));
+    private static readonly CatalogEnvironment Environment = CloudflareEnvironments.With(new CloudflareAccount(AccountId, "CF_TOKEN"));
 
     private readonly List<HttpRequestMessage> _requests = [];
     private readonly Dictionary<string, string> _responses = [];
@@ -52,7 +52,7 @@ public sealed class CloudflareWorkloadSourceFixture
     public void should_report_a_missing_token_or_a_placeholder_account_as_not_configured()
     {
         Source().GetConfigurationError(Environment).Should().BeNull();
-        Source().GetConfigurationError(Environment with { Cloudflare = new CloudflareAccount("TODO", "CF_TOKEN") }).Should().Be("account-invalid");
+        Source().GetConfigurationError(Environment with { Connectors = CloudflareEnvironments.Declared(new CloudflareAccount("TODO", "CF_TOKEN")) }).Should().Be("account-invalid");
 
         _configuration.Clear();
         Source().GetConfigurationError(Environment).Should().Be("token-missing");

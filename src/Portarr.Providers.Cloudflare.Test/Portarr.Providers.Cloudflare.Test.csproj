@@ -16,5 +16,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Portarr.Providers.Cloudflare\Portarr.Providers.Cloudflare.csproj" />
+    <ProjectReference Include="..\Portarr.Test.Common\Portarr.Test.Common.csproj" />
   </ItemGroup>
 </Project>

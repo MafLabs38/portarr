@@ -1,14 +1,17 @@
 using Portarr.Core.Catalog;
+using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Catalog;
 
 /// <summary>Machines that are VMs on another environment of the catalog: <c>host</c> and <c>nodeHosts</c> (D-59).</summary>
 public sealed class CatalogHostParserFixture
 {
+    private static CatalogParseResult Parse(string yaml) => CatalogParser.Parse(yaml, [new StubEnvironmentConnector("cloudflare", isRuntime: true, singleMachine: false)]);
+
     [Fact]
     public void should_read_the_host_of_an_environment_and_of_kubernetes_nodes()
     {
-        var result = CatalogParser.Parse("""
+        var result = Parse("""
             environments:
               - { id: hypervisor, docker: { url: "http://10.0.0.10:2375" } }
               - { id: vm-1, host: hypervisor, docker: { url: "http://10.0.0.11:2375" } }
@@ -32,7 +35,7 @@ public sealed class CatalogHostParserFixture
     [InlineData("{ id: vm-1, kubernetes: { server: \"https://10.0.0.20:6443\", nodeHosts: { node-1: \"\" } } }", "kubernetes.nodeHosts maps node names")]
     public void should_reject_an_invalid_host(string environment, string error)
     {
-        var result = CatalogParser.Parse($$"""
+        var result = Parse($$"""
             environments:
               - { id: cdn, cloudflare: { accountId: "0123456789abcdef0123456789abcdef" } }
               - {{environment}}
@@ -44,7 +47,7 @@ public sealed class CatalogHostParserFixture
     [Fact]
     public void should_reject_a_loop_of_hosts()
     {
-        var result = CatalogParser.Parse("""
+        var result = Parse("""
             environments:
               - { id: a, host: b }
               - { id: b, host: a }

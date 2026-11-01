@@ -38,7 +38,7 @@ public sealed record CatalogPortalColors(string? Name, string? Version);
 
 /// <summary>
 /// A host, a cluster or a hosting account. <c>Address</c> is its LAN address, used to build LAN URLs from
-/// published ports (D-46). At most one connector endpoint is set: <c>Docker</c>, <c>Cloudflare</c> or <c>Kubernetes</c>.
+/// published ports (D-46). At most one runtime is set: <c>Docker</c>, <c>Kubernetes</c> or, through a connector library, <c>ConnectorRuntime</c> (D-105).
 /// <c>Host</c> is the environment this one runs on as a VM (D-59): the hypervisor's dashboard counts it as a guest.
 /// <c>HostMetrics</c> is the host agent of its single machine (a Docker host, D-72). <c>Notes</c>, <c>Access</c> and
 /// <c>Machines</c> are what the operator knows about it, for people and AI assistants (D-84). <c>Connectors</c> holds the
@@ -50,7 +50,6 @@ public sealed record CatalogEnvironment(
     string Name,
     DockerEndpoint? Docker,
     string? Address = null,
-    CloudflareAccount? Cloudflare = null,
     KubernetesCluster? Kubernetes = null,
     string? Host = null,
     HostMetricsEndpoint? HostMetrics = null,
@@ -58,7 +57,8 @@ public sealed record CatalogEnvironment(
     MachineAccess? Access = null,
     IReadOnlyList<MachineKnowledge>? Machines = null,
     IReadOnlyDictionary<string, object>? Connectors = null,
-    IReadOnlyDictionary<string, string>? MachineHosts = null)
+    IReadOnlyDictionary<string, string>? MachineHosts = null,
+    string? ConnectorRuntime = null)
 {
     /// <summary>Whether this environment declares the section a connector owns.</summary>
     public bool Declares(string section) => Connectors?.ContainsKey(section) == true;
@@ -85,12 +85,11 @@ public sealed record CatalogEnvironment(
     }
 
     /// <summary>The connector kind: docker, cloudflare, kubernetes, or none (a launcher-only environment, D-32).</summary>
-    public string Runtime => (Docker, Cloudflare, Kubernetes) switch
+    public string Runtime => (Docker, Kubernetes) switch
     {
-        ({ }, _, _) => RuntimeNames.Docker,
-        (_, { }, _) => RuntimeNames.Cloudflare,
-        (_, _, { }) => RuntimeNames.Kubernetes,
-        _ => RuntimeNames.None,
+        ({ }, _) => RuntimeNames.Docker,
+        (_, { }) => RuntimeNames.Kubernetes,
+        _ => ConnectorRuntime ?? RuntimeNames.None,
     };
 }
 
@@ -174,11 +173,6 @@ public sealed record KubernetesNodeExporter(
 /// </summary>
 public sealed record DockerEndpoint(Uri Url, string? TokenVariable = null);
 
-/// <summary>
-/// A Cloudflare account (D-53). <c>TokenVariable</c> names the environment variable holding the API
-/// token: the token itself is never written in the catalog.
-/// </summary>
-public sealed record CloudflareAccount(string AccountId, string TokenVariable);
 
 public sealed record CatalogStack(string Id, string Name, string? Description, IReadOnlyList<StackMember> Members, string? Notes = null);
 
