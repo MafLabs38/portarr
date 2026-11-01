@@ -2,7 +2,7 @@
   "priority": 1,
   "request": {
     "method": "GET",
-    "urlPath": "/v1/conversations/c-e2e/events",
+    "urlPath": "/v1/conversations/7ea43bc3-4714-49e0-9f8b-8a0791c49889/events",
     "headers": {
       "Last-Event-ID": {
         "matches": ".+"

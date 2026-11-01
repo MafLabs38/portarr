@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "POST",
-    "urlPathPattern": "/v1/conversations/c-e2e/permissions/.+"
+    "urlPathPattern": "/v1/conversations/7ea43bc3-4714-49e0-9f8b-8a0791c49889/permissions/.+"
   },
   "response": {
     "status": 200,
