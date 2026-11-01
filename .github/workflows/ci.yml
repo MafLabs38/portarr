@@ -1,7 +1,8 @@
 # Baseline pipeline derived from the organization's github-template (dotnet stack),
 # extended for Portarr (React frontend, SQLite/PostgreSQL matrix, E2E, security scans).
 # Pull requests are built and tested here, but only develop and main publish an image
-# (IMPLEMENTATION_PLAN.md §1.3). Releases (semantic-release, multi-arch) come later in P0.4.
+# (IMPLEMENTATION_PLAN.md §1.3). On main, semantic-release then decides the version from the Conventional Commits since the last release
+# and the images are published under it (docs/releasing.md).
 #
 # Two lanes. A pull request into develop (or stacked on another feature branch) runs the light lane: lint, the SQLite tests, the
 # frontend tests and the security scans, so that iterating on develop stays fast. The full lane adds PostgreSQL, the reader, the
@@ -21,7 +22,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # A run on main may be a release in flight (a tag, then images): it is never cancelled by the next push.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   DOTNET_VERSION: "10.0.x"
@@ -208,12 +210,38 @@ jobs:
           [ "$(docker inspect --format '{{.State.Health.Status}}' reader)" = healthy ] || { docker inspect reader; exit 1; }
           docker image ls portarr-reader:ci
 
+  # The version of what was merged into main: semantic-release reads the Conventional Commits since the last tag, creates the tag
+  # and the GitHub release (its notes are the changelog), and says the version it chose ('' when nothing deserves a release).
+  # Nothing is committed back to main (the ruleset forbids a direct push): the version lives in the tag.
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend, security, reader, e2e-smoke, sonarqube]
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(needs.*.result, 'failure') }}
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
+
   image:
     name: image
     runs-on: ubuntu-latest
-    needs: [e2e-smoke, reader]
-    # Integrated code only: pull requests never publish images.
-    if: github.event_name == 'push'
+    needs: [e2e-smoke, reader, release]
+    # Integrated code only: pull requests never publish images. On main the release job ran first (or was skipped, on develop).
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.e2e-smoke.result == 'success' && needs.reader.result == 'success' && (needs.release.result == 'success' || needs.release.result == 'skipped') }}
     permissions:
       contents: read
       packages: write
@@ -233,13 +261,15 @@ jobs:
           tags: |
             type=ref,event=branch
             type=sha
+            type=raw,value=${{ needs.release.outputs.version }},enable=${{ needs.release.outputs.version != '' }}
+            type=raw,value=latest,enable=${{ needs.release.outputs.version != '' }}
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: VERSION=0.0.0-${{ steps.meta.outputs.version }}
+          build-args: VERSION=${{ needs.release.outputs.version != '' && format('{0}.{1}', needs.release.outputs.version, github.run_number) || format('0.0.0-{0}', steps.meta.outputs.version) }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       # The reader (D-100) is its own image, built from its own Dockerfile and tagged the same way.
@@ -250,6 +280,8 @@ jobs:
           tags: |
             type=ref,event=branch
             type=sha
+            type=raw,value=${{ needs.release.outputs.version }},enable=${{ needs.release.outputs.version != '' }}
+            type=raw,value=latest,enable=${{ needs.release.outputs.version != '' }}
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
@@ -257,7 +289,7 @@ jobs:
           push: true
           tags: ${{ steps.meta-reader.outputs.tags }}
           labels: ${{ steps.meta-reader.outputs.labels }}
-          build-args: VERSION=0.0.0-${{ steps.meta-reader.outputs.version }}
+          build-args: VERSION=${{ needs.release.outputs.version != '' && format('{0}.{1}', needs.release.outputs.version, github.run_number) || format('0.0.0-{0}', steps.meta-reader.outputs.version) }}
           cache-from: type=gha,scope=reader
           cache-to: type=gha,mode=max,scope=reader
       # The chat's agent runner (D-87) is a companion too: its own image, built from agent/, tagged the same way.
@@ -268,6 +300,8 @@ jobs:
           tags: |
             type=ref,event=branch
             type=sha
+            type=raw,value=${{ needs.release.outputs.version }},enable=${{ needs.release.outputs.version != '' }}
+            type=raw,value=latest,enable=${{ needs.release.outputs.version != '' }}
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: agent
