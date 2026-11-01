@@ -23,6 +23,8 @@ COPY --from=frontend /build/_output/UI ./wwwroot
 # The chiseled image has no shell to create folders: copy an empty one owned by the app user.
 COPY --from=backend --chown=1654:1654 /config /config
 ENV PORTARR__DATAFOLDER=/config
+# The app user of the chiseled image, stated so that nothing reads this image as running as root.
+USER 1654:1654
 VOLUME /config
 EXPOSE 8484
 ENTRYPOINT ["dotnet", "Portarr.dll"]

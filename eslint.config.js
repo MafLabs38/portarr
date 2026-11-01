@@ -48,12 +48,12 @@ export default tseslint.config(
         // Side effects, packages, absolute imports from src, then relative imports.
         {
           groups: [
-            ['^\\u0000'],
-            ['^@?\\w'],
+            [String.raw`^\u0000`],
+            [String.raw`^@?\w`],
             [
               '^(__mocks__|Account|App|Apps|Assistant|Auth|Chat|Components|Helpers|Settings|Styles|System|Utilities|Workloads|typings)(/|$)',
             ],
-            ['^\\.'],
+            [String.raw`^\.`],
           ],
         },
       ],
