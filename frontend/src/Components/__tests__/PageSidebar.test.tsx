@@ -26,22 +26,16 @@ describe('PageSidebar', () => {
     ]);
   });
 
-  it('shows an observer the view pages only', async () => {
-    as('Observer', ['apps.view', 'data.view', 'system.view']);
+  it.each([
+    ['Observer', ['apps.view', 'data.view', 'system.view'], ['Apps', 'Data', 'System']],
+    ['Guest', ['apps.view'], ['Apps']],
+  ])('shows %s only the pages its permissions allow', async (role, permissions, pages) => {
+    as(role, permissions);
     renderWithProviders(<PageSidebar />);
 
-    await screen.findByRole('link', { name: 'Apps' });
+    await screen.findByRole('link', { name: pages[0] });
 
-    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['Apps', 'Data', 'System']);
-  });
-
-  it('shows a guest the apps alone', async () => {
-    as('Guest', ['apps.view']);
-    renderWithProviders(<PageSidebar />);
-
-    await screen.findByRole('link', { name: 'Apps' });
-
-    expect(screen.getAllByRole('link')).toHaveLength(1);
+    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(pages);
   });
 });
 
@@ -55,6 +49,14 @@ describe('RequirePermission', () => {
           </RequirePermission>
         }
         path="/data"
+      />
+      <Route
+        element={
+          <RequirePermission permission="users.manage">
+            <p>Users page</p>
+          </RequirePermission>
+        }
+        path="/settings/users"
       />
       <Route element={<p>Apps page</p>} path="/apps" />
     </Routes>
@@ -72,5 +74,13 @@ describe('RequirePermission', () => {
 
     expect(await screen.findByText('Apps page')).toBeInTheDocument();
     expect(screen.queryByText('Data page')).not.toBeInTheDocument();
+  });
+
+  it('keeps the users and roles page from every role that cannot manage users', async () => {
+    as('Operator', ['apps.view', 'data.view', 'catalog.write']);
+    renderWithProviders(routes, '/settings/users');
+
+    expect(await screen.findByText('Apps page')).toBeInTheDocument();
+    expect(screen.queryByText('Users page')).not.toBeInTheDocument();
   });
 });

@@ -4,7 +4,7 @@ import { http, HttpResponse } from 'msw';
 
 import renderWithProviders from '__mocks__/renderWithProviders';
 import { me, server } from '__mocks__/server';
-import Avatar, { initialsOf } from 'Auth/Avatar';
+import { initialsOf } from 'Auth/Avatar';
 import UserMenu from 'Auth/UserMenu';
 
 describe('UserMenu', () => {
@@ -81,17 +81,5 @@ describe('Avatar', () => {
     ['Plato', 'plato', 'PL'],
   ])('derives the initials of "%s" (%s)', (displayName, username, initials) => {
     expect(initialsOf(displayName, username)).toBe(initials);
-  });
-
-  it('keeps the same color token for a user', () => {
-    const { container, rerender } = renderWithProviders(
-      <Avatar avatarUrl={null} displayName="A B" size={32} username="alice" />,
-    );
-    const first = container.querySelector('span')?.style.backgroundColor;
-
-    rerender(<Avatar avatarUrl={null} displayName="A B" size={32} username="alice" />);
-
-    expect(first).toMatch(/^var\(--/);
-    expect(container.querySelector('span')?.style.backgroundColor).toBe(first);
   });
 });

@@ -4,6 +4,7 @@ import usePermissions from 'Auth/usePermissions';
 import Alert from 'Components/Alert/Alert';
 import Card from 'Components/Card';
 import { ApiError } from 'Helpers/Hooks/useApiQuery';
+import { CATALOG_WRITE } from 'Helpers/Props/permissions';
 import translate from 'Utilities/String/translate';
 
 import styles from './Identity.module.css';
@@ -84,7 +85,7 @@ export default function Identity() {
       {data.logoProblem ? (
         <Alert kind="warning">{translate('IdentityLogoNotUsed', { reason: data.logoProblem })}</Alert>
       ) : null}
-      {data.writable && can('catalog.write') ? (
+      {data.writable && can(CATALOG_WRITE) ? (
         <form className={styles.form} onSubmit={onSubmit}>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="identity-name">

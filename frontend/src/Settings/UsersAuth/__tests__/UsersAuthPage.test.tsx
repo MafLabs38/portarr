@@ -32,7 +32,8 @@ const list: RoleList = {
   permissions: [
     { key: 'apps.view', area: 'Apps', reserved: false },
     { key: 'data.view', area: 'Data', reserved: false },
-    { key: 'users.manage', area: 'Administration', reserved: false },
+    { key: 'maintenance.view', area: 'Maintenance', reserved: false },
+    { key: 'users.manage', area: 'Administration', reserved: true },
     { key: 'secrets.view', area: 'Administration', reserved: true },
   ],
 };
@@ -110,6 +111,49 @@ describe('UsersAuthPage', () => {
     );
   });
 
+  it('disables an enabled user and enables a disabled one', async () => {
+    const u = userEvent.setup();
+    const bodies: unknown[] = [];
+    server.use(
+      http.get('/api/v1/users', () =>
+        HttpResponse.json([...users, user({ id: 3, username: 'grace', displayName: 'Grace' })]),
+      ),
+      http.put('/api/v1/users/:id', async ({ request, params }) => {
+        bodies.push([params.id, await request.json()]);
+        return HttpResponse.json(user({}));
+      }),
+    );
+    renderWithProviders(<UsersAuthPage />);
+
+    await u.click(await screen.findByRole('button', { name: 'Disable user grace' }));
+    await u.click(screen.getByRole('button', { name: 'Enable user olivia' }));
+
+    await vi.waitFor(() =>
+      expect(bodies).toEqual([
+        ['3', { disabled: true }],
+        ['2', { disabled: false }],
+      ]),
+    );
+  });
+
+  it('asks to confirm before deleting a user', async () => {
+    const u = userEvent.setup();
+    let deleted = 0;
+    server.use(
+      http.delete('/api/v1/users/2', () => {
+        deleted++;
+        return HttpResponse.json(user({ id: 2 }));
+      }),
+    );
+    renderWithProviders(<UsersAuthPage />);
+
+    await u.click(await screen.findByRole('button', { name: 'Delete user olivia' }));
+    expect(deleted).toBe(0);
+    await u.click(screen.getByRole('button', { name: 'Confirm delete' }));
+
+    await vi.waitFor(() => expect(deleted).toBe(1));
+  });
+
   it("shows the server's reason when a change is refused", async () => {
     const u = userEvent.setup();
     server.use(
@@ -152,14 +196,15 @@ describe('UsersAuthPage', () => {
 
     await u.click(await screen.findByRole('tab', { name: /Roles/ }));
     await u.click(screen.getByRole('button', { name: 'Edit role Viewer' }));
-    await u.click(screen.getByRole('checkbox', { name: /Manage users and roles/ }));
+    expect(screen.getByRole('checkbox', { name: /Manage users and roles/ })).toBeDisabled();
+    await u.click(screen.getByRole('checkbox', { name: /See maintenance/ }));
     await u.click(screen.getByRole('button', { name: 'Save' }));
 
     await vi.waitFor(() =>
       expect(body).toEqual({
         name: 'Viewer',
         description: 'Apps and data',
-        permissions: ['apps.view', 'data.view', 'users.manage'],
+        permissions: ['apps.view', 'data.view', 'maintenance.view'],
       }),
     );
   });
