@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Portarr.Core.Accounts;
+using Portarr.Core.Attention;
 using Portarr.Core.Backups;
 using Portarr.Core.Catalog;
 using Portarr.Core.Catalog.Editing;
@@ -66,6 +67,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IMaintenanceMonitor>(provider => provider.GetRequiredService<MaintenanceMonitor>());
         services.AddHostedService(provider => provider.GetRequiredService<MaintenanceMonitor>());
         services.AddSingleton<IMaintenanceService, MaintenanceService>();
+        services.AddSingleton<IAttentionService, AttentionService>();
 
         services.AddSingleton<ICheckStore, CheckStore>();
         services.AddSingleton<ICheckRunner, HttpCheckRunner>();
