@@ -18,8 +18,8 @@ public sealed record MaintenanceState(RepositoryScan Repositories, IReadOnlyDict
 /// <c>AvailableAt</c> is when the next manual refresh is accepted (null: now).
 /// </summary>
 public sealed record MaintenanceRefresh(
-    DateTimeOffset? GitHubAt,
-    DateTimeOffset? GitHubNextAt,
+    DateTimeOffset? CodeAt,
+    DateTimeOffset? CodeNextAt,
     DateTimeOffset? RegistriesAt,
     bool Refreshing,
     DateTimeOffset? AvailableAt)
@@ -85,7 +85,7 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
     private readonly SemaphoreSlim _refreshing = new(1, 1);
     private readonly Lock _requestLock = new();
     private volatile MaintenanceState _current = MaintenanceState.Empty;
-    private volatile GitHubSource? _scannedSource;
+    private volatile string? _scannedKey;
 
     // Manual refresh: when it was last accepted, and which request the last finished pass answered.
     private DateTimeOffset? _requestedAt;
@@ -117,14 +117,14 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
         get
         {
             var state = _current;
-            var githubAt = state.Repositories.At;
-            var next = githubAt is { } at && _scannedSource is not null ? at + (state.Repositories.Error is null ? RepositoryInterval : RepositoryRetryInterval) : (DateTimeOffset?)null;
+            var codeAt = state.Repositories.At;
+            var next = codeAt is { } at && _scannedKey is not null ? at + (state.Repositories.Error is null ? RepositoryInterval : RepositoryRetryInterval) : (DateTimeOffset?)null;
             var registriesAt = state.Registries.Count == 0 ? (DateTimeOffset?)null : state.Registries.Values.Max(lookup => lookup.CheckedAt);
             lock (_requestLock)
             {
                 var pending = _requestedAt is { } requested && (_answeredAt is null || _answeredAt < requested);
                 var available = _requestedAt is { } last ? last + RefreshCooldown : (DateTimeOffset?)null;
-                return new MaintenanceRefresh(githubAt, next, registriesAt, pending, available);
+                return new MaintenanceRefresh(codeAt, next, registriesAt, pending, available);
             }
         }
     }
@@ -242,39 +242,59 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
 
     private async Task<RepositoryScan> ScanRepositoriesAsync(RepositoryScan previous, DateTimeOffset? forced, CancellationToken cancellationToken)
     {
-        var source = _catalogService.Current.Catalog.GitHub;
-        var codeSource = _codeSources.FirstOrDefault();
-        if (source is null || codeSource is null)
+        // Each declared source goes to the connector that reads its kind; a source nothing reads is skipped.
+        var sources = _catalogService.Current.Catalog.CodeSources
+            .Select(source => (Source: source, Connector: _codeSources.FirstOrDefault(c => c.Supports(source))))
+            .Where(pair => pair.Connector is not null)
+            .Select(pair => (pair.Source, Connector: pair.Connector!))
+            .ToList();
+        if (sources.Count == 0)
         {
-            _scannedSource = null;
+            _scannedKey = null;
             return RepositoryScan.NotConfigured;
         }
 
         var now = _timeProvider.GetUtcNow();
-        var sameSource = _scannedSource is not null && SameSource(_scannedSource, source);
+        var key = string.Join('\n', sources.Select(pair => pair.Source.Fingerprint));
+        var sameSource = _scannedKey == key;
         if (sameSource && previous.At is { } at && now - at < (previous.Error is null ? RepositoryInterval : RepositoryRetryInterval) && !(forced is { } asked && at < asked))
         {
             return previous;
         }
 
-        _scannedSource = source;
-        if (codeSource.GetConfigurationError(source) is { } error)
+        _scannedKey = key;
+        var repositories = new List<CodeRepository>();
+        var failedLogins = new List<string>();
+        string? error = null;
+        foreach (var (source, connector) in sources)
         {
-            return new RepositoryScan([], error, now);
+            if (connector.GetConfigurationError(source) is { } configuration)
+            {
+                error ??= configuration;
+                failedLogins.AddRange(source.Logins);
+                continue;
+            }
+
+            try
+            {
+                repositories.AddRange(await connector.ScanAsync(source, cancellationToken));
+            }
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                LogScanFailed(exception.Message);
+                error ??= ReasonCodes.From(exception);
+                failedLogins.AddRange(source.Logins);
+            }
         }
 
-        try
+        // Keep what was known of a source that failed: a failed scan must not empty the page; the error is shown next to it.
+        if (sameSource && failedLogins.Count > 0)
         {
-            var repositories = await codeSource.ScanAsync(source, cancellationToken);
-            return new RepositoryScan(repositories, null, now);
+            var seen = repositories.Select(r => r.FullName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            repositories.AddRange(previous.Repositories.Where(r => failedLogins.Contains(r.Owner, StringComparer.OrdinalIgnoreCase) && seen.Add(r.FullName)));
         }
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            LogScanFailed(exception.Message);
 
-            // Keep what was known: a failed scan must not empty the page; the error is shown next to it.
-            return new RepositoryScan(sameSource ? previous.Repositories : [], ReasonCodes.From(exception), now);
-        }
+        return new RepositoryScan(repositories, error, now);
     }
 
     private async Task<IReadOnlyDictionary<string, RegistryLookup>> LookUpImagesAsync(IReadOnlyDictionary<string, RegistryLookup> previous, DateTimeOffset? forced, CancellationToken cancellationToken)
@@ -381,12 +401,6 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
         }
 
         return wanted.Distinct(StringComparer.Ordinal);
-    }
-
-    private static bool SameSource(GitHubSource left, GitHubSource right)
-    {
-        static string Key(GitHubSource s) => string.Join('|', string.Join(',', s.Owners), s.TokenVariable, s.PushedWithinMonths, string.Join(',', s.Include), string.Join(',', s.Exclude), s.Forks, s.Archived);
-        return Key(left) == Key(right);
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Maintenance refresh failed")]

@@ -18,8 +18,8 @@ const levelIcons: Record<AttentionLevel, LucideIcon> = {
 const shownSubjects = 8;
 
 function describe(item: AttentionItem): string {
-  if (item.kind === 'github-error') {
-    return translate('Attention_github-error', { reason: translate(`Reason_${item.subjects[0]?.label ?? ''}`) });
+  if (item.kind === 'code-source-error') {
+    return translate('Attention_code-source-error', { reason: translate(`Reason_${item.subjects[0]?.label ?? ''}`) });
   }
   return translate(`Attention_${item.kind}`, { count: item.count, repositories: item.subjects.length });
 }
@@ -38,8 +38,8 @@ export default function AttentionList({ items }: Readonly<{ items: AttentionItem
     <ul aria-label={translate('NeedsAttention')} className={styles.list}>
       {items.map((item) => {
         const Icon = levelIcons[item.level];
-        const subjects = item.kind === 'github-error' ? [] : item.subjects.slice(0, shownSubjects);
-        const more = item.kind === 'github-error' ? 0 : item.subjects.length - subjects.length;
+        const subjects = item.kind === 'code-source-error' ? [] : item.subjects.slice(0, shownSubjects);
+        const more = item.kind === 'code-source-error' ? 0 : item.subjects.length - subjects.length;
         const search = attentionSearch(item.kind);
         const what = (
           <>

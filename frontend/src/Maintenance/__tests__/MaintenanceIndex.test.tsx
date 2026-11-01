@@ -99,7 +99,7 @@ describe('MaintenanceIndex', () => {
     );
     renderWithProviders(<MaintenanceIndex />);
 
-    expect(await screen.findByText(/GitHub updated .* ago/)).toBeInTheDocument();
+    expect(await screen.findByText(/Code updated .* ago/)).toBeInTheDocument();
     expect(screen.getByText(/Registries updated .* ago/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Refresh' }));
 
@@ -144,7 +144,7 @@ describe('MaintenanceIndex', () => {
     server.use(http.get('/api/v1/maintenance', () => HttpResponse.json(failed)));
     renderWithProviders(<MaintenanceIndex />);
 
-    expect(await screen.findByText(/GitHub could not be scanned/)).toBeInTheDocument();
+    expect(await screen.findByText(/A code host could not be scanned/)).toBeInTheDocument();
     expect(screen.getByText(/The last known state is shown/)).toBeInTheDocument();
   });
 

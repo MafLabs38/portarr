@@ -97,7 +97,8 @@ public sealed record CodeRepository(
     AlertScan SecretScanning,
     ReleaseInfo? Release,
     int? DependabotPullRequests,
-    CiRun? Ci)
+    CiRun? Ci,
+    Uri? DependabotPullsUrl = null)
 {
     public string FullName => $"{Owner}/{Name}";
 }
@@ -114,12 +115,24 @@ public sealed record RepositoryScan(IReadOnlyList<CodeRepository> Repositories, 
 /// </summary>
 public interface ICodeRepositorySource
 {
+    /// <summary>Whether this connector reads that kind of source: the monitor hands each declared source to the one that does.</summary>
+    bool Supports(CodeSource source);
+
     /// <summary>A reason code when the source is declared but cannot be called (no token), else null.</summary>
-    string? GetConfigurationError(GitHubSource source);
+    string? GetConfigurationError(CodeSource source);
 
     /// <summary>
     /// The repositories of the source's owners (and its includes) that pass its filters, with their security
     /// alerts, latest release and CI state. Throws when the host cannot be read at all.
     /// </summary>
-    Task<IReadOnlyList<CodeRepository>> ScanAsync(GitHubSource source, CancellationToken cancellationToken);
+    Task<IReadOnlyList<CodeRepository>> ScanAsync(CodeSource source, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The repository (<c>owner/name</c>) an image's OCI source label (<c>org.opencontainers.image.source</c>) points at, when it
+    /// is one of this host's; null otherwise. Only the host knows what its repository addresses look like.
+    /// </summary>
+    string? RepositoryOfSourceLabel(string label);
+
+    /// <summary>The repository (<c>owner/name</c>) an image is published from by the host's own naming (GHCR for GitHub), or null.</summary>
+    string? RepositoryOfImage(ImageReference image);
 }

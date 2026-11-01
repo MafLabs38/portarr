@@ -119,13 +119,13 @@ public static partial class CatalogParser
 
             var stacks = BuildStacks(document.Stacks ?? [], appDocuments, appIds);
             var data = BuildData(document.Data ?? [], environmentsById, appIds);
-            var gitHub = BuildGitHub(document.Sources?.GitHub);
+            var sources = BuildSources(document.Sources?.GitHub);
             var links = BuildLinks(document.Links ?? [], environments);
             var providers = BuildProviders(document.Providers ?? [], environmentsById, appIds);
             var portal = BuildPortal(document.Portal);
 
             return _errors.Count == 0
-                ? new CatalogParseResult(new Catalog(environments, stacks, apps, data, gitHub, links, providers, portal), [])
+                ? new CatalogParseResult(new Catalog(environments, stacks, apps, data, sources, links, providers, portal), [])
                 : new CatalogParseResult(Catalog.Empty, _errors);
         }
 
@@ -471,49 +471,86 @@ public static partial class CatalogParser
         }
 
         /// <summary>
-        /// <c>sources: github:</c> (D-64): the accounts whose repositories are scanned. Like the other connectors,
-        /// the token comes from an environment variable: without it the section still loads, shown as not connected.
+        /// <c>sources: github:</c> (D-64): the accounts whose repositories are scanned, one mapping or a list, each account with
+        /// its own token. Like the other connectors, the token comes from an environment variable: without it the section
+        /// still loads, shown as not connected.
         /// </summary>
-        private GitHubSource? BuildGitHub(GitHubDocument? document)
+        private List<CodeSource>? BuildSources(GitHubSourcesDocument? document)
         {
             if (document is null)
             {
                 return null;
             }
 
+            var result = new List<CodeSource>();
+            foreach (var (account, index) in document.Accounts.Select((a, i) => (a, i)))
+            {
+                var label = document.IsList ? $"sources.github[{index}]" : "sources.github";
+                if (BuildGitHub(account, label) is { } source)
+                {
+                    result.Add(source);
+                }
+            }
+
+            // One entry per owner: two accounts scanning the same owner would read it twice, with two tokens.
+            foreach (var owner in result.OfType<GitHubSource>().SelectMany(s => s.Owners).GroupBy(o => o, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1))
+            {
+                _errors.Add($"sources.github: owner '{owner.Key}' is listed in more than one account: give each owner to one account.");
+            }
+
+            return result;
+        }
+
+        private GitHubSource BuildGitHub(GitHubDocument document, string label)
+        {
             var owners = (document.Owners ?? []).Select(o => o?.Trim() ?? string.Empty).ToList();
             var include = (document.Include ?? []).Select(r => r?.Trim() ?? string.Empty).ToList();
             var exclude = (document.Exclude ?? []).Select(r => r?.Trim() ?? string.Empty).ToList();
             if (owners.Count == 0 && include.Count == 0)
             {
-                _errors.Add("sources.github: list the owners to scan (users or organizations), or repositories in include.");
+                _errors.Add($"{label}: list the owners to scan (users or organizations), or repositories in include.");
             }
 
             foreach (var owner in owners.Where(o => !OwnerPattern().IsMatch(o)))
             {
-                _errors.Add($"sources.github: owner '{owner}' must be a GitHub user or organization login.");
+                _errors.Add($"{label}: owner '{owner}' must be a GitHub user or organization login.");
             }
 
             foreach (var repository in include.Where(r => !RepositoryPattern().IsMatch(r)))
             {
-                _errors.Add($"sources.github: include entry '{repository}' must be owner/name.");
+                _errors.Add($"{label}: include entry '{repository}' must be owner/name.");
             }
 
             foreach (var pattern in exclude.Where(r => !RepositoryPattern().IsMatch(r.Replace("*", "x", StringComparison.Ordinal))))
             {
-                _errors.Add($"sources.github: exclude entry '{pattern}' must be owner/name, * allowed (e.g. example/test-*).");
+                _errors.Add($"{label}: exclude entry '{pattern}' must be owner/name, * allowed (e.g. example/test-*).");
             }
 
             var variable = document.TokenEnv ?? GitHubSource.DefaultTokenVariable;
             if (!CatalogValues.IsVariableName(variable))
             {
-                _errors.Add($"sources.github: tokenEnv must be the name of an environment variable (e.g. {GitHubSource.DefaultTokenVariable}), never the token itself.");
+                _errors.Add($"{label}: tokenEnv must be the name of an environment variable (e.g. {GitHubSource.DefaultTokenVariable}), never the token itself.");
             }
 
             var months = document.PushedWithinMonths ?? GitHubSource.DefaultPushedWithinMonths;
             if (months is < 0 or > 120)
             {
-                _errors.Add("sources.github: pushedWithinMonths must be between 0 (no limit) and 120.");
+                _errors.Add($"{label}: pushedWithinMonths must be between 0 (no limit) and 120.");
+            }
+
+            Uri? apiUrl = null;
+            if (document.ApiUrl is { } text)
+            {
+                apiUrl = CatalogValues.HttpUrl(text);
+                if (apiUrl is not { Scheme: "https" } || apiUrl.Query.Length > 0 || apiUrl.Fragment.Length > 0)
+                {
+                    _errors.Add($"{label}: apiUrl must be the https address of a GitHub Enterprise Server's API (https://github.example/api/v3/), without credentials, query or fragment.");
+                    apiUrl = null;
+                }
+                else if (!apiUrl.AbsoluteUri.EndsWith('/'))
+                {
+                    apiUrl = new Uri(apiUrl.AbsoluteUri + "/");
+                }
             }
 
             return new GitHubSource(
@@ -523,7 +560,8 @@ public static partial class CatalogParser
                 include.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
                 exclude,
                 document.Forks ?? false,
-                document.Archived ?? false);
+                document.Archived ?? false,
+                apiUrl);
         }
 
         /// <summary>Web apps are checked by default (D-50); <c>check: false</c> turns it off, a mapping overrides it.</summary>

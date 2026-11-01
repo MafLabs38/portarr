@@ -33,7 +33,7 @@ public sealed record AttentionSubject(string Label, Uri? Url, int? Count = null)
 /// <summary>
 /// "What needs attention" (D-67): one entry per kind of finding, worst first, naming what it concerns.
 /// <c>Kind</c>: severe-alerts, secret-alerts, ci-failing, image-major, images-behind, image-rebuilt,
-/// dependabot-off, code-scanning-off, other-alerts, dependabot-prs, images-unknown, github-error.
+/// dependabot-off, code-scanning-off, other-alerts, dependabot-prs, images-unknown, code-source-error.
 /// </summary>
 public sealed record AttentionItem(string Kind, AttentionLevel Level, int Count, IReadOnlyList<AttentionSubject> Subjects);
 
@@ -75,30 +75,32 @@ public interface IMaintenanceService
 /// Joins the repository scan, the running images and their registry lookups with the catalog (D-64 to D-67).
 /// Built from memory only: a request reaches no connector.
 /// </summary>
-public sealed partial class MaintenanceService : IMaintenanceService
+public sealed class MaintenanceService : IMaintenanceService
 {
     private readonly ICatalogService _catalogService;
     private readonly IWorkloadInventory _inventory;
     private readonly IMaintenanceMonitor _monitor;
+    private readonly IReadOnlyList<ICodeRepositorySource> _codeSources;
 
-    public MaintenanceService(ICatalogService catalogService, IWorkloadInventory inventory, IMaintenanceMonitor monitor)
+    public MaintenanceService(ICatalogService catalogService, IWorkloadInventory inventory, IMaintenanceMonitor monitor, IEnumerable<ICodeRepositorySource> codeSources)
     {
         _catalogService = catalogService;
         _inventory = inventory;
         _monitor = monitor;
+        _codeSources = codeSources.ToList();
     }
 
     public MaintenanceReport GetReport()
     {
-        return Build(_catalogService.Current.Catalog, _inventory.Current, _monitor.Current, _monitor.Refresh);
+        return Build(_catalogService.Current.Catalog, _inventory.Current, _monitor.Current, _monitor.Refresh, _codeSources);
     }
 
-    public static MaintenanceReport Build(Catalog.Catalog catalog, IReadOnlyDictionary<string, EnvironmentInventory> inventory, MaintenanceState state, MaintenanceRefresh? refresh = null)
+    public static MaintenanceReport Build(Catalog.Catalog catalog, IReadOnlyDictionary<string, EnvironmentInventory> inventory, MaintenanceState state, MaintenanceRefresh? refresh = null, IReadOnlyList<ICodeRepositorySource>? codeSources = null)
     {
         var scanned = state.Repositories.Repositories.ToDictionary(r => r.FullName, StringComparer.OrdinalIgnoreCase);
         var appsOf = AppsOf(catalog);
 
-        var images = RunningImages(inventory, state, scanned, appsOf);
+        var images = RunningImages(inventory, state, scanned, appsOf, codeSources ?? []);
 
         // A repository is linked to an app by the catalog (repository:), or by an image built from it.
         var links = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
@@ -125,7 +127,7 @@ public sealed partial class MaintenanceService : IMaintenanceService
         return new MaintenanceReport(
             Summarize(repositories, images),
             Attention(repositories, images, state.Repositories),
-            catalog.GitHub is not null,
+            catalog.CodeSources.Count > 0,
             state.Repositories,
             repositories,
             images,
@@ -155,7 +157,8 @@ public sealed partial class MaintenanceService : IMaintenanceService
         IReadOnlyDictionary<string, EnvironmentInventory> inventory,
         MaintenanceState state,
         Dictionary<string, CodeRepository> scanned,
-        Func<Workload, IReadOnlyList<string>> appsOf)
+        Func<Workload, IReadOnlyList<string>> appsOf,
+        IReadOnlyList<ICodeRepositorySource> codeSources)
     {
         return MaintenanceMonitor.RunningImages(inventory)
             .Select(pair =>
@@ -163,7 +166,7 @@ public sealed partial class MaintenanceService : IMaintenanceService
                 var (workload, image) = pair;
                 var label = workload.Labels.GetValueOrDefault(ImageCheck.VersionLabel);
                 var check = ImageCheck.Evaluate(image, label, workload.ImageDigest, state.Registries.GetValueOrDefault(image.RepositoryKey));
-                return (Workload: workload, Image: image, Check: check, Repository: SourceRepository(workload, image, scanned));
+                return (Workload: workload, Image: image, Check: check, Repository: SourceRepository(workload, image, scanned, codeSources));
             })
             .GroupBy(entry => (entry.Image.Display, entry.Check))
             .Select(group => new DeployedImageView(
@@ -180,19 +183,20 @@ public sealed partial class MaintenanceService : IMaintenanceService
     }
 
     /// <summary>
-    /// The scanned repository an image is built from: its OCI source label (<c>https://github.com/owner/name</c>),
-    /// else a GHCR or Docker Hub repository with the same owner and name as a scanned repository.
+    /// The scanned repository an image is built from: what its OCI source label names, else what its registry name says,
+    /// each in the code host's own terms (the connector knows what its repository addresses and image names look like).
     /// </summary>
-    private static string? SourceRepository(Workload workload, ImageReference image, Dictionary<string, CodeRepository> scanned)
+    private static string? SourceRepository(Workload workload, ImageReference image, Dictionary<string, CodeRepository> scanned, IReadOnlyList<ICodeRepositorySource> codeSources)
     {
-        if (workload.Labels.GetValueOrDefault(ImageCheck.SourceLabel) is { } source
-            && GitHubUrlPattern().Match(source) is { Success: true } match
-            && scanned.TryGetValue($"{match.Groups["owner"].Value}/{match.Groups["name"].Value}", out var labelled))
+        if (workload.Labels.GetValueOrDefault(ImageCheck.SourceLabel) is { } label
+            && codeSources.Select(source => source.RepositoryOfSourceLabel(label)).FirstOrDefault(name => name is not null) is { } labelled
+            && scanned.TryGetValue(labelled, out var fromLabel))
         {
-            return labelled.FullName;
+            return fromLabel.FullName;
         }
 
-        return image.Registry is "ghcr.io" or ImageReference.DockerHub && scanned.TryGetValue(image.Repository, out var named) ? named.FullName : null;
+        return codeSources.Select(source => source.RepositoryOfImage(image)).FirstOrDefault(name => name is not null) is { } named
+            && scanned.TryGetValue(named, out var fromName) ? fromName.FullName : null;
     }
 
     private static int Rank(ImageCheck check) => check.Status switch
@@ -265,7 +269,7 @@ public sealed partial class MaintenanceService : IMaintenanceService
 
         if (scan.Error is not null)
         {
-            items.Add(new AttentionItem("github-error", AttentionLevel.Warning, 1, [new AttentionSubject(scan.Error, null)]));
+            items.Add(new AttentionItem("code-source-error", AttentionLevel.Warning, 1, [new AttentionSubject(scan.Error, null)]));
         }
 
         var severe = code.Where(r => r.Dependabot.Counts.Severe + r.CodeScanning.Counts.Severe > 0).ToList();
@@ -282,12 +286,10 @@ public sealed partial class MaintenanceService : IMaintenanceService
         Add("dependabot-off", AttentionLevel.Warning, code.Where(r => r.Dependabot.State == ScanningState.Off).Select(r => Repo(r)).ToList());
         Add("code-scanning-off", AttentionLevel.Info, code.Where(r => r.CodeScanning.State == ScanningState.Off).Select(r => Repo(r)).ToList());
         var pulls = code.Where(r => r.DependabotPullRequests > 0).ToList();
-        Add("dependabot-prs", AttentionLevel.Info, pulls.Select(r => new AttentionSubject(r.FullName, new Uri(r.Url, $"{r.Url.AbsolutePath}/pulls/app%2Fdependabot"), r.DependabotPullRequests)).ToList(), pulls.Sum(r => r.DependabotPullRequests ?? 0));
+        Add("dependabot-prs", AttentionLevel.Info, pulls.Select(r => new AttentionSubject(r.FullName, r.DependabotPullsUrl ?? r.Url, r.DependabotPullRequests)).ToList(), pulls.Sum(r => r.DependabotPullRequests ?? 0));
         Add("images-unknown", AttentionLevel.Info, images.Where(i => i.Check.Status == ImageStatus.Unknown).Select(Image).ToList());
 
         return items.OrderBy(item => item.Level).ToList();
     }
 
-    [GeneratedRegex("^https?://github\\.com/(?<owner>[A-Za-z0-9-]+)/(?<name>[A-Za-z0-9._-]+?)(\\.git)?/?$", RegexOptions.IgnoreCase)]
-    private static partial Regex GitHubUrlPattern();
 }

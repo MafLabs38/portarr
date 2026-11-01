@@ -1,8 +1,25 @@
 namespace Portarr.Core.Catalog;
 
 /// <summary>
-/// The GitHub accounts whose repositories the Maintenance page scans (D-64): the apps the operator makes,
-/// deployed or not (a desktop app, a utility, a library). Declared under <c>sources: github:</c>.
+/// A code host account whose repositories the Maintenance page scans (D-64): the apps the operator makes, deployed or
+/// not (a desktop app, a utility, a library). One entry per account, each with its own credential; the host-specific
+/// settings live in the subtype, and the scan is dispatched to the connector that supports it.
+/// </summary>
+public abstract record CodeSource
+{
+    /// <summary>Which host: <c>github</c> today.</summary>
+    public abstract string Kind { get; }
+
+    /// <summary>The logins scanned, shown on the page.</summary>
+    public abstract IReadOnlyList<string> Logins { get; }
+
+    /// <summary>What a rescan depends on: a change in any of it is scanned at once, not at the next interval.</summary>
+    public abstract string Fingerprint { get; }
+}
+
+/// <summary>
+/// A GitHub account (or organization, or several of one token's owners) declared under <c>sources: github:</c>, alone or as
+/// a list of accounts, each with its own <c>tokenEnv</c>: a fine-grained token has a single resource owner.
 /// </summary>
 /// <param name="Owners">User or organization logins to scan.</param>
 /// <param name="TokenVariable">Name of the environment variable holding a read-only token, never the token itself.</param>
@@ -11,6 +28,7 @@ namespace Portarr.Core.Catalog;
 /// <param name="Exclude">Repositories never scanned: <c>owner/name</c>, with <c>*</c> as a wildcard (<c>Maf/test-*</c>).</param>
 /// <param name="Forks">Whether forks are scanned.</param>
 /// <param name="Archived">Whether archived repositories are scanned.</param>
+/// <param name="ApiUrl">The REST API of a GitHub Enterprise Server (<c>https://github.example/api/v3/</c>); null: github.com.</param>
 public sealed record GitHubSource(
     IReadOnlyList<string> Owners,
     string TokenVariable,
@@ -18,8 +36,17 @@ public sealed record GitHubSource(
     IReadOnlyList<string> Include,
     IReadOnlyList<string> Exclude,
     bool Forks,
-    bool Archived)
+    bool Archived,
+    Uri? ApiUrl = null) : CodeSource
 {
+    public const string KindName = "github";
+
+    public override string Kind => KindName;
+
+    public override IReadOnlyList<string> Logins => Owners;
+
+    public override string Fingerprint => string.Join('|', string.Join(',', Owners), TokenVariable, PushedWithinMonths, string.Join(',', Include), string.Join(',', Exclude), Forks, Archived, ApiUrl);
+
     public const string DefaultTokenVariable = "GITHUB_TOKEN";
     public const int DefaultPushedWithinMonths = 6;
 

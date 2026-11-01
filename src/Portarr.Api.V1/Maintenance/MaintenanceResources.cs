@@ -62,8 +62,11 @@ public sealed record AttentionSubjectResource(string Label, Uri? Url, int? Count
 /// <summary>A finding of the summary. <c>Level</c>: danger, warning or info.</summary>
 public sealed record AttentionItemResource(string Kind, string Level, int Count, IReadOnlyList<AttentionSubjectResource> Subjects);
 
-/// <summary>The code source: declared in the catalog, when it was last scanned and why it failed (a reason code).</summary>
-public sealed record CodeSourceResource(bool Configured, IReadOnlyList<string> Owners, DateTimeOffset? ScannedAt, string? Error);
+/// <summary>One code source declared in the catalog: the host (<c>github</c>) and the logins it scans.</summary>
+public sealed record CodeSourceEntryResource(string Kind, IReadOnlyList<string> Owners);
+
+/// <summary>The code sources: declared in the catalog (all the logins, and each source), when they were last scanned and why a scan failed (a reason code).</summary>
+public sealed record CodeSourceResource(bool Configured, IReadOnlyList<string> Owners, DateTimeOffset? ScannedAt, string? Error, IReadOnlyList<CodeSourceEntryResource> Sources);
 
 public sealed record MaintenanceSummaryResource(
     int Repositories,
@@ -86,13 +89,13 @@ public sealed record MaintenanceSummaryResource(
     int ImagesUnknown);
 
 /// <summary>
-/// When the data was read and when it is read next. <c>GitHubNextAt</c> is null while no code source is scanned;
+/// When the data was read and when it is read next. <c>CodeNextAt</c> is null while no code source is scanned;
 /// <c>Refreshing</c>: a manual refresh was accepted and its pass has not finished; <c>AvailableAt</c>: when the next
 /// manual refresh is accepted (null: now).
 /// </summary>
 public sealed record MaintenanceRefreshResource(
-    DateTimeOffset? GitHubAt,
-    DateTimeOffset? GitHubNextAt,
+    DateTimeOffset? CodeAt,
+    DateTimeOffset? CodeNextAt,
     DateTimeOffset? RegistriesAt,
     bool Refreshing,
     DateTimeOffset? AvailableAt);
@@ -120,7 +123,7 @@ public static class MaintenanceResourceMapper
                 a.Level.ToString().ToLowerInvariant(),
                 a.Count,
                 a.Subjects.Select(subject => new AttentionSubjectResource(subject.Label, subject.Url, subject.Count)).ToList())).ToList(),
-            new CodeSourceResource(report.CodeSourceConfigured, catalog.GitHub?.Owners ?? [], report.Scan.At, report.Scan.Error),
+            new CodeSourceResource(report.CodeSourceConfigured, catalog.CodeSources.SelectMany(s => s.Logins).Distinct(StringComparer.OrdinalIgnoreCase).ToList(), report.Scan.At, report.Scan.Error, catalog.CodeSources.Select(s => new CodeSourceEntryResource(s.Kind, s.Logins)).ToList()),
             report.Repositories.Select(ToResource).ToList(),
             report.Images.Select(image => ToResource(image, environments)).ToList(),
             ToResource(report.Refresh));
@@ -128,7 +131,7 @@ public static class MaintenanceResourceMapper
 
     public static MaintenanceRefreshResource ToResource(this MaintenanceRefresh refresh)
     {
-        return new MaintenanceRefreshResource(refresh.GitHubAt, refresh.GitHubNextAt, refresh.RegistriesAt, refresh.Refreshing, refresh.AvailableAt);
+        return new MaintenanceRefreshResource(refresh.CodeAt, refresh.CodeNextAt, refresh.RegistriesAt, refresh.Refreshing, refresh.AvailableAt);
     }
 
     private static RepositoryResource ToResource(RepositoryView view)

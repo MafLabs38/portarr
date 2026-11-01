@@ -66,6 +66,6 @@ describe('maintenanceFilters', () => {
     expect(attentionSearch('severe-alerts')).toBe('?filter=severe');
     expect(attentionSearch('image-major')).toBe('?tab=images&filter=major');
     expect(attentionSearch('images-behind')).toBe('?tab=images&filter=behind-minor');
-    expect(attentionSearch('github-error')).toBeNull();
+    expect(attentionSearch('code-source-error')).toBeNull();
   });
 });

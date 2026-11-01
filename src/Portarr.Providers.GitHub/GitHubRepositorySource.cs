@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json.Serialization.Metadata;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
 using Portarr.Core.Catalog;
 using Portarr.Core.Maintenance;
@@ -13,7 +14,7 @@ namespace Portarr.Providers.GitHub;
 /// environment variable the catalog names. A fine-grained, read-only token is enough: Metadata, Contents,
 /// Dependabot alerts, Code scanning alerts, Secret scanning alerts, Actions and Pull requests, all <i>Read</i>.
 /// </summary>
-public sealed class GitHubRepositorySource : ICodeRepositorySource
+public sealed partial class GitHubRepositorySource : ICodeRepositorySource
 {
     public const string HttpClientName = "github";
 
@@ -31,29 +32,43 @@ public sealed class GitHubRepositorySource : ICodeRepositorySource
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
     private readonly TimeProvider _timeProvider;
-    private readonly GitHubClient _client;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, GitHubClient> _clients = new(StringComparer.Ordinal);
 
     public GitHubRepositorySource(IHttpClientFactory httpClientFactory, IConfiguration configuration, TimeProvider timeProvider)
     {
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
         _timeProvider = timeProvider;
-        _client = new GitHubClient(timeProvider);
     }
 
-    public string? GetConfigurationError(GitHubSource source)
+    public bool Supports(CodeSource source) => source is GitHubSource;
+
+    public string? GetConfigurationError(CodeSource source)
     {
-        return string.IsNullOrWhiteSpace(_configuration[source.TokenVariable]) ? TokenMissing : null;
+        return string.IsNullOrWhiteSpace(_configuration[((GitHubSource)source).TokenVariable]) ? TokenMissing : null;
     }
 
-    public async Task<IReadOnlyList<CodeRepository>> ScanAsync(GitHubSource source, CancellationToken cancellationToken)
+    /// <summary><c>https://github.com/owner/name</c> (also <c>.git</c>, a trailing slash, any case), as <c>owner/name</c>; null for any other address.</summary>
+    public string? RepositoryOfSourceLabel(string label) =>
+        UrlPattern().Match(label) is { Success: true } match ? $"{match.Groups["owner"].Value}/{match.Groups["name"].Value}" : null;
+
+    /// <summary>A GHCR or Docker Hub image is published under the name of its repository (<c>ghcr.io/owner/name</c>).</summary>
+    public string? RepositoryOfImage(ImageReference image) => image.Registry is "ghcr.io" or ImageReference.DockerHub ? image.Repository : null;
+
+    [GeneratedRegex("^https?://github\\.com/(?<owner>[A-Za-z0-9-]+)/(?<name>[A-Za-z0-9._-]+?)(\\.git)?/?$", RegexOptions.IgnoreCase)]
+    private static partial Regex UrlPattern();
+
+    public async Task<IReadOnlyList<CodeRepository>> ScanAsync(CodeSource codeSource, CancellationToken cancellationToken)
     {
+        var source = (GitHubSource)codeSource;
         if (GetConfigurationError(source) is { } error)
         {
             throw new InvalidOperationException($"GitHub source is not configured: {error}.");
         }
 
-        var session = new Session(this, _configuration[source.TokenVariable]!);
+        // One client per API host: the rate-limit window belongs to the host, and github.com's must not stop a Server's.
+        var apiBase = source.ApiUrl ?? _httpClientFactory.CreateClient(HttpClientName).BaseAddress ?? ApiBaseAddress;
+        var session = new Session(this, _configuration[source.TokenVariable]!, apiBase, _clients.GetOrAdd(apiBase.Authority, _ => new GitHubClient(_timeProvider)));
         var repositories = await ListRepositoriesAsync(session, source, cancellationToken);
 
         var results = new CodeRepository[repositories.Count];
@@ -146,8 +161,16 @@ public sealed class GitHubRepositorySource : ICodeRepositorySource
                 unknown,
                 null,
                 null,
-                null);
+                null,
+                PullsUrl(repository));
         }
+    }
+
+    /// <summary>Where the open pull requests of Dependabot are listed on the host's web page of the repository.</summary>
+    private static Uri PullsUrl(GitHubRepository repository)
+    {
+        var page = new Uri(repository.HtmlUrl);
+        return new Uri(page, $"{page.AbsolutePath.TrimEnd('/')}/pulls/app%2Fdependabot");
     }
 
     private static async Task<CodeRepository> DescribeAsync(Session session, GitHubRepository repository, CancellationToken cancellationToken)
@@ -175,7 +198,8 @@ public sealed class GitHubRepositorySource : ICodeRepositorySource
             secrets,
             await ReleaseAsync(session, path, cancellationToken),
             await DependabotPullRequestsAsync(session, path, cancellationToken),
-            await CiAsync(session, path, branch, cancellationToken));
+            await CiAsync(session, path, branch, cancellationToken),
+            PullsUrl(repository));
     }
 
     /// <summary>
@@ -277,11 +301,11 @@ public sealed class GitHubRepositorySource : ICodeRepositorySource
     }
 
     /// <summary>The calls of one scan, with its token.</summary>
-    private sealed class Session(GitHubRepositorySource owner, string token)
+    private sealed class Session(GitHubRepositorySource owner, string token, Uri apiBase, GitHubClient client)
     {
         public Task<GitHubResponse> GetAsync(string path, CancellationToken cancellationToken)
         {
-            return owner._client.GetAsync(owner._httpClientFactory.CreateClient(HttpClientName), token, path, cancellationToken);
+            return client.GetAsync(owner._httpClientFactory.CreateClient(HttpClientName), apiBase, token, path, cancellationToken);
         }
 
         public async Task<List<T>> ListAsync<T>(string path, JsonTypeInfo<List<T>> type, CancellationToken cancellationToken)

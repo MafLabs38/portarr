@@ -19,7 +19,7 @@ public sealed class CatalogSourcesParserFixture
             """);
 
         result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
-        result.Catalog.GitHub.Should().BeEquivalentTo(new GitHubSource(["example", "example-org"], "GITHUB_TOKEN", 6, [], ["example/test-*"], false, false));
+        result.Catalog.CodeSources.Should().ContainSingle().Which.Should().BeEquivalentTo(new GitHubSource(["example", "example-org"], "GITHUB_TOKEN", 6, [], ["example/test-*"], false, false));
         result.Catalog.Apps[0].Repository.Should().Be("example/shop");
     }
 
@@ -38,7 +38,7 @@ public sealed class CatalogSourcesParserFixture
             """);
 
         result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
-        result.Catalog.GitHub.Should().BeEquivalentTo(new GitHubSource(["example"], "MY_GH_TOKEN", 0, ["other/lib"], [], true, true), "an include listed twice, in any case, is kept once");
+        result.Catalog.CodeSources.Should().ContainSingle().Which.Should().BeEquivalentTo(new GitHubSource(["example"], "MY_GH_TOKEN", 0, ["other/lib"], [], true, true), "an include listed twice, in any case, is kept once");
     }
 
     [Fact]
@@ -47,13 +47,13 @@ public sealed class CatalogSourcesParserFixture
         var result = TestCatalog.Parse("sources:\n  github: { include: [other/lib] }\n");
 
         result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
-        result.Catalog.GitHub!.Owners.Should().BeEmpty();
+        result.Catalog.CodeSources.Single().Logins.Should().BeEmpty();
     }
 
     [Fact]
     public void should_keep_an_owner_listed_twice_once()
     {
-        TestCatalog.Parse("sources:\n  github: { owners: [example, Example] }\n").Catalog.GitHub!.Owners.Should().Equal("example");
+        TestCatalog.Parse("sources:\n  github: { owners: [example, Example] }\n").Catalog.CodeSources.Single().Logins.Should().Equal("example");
     }
 
     [Theory]
@@ -64,6 +64,52 @@ public sealed class CatalogSourcesParserFixture
     public void should_match_a_pattern_literally_apart_from_its_wildcard(string pattern, string repository, bool excluded)
     {
         new GitHubSource([], "T", 6, [], [pattern], false, false).IsExcluded(repository).Should().Be(excluded);
+    }
+
+    [Fact]
+    public void should_read_several_accounts_each_with_its_own_token()
+    {
+        var result = TestCatalog.Parse("""
+            sources:
+              github:
+                - { owners: [example], tokenEnv: GITHUB_TOKEN_EXAMPLE }
+                - { owners: [example-org], tokenEnv: GITHUB_TOKEN_ORG, exclude: ["example-org/test-*"] }
+            """);
+
+        result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
+        result.Catalog.CodeSources.Cast<GitHubSource>().Select(s => (s.Owners.Single(), s.TokenVariable)).Should().Equal(("example", "GITHUB_TOKEN_EXAMPLE"), ("example-org", "GITHUB_TOKEN_ORG"));
+    }
+
+    [Fact]
+    public void should_name_the_entry_of_a_list_in_its_errors_and_refuse_an_owner_given_to_two_accounts()
+    {
+        var result = TestCatalog.Parse("sources:\n  github:\n    - { owners: [example] }\n    - { owners: [\"not a login\", example] }\n");
+
+        result.Errors.Should().Contain(e => e.StartsWith("sources.github[1]: owner 'not a login'", StringComparison.Ordinal));
+        result.Errors.Should().Contain(e => e.Contains("owner 'example' is listed in more than one account", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("https://github.example/api/v3", "https://github.example/api/v3/")]
+    [InlineData("https://github.example/api/v3/", "https://github.example/api/v3/")]
+    public void should_read_the_api_address_of_a_github_enterprise_server(string apiUrl, string expected)
+    {
+        var result = TestCatalog.Parse($"sources:\n  github: {{ owners: [example], apiUrl: \"{apiUrl}\" }}\n");
+
+        result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
+        ((GitHubSource)result.Catalog.CodeSources.Single()).ApiUrl.Should().Be(new Uri(expected));
+    }
+
+    [Theory]
+    [InlineData("http://github.example/api/v3/")]
+    [InlineData("https://user:pass@github.example/api/v3/")]
+    [InlineData("https://github.example/api/v3/?x=1")]
+    [InlineData("github.example")]
+    public void should_refuse_an_api_address_that_is_not_plain_https(string apiUrl)
+    {
+        var result = TestCatalog.Parse($"sources:\n  github: {{ owners: [example], apiUrl: \"{apiUrl}\" }}\n");
+
+        result.Errors.Should().ContainSingle().Which.Should().Contain("apiUrl must be the https address");
     }
 
     [Theory]

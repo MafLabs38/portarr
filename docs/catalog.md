@@ -247,9 +247,10 @@ The GitHub accounts whose repositories the **Maintenance** page scans (D-64): ev
 
 ```yaml
 sources:
-  github:
-    owners: [example, example-org]   # required (or include): user or organization logins
-    tokenEnv: GITHUB_TOKEN           # default GITHUB_TOKEN: the variable name, never the token
+  github:                            # one account (a mapping), or a list of accounts: [{ owners: [...], tokenEnv: ... }, ...]
+    owners: [example, example-org]   # required (or include): user or organization logins; an owner belongs to one account
+    tokenEnv: GITHUB_TOKEN           # default GITHUB_TOKEN: the variable name, never the token; a fine-grained token has ONE resource owner, so one account per token
+    # apiUrl: https://github.example/api/v3/   # a GitHub Enterprise Server's API (https only); absent: github.com
     pushedWithinMonths: 6            # default 6: only repositories pushed recently; 0 scans them all
     include: [example/legacy-tool]   # always scanned, even inactive or owned by someone else
     exclude: ["example/test-*", "*/sandbox"]   # never scanned; * matches anything

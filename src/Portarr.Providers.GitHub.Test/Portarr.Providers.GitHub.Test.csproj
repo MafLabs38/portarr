@@ -17,5 +17,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Portarr.Providers.GitHub\Portarr.Providers.GitHub.csproj" />
+    <ProjectReference Include="..\Portarr.Test.Common\Portarr.Test.Common.csproj" />
   </ItemGroup>
 </Project>

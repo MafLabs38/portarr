@@ -44,18 +44,18 @@ internal sealed partial class GitHubClient
         _timeProvider = timeProvider;
     }
 
-    public async Task<GitHubResponse> GetAsync(HttpClient client, string token, string path, CancellationToken cancellationToken)
+    public async Task<GitHubResponse> GetAsync(HttpClient client, Uri apiBase, string token, string path, CancellationToken cancellationToken)
     {
         if (Interlocked.Read(ref _remaining) < RateLimitReserve && _timeProvider.GetUtcNow().ToUnixTimeSeconds() < Interlocked.Read(ref _resetAt))
         {
             throw new HttpRequestException("GitHub rate limit reserve reached.", null, HttpStatusCode.TooManyRequests);
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(apiBase, path));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
         request.Headers.Add("X-GitHub-Api-Version", ApiVersion);
-        var key = CacheKey(token, path);
+        var key = CacheKey(token, apiBase, path);
         if (_cache.TryGetValue(key, out var cached))
         {
             request.Headers.IfNoneMatch.Add(cached.ETag);
@@ -70,7 +70,7 @@ internal sealed partial class GitHubClient
         }
 
         var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-        var answer = new GitHubResponse(response.StatusCode, body, NextPage(response, client.BaseAddress), response.IsSuccessStatusCode ? null : ErrorMessage(body));
+        var answer = new GitHubResponse(response.StatusCode, body, NextPage(response, apiBase), response.IsSuccessStatusCode ? null : ErrorMessage(body));
 
         if (response.Headers.ETag is { } etag && answer.IsSuccess)
         {
@@ -93,10 +93,10 @@ internal sealed partial class GitHubClient
     }
 
     /// <summary>The cache is per token: answers depend on what the token may read.</summary>
-    private static string CacheKey(string token, string path)
+    private static string CacheKey(string token, Uri apiBase, string path)
     {
         var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token)))[..16];
-        return $"{hash} {path}";
+        return $"{hash} {apiBase.AbsoluteUri}{path}";
     }
 
     private void TrackRateLimit(HttpResponseMessage response)
