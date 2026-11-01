@@ -66,7 +66,7 @@ Both are also linked from **System → Status**. The reference is served from th
 
 ## Security notice
 
-Portarr has **no authentication yet** (planned). Anyone who reaches it can see your inventory and the live logs of the containers your catalog declares. Keep it on your LAN or put it behind an authenticating reverse proxy (SSO, basic auth) before exposing it.
+Portarr has **local accounts and roles** (D-92 to D-98): every page and API call needs a sign-in, a user has a role (Admin, Operator, Observer, Guest, or your own) and API clients use per-user keys. On a fresh install the first visit asks for a **one-time setup code** printed in Portarr's log (and written to `<data>/setup-code`); set `PORTARR__AUTH__ADMINUSER` and `PORTARR__AUTH__ADMINPASSWORDFILE` to create the administrator at startup instead. Behind a TLS reverse proxy, list it in `PORTARR__TRUSTEDPROXIES` (or set `PORTARR__AUTH__COOKIESECURITY=Always`) so the session cookie is `Secure`. OIDC single sign-on is planned (D-99).
 
 ## Configuration
 
@@ -82,9 +82,25 @@ Settings come from `appsettings.json`, overridden by `PORTARR__*` environment va
 | `PORTARR__LOGSOFALLWORKLOADS` | `false` | Serve live logs and usage of containers no app declares |
 | `PORTARR__AGENT__URL` | — (chat off) | The optional [agent runner](docs/companions.md#agent-runner) (`portarr-agent`) behind the built-in chat, e.g. `http://portarr-agent:8488`. Without it the chat icon is hidden |
 | `PORTARR__AGENT__SECRET` | — | Shared with the runner (32 characters at least, `openssl rand -hex 32`); required with `PORTARR__AGENT__URL` |
+| `PORTARR__AUTH__SESSIONDAYS` | `7` | Sliding length of a session |
+| `PORTARR__AUTH__COOKIESECURITY` | `Auto` | `Auto` (Secure when the request is HTTPS) or `Always` (Secure, `__Host-` prefix) |
+| `PORTARR__AUTH__REQUIRESETUPCODE` | `true` | Ask for the one-time setup code on a fresh install |
 | `PORTARR__TRUSTEDPROXIES` | — (none) | Reverse proxies allowed to set `X-Forwarded-For` / `X-Forwarded-Proto`: comma-separated IPs or CIDR networks, e.g. `10.0.0.2,10.0.1.0/24`. Empty: these headers are ignored |
 
 Connectors: [Docker](docs/connectors/docker.md).
+
+Prometheus: `GET /metrics` needs the `system.view` permission, so a scrape sends a per-user API key (create it in your profile, scope `read`; the user's role must hold `system.view`, as Observer, Operator and Admin do):
+
+```yaml
+scrape_configs:
+  - job_name: portarr
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/portarr.key   # holds the ptr_… key
+    static_configs:
+      - targets: ["portarr:8484"]
+```
 
 Probes: `GET /health/live` (the process answers) and `GET /health/ready` (the database answers).
 
