@@ -1,10 +1,19 @@
 using Portarr.Core.Catalog;
+using Portarr.Test.Common.Contracts;
 
 namespace Portarr.Providers.Backrest.Test;
 
 /// <summary>The <c>backrest:</c> section of an environment (D-80, D-105): what the connector accepts and refuses.</summary>
-public sealed class BackrestEnvironmentConnectorFixture
+public sealed class BackrestEnvironmentConnectorFixture : EnvironmentConnectorContract
 {
+    protected override IEnvironmentConnector Connector { get; } = new BackrestEnvironmentConnector();
+
+    protected override string ValidSection => "{ url: \"http://10.0.0.10:9898\", userEnv: BACKREST_USER, passwordEnv: BACKREST_PASSWORD }";
+
+    protected override string? SectionWithCredentialsInUrl => "{ url: \"http://user:pass@10.0.0.10:9898\" }";
+
+    protected override string? SectionWithLiteralSecret => "{ url: \"http://10.0.0.10:9898\", userEnv: \"admin\", passwordEnv: \"pa ss\" }";
+
     private static CatalogParseResult Parse(string yaml) => CatalogParser.Parse(yaml, [new BackrestEnvironmentConnector()]);
 
     [Fact]
@@ -55,14 +64,6 @@ public sealed class BackrestEnvironmentConnectorFixture
         var result = Parse("environments:\n  - { id: cluster, kubernetes: { server: \"https://10.0.0.20:6443\" }, backrest: { url: \"http://10.0.0.10:9898\" } }\n");
 
         result.Errors.Should().ContainSingle().Which.Should().Contain("not on a kubernetes or cloudflare environment");
-    }
-
-    [Fact]
-    public void should_name_the_line_of_an_unknown_key_in_the_section()
-    {
-        var result = Parse("environments:\n  - id: server-1\n    backrest:\n      url: \"http://10.0.0.10:9898\"\n      port: 9898\n");
-
-        result.Errors.Should().ContainSingle().Which.Should().StartWith("Invalid YAML at line 5").And.Contain("port");
     }
 
     [Fact]

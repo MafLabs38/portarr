@@ -31,11 +31,11 @@ public sealed class EnvironmentSectionContext
     private readonly IDeserializer _deserializer;
     private readonly Action<string> _addError;
 
-    internal EnvironmentSectionContext(string environmentId, string section, string runtime, IReadOnlySet<string> sections, IReadOnlyList<ParsingEvent> events, IDeserializer deserializer, Action<string> addError)
+    internal EnvironmentSectionContext(string environmentId, string section, bool singleMachine, IReadOnlySet<string> sections, IReadOnlyList<ParsingEvent> events, IDeserializer deserializer, Action<string> addError)
     {
         EnvironmentId = environmentId;
         Section = section;
-        Runtime = runtime;
+        SingleMachine = singleMachine;
         Sections = sections;
         _events = events;
         _deserializer = deserializer;
@@ -47,8 +47,11 @@ public sealed class EnvironmentSectionContext
     /// <summary>The key being read.</summary>
     public string Section { get; }
 
-    /// <summary>The runtime of the environment (<see cref="RuntimeNames"/>), from the connector block it declares.</summary>
-    public string Runtime { get; }
+    /// <summary>
+    /// Whether the environment is one machine, which a VM host, a Backrest or a host agent need: true for a Docker host and for
+    /// an environment without a runtime (a launcher-only one, D-32), false for a cluster or an account.
+    /// </summary>
+    public bool SingleMachine { get; }
 
     /// <summary>Every connector section this environment declares.</summary>
     public IReadOnlySet<string> Sections { get; }

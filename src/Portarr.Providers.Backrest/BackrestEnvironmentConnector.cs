@@ -35,7 +35,7 @@ public sealed class BackrestEnvironmentConnector : IEnvironmentConnector
             return null;
         }
 
-        if (context.Runtime is RuntimeNames.Kubernetes or RuntimeNames.Cloudflare)
+        if (!context.SingleMachine)
         {
             context.Error($"Environment '{context.EnvironmentId}': backrest runs on a docker host (or an environment without connector), not on a kubernetes or cloudflare environment.");
             return null;

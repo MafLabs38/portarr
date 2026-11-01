@@ -170,14 +170,7 @@ public static partial class CatalogParser
                     _errors.Add($"Environment '{id}': declare one connector (docker, cloudflare or kubernetes), not several.");
                 }
 
-                var runtime = (docker, cloudflare, kubernetes) switch
-                {
-                    ({ }, _, _) => RuntimeNames.Docker,
-                    (_, { }, _) => RuntimeNames.Cloudflare,
-                    (_, _, { }) => RuntimeNames.Kubernetes,
-                    _ => RuntimeNames.None,
-                };
-                var (settings, machineHosts) = BuildConnectors(id, runtime, document);
+                var (settings, machineHosts) = BuildConnectors(id, kubernetes is null && cloudflare is null, document);
 
                 result.Add(new CatalogEnvironment(
                     id,
@@ -200,14 +193,14 @@ public static partial class CatalogParser
         }
 
         /// <summary>Gives each section a connector library owns to that library (D-105), and gathers what they made of them.</summary>
-        private (Dictionary<string, object> Settings, Dictionary<string, string>? MachineHosts) BuildConnectors(string environmentId, string runtime, EnvironmentDocument document)
+        private (Dictionary<string, object> Settings, Dictionary<string, string>? MachineHosts) BuildConnectors(string environmentId, bool singleMachine, EnvironmentDocument document)
         {
             var settings = new Dictionary<string, object>(StringComparer.Ordinal);
             Dictionary<string, string>? machineHosts = null;
             var declared = document.Sections.Keys.ToHashSet(StringComparer.Ordinal);
             foreach (var connector in _connectors.Where(c => document.Sections.ContainsKey(c.Section)))
             {
-                var context = new EnvironmentSectionContext(environmentId, connector.Section, runtime, declared, document.Sections[connector.Section], _plain, _errors.Add);
+                var context = new EnvironmentSectionContext(environmentId, connector.Section, singleMachine, declared, document.Sections[connector.Section], _plain, _errors.Add);
                 if (connector.Parse(context) is not { } result)
                 {
                     continue;
