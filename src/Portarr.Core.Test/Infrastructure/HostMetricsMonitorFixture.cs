@@ -129,23 +129,16 @@ public sealed class HostMetricsMonitorFixture
     {
         Answer(Reading(cpu: 12, usedBytes: 6_000));
         var monitor = Monitor();
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        var watcher = Task.Run(async () =>
-        {
-            await foreach (var view in monitor.WatchAsync(cancellation.Token))
-            {
-                return view;
-            }
+        await using var stream = monitor.WatchAsync(TestContext.Current.CancellationToken).GetAsyncEnumerator(TestContext.Current.CancellationToken);
 
-            return null;
-        });
-        await Task.Delay(100, TestContext.Current.CancellationToken);
-
+        // The first MoveNextAsync runs the iterator up to its first wait: the subscription exists when the sample is taken.
+        var next = stream.MoveNextAsync();
         await monitor.SampleAsync(TestContext.Current.CancellationToken);
-        var streamed = await watcher.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        var arrived = await next.AsTask().WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
-        streamed.Should().NotBeNull();
-        streamed!.Key.Should().Be(Machine);
+        arrived.Should().BeTrue();
+        var streamed = stream.Current;
+        streamed.Key.Should().Be(Machine);
         streamed.Latest!.CpuPercent.Should().Be(12);
         streamed.History.Should().BeEmpty("the stream carries the reading, the snapshot carries the history");
     }

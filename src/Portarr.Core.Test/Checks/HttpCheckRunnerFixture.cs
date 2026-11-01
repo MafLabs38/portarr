@@ -75,6 +75,25 @@ public sealed class HttpCheckRunnerFixture : CoreTest<HttpCheckRunner>
     }
 
     [Fact]
+    public async Task should_not_find_a_keyword_cut_by_the_64_kib_limit()
+    {
+        Given(Answer(HttpStatusCode.OK, new string('a', HttpCheckRunner.MaxBodyBytes - 3) + "Grafana"));
+
+        var result = await Subject.RunAsync(Target, CheckDefinition.Default with { Keyword = "Grafana" }, TestContext.Current.CancellationToken);
+
+        result.Error.Should().Be("keyword-missing");
+    }
+
+    [Fact]
+    public void should_not_follow_a_redirect_nor_keep_cookies_between_checks()
+    {
+        using var handler = (HttpClientHandler)HttpCheckRunner.CreateHandler();
+
+        handler.AllowAutoRedirect.Should().BeFalse("a 3xx is the answer of the app, not a hop to another host");
+        handler.UseCookies.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task should_time_out_after_the_check_timeout()
     {
         Given(new FakeHttpHandler(async (_, token) =>

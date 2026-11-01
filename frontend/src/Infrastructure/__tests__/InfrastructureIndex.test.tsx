@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import InfrastructureIndex from 'Infrastructure/InfrastructureIndex';
 import { http, HttpResponse } from 'msw';
@@ -30,15 +30,18 @@ describe('InfrastructureIndex', () => {
   });
 
   it('shows the age of the last sample, live or stale', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
     vi.setSystemTime(new Date('2026-01-01T12:00:02Z'));
     try {
       renderWithProviders(<InfrastructureIndex />);
       const machine = await screen.findByRole('article', { name: 'Server 1' });
       expect(within(machine).getByText('Live · 2 s ago')).toBeInTheDocument();
 
-      vi.setSystemTime(new Date('2026-01-01T12:02:00Z'));
-      expect(await within(machine).findByText('Stale · 2 min ago', {}, { timeout: 2_000 })).toBeInTheDocument();
+      await act(async () => {
+        vi.advanceTimersByTime(118_000);
+      });
+
+      expect(within(machine).getByText('Stale · 2 min ago')).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
@@ -57,52 +60,71 @@ describe('InfrastructureIndex', () => {
     expect(within(machine).queryByRole('link', { name: /recyclarr/ })).not.toBeInTheDocument();
   });
 
-  it('stacks a host-agent machine: CPU with its chart and cores, then memory, then swap', async () => {
-    const environment = infrastructure[0] as InfrastructureEnvironment;
-    const machine0 = environment.machines[0] as Machine;
-    const gb = 1_073_741_824;
-    const hostMetrics: HostMetrics = {
-      environmentId: environment.id,
-      machineId: machine0.id,
-      source: 'node-exporter',
-      sampledAt: new Date().toISOString(),
-      error: null,
-      intervalSeconds: 1,
-      cores: 8,
-      cpuPercent: 39,
-      iowaitPercent: 1.3,
-      corePercents: [10, 20, 30, 40],
-      load1: 6.65,
-      temperatureCelsius: 54,
-      memoryTotalBytes: 16 * gb,
-      memoryUsedBytes: 8 * gb,
-      memoryReclaimableBytes: 2 * gb,
-      memoryFreeBytes: 6 * gb,
-      swapTotalBytes: 4 * gb,
-      swapUsedBytes: gb,
-      history: [],
+  describe('a machine with a host agent', () => {
+    const renderHostAgentCard = async () => {
+      const environment = infrastructure[0] as InfrastructureEnvironment;
+      const machine0 = environment.machines[0] as Machine;
+      const gb = 1_073_741_824;
+      const hostMetrics: HostMetrics = {
+        environmentId: environment.id,
+        machineId: machine0.id,
+        source: 'node-exporter',
+        sampledAt: new Date().toISOString(),
+        error: null,
+        intervalSeconds: 1,
+        cores: 8,
+        cpuPercent: 39,
+        iowaitPercent: 1.3,
+        corePercents: [10, 20, 30, 40],
+        load1: 6.65,
+        temperatureCelsius: 54,
+        memoryTotalBytes: 16 * gb,
+        memoryUsedBytes: 8 * gb,
+        memoryReclaimableBytes: 2 * gb,
+        memoryFreeBytes: 6 * gb,
+        swapTotalBytes: 4 * gb,
+        swapUsedBytes: gb,
+        history: [],
+      };
+      server.use(
+        http.get('/api/v1/infrastructure', () =>
+          HttpResponse.json([{ ...environment, machines: [{ ...machine0, hostMetrics }] }]),
+        ),
+      );
+      renderWithProviders(<InfrastructureIndex />);
+      return screen.findByRole('article', { name: 'Server 1' });
     };
-    server.use(
-      http.get('/api/v1/infrastructure', () =>
-        HttpResponse.json([{ ...environment, machines: [{ ...machine0, hostMetrics }] }]),
-      ),
-    );
-    renderWithProviders(<InfrastructureIndex />);
 
-    const card = await screen.findByRole('article', { name: 'Server 1' });
-    const cpu = within(card).getByRole('region', { name: 'CPU' });
-    const memory = within(card).getByRole('region', { name: 'Memory' });
-    expect(within(cpu).getByText('39 %', { selector: 'span' })).toBeInTheDocument();
-    expect(within(cpu).getByText('I/O wait 1.3 %')).toBeInTheDocument();
-    expect(within(cpu).getByText('load avg 6.65 · CPU 54 °C')).toBeInTheDocument();
-    expect(within(cpu).getByRole('img', { name: /CPU of Server 1 over the last/ })).toBeInTheDocument();
-    expect(within(cpu).getAllByRole('listitem').length).toBeGreaterThanOrEqual(4);
-    expect(within(memory).getByRole('img', { name: /Memory of Server 1/ })).toBeInTheDocument();
-    // CPU, then memory, then swap, in document order.
-    expect(cpu.compareDocumentPosition(memory) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(
-      memory.compareDocumentPosition(within(card).getByText('Swap')) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    it('shows the CPU: load, I/O wait, chart and one bar per core', async () => {
+      const card = await renderHostAgentCard();
+
+      const cpu = within(card).getByRole('region', { name: 'CPU' });
+      expect(within(cpu).getByText('39 %', { selector: 'span' })).toBeInTheDocument();
+      expect(within(cpu).getByText('I/O wait 1.3 %')).toBeInTheDocument();
+      expect(within(cpu).getByText('load avg 6.65 · CPU 54 °C')).toBeInTheDocument();
+      expect(within(cpu).getByRole('img', { name: /CPU of Server 1 over the last/ })).toBeInTheDocument();
+      expect(
+        within(within(cpu).getByRole('list', { name: 'Cores of Server 1' })).getAllByRole('listitem'),
+      ).toHaveLength(4);
+    });
+
+    it('shows the memory ring', async () => {
+      const card = await renderHostAgentCard();
+
+      const memory = within(card).getByRole('region', { name: 'Memory' });
+      expect(within(memory).getByRole('img', { name: /Memory of Server 1/ })).toBeInTheDocument();
+    });
+
+    it('stacks CPU, then memory, then swap', async () => {
+      const card = await renderHostAgentCard();
+
+      const cpu = within(card).getByRole('region', { name: 'CPU' });
+      const memory = within(card).getByRole('region', { name: 'Memory' });
+      expect(cpu.compareDocumentPosition(memory) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(
+        memory.compareDocumentPosition(within(card).getByText('Swap')) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
   });
 
   it('shows a hypervisor with its VMs as they report themselves, followed by their cards', async () => {

@@ -27,6 +27,7 @@ public sealed class InfrastructureToolsFixture : IAsyncLifetime
     private readonly ToolServer _cluster = new();
     private PortarrFactory _factory = null!;
     private HttpClient _client = null!;
+    private HostMetricsMonitor _monitor = null!;
 
     public InfrastructureToolsFixture(TestDatabase database)
     {
@@ -59,8 +60,19 @@ public sealed class InfrastructureToolsFixture : IAsyncLifetime
         _factory = new PortarrFactory(
             options,
             new Dictionary<string, string?> { ["CLUSTER_TOKEN"] = "cluster-token" },
-            services => services.AddSingleton<IWorkloadSource, KubernetesWorkloadSource>());
+            services =>
+            {
+                services.AddSingleton<IWorkloadSource, KubernetesWorkloadSource>();
+
+                // Stopping the monitor alone (below) ends its loop with a cancellation the host would take for a crash.
+                services.Configure<HostOptions>(options => options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore);
+            });
         _client = await _factory.CreateSignedInClientAsync();
+
+        // The monitor's own 1 s loop runs on the shared fake clock: it would read the agents between the steps of a test that
+        // drives the reads by hand. The loop is stopped; the tests call SampleAsync themselves.
+        _monitor = _factory.Services.GetServices<IHostedService>().OfType<HostMetricsMonitor>().Single();
+        await _monitor.StopAsync(TestContext.Current.CancellationToken);
         await _factory.Services.GetRequiredService<IWorkloadInventory>().RefreshAsync(TestContext.Current.CancellationToken);
     }
 
@@ -94,16 +106,14 @@ public sealed class InfrastructureToolsFixture : IAsyncLifetime
     public async Task should_read_node_exporter_over_http_and_through_the_pod_proxy_and_measure_the_cpu_between_two_reads()
     {
         await _factory.Services.GetRequiredService<IInfrastructureMonitor>().SampleAsync(TestContext.Current.CancellationToken);
-        var monitor = _factory.Services.GetServices<IHostedService>().OfType<HostMetricsMonitor>().Single();
-        await SampleUntilBothAgentsAnsweredAsync(monitor);
+        await SampleUntilBothAgentsAnsweredAsync(_monitor);
 
-        // One second later each core was busy for half of it. The agents answer the new counters before the clock moves:
-        // advancing it also wakes the monitor's own 1 s loop, which must never read between the reset and the new answer.
+        // One second later each core was busy for half of it.
         _host.Reset();
         _host.Serve("GET", "/metrics", Exposition(400.5, 100.5), contentType: "text/plain");
         _cluster.Serve("GET", "/api/v1/namespaces/monitoring/pods/ne-a:9100/proxy/metrics", Exposition(900.25, 100.75), contentType: "text/plain");
         _factory.Clock.Advance(TimeSpan.FromSeconds(2));
-        await monitor.SampleAsync(TestContext.Current.CancellationToken);
+        await _monitor.SampleAsync(TestContext.Current.CancellationToken);
 
         var environments = await GetInfrastructureAsync();
         var docker = HostOf(environments, "server-1", "server-1");
@@ -124,13 +134,12 @@ public sealed class InfrastructureToolsFixture : IAsyncLifetime
     public async Task should_keep_the_last_values_and_say_why_when_the_agent_stops_answering()
     {
         await _factory.Services.GetRequiredService<IInfrastructureMonitor>().SampleAsync(TestContext.Current.CancellationToken);
-        var monitor = _factory.Services.GetServices<IHostedService>().OfType<HostMetricsMonitor>().Single();
-        await SampleUntilBothAgentsAnsweredAsync(monitor);
+        await SampleUntilBothAgentsAnsweredAsync(_monitor);
 
         _host.Reset();
         _host.Serve("GET", "/metrics", "forbidden", status: 403, contentType: "text/plain");
         _factory.Clock.Advance(TimeSpan.FromSeconds(2));
-        await monitor.SampleAsync(TestContext.Current.CancellationToken);
+        await _monitor.SampleAsync(TestContext.Current.CancellationToken);
 
         var docker = HostOf(await GetInfrastructureAsync(), "server-1", "server-1");
         docker.GetProperty("error").GetString().Should().Be("http-403");

@@ -103,7 +103,7 @@ public abstract class HostMetricsSourceContract
 
         var read = () => harness.Source.ReadAsync(harness.Target, TestContext.Current.CancellationToken);
 
-        await read.Should().ThrowAsync<Exception>();
+        await read.Should().ThrowAsync<HttpRequestException>("the monitor handles a refused or timed-out read, not any exception");
     }
 
     [Fact]

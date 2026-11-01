@@ -50,7 +50,14 @@ export default function useHostStream(): HostStream {
     source.onopen = () => setStream((current) => (current.live ? current : { ...current, live: true }));
     source.onerror = () => setStream((current) => (current.live ? { ...current, live: false } : current));
     source.addEventListener('host', (event: MessageEvent<string>) => {
-      const read = JSON.parse(event.data) as HostMetrics;
+      let read: HostMetrics;
+      try {
+        read = JSON.parse(event.data) as HostMetrics;
+      } catch {
+        // One unreadable event is skipped: the next second brings the next read.
+        return;
+      }
+
       const key = hostKey(read.environmentId, read.machineId);
       pending.current.set(key, [...(pending.current.get(key) ?? []), read]);
       timer ??= globalThis.setTimeout(flush, flushDelayMs);

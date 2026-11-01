@@ -19,7 +19,11 @@ class FakeEventSource {
   }
 
   emit(type: string, data: unknown) {
-    this.listeners.get(type)?.({ data: JSON.stringify(data) } as MessageEvent<string>);
+    this.emitRaw(type, JSON.stringify(data));
+  }
+
+  emitRaw(type: string, data: string) {
+    this.listeners.get(type)?.({ data } as MessageEvent<string>);
   }
 
   close() {
@@ -56,6 +60,38 @@ describe('useHostStream', () => {
 
     unmount();
     expect(source?.closed).toBe(true);
+  });
+
+  it('is live again when the browser reconnects, and keeps applying the reads', () => {
+    const { result } = renderHook(() => useHostStream());
+    const [source] = FakeEventSource.instances;
+
+    act(() => source?.onopen?.());
+    act(() => source?.onerror?.());
+    expect(result.current.live).toBe(false);
+
+    act(() => source?.onopen?.());
+    act(() => {
+      source?.emit('host', read('a', 10));
+      vi.advanceTimersByTime(250);
+    });
+
+    expect(result.current.live).toBe(true);
+    expect(FakeEventSource.instances).toHaveLength(1);
+    expect(result.current.reads.get(hostKey('server-1', 'a'))).toHaveLength(1);
+  });
+
+  it('ignores a malformed event and keeps the reads that follow', () => {
+    const { result } = renderHook(() => useHostStream());
+    const [source] = FakeEventSource.instances;
+
+    act(() => {
+      source?.emitRaw('host', '{ not json');
+      source?.emit('host', read('a', 10));
+      vi.advanceTimersByTime(250);
+    });
+
+    expect(result.current.reads.get(hostKey('server-1', 'a'))?.map((r) => r.cpuPercent)).toEqual([10]);
   });
 
   it('applies the reads in batches, per machine, oldest first', () => {
