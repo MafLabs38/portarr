@@ -1,0 +1,47 @@
+# Catalog of the end-to-end stack: one environment read through the socket proxy,
+# a healthy web app and a failing optional service.
+environments:
+  - id: e2e
+    name: E2E host
+    docker: { url: 'http://socket-proxy:2375' }
+
+stacks:
+  - id: demo
+    name: Demo
+    members:
+      - { app: web, role: critical }
+      - { app: broken, role: optional }
+
+apps:
+  - id: web
+    name: Web
+    icon: nginx
+    urls:
+      - { label: Home, href: 'http://localhost:8080' }
+    # Portarr runs in the compose network: it reaches the sample app by its service name, `localhost:8080` is only the
+    # port published to the browser. Without this the default check on the URL fails and the critical app is Down.
+    check: { url: 'http://web' }
+    workloads:
+      - { runtime: docker@e2e, match: { name: e2e-web } }
+  - id: broken
+    name: Broken job
+    type: service
+    workloads:
+      - { runtime: docker@e2e, match: { name: e2e-broken } }
+  - id: docs
+    name: Docs
+    urls:
+      - { href: 'https://docs.homelab.example' }
+
+# Followed data: what the Data page shows on this stack. A copy made by hand needs no backup tool; the off-site copy
+# is declared and nothing produces it yet.
+data:
+  - id: web-content
+    app: web
+    name: Web content
+    kind: files
+    importance: critical
+    where: { environment: e2e, workload: e2e-web }
+    targets:
+      local: { manual: true }
+      offsite: {}

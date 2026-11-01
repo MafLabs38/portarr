@@ -1,0 +1,373 @@
+# Baseline pipeline derived from the organization's github-template (dotnet stack),
+# extended for Portarr (React frontend, SQLite/PostgreSQL matrix, E2E, security scans).
+# Pull requests are built and tested here, but only develop and main publish an image
+# (IMPLEMENTATION_PLAN.md §1.3). On main, semantic-release then decides the version from the Conventional Commits since the last release
+# and the images are published under it (docs/releasing.md).
+#
+# Two lanes. A pull request into develop (or stacked on another feature branch) runs the light lane: lint, the SQLite tests, the
+# frontend tests and the security scans, so that iterating on develop stays fast. The full lane adds PostgreSQL, the reader, the
+# E2E smoke test and SonarQube. It runs on every push to develop and main, on every pull request into main (where merging is
+# demanding), on a pull request labelled `full-ci` (add the label before pushing) and on demand (Run workflow).
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  # Every pull request, including stacked ones whose base is another feature branch.
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # A run on main may be a release in flight (a tag, then images): it is never cancelled by the next push.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  NODE_VERSION: "22"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+
+jobs:
+  # Decides the lane once, for every job below.
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    outputs:
+      full: ${{ steps.lane.outputs.full }}
+      databases: ${{ steps.lane.outputs.databases }}
+    steps:
+      - id: lane
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.base_ref }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          if [ "$EVENT" != "pull_request" ] || [ "$BASE" = "main" ] || echo "$LABELS" | grep -q '"full-ci"'; then
+            echo "full=true" >> "$GITHUB_OUTPUT"
+            echo 'databases=["sqlite","postgres"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "full=false" >> "$GITHUB_OUTPUT"
+            echo 'databases=["sqlite"]' >> "$GITHUB_OUTPUT"
+          fi
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      - run: dotnet format src/Portarr.sln --verify-no-changes
+      - run: yarn install --frozen-lockfile
+      - run: yarn lint
+      - run: yarn stylelint
+      - run: yarn format:check
+      - run: yarn typecheck
+
+  test-backend:
+    name: test-backend (${{ matrix.database }})
+    runs-on: ubuntu-latest
+    needs: [lint, plan]
+    strategy:
+      fail-fast: false
+      matrix:
+        database: ${{ fromJSON(needs.plan.outputs.databases) }}
+    env:
+      # Read by the persistence tests once C1 adds the database (TESTING.md §3).
+      PORTARR_TEST_DATABASE: ${{ matrix.database }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+      - run: dotnet build src/Portarr.sln --configuration Release
+      # Exit code 8 means "no test matched the filter" in a project: expected, each project holds one kind.
+      - name: Unit tests
+        run: >
+          dotnet test --solution src/Portarr.sln --configuration Release --no-build --
+          --filter-not-trait "Category=Integration" --ignore-exit-code 8
+          --coverage --coverage-output-format xml --results-directory "$PWD/coverage/unit"
+      - name: Integration tests
+        run: >
+          dotnet test --solution src/Portarr.sln --configuration Release --no-build --
+          --filter-trait "Category=Integration" --ignore-exit-code 8
+          --coverage --coverage-output-format xml --results-directory "$PWD/coverage/integration"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: coverage-backend-${{ matrix.database }}
+          path: coverage/
+
+  test-frontend:
+    name: test-frontend
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - run: yarn test --coverage
+      # The chat's agent runner (agent/) has its own tests, on Node's runner.
+      - run: yarn test:agent
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: coverage-frontend
+          path: coverage/frontend/
+
+  e2e-smoke:
+    name: e2e-smoke
+    runs-on: ubuntu-latest
+    needs: [plan, test-backend, test-frontend]
+    if: needs.plan.outputs.full == 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - run: npx playwright install --with-deps chromium firefox
+      # No --wait: the stack holds e2e-broken, which exits on purpose; Portarr is awaited below.
+      - name: Build the image and start the e2e stack
+        run: docker compose -f tests/e2e/stack/docker-compose.yml up -d --build
+      - name: Wait for Portarr
+        run: timeout 60 bash -c 'until curl -fs http://localhost:8484/health/live; do sleep 1; done'
+      - run: yarn e2e --grep @smoke
+      - if: failure()
+        run: docker compose -f tests/e2e/stack/docker-compose.yml logs
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+
+  # The reader (D-100, D-102) is a small Rust program, a tool Portarr connects to: it has its own checks, then runs as the image
+  # that ships, against a real Docker, with the smoke test; and the .NET tests that need the real binary run against it.
+  reader:
+    name: reader
+    runs-on: ubuntu-latest
+    needs: plan
+    if: needs.plan.outputs.full == 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Format, lint and test
+        working-directory: reader
+        run: |
+          rustup component add clippy rustfmt
+          cargo fmt --check
+          cargo clippy --all-targets --locked -- -D warnings
+          cargo test --locked
+      - name: Build the reader
+        working-directory: reader
+        run: cargo build --release --locked
+      - name: Smoke test the binary against a real Docker
+        run: |
+          token=$(openssl rand -hex 32)
+          docker run -d --name probe-target alpine sleep 600
+          PORTARR_READER_TOKEN="$token" PORTARR_READER_URLS=http://127.0.0.1:8485 reader/target/release/portarr-reader &
+          sleep 2
+          tests/reader/smoke.sh http://127.0.0.1:8485 "$token" probe-target
+          kill %1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+      - name: Portarr's connectors read the real reader
+        env:
+          PORTARR_READER_BIN: ${{ github.workspace }}/reader/target/release/portarr-reader
+        run: |
+          # A wrong path would skip these tests and leave the pipeline green: the binary must be there.
+          test -x "$PORTARR_READER_BIN"
+          dotnet test --project src/Portarr.Integration.Test --configuration Release -- --filter-class "*Reader*" --ignore-exit-code 8
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: reader/Dockerfile
+          load: true
+          tags: portarr-reader:ci
+          cache-from: type=gha,scope=reader
+      - name: Run the image and its smoke test
+        run: |
+          token=$(openssl rand -hex 32)
+          docker run -d --name reader -p 8486:8485 \
+            -e PORTARR_READER_TOKEN="$token" \
+            --group-add "$(stat -c %g /var/run/docker.sock)" \
+            -v /var/run/docker.sock:/var/run/docker.sock:ro \
+            portarr-reader:ci
+          tests/reader/smoke.sh http://127.0.0.1:8486 "$token" reader || { docker logs reader; exit 1; }
+          for _ in $(seq 1 30); do [ "$(docker inspect --format '{{.State.Health.Status}}' reader)" = healthy ] && break; sleep 2; done
+          [ "$(docker inspect --format '{{.State.Health.Status}}' reader)" = healthy ] || { docker inspect reader; exit 1; }
+          docker image ls portarr-reader:ci
+
+  # The version of what was merged into main: semantic-release reads the Conventional Commits since the last tag, creates the tag
+  # and the GitHub release (its notes are the changelog), and says the version it chose ('' when nothing deserves a release).
+  # Nothing is committed back to main (the ruleset forbids a direct push): the version lives in the tag.
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend, security, reader, e2e-smoke, sonarqube]
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(needs.*.result, 'failure') }}
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      - run: yarn install --frozen-lockfile
+      - id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
+
+  image:
+    name: image
+    runs-on: ubuntu-latest
+    needs: [e2e-smoke, reader, release]
+    # Integrated code only: pull requests never publish images. On main the release job ran first (or was skipped, on develop).
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.e2e-smoke.result == 'success' && needs.reader.result == 'success' && (needs.release.result == 'success' || needs.release.result == 'skipped') }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          # The branch name (develop, main) plus the commit.
+          tags: |
+            type=ref,event=branch
+            type=sha
+            type=raw,value=${{ needs.release.outputs.version }},enable=${{ needs.release.outputs.version != '' }}
+            type=raw,value=latest,enable=${{ needs.release.outputs.version != '' }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: VERSION=${{ needs.release.outputs.version != '' && format('{0}.{1}', needs.release.outputs.version, github.run_number) || format('0.0.0-{0}', steps.meta.outputs.version) }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # The reader (D-100) is its own image, built from its own Dockerfile and tagged the same way.
+      - id: meta-reader
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        with:
+          images: ghcr.io/${{ github.repository }}-reader
+          tags: |
+            type=ref,event=branch
+            type=sha
+            type=raw,value=${{ needs.release.outputs.version }},enable=${{ needs.release.outputs.version != '' }}
+            type=raw,value=latest,enable=${{ needs.release.outputs.version != '' }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: reader/Dockerfile
+          push: true
+          tags: ${{ steps.meta-reader.outputs.tags }}
+          labels: ${{ steps.meta-reader.outputs.labels }}
+          build-args: VERSION=${{ needs.release.outputs.version != '' && format('{0}.{1}', needs.release.outputs.version, github.run_number) || format('0.0.0-{0}', steps.meta-reader.outputs.version) }}
+          cache-from: type=gha,scope=reader
+          cache-to: type=gha,mode=max,scope=reader
+      # The chat's agent runner (D-87) is a companion too: its own image, built from agent/, tagged the same way.
+      - id: meta-agent
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        with:
+          images: ghcr.io/${{ github.repository }}-agent
+          tags: |
+            type=ref,event=branch
+            type=sha
+            type=raw,value=${{ needs.release.outputs.version }},enable=${{ needs.release.outputs.version != '' }}
+            type=raw,value=latest,enable=${{ needs.release.outputs.version != '' }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: agent
+          push: true
+          tags: ${{ steps.meta-agent.outputs.tags }}
+          labels: ${{ steps.meta-agent.outputs.labels }}
+          cache-from: type=gha,scope=agent
+          cache-to: type=gha,mode=max,scope=agent
+
+  sonarqube:
+    name: sonarqube
+    runs-on: ubuntu-latest
+    needs: [plan, test-backend, test-frontend]
+    # Full lane only, once a SonarQube server is configured (repository variable + secret).
+    if: needs.plan.outputs.full == 'true' && vars.SONAR_HOST_URL != ''
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          path: coverage/
+      - run: dotnet tool install --global dotnet-sonarscanner
+      # MarkdownView keys its blocks, items and cells by position: they come from a parsed document replaced as a whole, never reordered,
+      # and equal cells would collide as text keys (typescript:S6479). The other accessibility exceptions are NOSONAR comments in the code.
+      # en.ts holds the UI texts: "Confirm the password" is a label, not a credential (typescript:S2068 reads the key names).
+      # Roslyn/IDE analyzers are already enforced by the build and dotnet format: importing them into
+      # Sonar only duplicates them (38 IDE0022 infos blocked the quality gate).
+      - name: Begin SonarQube analysis
+        run: >
+          dotnet sonarscanner begin
+          /k:"${{ github.repository_owner }}_${{ github.event.repository.name }}"
+          /d:sonar.host.url="${{ vars.SONAR_HOST_URL }}"
+          /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+          /d:sonar.cs.vscoveragexml.reportsPaths="coverage/**/*.xml"
+          /d:sonar.javascript.lcov.reportPaths="coverage/coverage-frontend/lcov.info"
+          /d:sonar.coverage.exclusions="**/obj/**,**/*.g.cs,**/__tests__/**,**/__mocks__/**,tests/**"
+          /d:sonar.cs.roslyn.ignoreIssues=true
+          /d:sonar.issue.ignore.multicriteria=e1,e2
+          /d:sonar.issue.ignore.multicriteria.e1.ruleKey=typescript:S2068
+          /d:sonar.issue.ignore.multicriteria.e1.resourceKey=frontend/src/Utilities/String/en.ts
+          /d:sonar.issue.ignore.multicriteria.e2.ruleKey=typescript:S6479
+          /d:sonar.issue.ignore.multicriteria.e2.resourceKey=frontend/src/Components/Markdown/MarkdownView.tsx
+          /d:sonar.qualitygate.wait=true
+      - run: dotnet build src/Portarr.sln
+      - name: End SonarQube analysis
+        run: dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+
+  security:
+    name: security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      # gitleaks-action needs a license key on organization repositories; the CLI does not.
+      - name: Secret scanning (gitleaks)
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar xz gitleaks
+          ./gitleaks git . --redact --verbose
+      - name: Dependency and config scan (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          severity: CRITICAL,HIGH
+          exit-code: "1"

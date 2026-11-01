@@ -1,0 +1,19 @@
+.avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--radiusPill);
+  color: var(--inkOnAccent);
+  font-family: var(--displayFontFamily);
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

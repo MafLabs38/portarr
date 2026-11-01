@@ -1,0 +1,70 @@
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-bottom: 14px;
+}
+
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 0;
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: var(--borderWidth) solid var(--hairline);
+  border-radius: var(--radiusSmall);
+  background-color: var(--paperCard);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.button:focus-visible {
+  outline: var(--borderWidth) solid var(--accent);
+}
+
+.button:disabled {
+  color: var(--inkMuted);
+  cursor: default;
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--hairlineStrong);
+  background-color: var(--paperSunken);
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+.error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--warningColor);
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinning {
+    animation: none;
+  }
+}

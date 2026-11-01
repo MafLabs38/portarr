@@ -1,0 +1,236 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: var(--borderWidth) solid var(--hairline);
+  border-radius: var(--radiusMedium);
+  background-color: var(--paperCard);
+  box-shadow: var(--shadowCard);
+  font-variant-numeric: tabular-nums;
+  scroll-margin-top: 80px;
+}
+
+.card:target {
+  border-color: var(--accent);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.icon {
+  color: var(--secondary);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--displayFontFamily);
+  font-size: var(--fontSizeBody);
+  font-weight: 700;
+}
+
+.badge {
+  padding: 1px 8px;
+  border: var(--borderWidth) solid var(--hairlineStrong);
+  border-radius: var(--radiusPill);
+  color: var(--inkSoft);
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+}
+
+.live {
+  margin-left: auto;
+}
+
+.meta,
+.caption {
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+}
+
+.error {
+  margin: 0;
+  color: var(--warningColor);
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+}
+
+.notReady {
+  padding: 1px 8px;
+  border-radius: var(--radiusSmall);
+  background-color: var(--warningColor);
+  color: var(--inkOnAccent);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.divided {
+  padding-top: 8px;
+  border-top: 1px solid var(--hairline);
+}
+
+.memory {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.figureRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.figureLabel {
+  flex-shrink: 0;
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.figure {
+  flex-shrink: 0;
+  font-family: var(--displayFontFamily);
+  font-size: var(--fontSizeCardTitle);
+  font-weight: 600;
+}
+
+.figureText,
+.legendValue {
+  color: var(--inkSoft);
+  font-family: var(--monoSpaceFontFamily);
+  font-size: var(--fontSizeMeta);
+  white-space: nowrap;
+}
+
+.figureText {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin: 0;
+  padding: 0;
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  list-style: none;
+  white-space: nowrap;
+}
+
+.legend {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  list-style: none;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.legendLabel {
+  overflow: hidden;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+
+.legendValue {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.legendCpu::before,
+.legendContainers::before,
+.legendGuests::before,
+.legendSystem::before,
+.legendReclaimable::before,
+.legendIowait::before,
+.legendFree::before {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  margin-right: 4px;
+  border-radius: var(--radiusPill);
+  content: '';
+}
+
+.legendCpu::before {
+  background-color: var(--secondary);
+}
+
+.legendContainers::before {
+  background-color: var(--purple);
+}
+
+.legendGuests::before {
+  background-color: var(--pink);
+}
+
+.legendSystem::before {
+  background-color: var(--infoColor);
+}
+
+.legendReclaimable::before {
+  background-color: var(--hairlineStrong);
+}
+
+.legendIowait::before {
+  background-color: var(--warningColor);
+}
+
+.legendFree::before {
+  border: 1px solid var(--hairlineStrong);
+  background-color: var(--paperSunken);
+}
+
+.swap {
+  display: grid;
+  grid-template-columns: auto minmax(40px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hairline);
+}
+
+.swapValue {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--inkSoft);
+  font-family: var(--monoSpaceFontFamily);
+  font-size: var(--fontSizeMeta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

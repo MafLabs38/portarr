@@ -1,0 +1,98 @@
+.tile {
+  min-width: 112px;
+  border: var(--borderWidth) solid var(--hairline);
+  border-radius: var(--radiusMedium);
+  background-color: var(--paperCard);
+  box-shadow: var(--shadowCard);
+}
+
+.content,
+.link {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 0 8px;
+  padding: 8px 14px;
+  border-radius: var(--radiusSmall);
+  color: inherit;
+  text-decoration: none;
+}
+
+.link:hover {
+  background-color: var(--paperSunken);
+}
+
+.link:focus-visible {
+  outline: var(--borderWidth) solid var(--accent);
+  outline-offset: 2px;
+}
+
+.active {
+  border-color: var(--accent);
+}
+
+.icon {
+  grid-row: span 2;
+}
+
+.value {
+  font-family: var(--displayFontFamily);
+  font-size: var(--fontSizeSectionTitle);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.label {
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+}
+
+.success .icon,
+.success .value {
+  color: var(--successColor);
+}
+
+.warning .icon,
+.warning .value {
+  color: var(--warningColor);
+}
+
+.danger .icon,
+.danger .value {
+  color: var(--dangerColor);
+}
+
+.danger {
+  border-color: var(--dangerColor);
+}
+
+.info .icon,
+.info .value {
+  color: var(--infoColor);
+}
+
+.primary .icon,
+.primary .value {
+  color: var(--purple);
+}
+
+.detail {
+  grid-column: span 2;
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+}
+
+.default .icon {
+  color: var(--secondary);
+}
+
+.disabled .icon,
+.disabled .value {
+  color: var(--disabledColor);
+}
+
+.danger.active {
+  border-color: var(--accent);
+}

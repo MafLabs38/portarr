@@ -1,0 +1,23 @@
+# node_exporter on a Docker host: Portarr's host agent (docs/companions.md#node_exporter).
+# Reads the host's /proc and /sys (read-only) and answers on port 9100 with the host's CPU, memory, swap,
+# disks and sensors. It has no authentication: allow only Portarr's host on port 9100 (firewall).
+services:
+  node-exporter:
+    image: prom/node-exporter:v1.10.2   # pin a version (or a digest) in production
+    container_name: node-exporter
+    restart: unless-stopped
+    network_mode: host                  # the host's network counters and addresses, port 9100 on the host
+    pid: host                           # the host's processes, not the container's
+    read_only: true
+    user: "65534:65534"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/host/root
+      - --web.listen-address=:9100
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro,rslave

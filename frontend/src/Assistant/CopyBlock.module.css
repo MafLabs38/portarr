@@ -1,0 +1,52 @@
+.block {
+  position: relative;
+  margin: 6px 0 14px;
+}
+
+.code {
+  overflow-x: auto;
+  margin: 0;
+  padding: 12px 90px 12px 14px;
+  border: var(--borderWidth) solid var(--hairline);
+  border-radius: var(--radiusMedium);
+  background-color: var(--paperSunken);
+  font-family: var(--monoSpaceFontFamily);
+  font-size: var(--fontSizeMeta);
+  line-height: 1.6;
+  white-space: pre;
+}
+
+.code:focus-visible {
+  outline: var(--borderWidth) solid var(--accent);
+}
+
+.button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: var(--borderWidth) solid var(--hairline);
+  border-radius: var(--radiusSmall);
+  background-color: var(--paperCard);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.button:focus-visible {
+  outline: var(--borderWidth) solid var(--accent);
+}
+
+.status {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

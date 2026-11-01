@@ -1,0 +1,85 @@
+.userForm {
+  margin: 16px 0;
+  padding: 16px;
+  border: var(--borderWidth) solid var(--hairlineStrong);
+  border-radius: var(--radiusMedium);
+  background-color: var(--paperSunken);
+}
+
+.formTitle {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--displayFontFamily);
+  font-size: var(--fontSizeCardTitle);
+}
+
+.areas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.area {
+  flex: 1 1 220px;
+  margin: 0;
+  padding: 12px;
+  border: var(--borderWidth) solid var(--hairline);
+  border-radius: var(--radiusMedium);
+}
+
+.area legend {
+  padding: 0 6px;
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.permission {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  color: var(--ink);
+}
+
+.permissionKey {
+  font-family: var(--monoSpaceFontFamily);
+  font-size: var(--fontSizeMeta);
+}
+
+.roles {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.roleHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.roleName {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--displayFontFamily);
+  font-size: var(--fontSizeCardTitle);
+}
+
+.roleList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roleList li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: var(--borderWidth) solid var(--hairline);
+}

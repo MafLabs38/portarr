@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Portarr.Core\Portarr.Core.csproj" />
+    <ProjectReference Include="..\Portarr.Providers.NodeExporter\Portarr.Providers.NodeExporter.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Portarr.Providers.Kubernetes.Test" />
+  </ItemGroup>
+</Project>

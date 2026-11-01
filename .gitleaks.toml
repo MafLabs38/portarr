@@ -1,0 +1,7 @@
+# Secret scanning (CI job "security", gitleaks v8.21.2): the default rules, plus one exception.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "A deliberate fake private key in a test input, proving that the catalog refuses secrets. Later commits split the PEM markers so the repository holds no such pattern; this one commit keeps it in the history."
+commits = ["5a877ef8656d4fa7200ab900d2166bb2cc6c3fc4"]

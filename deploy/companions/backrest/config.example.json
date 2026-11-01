@@ -1,0 +1,76 @@
+{
+  "_comment": "Illustrative. Create repositories and plans in the Backrest UI (or export its config); do not paste a hand-written file over a live one. Backrest keeps the passwords in this file: protect it.",
+  "instance": "server-1",
+  "repos": [
+    {
+      "id": "local",
+      "uri": "/repos/local",
+      "password": "<restic repository password>",
+      "prunePolicy": { "schedule": { "cron": "0 5 * * 0" } },
+      "checkPolicy": { "schedule": { "cron": "0 6 1 * *" }, "structureOnly": true }
+    },
+    {
+      "id": "offsite",
+      "uri": "b2:example-backups:server-1",
+      "password": "<restic repository password>",
+      "env": ["B2_ACCOUNT_ID=<application key id>", "B2_ACCOUNT_KEY=<application key>"],
+      "prunePolicy": { "schedule": { "cron": "0 5 * * 0" } }
+    }
+  ],
+  "plans": [
+    {
+      "id": "shop-db-local",
+      "repo": "local",
+      "paths": ["/dumps/shop"],
+      "schedule": { "cron": "0 3 * * *" },
+      "retention": { "policyTimeBucketed": { "daily": 7, "weekly": 4, "monthly": 6 } },
+      "hooks": [
+        {
+          "conditions": ["CONDITION_SNAPSHOT_START"],
+          "onError": "ON_ERROR_FATAL",
+          "actionCommand": { "command": "umask 077 && mkdir -p /dumps/shop && pg_dump -h shop-db -U backup -Fc -Z 0 shop > /dumps/shop/shop.dump" }
+        },
+        {
+          "conditions": ["CONDITION_SNAPSHOT_END"],
+          "onError": "ON_ERROR_IGNORE",
+          "actionCommand": { "command": "rm -rf /dumps/shop" }
+        }
+      ]
+    },
+    {
+      "id": "shop-db-offsite",
+      "repo": "offsite",
+      "paths": ["/dumps/shop"],
+      "schedule": { "cron": "30 3 * * *" },
+      "retention": { "policyTimeBucketed": { "daily": 7, "weekly": 4, "monthly": 12 } },
+      "hooks": [
+        {
+          "conditions": ["CONDITION_SNAPSHOT_START"],
+          "onError": "ON_ERROR_FATAL",
+          "actionCommand": { "command": "umask 077 && mkdir -p /dumps/shop && pg_dump -h shop-db -U backup -Fc -Z 0 shop > /dumps/shop/shop.dump" }
+        },
+        {
+          "conditions": ["CONDITION_SNAPSHOT_END"],
+          "onError": "ON_ERROR_IGNORE",
+          "actionCommand": { "command": "rm -rf /dumps/shop" }
+        }
+      ]
+    },
+    {
+      "id": "media-config-local",
+      "repo": "local",
+      "paths": ["/userdata/sonarr", "/userdata/radarr"],
+      "excludes": ["**/Logs", "**/MediaCover"],
+      "schedule": { "cron": "0 2 * * *" },
+      "retention": { "policyTimeBucketed": { "daily": 7, "weekly": 4 } }
+    },
+    {
+      "id": "media-config-offsite",
+      "repo": "offsite",
+      "paths": ["/userdata/sonarr", "/userdata/radarr"],
+      "excludes": ["**/Logs", "**/MediaCover"],
+      "schedule": { "cron": "30 2 * * *" },
+      "retention": { "policyTimeBucketed": { "daily": 7, "weekly": 4 } }
+    }
+  ]
+}

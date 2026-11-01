@@ -1,0 +1,15 @@
+{
+  "priority": 5,
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/v1/conversations/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/events"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache"
+    },
+    "body": "retry: 600000\n\nid: 1\nevent: chat\ndata: {\"seq\":1,\"at\":\"2026-01-01T12:00:00Z\",\"type\":\"user\",\"text\":\"What needs my attention?\"}\n\nid: 2\nevent: chat\ndata: {\"seq\":2,\"at\":\"2026-01-01T12:00:01Z\",\"type\":\"tool-call\",\"id\":\"t1\",\"name\":\"mcp__portarr__get_overview\",\"input\":{}}\n\nid: 3\nevent: chat\ndata: {\"seq\":3,\"at\":\"2026-01-01T12:00:02Z\",\"type\":\"tool-result\",\"id\":\"t1\",\"isError\":false,\"summary\":\"2 apps need attention\"}\n\nid: 4\nevent: chat\ndata: {\"seq\":4,\"at\":\"2026-01-01T12:00:03Z\",\"type\":\"text\",\"text\":\"Two apps are degraded; I can write a note on the first.\"}\n\nid: 5\nevent: chat\ndata: {\"seq\":5,\"at\":\"2026-01-01T12:00:04Z\",\"type\":\"permission\",\"requestId\":\"r1\",\"toolName\":\"mcp__portarr__set_notes\",\"input\":{\"section\":\"apps\",\"id\":\"web\",\"notes\":\"degraded since 12:00\"}}\n\nid: 6\nevent: chat\ndata: {\"seq\":6,\"at\":\"2026-01-01T12:00:05Z\",\"type\":\"turn-end\",\"isError\":false,\"usage\":{\"inputTokens\":1200,\"outputTokens\":80,\"cacheReadTokens\":0,\"cacheWriteTokens\":0}}\n\n"
+  }
+}

@@ -1,0 +1,26 @@
+# Backrest (restic) on a Docker host or a hypervisor: scheduled, encrypted, deduplicated backups of files and
+# database dumps to TWO repositories (the local array and an S3 / Backblaze B2 bucket). Portarr reads its API.
+# Documentation: docs/companions.md#backrest. Replace every example value.
+services:
+  backrest:
+    build: .
+    image: backrest-with-db-clients:1.14.1
+    restart: unless-stopped
+    ports:
+      - "10.0.0.10:9898:9898"          # the LAN address only; allow only Portarr's host in the firewall
+    environment:
+      BACKREST_PORT: "0.0.0.0:9898"
+      BACKREST_DATA: /data              # restic binary, operation history
+      BACKREST_CONFIG: /config/config.json
+      XDG_CACHE_HOME: /cache
+      TZ: Europe/Paris
+    env_file:
+      - backrest.env                    # B2_ACCOUNT_ID, B2_ACCOUNT_KEY, PGPASSFILE… (chmod 600, never committed)
+    volumes:
+      - ./config:/config
+      - ./data:/data
+      - ./cache:/cache
+      - /srv/backups/restic:/repos/local            # repository 1: the local array (a share)
+      - /srv/appdata:/userdata:ro                    # what the plans back up, read-only
+      - ./dumps:/dumps                               # where the pre-backup hooks write their dumps (chmod 700 ./dumps: a dump holds the whole database; the hooks use umask 077 and delete it after the snapshot)
+      - ./pgpass:/root/.pgpass:ro                    # host:port:database:user:password for pg_dump (chmod 600)

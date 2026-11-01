@@ -1,0 +1,71 @@
+# End-to-end stack: the Portarr image built from this repository, reading the host's Docker
+# through the socket proxy (GET only), with a sample web container and a failing one.
+# The socket is mounted into the proxy only: `:ro` does not restrict the Docker API, a direct
+# mount would give Portarr root-equivalent access to the host.
+name: portarr-e2e
+
+services:
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:v0.4.2
+    environment:
+      CONTAINERS: 1
+      POST: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  web:
+    image: nginx:stable-alpine-slim
+    container_name: e2e-web
+    ports:
+      - '8080:80'
+
+  # Exits with code 1 once, for the Down/Degraded statuses and the stderr logs.
+  broken:
+    image: alpine:3.20
+    container_name: e2e-broken
+    command: ['sh', '-c', 'echo starting; echo fatal error >&2; exit 1']
+    restart: 'no'
+
+  # Stands in for the chat's agent runner (D-89): it only answers the list of agents, so the chat panel opens and no
+  # model is ever called.
+  tools:
+    image: wiremock/wiremock:3.13.1
+    command: ['--disable-banner']
+    volumes:
+      - ./wiremock:/home/wiremock:ro
+
+  portarr:
+    build:
+      context: ../../..
+    depends_on:
+      - socket-proxy
+      - web
+      - tools
+    environment:
+      # The catalog sits in /config, the folder the app user owns: the Identity card only offers its form when the catalog's folder can be
+      # written (a folder Docker creates for a bind mount belongs to root). The file itself is read-only: the specs never save anything.
+      PORTARR__CATALOGFILE: /config/catalog.yaml
+      PORTARR__CATALOG__WRITABLE: 'true'
+      # Required while the catalog is writable (a throwaway; the specs never use it).
+      PORTARR__APIKEY: e2e-e2e-e2e-e2e-e2e-e2e-e2e-e2e-e2e
+      # The first administrator, created unattended (the specs sign in as this user, tests/e2e/global-setup.ts).
+      PORTARR__AUTH__ADMINUSER: e2e-admin
+      PORTARR__AUTH__ADMINPASSWORDFILE: /run/e2e/admin-password
+      PORTARR__AGENT__URL: http://tools:8080
+      PORTARR__AGENT__SECRET: e2e-e2e-e2e-e2e-e2e-e2e-e2e-e2e-e2e
+    ports:
+      - '8484:8484'
+    volumes:
+      - portarr-config:/config
+      - ./catalog.yaml:/config/catalog.yaml:ro
+    configs:
+      - source: admin-password
+        target: /run/e2e/admin-password
+
+# A throwaway for a throwaway stack; the specs read the same value (tests/e2e/global-setup.ts).
+configs:
+  admin-password:
+    content: e2e-throwaway-passphrase
+
+volumes:
+  portarr-config:

@@ -1,0 +1,6 @@
+.chart {
+  position: relative;
+  height: 72px;
+  border-radius: var(--radiusSmall);
+  background-color: var(--paperSunken);
+}

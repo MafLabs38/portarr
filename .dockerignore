@@ -1,0 +1,10 @@
+**/bin
+**/obj
+node_modules
+_output
+coverage
+playwright-report
+test-results
+.git
+docs
+tests

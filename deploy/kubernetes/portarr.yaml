@@ -1,0 +1,201 @@
+# Portarr on Kubernetes: a reference manifest (docs/deployment.md). Edit the three values marked CHANGE, then
+#   kubectl apply -f portarr.yaml
+# One replica (the data is a SQLite file on a volume), read-only access to the cluster through a ServiceAccount, the catalog in a
+# ConfigMap, the first administrator created from a Secret.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: portarr
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: portarr
+  namespace: portarr
+---
+# The token Portarr sends to the API server: long-lived, bound to the ServiceAccount, read through PORTARR_K8S_TOKEN.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: portarr-token
+  namespace: portarr
+  annotations:
+    kubernetes.io/service-account.name: portarr
+type: kubernetes.io/service-account-token
+---
+# Read only: the inventory (nodes, namespaces, pods, workloads), the live usage of metrics-server, and the backup tools' own
+# resources (CronJobs, K8up). No write verb, no access to Secrets or logs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: portarr
+rules:
+  - apiGroups: [""]
+    resources: [nodes, namespaces, pods, persistentvolumeclaims]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, daemonsets, replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [metrics.k8s.io]
+    resources: [nodes, pods]
+    verbs: [get, list]
+  - apiGroups: [batch]
+    resources: [cronjobs, jobs]
+    verbs: [get, list]
+  - apiGroups: [k8up.io]
+    resources: [schedules, backups, snapshots]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: portarr
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: portarr
+subjects:
+  - kind: ServiceAccount
+    name: portarr
+    namespace: portarr
+---
+# The catalog (docs/catalog.md). It is read-only here: the cluster's source of truth is this ConfigMap.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: portarr-catalog
+  namespace: portarr
+data:
+  catalog.yaml: |
+    environments:
+      - id: cluster
+        name: Cluster
+        runtime: kubernetes
+        kubernetes:
+          server: "https://kubernetes.default.svc"
+          tokenEnv: PORTARR_K8S_TOKEN
+          caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    apps: []
+---
+# The first administrator, created once while no user exists. CHANGE the password, or delete this Secret and the two
+# PORTARR__AUTH__* variables below to use the one-time setup code printed in the log instead.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: portarr-admin
+  namespace: portarr
+type: Opaque
+stringData:
+  password: CHANGE-ME-with-a-long-random-password
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: portarr-data
+  namespace: portarr
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portarr
+  namespace: portarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # a SQLite file on a ReadWriteOnce volume: never two pods at once
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: portarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: portarr
+    spec:
+      serviceAccountName: portarr
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        runAsGroup: 1654
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: portarr
+          image: ghcr.io/maflabs38/portarr:0.1.0 # a version, never latest: the cluster then changes version only when you do (docs/deployment.md)
+          ports:
+            - name: http
+              containerPort: 8484
+          env:
+            # Plain HTTP inside the pod on purpose: TLS ends at the ingress, and nothing leaves the pod network in clear.
+            - { name: PORTARR__URLS, value: "http://+:8484" }
+            - { name: PORTARR__DATAFOLDER, value: /config }
+            - { name: PORTARR__CATALOGFILE, value: /catalog/catalog.yaml }
+            - { name: PORTARR__CATALOG__WRITABLE, value: "false" }
+            # Behind a TLS-terminating proxy that Portarr does not see as trusted: the session cookie is always Secure.
+            - { name: PORTARR__AUTH__COOKIESECURITY, value: Always }
+            - { name: PORTARR__AUTH__ADMINUSER, value: admin }
+            - { name: PORTARR__AUTH__ADMINPASSWORDFILE, value: /run/portarr/admin/password }
+            - name: PORTARR_K8S_TOKEN
+              valueFrom:
+                secretKeyRef: { name: portarr-token, key: token }
+          volumeMounts:
+            - { name: data, mountPath: /config }
+            - { name: catalog, mountPath: /catalog, readOnly: true }
+            - { name: admin, mountPath: /run/portarr/admin, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health/live, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 100m, memory: 256Mi, ephemeral-storage: 64Mi }
+            limits: { memory: 768Mi, ephemeral-storage: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: portarr-data }
+        - name: catalog
+          configMap: { name: portarr-catalog }
+        - name: admin
+          secret: { secretName: portarr-admin }
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: portarr
+  namespace: portarr
+spec:
+  selector:
+    app.kubernetes.io/name: portarr
+  ports:
+    - { name: http, port: 8484, targetPort: http }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: portarr
+  namespace: portarr
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: portarr.homelab.example # CHANGE
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: portarr, port: { name: http } }

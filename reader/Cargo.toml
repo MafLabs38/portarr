@@ -1,0 +1,22 @@
+[package]
+name = "portarr-reader"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.80"
+description = "The read-only reader of one machine for Portarr: node_exporter-format host metrics and a filtered Docker window"
+license = "GPL-3.0-or-later"
+publish = false
+
+[dependencies]
+# A small blocking HTTP server: the reader serves a handful of routes to one client, it needs no async runtime.
+tiny_http = { version = "0.12", default-features = false }
+serde_json = "1"
+sha2 = "0.10"
+subtle = "2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

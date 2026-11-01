@@ -1,0 +1,39 @@
+.label {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: var(--radiusPill);
+  background-color: var(--paperSunken);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.success {
+  color: var(--successColor);
+}
+
+.warning {
+  color: var(--warningColor);
+}
+
+.danger {
+  color: var(--dangerColor);
+}
+
+.info {
+  color: var(--infoColor);
+}
+
+/* A configuration to fix: its own color, distinct from "unknown" and from the warnings. */
+.primary {
+  color: var(--purple);
+}
+
+.disabled,
+.default,
+.inverse {
+  color: var(--disabledColor);
+}

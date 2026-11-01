@@ -1,0 +1,19 @@
+.alert {
+  margin-bottom: 24px;
+  padding: 14px 18px;
+  border: var(--borderWidth) solid;
+  border-radius: var(--radiusMedium);
+  background-color: var(--paperCard);
+}
+
+.warning {
+  border-color: var(--warningColor);
+}
+
+.danger {
+  border-color: var(--dangerColor);
+}
+
+.info {
+  border-color: var(--infoColor);
+}

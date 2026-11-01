@@ -1,0 +1,38 @@
+.live,
+.stale {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.live {
+  color: var(--successColor);
+}
+
+.stale {
+  color: var(--warningColor);
+}
+
+.live::before,
+.stale::before {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radiusPill);
+  background-color: currentcolor;
+  content: '';
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .live::before {
+    animation: pulse 2s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}

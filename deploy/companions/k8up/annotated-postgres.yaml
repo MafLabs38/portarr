@@ -1,0 +1,38 @@
+# A database dumped through its own process (consistent, no file copy of live data): K8up runs the annotated
+# command in the pod at the start of the backup and stores its output. The claim itself is excluded (k8up.io/backup:
+# "false") since the dump is the copy. The dump reads its credentials from the pod's own environment.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: shop-db
+  namespace: shop
+spec:
+  serviceName: shop-db
+  replicas: 1
+  selector: { matchLabels: { app: shop-db } }
+  template:
+    metadata:
+      labels: { app: shop-db }
+      annotations:
+        k8up.io/backupcommand: sh -c 'PGUSER="$POSTGRES_USER" PGPASSWORD="$POSTGRES_PASSWORD" pg_dumpall --clean'
+        k8up.io/file-extension: .sql
+    spec:
+      # K8up runs the dump command through the Kubernetes API from outside: nothing in the pod needs a service account token.
+      automountServiceAccountToken: false
+      containers:
+        - name: postgres
+          image: postgres:17
+          envFrom: [{ secretRef: { name: shop-db } }]
+          # Sized for a small database: raise them with its data.
+          resources:
+            requests: { cpu: 250m, memory: 256Mi, ephemeral-storage: 1Gi }
+            limits: { memory: 512Mi, ephemeral-storage: 2Gi }
+          volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        annotations:
+          k8up.io/backup: "false"
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: { requests: { storage: 10Gi } }

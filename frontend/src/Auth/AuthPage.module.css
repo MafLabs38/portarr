@@ -1,0 +1,119 @@
+.screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px var(--pageContentBodyPaddingSmall);
+  background-color: var(--paper);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 400px;
+  padding: var(--modalBodyPadding);
+  border: var(--borderWidth) solid var(--hairlineStrong);
+  border-radius: var(--radiusLarge);
+  background-color: var(--paperCard);
+  box-shadow: var(--shadowCard);
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radiusMedium);
+  object-fit: cover;
+}
+
+.name {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--displayFontFamily);
+  font-size: var(--fontSizeSectionTitle);
+}
+
+.lead {
+  margin: 0;
+  color: var(--inkSoft);
+  text-align: center;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  color: var(--inkMuted);
+  font-weight: 700;
+}
+
+.input {
+  padding: 8px 12px;
+  border: var(--borderWidth) solid var(--hairline);
+  border-radius: var(--radiusMedium);
+  background-color: var(--paperSunken);
+  color: var(--ink);
+  font: inherit;
+}
+
+.input:focus-visible {
+  outline: var(--borderWidth) solid var(--accent);
+  outline-offset: 2px;
+}
+
+.help {
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+}
+
+.remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--inkSoft);
+}
+
+.submit {
+  padding: 8px 18px;
+  border: var(--borderWidth) solid var(--accent);
+  border-radius: var(--radiusSmall);
+  background-color: var(--accent);
+  box-shadow: var(--shadowButton);
+  color: var(--inkOnAccent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.submit:focus-visible {
+  outline: var(--borderWidth) solid var(--ink);
+  outline-offset: 2px;
+}
+
+.submit:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.submit:active:not(:disabled) {
+  box-shadow: var(--shadowPressed);
+  transform: translateY(3px);
+}

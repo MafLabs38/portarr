@@ -1,0 +1,72 @@
+# node_exporter on every node of a cluster: Portarr's host agent (docs/companions.md#node_exporter).
+# One pod per node, on the node's network (port 9100 at its InternalIP), with the host's /proc, /sys and /
+# mounted read-only. Tolerates control-plane taints; add your own taints' tolerations.
+# Port 9100 has no authentication: restrict it to Portarr's host (firewall, or a NetworkPolicy-aware CNI).
+# A node Portarr cannot reach is read through the API server's pod proxy: grant its ServiceAccount `get` on
+# `pods/proxy` in this namespace only (Role + RoleBinding in docs/companions.md#in-kubernetes).
+#   kubectl apply -f kubernetes.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: node-exporter
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: node-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: node-exporter
+    spec:
+      # hostNetwork: the node's own network counters and its address on port 9100 (the node's IP is what Portarr reads). No hostPID:
+      # the default collectors read the node's counters through the mounted /host/proc, not through its process table.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      automountServiceAccountToken: false
+      priorityClassName: system-node-critical
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        # - key: example.com/dedicated        # a taint of your own nodes
+        #   operator: Exists
+        #   effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+      containers:
+        - name: node-exporter
+          image: prom/node-exporter:v1.10.2   # pin a version (or a digest) in production
+          args:
+            - --path.procfs=/host/proc
+            - --path.sysfs=/host/sys
+            - --path.rootfs=/host/root
+            - --web.listen-address=:9100
+          ports:
+            - name: metrics
+              containerPort: 9100
+              hostPort: 9100
+          resources:
+            requests: { cpu: 20m, memory: 32Mi, ephemeral-storage: 16Mi }
+            limits: { cpu: 200m, memory: 64Mi, ephemeral-storage: 64Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: proc, mountPath: /host/proc, readOnly: true }
+            - { name: sys, mountPath: /host/sys, readOnly: true }
+            - { name: root, mountPath: /host/root, readOnly: true, mountPropagation: HostToContainer }
+      volumes:
+        - { name: proc, hostPath: { path: /proc } }
+        - { name: sys, hostPath: { path: /sys } }
+        - { name: root, hostPath: { path: / } }
