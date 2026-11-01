@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import * as icons from 'Helpers/Props/icons';
 import type { AttentionItem, AttentionLevel } from 'typings/Maintenance';

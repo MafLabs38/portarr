@@ -1,5 +1,5 @@
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import * as icons from 'Helpers/Props/icons';
 import translate from 'Utilities/String/translate';

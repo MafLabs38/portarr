@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import ProgressBar from 'Components/ProgressBar/ProgressBar';
 import formatBytes from 'Utilities/Number/formatBytes';
