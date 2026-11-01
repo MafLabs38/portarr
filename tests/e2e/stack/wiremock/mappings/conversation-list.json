@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/v1/conversations"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": [
+      {
+        "id": "c-e2e",
+        "title": "What needs my attention?",
+        "agent": "claude-code",
+        "model": "sonnet",
+        "createdAt": "2026-01-01T12:00:00Z",
+        "updatedAt": "2026-01-01T12:00:05Z",
+        "running": false,
+        "busy": false,
+        "pendingPermissions": 1
+      }
+    ]
+  }
+}
