@@ -15,8 +15,9 @@ COPY src ./src
 RUN dotnet publish src/Portarr.Host/Portarr.Host.csproj -c Release -o /app -p:Version=${VERSION} \
     && mkdir /config
 
-# Chiseled image: no shell, no package manager, non-root user by default.
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled
+# Chiseled image: no shell, no package manager, non-root user by default. The "-extra" variant adds tzdata and ICU, which the
+# next run of a CronJob or a backup plan needs to be read in its own time zone.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-extra
 WORKDIR /app
 COPY --from=backend /app ./
 COPY --from=frontend /build/_output/UI ./wwwroot
