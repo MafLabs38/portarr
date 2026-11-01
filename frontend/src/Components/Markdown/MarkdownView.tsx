@@ -8,33 +8,39 @@ interface MarkdownViewProps {
   markdown: string;
   /** Level of the document's top heading on the page: `#` becomes this level, `##` the next one. */
   headingLevel?: number;
+  /** Show URLs as text, not links: for what a model wrote (see InlineMarkdown). */
+  plainUrls?: boolean;
 }
 
-function List({ items }: Readonly<{ items: ListItem[] }>) {
+function List({ items, plainUrls }: Readonly<{ items: ListItem[]; plainUrls: boolean }>) {
   return (
     <ul className={styles.list}>
       {items.map((item, index) => (
         <li key={index}>
-          <InlineMarkdown text={item.text} />
-          {item.children.length > 0 ? <List items={item.children} /> : null}
+          <InlineMarkdown plainUrls={plainUrls} text={item.text} />
+          {item.children.length > 0 ? <List items={item.children} plainUrls={plainUrls} /> : null}
         </li>
       ))}
     </ul>
   );
 }
 
-function BlockView({ block, headingLevel }: Readonly<{ block: Block; headingLevel: number }>) {
+function BlockView({
+  block,
+  headingLevel,
+  plainUrls,
+}: Readonly<{ block: Block; headingLevel: number; plainUrls: boolean }>) {
   switch (block.type) {
     case 'heading': {
       const Tag = `h${Math.min(6, headingLevel + block.level - 1)}` as 'h3';
       return (
         <Tag className={styles.heading}>
-          <InlineMarkdown text={block.text} />
+          <InlineMarkdown plainUrls={plainUrls} text={block.text} />
         </Tag>
       );
     }
     case 'list':
-      return <List items={block.items} />;
+      return <List items={block.items} plainUrls={plainUrls} />;
     case 'table':
       return (
         <div className={styles.tableWrapper}>
@@ -43,7 +49,7 @@ function BlockView({ block, headingLevel }: Readonly<{ block: Block; headingLeve
               <tr>
                 {block.header.map((cell) => (
                   <th key={cell} scope="col">
-                    <InlineMarkdown text={cell} />
+                    <InlineMarkdown plainUrls={plainUrls} text={cell} />
                   </th>
                 ))}
               </tr>
@@ -53,7 +59,7 @@ function BlockView({ block, headingLevel }: Readonly<{ block: Block; headingLeve
                 <tr key={rowIndex}>
                   {row.map((cell, cellIndex) => (
                     <td key={cellIndex}>
-                      <InlineMarkdown text={cell} />
+                      <InlineMarkdown plainUrls={plainUrls} text={cell} />
                     </td>
                   ))}
                 </tr>
@@ -65,19 +71,19 @@ function BlockView({ block, headingLevel }: Readonly<{ block: Block; headingLeve
     default:
       return (
         <p className={styles.paragraph}>
-          <InlineMarkdown text={block.text} />
+          <InlineMarkdown plainUrls={plainUrls} text={block.text} />
         </p>
       );
   }
 }
 
 /** Renders Portarr's own Markdown documents (headings, paragraphs, lists, tables) without interpreting any HTML. */
-export default function MarkdownView({ markdown, headingLevel = 3 }: Readonly<MarkdownViewProps>) {
+export default function MarkdownView({ markdown, headingLevel = 3, plainUrls = false }: Readonly<MarkdownViewProps>) {
   const blocks = useMemo(() => parseMarkdown(markdown), [markdown]);
   return (
     <div className={styles.markdown}>
       {blocks.map((block, index) => (
-        <BlockView block={block} headingLevel={headingLevel} key={index} />
+        <BlockView block={block} headingLevel={headingLevel} key={index} plainUrls={plainUrls} />
       ))}
     </div>
   );

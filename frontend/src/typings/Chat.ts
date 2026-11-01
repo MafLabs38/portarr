@@ -20,6 +20,10 @@ export default interface ChatStatus {
   /** The runner answered. */
   reachable: boolean;
   agents: ChatAgent[] | null;
+  /** The agent's MCP tools can change the catalog only with all three: the MCP server, its write tools and a writable catalog. */
+  mcpEnabled?: boolean;
+  mcpWriteTools?: boolean;
+  catalogWritable?: boolean;
 }
 
 export interface ConversationSummary {

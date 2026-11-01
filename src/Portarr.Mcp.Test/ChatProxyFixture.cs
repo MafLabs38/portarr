@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Portarr.Core.Accounts;
+using Portarr.Core.Catalog.Editing;
 using Portarr.Http.Authentication;
 using Portarr.Mcp.Chat;
 using Portarr.Mcp.Server;
@@ -36,7 +37,9 @@ public sealed class ChatProxyFixture
             [new Claim(ClaimTypes.NameIdentifier, "7"), new Claim(ClaimTypes.Name, "alice"), new Claim(PortarrClaims.Permission, Permissions.CatalogWrite)],
             "test"));
         var runner = new AgentRunnerClient(new HttpClient(_handler), options);
-        var controller = new ChatController(runner, new ChatService(runner, _access, options, NullLogger<ChatService>.Instance), options, NullLogger<ChatController>.Instance)
+        var editor = Substitute.For<ICatalogEditor>();
+        editor.Writable.Returns(true);
+        var controller = new ChatController(runner, new ChatService(runner, _access, options, NullLogger<ChatService>.Instance), options, Options.Create(new McpOptions { Enabled = true, WriteTools = true }), editor, NullLogger<ChatController>.Instance)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = user } },
         };
@@ -69,15 +72,23 @@ public sealed class ChatProxyFixture
         request.Body.Should().Be($$"""{"text":"Add a note\nline two","model":"opus","mcpToken":"{{Token}}"}""");
     }
 
-    [Theory]
-    [InlineData("not-a-conversation", "hello", null)]
-    [InlineData(ConversationId, "   ", null)]
-    [InlineData(ConversationId, "hello", "Opus; rm")]
-    public async Task should_refuse_bad_input_before_calling_the_runner(string id, string text, string? model)
+    [Fact]
+    public async Task should_answer_not_found_to_a_malformed_conversation_id_without_calling_the_runner()
     {
-        var result = await Controller().SendAsync(id, new ChatMessageRequest(text, model), TestContext.Current.CancellationToken);
+        var result = await Controller().SendAsync("not-a-conversation", new ChatMessageRequest("hello", null), TestContext.Current.CancellationToken);
 
-        result.Should().Match<IActionResult>(r => r is NotFoundResult || (r is ObjectResult && ((ObjectResult)r).StatusCode == StatusCodes.Status400BadRequest));
+        result.Should().BeOfType<NotFoundResult>();
+        _handler.Requests.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("   ", null)]
+    [InlineData("hello", "Opus; rm")]
+    public async Task should_answer_bad_request_to_a_blank_message_or_a_model_that_is_not_a_name_without_calling_the_runner(string text, string? model)
+    {
+        var result = await Controller().SendAsync(ConversationId, new ChatMessageRequest(text, model), TestContext.Current.CancellationToken);
+
+        result.Should().BeOfType<ObjectResult>().Which.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
         _handler.Requests.Should().BeEmpty();
     }
 
@@ -111,7 +122,32 @@ public sealed class ChatProxyFixture
 
         var status = await Controller().GetAsync(TestContext.Current.CancellationToken);
 
-        status.Should().Be(new ChatStatusResource(true, false, null));
+        status.Should().Be(new ChatStatusResource(true, false, null, McpEnabled: true, McpWriteTools: true, CatalogWritable: true));
+    }
+
+    [Fact]
+    public async Task should_give_the_runners_agents_as_portarrs_own_contract_and_say_what_a_write_needs()
+    {
+        _handler.Respond(HttpStatusCode.OK, """[{"id":"claude-code","name":"Claude Code","available":true,"defaultModel":"sonnet","models":[{"id":"sonnet","label":"Sonnet"}],"somethingNew":1}]""");
+
+        var status = await Controller().GetAsync(TestContext.Current.CancellationToken);
+
+        status.Reachable.Should().BeTrue();
+        status.Agents.Should().ContainSingle().Which.Should().BeEquivalentTo(new ChatAgentResource("claude-code", "Claude Code", true, "sonnet", [new ChatModelResource("sonnet", "Sonnet")]));
+        (status.McpEnabled, status.McpWriteTools, status.CatalogWritable).Should().Be((true, true, true));
+    }
+
+    [Theory]
+    [InlineData("this is not json")]
+    [InlineData("""{"agents":[]}""")]
+    [InlineData("null")]
+    public async Task should_report_the_runner_as_unreachable_when_it_answers_something_that_is_not_a_list_of_agents(string answer)
+    {
+        _handler.Respond(HttpStatusCode.OK, answer);
+
+        var status = await Controller().GetAsync(TestContext.Current.CancellationToken);
+
+        status.Should().Match<ChatStatusResource>(s => s.Enabled && !s.Reachable && s.Agents == null);
     }
 
     [Theory]

@@ -8,13 +8,24 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Portarr.Core.Accounts;
+using Portarr.Core.Catalog.Editing;
 using Portarr.Http;
 using Portarr.Http.Authentication;
 
 namespace Portarr.Mcp.Chat;
 
-/// <summary>Whether the chat is on and which agents the runner offers; <c>Reachable</c> false when it does not answer.</summary>
-public sealed record ChatStatusResource(bool Enabled, bool Reachable, JsonElement? Agents);
+/// <summary>A model an agent offers.</summary>
+public sealed record ChatModelResource(string Id, string Label);
+
+/// <summary>An agent the runner offers: <c>Available</c> is false when the runner has no credentials for its CLI.</summary>
+public sealed record ChatAgentResource(string Id, string Name, bool Available, string? DefaultModel, IReadOnlyList<ChatModelResource> Models);
+
+/// <summary>
+/// Whether the chat is on and which agents the runner offers; <c>Reachable</c> false when it does not answer or answers
+/// something Portarr does not understand. The last three say whether the agent's MCP tools can change the catalog: it
+/// needs the MCP server, its write tools and writable catalog, all three; without them the chat only reads.
+/// </summary>
+public sealed record ChatStatusResource(bool Enabled, bool Reachable, IReadOnlyList<ChatAgentResource>? Agents, bool McpEnabled = false, bool McpWriteTools = false, bool CatalogWritable = false);
 
 /// <summary>A new conversation: the agent (<c>claude-code</c>) and its model (<c>sonnet</c>, <c>opus</c>…), both optional.</summary>
 public sealed record ChatConversationRequest(string? Agent, string? Model, string? Title);
@@ -47,13 +58,17 @@ public sealed partial class ChatController : ControllerBase
     private readonly AgentRunnerClient _runner;
     private readonly ChatService _chat;
     private readonly AgentOptions _options;
+    private readonly McpOptions _mcp;
+    private readonly ICatalogEditor _editor;
     private readonly ILogger<ChatController> _logger;
 
-    public ChatController(AgentRunnerClient runner, ChatService chat, IOptions<AgentOptions> options, ILogger<ChatController> logger)
+    public ChatController(AgentRunnerClient runner, ChatService chat, IOptions<AgentOptions> options, IOptions<McpOptions> mcp, ICatalogEditor editor, ILogger<ChatController> logger)
     {
         _runner = runner;
         _chat = chat;
         _options = options.Value;
+        _mcp = mcp.Value;
+        _editor = editor;
         _logger = logger;
     }
 
@@ -73,17 +88,32 @@ public sealed partial class ChatController : ControllerBase
             return new ChatStatusResource(false, false, null);
         }
 
+        var writes = (_mcp.Enabled, _mcp.WriteTools, _editor.Writable);
         try
         {
             var response = await _runner.SendAsync(HttpMethod.Get, "v1/agents", null, cancellationToken);
-            return response is { StatusCode: StatusCodes.Status200OK, Json: { } json }
-                ? new ChatStatusResource(true, true, JsonDocument.Parse(json).RootElement.Clone())
-                : new ChatStatusResource(true, false, null);
+            return response is { StatusCode: StatusCodes.Status200OK, Json: { } json } && ParseAgents(json) is { } agents
+                ? new ChatStatusResource(true, true, agents, writes.Item1, writes.Item2, writes.Item3)
+                : new ChatStatusResource(true, false, null, writes.Item1, writes.Item2, writes.Item3);
         }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
         {
             LogUnreachable(exception.GetType().Name);
-            return new ChatStatusResource(true, false, null);
+            return new ChatStatusResource(true, false, null, writes.Item1, writes.Item2, writes.Item3);
+        }
+    }
+
+    /// <summary>The runner's agents as Portarr's own contract, or null when it answers something that is not a list of agents.</summary>
+    private IReadOnlyList<ChatAgentResource>? ParseAgents(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<List<ChatAgentResource>>(json, JsonSerializerOptions.Web)?.Select(a => a with { Models = a.Models ?? [] }).ToList();
+        }
+        catch (JsonException exception)
+        {
+            LogUnreachable(exception.GetType().Name);
+            return null;
         }
     }
 

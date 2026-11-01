@@ -2,6 +2,7 @@ import { type CSSProperties, type KeyboardEvent, type PointerEvent, useMemo, use
 
 import Alert from 'Components/Alert/Alert';
 import * as icons from 'Helpers/Props/icons';
+import type ChatStatus from 'typings/Chat';
 import translate from 'Utilities/String/translate';
 
 import chatItems from './chatItems';
@@ -28,6 +29,10 @@ const keyboardStep = 32;
  * messages with their tool calls and permission cards, and the prompt. Behind it, the portarr-agent runner whose
  * only tool is Portarr's MCP server (D-87, D-88). Full screen on phones.
  */
+/** The agent's MCP tools change the catalog only when the MCP server, its write tools and a writable catalog are all on. */
+const chatCanWrite = (status: ChatStatus) =>
+  status.mcpEnabled === true && status.mcpWriteTools === true && status.catalogWritable === true;
+
 export default function ChatPanel() {
   const status = useChatStatus();
   const { open, width, conversationId, agent, model, setOpen, setWidth, setConversation, setAgent, setModel } =
@@ -171,6 +176,9 @@ export default function ChatPanel() {
       {status.data.reachable ? null : <Alert kind="warning">{translate('ChatUnreachable')}</Alert>}
       {current && !current.available ? (
         <Alert kind="warning">{translate('ChatNoCredentials', { agent: current.name })}</Alert>
+      ) : null}
+      {status.data.reachable && status.data.mcpEnabled !== undefined && !chatCanWrite(status.data) ? (
+        <Alert kind="info">{translate('ChatReadOnlyHint')}</Alert>
       ) : null}
       {failure ? <Alert kind="danger">{translate('ChatRequestFailed', { status: failure.status })}</Alert> : null}
 

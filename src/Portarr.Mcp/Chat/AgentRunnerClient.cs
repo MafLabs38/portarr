@@ -60,7 +60,11 @@ public sealed class AgentRunnerClient
             request.Headers.TryAddWithoutValidation("Last-Event-ID", lastEventId);
         }
 
-        return await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        // A runner that never sends its headers must not hold the request: the headers get the request timeout, the body
+        // (the stream stays open as long as the panel shows the conversation) only the caller's token.
+        using var headers = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        headers.CancelAfter(RequestTimeout);
+        return await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, headers.Token);
     }
 
     private HttpRequestMessage Request(HttpMethod method, string path)
