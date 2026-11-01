@@ -134,7 +134,7 @@ public sealed class FleetDigest
                 a.App.Id,
                 a.App.Name,
                 a.Status.Status.ToString(),
-                a.Status.Reason,
+                StatusText.Of(a.Status),
                 a.Stack?.Name,
                 a.Role?.ToString().ToLowerInvariant(),
                 a.Workloads.Select(w => w.EnvironmentId).Distinct(StringComparer.Ordinal).ToList(),
@@ -164,7 +164,7 @@ public sealed class FleetDigest
             app.Description,
             app.Tags,
             view.Status.Status.ToString(),
-            view.Status.Reason,
+            StatusText.Of(view.Status),
             view.Stack?.Name,
             view.Role?.ToString().ToLowerInvariant(),
             view.Urls.Select(u => new UrlLine(u.Label, SafeUrl.Of(u.Href), u.Scope.ToString().ToLowerInvariant())).ToList(),
@@ -227,7 +227,7 @@ public sealed class FleetDigest
                 w.Workload.State.ToString().ToLowerInvariant(),
                 w.Workload.Health.ToString().ToLowerInvariant(),
                 w.Status.Status.ToString(),
-                w.Status.Reason,
+                StatusText.Of(w.Status),
                 w.AppIds.Select(id => names.GetValueOrDefault(id) ?? id).ToList(),
                 w.Stale))
             .ToList();
@@ -316,7 +316,7 @@ public sealed class FleetDigest
             var matching = apps.Where(a => a.Status.Status == status).OrderBy(a => a.App.Name, StringComparer.OrdinalIgnoreCase).ToList();
             if (matching.Count > 0)
             {
-                yield return new Finding("apps", level, kind, matching.Count, Cap(matching.Select(a => $"{a.App.Name} ({a.Status.Reason})")));
+                yield return new Finding("apps", level, kind, matching.Count, Cap(matching.Select(a => $"{a.App.Name} ({StatusText.Of(a.Status)})")));
             }
         }
     }
@@ -429,7 +429,7 @@ public sealed class FleetDigest
             view.Role.ToString().ToLowerInvariant(),
             workload is not null,
             view.Status.Status.ToString(),
-            view.Status.Reason,
+            StatusText.Of(view.Status),
             workload?.State.ToString().ToLowerInvariant(),
             workload?.Health.ToString().ToLowerInvariant(),
             workload?.Namespace,
@@ -452,7 +452,7 @@ public sealed class FleetDigest
             SafeUrl.Of(check.Target),
             check.Definition.Critical,
             check.Status.Status.ToString(),
-            check.Status.Reason,
+            StatusText.Of(check.Status),
             latest?.At,
             latest?.StatusCode,
             latest?.Latency is { } latency ? (int)Math.Round(latency.TotalMilliseconds) : null,

@@ -6,6 +6,7 @@ import type Status from 'typings/Status';
 import type { HealthStatus } from 'typings/Status';
 import translate from 'Utilities/String/translate';
 
+import describeStatusReason from './describeStatusReason';
 import styles from './StatusLabel.module.css';
 
 // Mandatory mapping (DESIGN.md §5): a status is never conveyed by color alone.
@@ -28,12 +29,13 @@ interface StatusLabelProps {
 
 export default function StatusLabel({ status, showReason = false, compact = false }: Readonly<StatusLabelProps>) {
   const { kind, icon: Icon } = mapping[status.status];
+  const reason = describeStatusReason(status);
 
   return (
-    <span className={`${compact ? styles.compact : styles.label} ${styles[kind]}`} title={status.reason}>
+    <span className={`${compact ? styles.compact : styles.label} ${styles[kind]}`} title={reason}>
       <Icon aria-hidden="true" className={styles.icon} size={14} strokeWidth={2.5} />
       <span className={compact ? styles.visuallyHidden : undefined}>{translate(`Status${status.status}`)}</span>
-      {showReason ? <span className={styles.reason}>· {status.reason}</span> : null}
+      {showReason ? <span className={styles.reason}>· {reason}</span> : null}
     </span>
   );
 }

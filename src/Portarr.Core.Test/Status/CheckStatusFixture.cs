@@ -15,33 +15,45 @@ public sealed class CheckStatusFixture
     [Fact]
     public void should_be_healthy_with_the_status_and_latency()
     {
-        StatusResolver.ForCheck(Passed(), Now).Should().Be(new ResolvedStatus(HealthStatus.Healthy, "HTTP 200 in 140 ms"));
+        StatusResolver.ForCheck(Passed(), Now).Should().Be(new ResolvedStatus(HealthStatus.Healthy, StatusReasons.CheckUp, ["200", "140"]));
     }
 
     [Theory]
-    [InlineData("http-502", "HTTP 502")]
-    [InlineData("timeout", "Timeout")]
-    [InlineData("tls-invalid", "Invalid certificate")]
-    [InlineData("keyword-missing", "Keyword not found")]
-    public void should_be_down_with_the_reason_of_the_failure(string error, string reason)
+    [InlineData("timeout", "timeout")]
+    [InlineData("tls-invalid", "tls-invalid")]
+    [InlineData("tls-expired", "certificate-expired")]
+    [InlineData("keyword-missing", "keyword-missing")]
+    [InlineData("something-new", "invalid-response")]
+    public void should_be_down_with_the_code_of_the_failure(string error, string reason)
     {
         StatusResolver.ForCheck(Passed() with { Error = error }, Now).Should().Be(new ResolvedStatus(HealthStatus.Down, reason));
     }
 
     [Fact]
+    public void should_carry_the_number_of_an_http_status()
+    {
+        StatusResolver.ForCheck(Passed() with { Error = "http-502" }, Now).Should().Be(new ResolvedStatus(HealthStatus.Down, StatusReasons.HttpStatus, ["502"]));
+    }
+
+    [Fact]
     public void should_be_unknown_not_down_when_portarr_could_not_run_the_check()
     {
-        StatusResolver.ForCheck(Passed() with { Error = CheckErrors.CheckFailed }, Now).Should().Be(new ResolvedStatus(HealthStatus.Unknown, "Portarr could not run this check"));
+        StatusResolver.ForCheck(Passed() with { Error = CheckErrors.CheckFailed }, Now).Should().Be(new ResolvedStatus(HealthStatus.Unknown, StatusReasons.CheckFailed));
     }
 
     [Theory]
-    [InlineData(6.5, HealthStatus.Degraded, "Certificate expires in 6 days")]
-    [InlineData(0.5, HealthStatus.Degraded, "Certificate expires today")]
-    [InlineData(-1, HealthStatus.Down, "Certificate expired")]
-    [InlineData(14, HealthStatus.Healthy, "HTTP 200 in 140 ms")]
-    public void should_degrade_within_14_days_of_the_certificate_expiry(double days, HealthStatus status, string reason)
+    [InlineData(6.5, HealthStatus.Degraded, "certificate-expires-in-days", "6")]
+    [InlineData(1.5, HealthStatus.Degraded, "certificate-expires-in-one-day", null)]
+    [InlineData(0.5, HealthStatus.Degraded, "certificate-expires-today", null)]
+    [InlineData(-1, HealthStatus.Down, "certificate-expired", null)]
+    [InlineData(14, HealthStatus.Healthy, "check-up", "200")]
+    public void should_degrade_within_14_days_of_the_certificate_expiry(double days, HealthStatus status, string reason, string? firstArgument)
     {
-        StatusResolver.ForCheck(Passed() with { CertificateExpiresAt = Now.AddDays(days) }, Now).Should().Be(new ResolvedStatus(status, reason));
+        var resolved = StatusResolver.ForCheck(Passed() with { CertificateExpiresAt = Now.AddDays(days) }, Now);
+
+        resolved.Status.Should().Be(status);
+        resolved.Reason.Should().Be(reason);
+        resolved.Args?.FirstOrDefault().Should().Be(firstArgument);
     }
 
     [Fact]
@@ -49,7 +61,7 @@ public sealed class CheckStatusFixture
     {
         var status = StatusResolver.ForApp([Running()], Check(Passed() with { Error = "http-502" }, critical: true));
 
-        status.Should().Be(new ResolvedStatus(HealthStatus.Down, "HTTP 502"));
+        status.Should().Be(new ResolvedStatus(HealthStatus.Down, StatusReasons.HttpStatus, ["502"]));
     }
 
     [Fact]
@@ -57,7 +69,7 @@ public sealed class CheckStatusFixture
     {
         var status = StatusResolver.ForApp([Running()], Check(Passed() with { Error = "timeout" }, critical: false));
 
-        status.Should().Be(new ResolvedStatus(HealthStatus.Degraded, "Timeout"));
+        status.Should().Be(new ResolvedStatus(HealthStatus.Degraded, "timeout"));
     }
 
     [Fact]
@@ -72,7 +84,7 @@ public sealed class CheckStatusFixture
     public void should_take_the_check_as_the_status_of_an_app_without_workloads()
     {
         StatusResolver.ForApp([], Check(Passed(), critical: true)).Status.Should().Be(HealthStatus.Healthy);
-        StatusResolver.ForApp([], Check(null, critical: true)).Reason.Should().Be("Not checked yet");
+        StatusResolver.ForApp([], Check(null, critical: true)).Reason.Should().Be(StatusReasons.NotChecked);
     }
 
     [Fact]
