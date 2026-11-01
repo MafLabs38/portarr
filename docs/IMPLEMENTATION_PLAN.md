@@ -34,7 +34,7 @@ The repository follows the organization-wide GitHub template conventions:
 - The PR targets `develop` and uses the repository template: summary, covered features, DoD checklist, screenshots, test notes.
 - Mandatory CI: lint, unit tests, integration on both databases, E2E smoke, SonarQube, Trivy, gitleaks.
 - Code review, then **squash merge** into `develop`.
-- **Releases**: a release PR `develop → main` (1 approving review). semantic-release publishes the version, the CHANGELOG and the image from `main`; `develop` publishes pre-releases (`-beta.N`).
+- **Releases**: a release PR `develop → main` (1 approving review). semantic-release publishes the version, the release notes and the images from `main` ([ADR 0014](adr/0014-releases-with-semantic-release.md)); `develop` publishes its own `develop` and commit images, with no pre-release tags.
 - A PR rarely exceeds ~1,500 lines excluding tests and fixtures. Beyond that, the vertical is split into stacked PRs (backend → API → UI), each one green.
 
 ### 1.3 Development and acceptance loop

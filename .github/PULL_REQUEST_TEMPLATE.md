@@ -1,3 +1,4 @@
+<!-- The title is a Conventional Commit (feat(scope): …, fix(scope): …, chore(scope): …): once squash-merged it decides the next version (docs/releasing.md). -->
 ## Summary
 <!-- Briefly describe your changes (1-3 bullet points) -->
 
