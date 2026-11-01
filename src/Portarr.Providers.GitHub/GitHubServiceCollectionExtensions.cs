@@ -5,8 +5,8 @@ namespace Portarr.Providers.GitHub;
 
 public static class GitHubServiceCollectionExtensions
 {
-    /// <summary>Largest GitHub API response read (a page of 100 alerts or repositories).</summary>
-    private const int MaxResponseBytes = 8 * 1024 * 1024;
+    /// <summary>Largest GitHub API response read (a page of 100 alerts or repositories is a few hundred KiB).</summary>
+    private const int MaxResponseBytes = 2 * 1024 * 1024;
 
     public static IServiceCollection AddGitHubProvider(this IServiceCollection services)
     {
