@@ -55,6 +55,9 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
 {
     public static readonly TimeSpan Interval = TimeSpan.FromMinutes(1);
     public static readonly TimeSpan RepositoryInterval = TimeSpan.FromMinutes(30);
+
+    /// <summary>Repositories are scanned again this soon after a failed scan, not after the 30 minutes of a good one.</summary>
+    public static readonly TimeSpan RepositoryRetryInterval = TimeSpan.FromMinutes(5);
     public static readonly TimeSpan RegistryInterval = TimeSpan.FromHours(6);
     public static readonly TimeSpan RegistryRetryInterval = TimeSpan.FromHours(1);
 
@@ -76,7 +79,7 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
     private readonly SemaphoreSlim _refreshing = new(1, 1);
     private readonly Lock _requestLock = new();
     private volatile MaintenanceState _current = MaintenanceState.Empty;
-    private GitHubSource? _scannedSource;
+    private volatile GitHubSource? _scannedSource;
 
     // Manual refresh: when it was last accepted, and which request the last finished pass answered.
     private DateTimeOffset? _requestedAt;
@@ -107,7 +110,7 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
         {
             var state = _current;
             var githubAt = state.Repositories.At;
-            var next = githubAt is { } at && _scannedSource is not null ? at + RepositoryInterval : (DateTimeOffset?)null;
+            var next = githubAt is { } at && _scannedSource is not null ? at + (state.Repositories.Error is null ? RepositoryInterval : RepositoryRetryInterval) : (DateTimeOffset?)null;
             var registriesAt = state.Registries.Count == 0 ? (DateTimeOffset?)null : state.Registries.Values.Max(lookup => lookup.CheckedAt);
             lock (_requestLock)
             {
@@ -160,15 +163,22 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
                 forced = _requestedAt;
             }
 
-            var repositories = await ScanRepositoriesAsync(_current.Repositories, forced, cancellationToken);
-            _current = _current with { Repositories = repositories };
-
-            var registries = await LookUpImagesAsync(_current.Registries, forced, cancellationToken);
-            _current = _current with { Registries = registries };
-
-            lock (_requestLock)
+            try
             {
-                _answeredAt = forced;
+                var repositories = await ScanRepositoriesAsync(_current.Repositories, forced, cancellationToken);
+                _current = _current with { Repositories = repositories };
+
+                var registries = await LookUpImagesAsync(_current.Registries, forced, cancellationToken);
+                _current = _current with { Registries = registries };
+            }
+            finally
+            {
+                // Answered even when the pass failed: the failure is logged and shown, and a refresh left "under way" forever
+                // would keep the spinner on and the button disabled.
+                lock (_requestLock)
+                {
+                    _answeredAt = forced;
+                }
             }
         }
         finally
@@ -234,7 +244,7 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
 
         var now = _timeProvider.GetUtcNow();
         var sameSource = _scannedSource is not null && SameSource(_scannedSource, source);
-        if (sameSource && previous.At is { } at && now - at < RepositoryInterval && !(forced is { } asked && at < asked))
+        if (sameSource && previous.At is { } at && now - at < (previous.Error is null ? RepositoryInterval : RepositoryRetryInterval) && !(forced is { } asked && at < asked))
         {
             return previous;
         }
@@ -276,7 +286,7 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
         var due = inUse
             .Where(group => !previous.TryGetValue(group.Key, out var lookup)
                 || now - lookup.CheckedAt >= (lookup.Error is null ? RegistryInterval : RegistryRetryInterval)
-                || lookup.CheckedAt < forced)
+                || (forced is { } asked && lookup.CheckedAt < asked))
             .OrderBy(group => previous.ContainsKey(group.Key))
             .ThenBy(group => previous.TryGetValue(group.Key, out var lookup) ? lookup.CheckedAt : DateTimeOffset.MinValue)
             .Take(RegistryLookupsPerPass)

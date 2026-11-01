@@ -18,7 +18,7 @@ public enum VersionChange
 /// same prefix, as many numbers, same suffix once its numbers are masked. So <c>16-alpine</c> is compared with
 /// <c>17-alpine</c>, never with <c>17</c>, <c>17.1-alpine</c>, <c>18-rc1</c> or <c>amd64-17-alpine</c>.
 /// </summary>
-public sealed partial record VersionTag(string Tag, string Shape, IReadOnlyList<long> Numbers, IReadOnlyList<long> SuffixNumbers)
+public sealed partial record VersionTag(string Tag, string Shape, IReadOnlyList<long> Numbers, IReadOnlyList<long> SuffixNumbers) : IComparable<VersionTag>
 {
     /// <summary>Tags that name a moving target rather than a version.</summary>
     private static readonly HashSet<string> FloatingNames = new(StringComparer.OrdinalIgnoreCase)
@@ -61,8 +61,13 @@ public sealed partial record VersionTag(string Tag, string Shape, IReadOnlyList<
     }
 
     /// <summary>Compares two tags of the same shape: numbers first, then the numbers of the suffix.</summary>
-    public int CompareTo(VersionTag other)
+    public int CompareTo(VersionTag? other)
     {
+        if (other is null)
+        {
+            return 1;
+        }
+
         var byNumbers = Compare(Numbers, other.Numbers);
         return byNumbers != 0 ? byNumbers : Compare(SuffixNumbers, other.SuffixNumbers);
     }

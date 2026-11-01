@@ -30,23 +30,67 @@ public sealed class MaintenanceMonitorFixture
     }
 
     [Fact]
-    public async Task should_scan_repositories_every_30_minutes_and_each_image_repository_once_every_6_hours()
+    public async Task should_scan_repositories_every_30_minutes()
     {
         var monitor = Monitor();
 
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
         _clock.Advance(TimeSpan.FromMinutes(29));
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
-
         await _code.Received(1).ScanAsync(Arg.Any<GitHubSource>(), Arg.Any<CancellationToken>());
+
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await monitor.RefreshAsync(TestContext.Current.CancellationToken);
+        await _code.Received(2).ScanAsync(Arg.Any<GitHubSource>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task should_look_up_each_image_repository_once_every_6_hours()
+    {
+        var monitor = Monitor();
+
+        await monitor.RefreshAsync(TestContext.Current.CancellationToken);
+        _clock.Advance(TimeSpan.FromHours(5));
+        await monitor.RefreshAsync(TestContext.Current.CancellationToken);
+
         await _registry.Received(1).ListTagsAsync(Arg.Is<ImageReference>(i => i.RepositoryKey == "docker.io/library/proxy"), Arg.Any<CancellationToken>());
         monitor.Current.Registries["docker.io/library/proxy"].Tags.Should().HaveCount(2);
 
-        _clock.Advance(TimeSpan.FromHours(6));
+        _clock.Advance(TimeSpan.FromHours(1));
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
-
-        await _code.Received(2).ScanAsync(Arg.Any<GitHubSource>(), Arg.Any<CancellationToken>());
         await _registry.Received(2).ListTagsAsync(Arg.Any<ImageReference>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task should_scan_again_in_5_minutes_after_a_failed_scan_not_in_30()
+    {
+        _code.ScanAsync(Arg.Any<GitHubSource>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<CodeRepository>>(_ => throw new HttpRequestException("down", null, System.Net.HttpStatusCode.BadGateway));
+        var monitor = Monitor();
+        await monitor.RefreshAsync(TestContext.Current.CancellationToken);
+        monitor.Refresh.GitHubNextAt.Should().Be(_clock.GetUtcNow() + MaintenanceMonitor.RepositoryRetryInterval);
+
+        _clock.Advance(MaintenanceMonitor.RepositoryRetryInterval - TimeSpan.FromSeconds(1));
+        await monitor.RefreshAsync(TestContext.Current.CancellationToken);
+        await _code.Received(1).ScanAsync(Arg.Any<GitHubSource>(), Arg.Any<CancellationToken>());
+
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        await monitor.RefreshAsync(TestContext.Current.CancellationToken);
+        await _code.Received(2).ScanAsync(Arg.Any<GitHubSource>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task should_not_leave_a_refresh_under_way_when_the_pass_fails()
+    {
+        _registry.ListTagsAsync(Arg.Any<ImageReference>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<RegistryTag>>(_ => throw new HttpRequestException("down", null, System.Net.HttpStatusCode.BadGateway));
+        _code.ScanAsync(Arg.Any<GitHubSource>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<CodeRepository>>(_ => throw new InvalidProgramException("a bug in a connector"));
+        var monitor = Monitor();
+        monitor.RequestRefresh();
+        monitor.Refresh.Refreshing.Should().BeTrue();
+
+        var pass = () => monitor.RefreshAsync(TestContext.Current.CancellationToken);
+
+        await pass.Should().NotThrowAsync("a failed scan is caught and shown, the pass goes on");
+        monitor.Refresh.Refreshing.Should().BeFalse("the request was answered, even by a pass that failed");
     }
 
     [Fact]
@@ -117,17 +161,64 @@ public sealed class MaintenanceMonitorFixture
     }
 
     [Fact]
-    public async Task should_say_when_the_data_was_read_and_when_it_is_read_next()
+    public async Task should_say_why_when_a_registry_cannot_be_read_and_try_again_in_an_hour()
     {
+        _registry.ListTagsAsync(Arg.Any<ImageReference>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<RegistryTag>>(_ => throw new RegistryUnavailableException("rate-limited"));
         var monitor = Monitor();
+
+        await monitor.RefreshAsync(TestContext.Current.CancellationToken);
+        var failed = monitor.Current.Registries["docker.io/library/proxy"];
+        _clock.Advance(MaintenanceMonitor.RegistryRetryInterval - TimeSpan.FromSeconds(1));
+        await monitor.RefreshAsync(TestContext.Current.CancellationToken);
+        _clock.Advance(TimeSpan.FromSeconds(1));
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
 
-        var refresh = monitor.Refresh;
+        failed.Error.Should().Be("rate-limited");
+        failed.Tags.Should().BeEmpty();
+        await _registry.Received(2).ListTagsAsync(Arg.Any<ImageReference>(), Arg.Any<CancellationToken>());
+    }
 
-        refresh.GitHubAt.Should().Be(_clock.GetUtcNow());
-        refresh.GitHubNextAt.Should().Be(_clock.GetUtcNow() + MaintenanceMonitor.RepositoryInterval);
-        refresh.RegistriesAt.Should().Be(_clock.GetUtcNow());
-        refresh.Refreshing.Should().BeFalse();
+    [Fact]
+    public async Task should_read_no_repository_when_the_catalog_declares_no_code_source()
+    {
+        _catalog.Current.Returns(new CatalogState(TestCatalog.Parse("apps: []\n").Catalog, "catalog.yaml", true, [], null));
+        var monitor = Monitor();
+
+        await monitor.RefreshAsync(TestContext.Current.CancellationToken);
+
+        monitor.Current.Repositories.Should().Be(RepositoryScan.NotConfigured);
+        await _code.DidNotReceive().ScanAsync(Arg.Any<GitHubSource>(), Arg.Any<CancellationToken>());
+        monitor.Refresh.GitHubNextAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task should_stop_when_cancelled_instead_of_recording_a_failure()
+    {
+        using var cancellation = new CancellationTokenSource();
+        _code.ScanAsync(Arg.Any<GitHubSource>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<CodeRepository>>(_ =>
+        {
+            cancellation.Cancel();
+            throw new OperationCanceledException(cancellation.Token);
+        });
+        var monitor = Monitor();
+
+        var pass = () => monitor.RefreshAsync(cancellation.Token);
+
+        await pass.Should().ThrowAsync<OperationCanceledException>();
+        monitor.Current.Repositories.Error.Should().BeNull("a cancelled scan is not an error to show");
+    }
+
+    [Fact]
+    public async Task should_leave_an_image_it_cannot_parse_out_of_the_lookups()
+    {
+        var odd = new Workload("server-1", "odd", "odd", "", WorkloadState.Running, WorkloadHealth.None, "Up", _clock.GetUtcNow(), null, new Dictionary<string, string>());
+        _inventory.Current.Returns(new Dictionary<string, EnvironmentInventory> { ["server-1"] = new("server-1", true, null, [odd], _clock.GetUtcNow()) });
+        var monitor = Monitor();
+
+        await monitor.RefreshAsync(TestContext.Current.CancellationToken);
+
+        monitor.Current.Registries.Should().BeEmpty();
+        await _registry.DidNotReceive().ListTagsAsync(Arg.Any<ImageReference>(), Arg.Any<CancellationToken>());
     }
 
     private MaintenanceMonitor Monitor() => new(_catalog, _inventory, [_code], [_registry], _clock, NullLogger<MaintenanceMonitor>.Instance);
