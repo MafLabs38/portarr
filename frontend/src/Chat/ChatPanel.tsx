@@ -102,7 +102,8 @@ export default function ChatPanel() {
       id="chat-panel"
       style={{ '--chatPanelWidth': `${width}px` } as CSSProperties}
     >
-      <div
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- a focusable separator is the WAI-ARIA window splitter: it takes the keyboard and the pointer. */}
+      <div // NOSONAR
         aria-label={translate('ResizeChat')}
         aria-orientation="vertical"
         aria-valuemax={maxPanelWidth}
@@ -112,7 +113,7 @@ export default function ChatPanel() {
         onKeyDown={resizeWithKeys}
         onPointerDown={startResize}
         role="separator"
-        tabIndex={0}
+        tabIndex={0} // NOSONAR
       />
       <header className={styles.bar}>
         <h2 className={styles.title}>{conversation?.title || translate('NewChat')}</h2>

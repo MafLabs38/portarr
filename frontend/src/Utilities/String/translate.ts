@@ -13,5 +13,5 @@ export default function translate(key: string, tokens?: TranslateTokens): string
     return text;
   }
 
-  return text.replace(/\{(\w+)\}/g, (match, name: string) => String(tokens[name] ?? match));
+  return text.replaceAll(/\{(\w+)\}/g, (match, name: string) => String(tokens[name] ?? match));
 }

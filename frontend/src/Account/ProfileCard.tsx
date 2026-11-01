@@ -113,11 +113,7 @@ export default function ProfileCard() {
           <button className={styles.save} disabled={!changed || !current.trim() || update.isPending} type="submit">
             {translate('Save')}
           </button>
-          {outcome === 'saved' ? (
-            <span className={styles.saved} role="status">
-              {translate('IdentitySaved')}
-            </span>
-          ) : null}
+          {outcome === 'saved' ? <output className={styles.saved}>{translate('IdentitySaved')}</output> : null}
         </div>
         {outcome && outcome !== 'saved' ? (
           <p className={styles.error} role="alert">

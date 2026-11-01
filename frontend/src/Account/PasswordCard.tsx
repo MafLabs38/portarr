@@ -93,11 +93,7 @@ export default function PasswordCard() {
           <button className={styles.save} disabled={!ready || change.isPending} type="submit">
             {translate('ChangePassword')}
           </button>
-          {outcome === 'saved' ? (
-            <span className={styles.saved} role="status">
-              {translate('PasswordChanged')}
-            </span>
-          ) : null}
+          {outcome === 'saved' ? <output className={styles.saved}>{translate('PasswordChanged')}</output> : null}
         </div>
         {outcome && outcome !== 'saved' ? (
           <p className={styles.error} role="alert">

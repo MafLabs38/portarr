@@ -294,6 +294,8 @@ jobs:
         with:
           path: coverage/
       - run: dotnet tool install --global dotnet-sonarscanner
+      # MarkdownView keys its blocks, items and cells by position: they come from a parsed document replaced as a whole, never reordered,
+      # and equal cells would collide as text keys (typescript:S6479). The other accessibility exceptions are NOSONAR comments in the code.
       # en.ts holds the UI texts: "Confirm the password" is a label, not a credential (typescript:S2068 reads the key names).
       # Roslyn/IDE analyzers are already enforced by the build and dotnet format: importing them into
       # Sonar only duplicates them (38 IDE0022 infos blocked the quality gate).
@@ -307,9 +309,11 @@ jobs:
           /d:sonar.javascript.lcov.reportPaths="coverage/coverage-frontend/lcov.info"
           /d:sonar.coverage.exclusions="**/obj/**,**/*.g.cs,**/__tests__/**,**/__mocks__/**,tests/**"
           /d:sonar.cs.roslyn.ignoreIssues=true
-          /d:sonar.issue.ignore.multicriteria=e1
+          /d:sonar.issue.ignore.multicriteria=e1,e2
           /d:sonar.issue.ignore.multicriteria.e1.ruleKey=typescript:S2068
           /d:sonar.issue.ignore.multicriteria.e1.resourceKey=frontend/src/Utilities/String/en.ts
+          /d:sonar.issue.ignore.multicriteria.e2.ruleKey=typescript:S6479
+          /d:sonar.issue.ignore.multicriteria.e2.resourceKey=frontend/src/Components/Markdown/MarkdownView.tsx
           /d:sonar.qualitygate.wait=true
       - run: dotnet build src/Portarr.sln
       - name: End SonarQube analysis

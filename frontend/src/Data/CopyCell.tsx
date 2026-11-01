@@ -30,7 +30,8 @@ export default function CopyCell({ target, copy }: Readonly<CopyCellProps>) {
 
   if (copy === null) {
     return (
-      <div aria-label={`${label}: ${translate('NotFollowed')}`} className={styles.absent} role="group">
+      // A labelled group of text and a list, not form controls: <fieldset> and the other tags S6819 suggests do not fit.
+      <div aria-label={`${label}: ${translate('NotFollowed')}`} className={styles.absent} role="group" /* NOSONAR */>
         <span className={styles.head}>
           <Icon aria-hidden="true" size={13} strokeWidth={2.5} />
           {label}
@@ -41,7 +42,7 @@ export default function CopyCell({ target, copy }: Readonly<CopyCellProps>) {
   }
 
   return (
-    <div aria-label={label} className={styles.cell} role="group">
+    <div aria-label={label} className={styles.cell} role="group" /* NOSONAR */>
       <span className={styles.head}>
         <Icon aria-hidden="true" size={13} strokeWidth={2.5} />
         {label}

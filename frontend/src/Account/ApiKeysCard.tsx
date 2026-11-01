@@ -52,11 +52,11 @@ export default function ApiKeysCard() {
     <Card title={translate('ApiKeys')}>
       <p className={styles.help}>{translate('ApiKeysHelpText')}</p>
       {created ? (
-        <div className={layout.created} role="status">
+        <output className={layout.created}>
           <strong>{translate('ApiKeyCreated', { name: created.key.name })}</strong>
           <code className={layout.secret}>{created.value}</code>
           <span className={styles.help}>{translate('ApiKeyShownOnce')}</span>
-        </div>
+        </output>
       ) : null}
       <form className={styles.form} onSubmit={onSubmit}>
         <div className={styles.field}>

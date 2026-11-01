@@ -12,6 +12,8 @@ interface MarkdownViewProps {
   plainUrls?: boolean;
 }
 
+// The keys below are positions, on purpose: the blocks, items, rows and cells come from a parsed document that is replaced as a whole,
+// never reordered or edited in place, and their text can repeat (two equal cells), so the text would not be a key.
 function List({ items, plainUrls }: Readonly<{ items: ListItem[]; plainUrls: boolean }>) {
   return (
     <ul className={styles.list}>

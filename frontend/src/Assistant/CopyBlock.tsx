@@ -27,7 +27,8 @@ export default function CopyBlock({ label, text }: Readonly<CopyBlockProps>) {
 
   return (
     <div className={styles.block}>
-      <pre aria-label={label} className={styles.code} tabIndex={0}>
+      {/* A code block scrolls sideways: it takes focus so that keyboard users can read it (S6845 does not apply). */}
+      <pre aria-label={label} className={styles.code} tabIndex={0} /* NOSONAR */>
         <code>{text}</code>
       </pre>
       <button className={styles.button} onClick={() => void copy()} type="button">
