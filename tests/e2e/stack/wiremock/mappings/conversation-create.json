@@ -9,7 +9,7 @@
       "Content-Type": "application/json"
     },
     "jsonBody": {
-      "id": "c-e2e",
+      "id": "7ea43bc3-4714-49e0-9f8b-8a0791c49889",
       "title": "What needs my attention?",
       "agent": "claude-code",
       "model": "sonnet",
