@@ -83,6 +83,29 @@ public sealed class CatalogEditFixture : IAsyncLifetime
     }
 
     [Fact]
+    public async Task should_refuse_to_set_how_a_host_is_reached()
+    {
+        using var client = await _writable.CreateSignedInClientAsync();
+        var version = await VersionAsync(client);
+
+        var sets = await client.SendAsync(
+            Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin", new { version, item = new { name = "Jellyfin", check = new { url = "http://attacker.example/" } } }, Key),
+            Token);
+        var newEnvironment = await client.SendAsync(
+            Request(HttpMethod.Put, "/api/v1/catalog/environments/elsewhere", new { version, item = new { name = "Elsewhere", docker = new { url = "http://attacker.example:2375" } } }, Key),
+            Token);
+        var renamed = await client.SendAsync(
+            Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin", new { version, item = new { name = "Jellyfin 2" } }, Key),
+            Token);
+
+        sets.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await sets.Content.ReadAsStringAsync(Token)).Should().Contain("check cannot be changed through the API");
+        newEnvironment.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        renamed.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await File.ReadAllTextAsync(Path.Combine(_folder, "catalog.yaml"), Token)).Should().Contain("Jellyfin 2");
+    }
+
+    [Fact]
     public async Task should_write_audit_and_refuse_stale_or_invalid_edits()
     {
         using var client = await _writable.CreateSignedInClientAsync();
@@ -91,7 +114,7 @@ public sealed class CatalogEditFixture : IAsyncLifetime
         var applied = await client.SendAsync(Notes(version, "The media server.", Key), Token);
         var stale = await client.SendAsync(Notes(version, "Again.", Key), Token);
         var invalid = await client.SendAsync(
-            Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin", new { version = await VersionAsync(client), item = new { name = "Jellyfin", check = new { url = "ftp://nope" } } }, Key),
+            Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin", new { version = await VersionAsync(client), item = new { name = "Jellyfin", urls = new[] { new { href = "ftp://nope" } } } }, Key),
             Token);
 
         applied.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -104,7 +127,7 @@ public sealed class CatalogEditFixture : IAsyncLifetime
         (await stale.Content.ReadAsStringAsync(Token)).Should().Contain($"\"version\":\"{result.Version}\"");
 
         invalid.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await invalid.Content.ReadAsStringAsync(Token)).Should().Contain("\"apps[jellyfin].check.url\"");
+        (await invalid.Content.ReadAsStringAsync(Token)).Should().Contain("apps[jellyfin]").And.Contain("ftp");
 
         var audit = await client.GetFromJsonAsync<List<CatalogAuditEntryResource>>("/api/v1/catalog/audit", Token);
         audit.Should().ContainSingle(e => e.Channel == "api").Which.Should().Match<CatalogAuditEntryResource>(e => e.Operation == "set-notes" && e.Id == "jellyfin" && e.VersionAfter == result.Version && e.User == "system");

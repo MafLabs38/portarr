@@ -322,7 +322,7 @@ The catalog file stays the source of truth (D-44); Portarr can edit it for you, 
 
 | Setting | Effect |
 |---|---|
-| `PORTARR__CATALOG__WRITABLE=true` | Turns the write endpoints on. Who may write is the `catalog.write` permission of a role (V7): a signed-in user, or a per-user API key of such a user. |
+| `PORTARR__CATALOG__WRITABLE=true` | Turns the write endpoints on. Who may write is the `catalog.write` permission of a role (V7): a signed-in user, or a per-user API key of such a user. The editor never changes how a host is reached (`runtime`, `reader`, the connector sections such as `docker` or `kubernetes`, and an app's `check`): those stay in the file, and an edit that leaves them out keeps them. **Mount the folder** that holds the catalog, not the single file: backups (`catalog.yaml.bak-*`) and the audit trail (`catalog.audit.jsonl`) are written next to it and a single-file mount loses them when the container is recreated; with a read-only folder the catalog is reported read-only. Edits made through Portarr are not in your infrastructure-as-code copy: commit them back. |
 | `PORTARR__APIKEY` | Deprecated bootstrap key (at least 32 characters, e.g. `openssl rand -hex 32`), sent in `X-Api-Key` or `Authorization: Bearer`: acts as the built-in `system` principal with Admin permissions. Optional; a warning is logged at startup when set. |
 | `PORTARR__CATALOG__BACKUPS` | Previous versions kept next to the catalog (`catalog.yaml.bak-<timestamp>`), default 10. |
 | `PORTARR__MCP__WRITETOOLS=true` | Adds the MCP write tools ([verticals/V5-ai-mcp.md](verticals/V5-ai-mcp.md)); they also need the catalog to be writable. |

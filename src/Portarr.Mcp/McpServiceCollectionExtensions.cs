@@ -102,7 +102,7 @@ public static class McpServiceCollectionExtensions
 
         // Counted before authentication: wrong keys are rate-limited too.
         services.Configure<RateLimiterOptions>(options => options.AddPolicy(RateLimitPolicyName, context => RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            Portarr.Http.HttpServiceCollectionExtensions.ClientKey(context),
             _ => new FixedWindowRateLimiterOptions { PermitLimit = RequestsPerMinute, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 })));
 
         return mvc.AddApplicationPart(typeof(McpServiceCollectionExtensions).Assembly);

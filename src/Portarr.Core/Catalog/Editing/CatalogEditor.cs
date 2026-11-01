@@ -43,6 +43,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<CatalogEditor> _logger;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
+    private readonly Lazy<bool> _folderWritable;
 
     public CatalogEditor(
         IOptions<PortarrOptions> options,
@@ -59,9 +60,11 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
         _auditLog = auditLog;
         _timeProvider = timeProvider;
         _logger = logger;
+        _folderWritable = new Lazy<bool>(FolderIsWritable);
     }
 
-    public bool Writable => _options.Writable;
+    /// <summary>Writes are on and the catalog's folder accepts them (checked once): a read-only mount is "read-only", not a 500 on the first edit.</summary>
+    public bool Writable => _options.Writable && _folderWritable.Value;
 
     public async Task<string> GetVersionAsync(CancellationToken cancellationToken)
     {
@@ -72,7 +75,9 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
     {
         var (text, _) = await ReadFileAsync(cancellationToken);
         var item = FindItem(text, section, id);
-        return item is null ? null : new CatalogItem(CatalogVersion.Of(text), section, id, item);
+
+        // What an assistant reads leaves out how hosts are reached (addresses, credential variables); an edit that omits them keeps them.
+        return item is null ? null : new CatalogItem(CatalogVersion.Of(text), section, id, ProtectedSettings.Redact(item, ProtectedSettings.KeysOf(section, _parser.ConnectorSections)));
     }
 
     public async Task<IReadOnlyList<string>> GetIdsAsync(string section, CancellationToken cancellationToken)
@@ -89,7 +94,12 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
     {
         if (!Writable)
         {
-            return Refused(CatalogEditStatus.ReadOnly, string.Empty, "The catalog is read-only: set PORTARR__CATALOG__WRITABLE=true to edit it through Portarr.");
+            return Refused(
+                CatalogEditStatus.ReadOnly,
+                string.Empty,
+                _options.Writable
+                    ? "The catalog is read-only: its folder is not writable. Mount the folder (not the single file) read-write, or turn PORTARR__CATALOG__WRITABLE off."
+                    : "The catalog is read-only: set PORTARR__CATALOG__WRITABLE=true to edit it through Portarr.");
         }
 
         if (!CatalogSections.All.Contains(edit.Section) && edit.Section != CatalogSections.Portal)
@@ -130,7 +140,12 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
         try
         {
             current = FindItem(text, edit.Section, edit.Id);
-            next = edit.Change(current?.DeepClone().AsObject());
+            next = ProtectedSettings.Apply(
+                edit.Section,
+                edit.Id,
+                current,
+                edit.Change(current?.DeepClone().AsObject()),
+                ProtectedSettings.KeysOf(edit.Section, _parser.ConnectorSections));
             if (YamlNodes.Canonical(current) == YamlNodes.Canonical(next))
             {
                 return new CatalogEditResult(CatalogEditStatus.Unchanged, version, [], []);
@@ -158,14 +173,47 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
         await WriteAsync(result, bom, cancellationToken);
         var after = CatalogVersion.Of(result);
         var changes = Describe(current, next);
-        await _auditLog.AppendAsync(
-            new CatalogAuditEntry(_timeProvider.GetUtcNow(), edit.Actor.Channel, edit.Actor.Client, edit.Operation, edit.Section, edit.Id, version, after, changes, edit.Actor.Via, edit.Actor.User),
-            cancellationToken);
+        try
+        {
+            await _auditLog.AppendAsync(
+                new CatalogAuditEntry(_timeProvider.GetUtcNow(), edit.Actor.Channel, edit.Actor.Client, edit.Operation, edit.Section, edit.Id, version, after, changes, edit.Actor.Via, edit.Actor.User),
+                cancellationToken);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // The file is written: the edit is applied. Say so, and that the trail missed it, instead of answering 500 for a change that happened.
+            LogAuditFailed(edit.Section, edit.Id, exception.GetType().Name);
+        }
+
         LogEdited(edit.Operation, edit.Section, edit.Id, edit.Actor.Channel, string.Join("; ", changes));
 
         // Our own write: reload now so the next read sees it; the watcher's later reload finds the same version.
         await _catalogService.ReloadAsync(cancellationToken);
         return new CatalogEditResult(CatalogEditStatus.Applied, after, changes, []);
+    }
+
+    /// <summary>Whether a file can be created next to the catalog: backups, the audit trail and the atomic replace all live there.</summary>
+    private bool FolderIsWritable()
+    {
+        if (!_options.Writable)
+        {
+            return true;
+        }
+
+        var folder = Path.GetDirectoryName(_filePath)!;
+        try
+        {
+            Directory.CreateDirectory(folder);
+            var probe = Path.Combine(folder, $".portarr-{Guid.NewGuid():N}.probe");
+            File.WriteAllText(probe, string.Empty);
+            File.Delete(probe);
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            LogFolderNotWritable(folder, exception.GetType().Name);
+            return false;
+        }
     }
 
     private static CatalogEditResult Refused(CatalogEditStatus status, string version, string error) => new(status, version, [], [error]);
@@ -199,7 +247,8 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
     private static YamlSequenceNode? Section(string text, string section)
     {
         var stream = new YamlStream();
-        stream.Load(new StringReader(text));
+        using var reader = new StringReader(text);
+        stream.Load(reader);
         if (stream.Documents.Count == 0 || stream.Documents[0].RootNode is not YamlMappingNode root)
         {
             return null;
@@ -224,7 +273,8 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
     private static JsonObject? Setting(string text, string key)
     {
         var stream = new YamlStream();
-        stream.Load(new StringReader(text));
+        using var reader = new StringReader(text);
+        stream.Load(reader);
         if (stream.Documents.Count == 0 || stream.Documents[0].RootNode is not YamlMappingNode root)
         {
             return null;
@@ -317,6 +367,12 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
             File.Delete(old);
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "PORTARR__CATALOG__WRITABLE is on but the catalog folder {Folder} is not writable ({Error}): the catalog stays read-only. Mount the folder, not the single file, read-write")]
+    private partial void LogFolderNotWritable(string folder, string error);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Catalog edit of {Section}/{Id} was applied but the audit trail could not be written ({Error})")]
+    private partial void LogAuditFailed(string section, string id, string error);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Catalog edited: {Operation} {Section}/{Id} through {Channel} ({Changes})")]
     private partial void LogEdited(string operation, string section, string id, string channel, string changes);

@@ -71,28 +71,40 @@ public sealed class CatalogAuditLog : ICatalogAuditLog
 
     public async Task<IReadOnlyList<CatalogAuditEntry>> ReadAsync(int limit, CancellationToken cancellationToken)
     {
-        if (!File.Exists(_path))
+        // Under the lock, so a read never meets an append or a rotation half way; the rotated file continues where the current one ends.
+        await _lock.WaitAsync(cancellationToken);
+        try
         {
-            return [];
-        }
-
-        var lines = await File.ReadAllLinesAsync(_path, cancellationToken);
-        var result = new List<CatalogAuditEntry>();
-        for (var i = lines.Length - 1; i >= 0 && result.Count < limit; i--)
-        {
-            try
+            var result = new List<CatalogAuditEntry>();
+            foreach (var path in new[] { _path, _path + ".1" })
             {
-                if (lines[i].Length > 0 && JsonSerializer.Deserialize<CatalogAuditEntry>(lines[i], Json) is { } entry)
+                if (result.Count >= limit || !File.Exists(path))
                 {
-                    result.Add(entry);
+                    continue;
+                }
+
+                var lines = await File.ReadAllLinesAsync(path, cancellationToken);
+                for (var i = lines.Length - 1; i >= 0 && result.Count < limit; i--)
+                {
+                    try
+                    {
+                        if (lines[i].Length > 0 && JsonSerializer.Deserialize<CatalogAuditEntry>(lines[i], Json) is { } entry)
+                        {
+                            result.Add(entry);
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        // A line edited by hand or cut by a crash: the others stay readable.
+                    }
                 }
             }
-            catch (JsonException)
-            {
-                // A line edited by hand or cut by a crash: the others stay readable.
-            }
-        }
 
-        return result;
+            return result;
+        }
+        finally
+        {
+            _lock.Release();
+        }
     }
 }
