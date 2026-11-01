@@ -24,6 +24,7 @@ Portarr shows a real infrastructure and, since V5 and V6, lets an assistant read
 - **Fixed roles only (an enum)**: simpler, but the maintainer asked for "plusieurs styles de rôles pour avoir plusieurs styles de vues"; making permissions the unit costs little more and keeps the four roles of the spec.
 - **Editable built-in roles**: a new permission added later would silently miss the edited roles, or the code would have to guess; custom roles (with Duplicate) give the same freedom without that trap.
 - **Permissions in the cookie or in a JWT**: stale until expiry; a disabled user or an edited role would keep working. One indexed read per request on SQLite or PostgreSQL, with a 10 second cache, is cheaper than the staleness.
+- **A "none / trusted network" mode** (Sonarr's *External* and *Disabled for local addresses*): rejected. A mode that trusts the network turns the day a port is published or a proxy misconfigured into an open Portarr that lists the inventory, the live logs and, with writes on, the catalog. Every request needs a sign-in; the answer for single sign-on (a user already authenticated by an SSO proxy or an identity provider) is OIDC and, behind a proxy that authenticates, the optional trusted-header mode of D-99, which maps the proxy's identity to a Portarr user instead of skipping the check.
 - **Teaching the runner about users** (passing identities, filtering there): a second place to enforce rules. Keeping ownership in Portarr leaves the runner a dumb, replaceable process (ADR 0008).
 
 ## Consequences
