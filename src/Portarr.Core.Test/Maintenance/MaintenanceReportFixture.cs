@@ -63,6 +63,111 @@ public sealed class MaintenanceReportFixture
         report.Repositories[0].Repository.Name.Should().Be("shop");
     }
 
+    private static AttentionItem Item(MaintenanceReport report, string kind) => report.Attention.Single(a => a.Kind == kind);
+
+    [Fact]
+    public void should_raise_secret_alerts_as_danger_counting_the_alerts()
+    {
+        var leaky = Repository("shop") with { SecretScanning = AlertScan.On(new AlertCounts(0, 0, 0, 0, 3)) };
+
+        var item = Item(Build([leaky]), "secret-alerts");
+
+        item.Should().Match<AttentionItem>(a => a.Level == AttentionLevel.Danger && a.Count == 3 && a.Subjects.Single().Label == "example/shop" && a.Subjects.Single().Count == 3);
+    }
+
+    [Fact]
+    public void should_raise_the_lesser_alerts_as_information_apart_from_the_severe_ones()
+    {
+        var mixed = Repository("shop") with { Dependabot = AlertScan.On(new AlertCounts(1, 0, 2, 1, 0)) };
+
+        var report = Build([mixed]);
+
+        Item(report, "severe-alerts").Count.Should().Be(1);
+        Item(report, "other-alerts").Should().Match<AttentionItem>(a => a.Level == AttentionLevel.Info && a.Count == 3);
+    }
+
+    [Fact]
+    public void should_say_which_repositories_have_code_scanning_off_and_which_have_pending_dependabot_pull_requests()
+    {
+        var unscanned = Repository("shop") with { CodeScanning = AlertScan.Off, DependabotPullRequests = 2 };
+
+        var report = Build([unscanned, Repository("api")]);
+
+        Item(report, "code-scanning-off").Should().Match<AttentionItem>(a => a.Level == AttentionLevel.Info && a.Subjects.Single().Label == "example/shop");
+        var pulls = Item(report, "dependabot-prs");
+        pulls.Count.Should().Be(2);
+        pulls.Subjects.Single().Url!.AbsoluteUri.Should().Be("https://github.com/example/shop/pulls/app%2Fdependabot");
+    }
+
+    [Fact]
+    public void should_report_a_code_source_that_could_not_be_scanned_as_a_warning()
+    {
+        var scan = new RepositoryScan([], "rate-limited", Now);
+        var parsed = TestCatalog.Parse(Catalog);
+
+        var report = MaintenanceService.Build(parsed.Catalog, new Dictionary<string, EnvironmentInventory>(), new MaintenanceState(scan, new Dictionary<string, RegistryLookup>()));
+
+        Item(report, "github-error").Should().Match<AttentionItem>(a => a.Level == AttentionLevel.Warning && a.Count == 1 && a.Subjects.Single().Label == "rate-limited");
+    }
+
+    [Fact]
+    public void should_tell_a_newer_minor_version_from_a_rebuilt_floating_tag_and_an_image_it_could_not_check()
+    {
+        var registries = new Dictionary<string, RegistryLookup>
+        {
+            ["docker.io/library/db"] = new([new RegistryTag("16.1"), new RegistryTag("16.2")], null, Now),
+            ["docker.io/library/web"] = new([new RegistryTag("latest", Now, "sha256:new")], null, Now),
+            ["docker.io/library/cache"] = new([], "refused", Now),
+        };
+
+        var report = Build([], registries, Container("db", "db:16.1"), Container("web", "web:latest") with { ImageDigest = "sha256:old" }, Container("cache", "cache:7"));
+
+        Item(report, "images-behind").Should().Match<AttentionItem>(a => a.Level == AttentionLevel.Info && a.Subjects.Single().Label == "db:16.1");
+        Item(report, "image-rebuilt").Should().Match<AttentionItem>(a => a.Level == AttentionLevel.Info && a.Subjects.Single().Label == "web:latest");
+        Item(report, "images-unknown").Should().Match<AttentionItem>(a => a.Level == AttentionLevel.Info && a.Subjects.Single().Label == "cache:7");
+        report.Attention.Select(a => a.Kind).Should().NotContain("image-major", "16.1 to 16.2 is a minor change");
+    }
+
+    [Fact]
+    public void should_let_two_apps_share_one_repository()
+    {
+        var parsed = TestCatalog.Parse("""
+            sources:
+              github: { owners: [example] }
+            apps:
+              - { id: shop, repository: example/shop }
+              - { id: shop-admin, repository: example/shop }
+            """);
+        var report = MaintenanceService.Build(parsed.Catalog, new Dictionary<string, EnvironmentInventory>(), new MaintenanceState(new RepositoryScan([Repository("shop")], null, Now), new Dictionary<string, RegistryLookup>()));
+
+        report.Repositories.Single().AppIds.Should().BeEquivalentTo("shop", "shop-admin");
+    }
+
+    [Fact]
+    public void should_keep_a_repository_nothing_runs_from_as_not_deployed()
+    {
+        var report = Build([Repository("lonely")], Container("db", "db:1"));
+
+        report.Repositories.Single().Should().Match<RepositoryView>(v => !v.Deployed && v.AppIds.Count == 0 && v.Images.Count == 0);
+        report.Summary.DeployedRepositories.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("https://github.com/example/desktop-app", true)]
+    [InlineData("https://github.com/example/desktop-app/", true)]
+    [InlineData("https://github.com/example/desktop-app.git", true)]
+    [InlineData("HTTP://GITHUB.COM/example/desktop-app", true)]
+    [InlineData("https://gitlab.com/example/desktop-app", false)]
+    [InlineData("https://github.com/someone-else/desktop-app", false)]
+    [InlineData("https://github.com/example/desktop-app/tree/main", false)]
+    [InlineData("not a url", false)]
+    public void should_link_a_repository_from_the_oci_source_label_of_a_running_image_only_when_it_names_it(string label, bool linked)
+    {
+        var report = Build([Repository("desktop-app")], Container("tool", "tool:1", new() { [ImageCheck.SourceLabel] = label }));
+
+        report.Repositories.Single().Deployed.Should().Be(linked);
+    }
+
     private static MaintenanceReport Build(IReadOnlyList<CodeRepository> repositories, params Workload[] workloads)
     {
         return Build(repositories, new Dictionary<string, RegistryLookup>(), workloads);
