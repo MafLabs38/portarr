@@ -57,7 +57,7 @@ Both run on the maintainer's development machine (resource-limited), connected *
 **Phase 2: industrialization, only for an accepted vertical.**
 
 4. **Harden**: complete the unit, integration and E2E tests, lint and format, check the production build (security headers, served UI) once, write clean commits.
-5. **Pull request**: it runs the whole pipeline (lint, tests, SonarQube gate, CodeQL, the three AI review agents). The author fixes what it finds and adds the verification report (each criterion, what it was checked against, the result, known limitations; no real infrastructure values) and the review section. The maintainer is given the pull request link.
+5. **Pull request**: it runs the whole pipeline (lint, tests, SonarQube gate, CodeQL, the four AI review agents: tests, quality, security, architecture). The author fixes what it finds and adds the verification report (each criterion, what it was checked against, the result, known limitations; no real infrastructure values) and the review section. The maintainer is given the pull request link.
 6. **Merge** (squash) by the maintainer. CI then publishes the `develop` image and the dev instance is updated.
 
 ### 1.4 Order and dependencies

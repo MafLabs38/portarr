@@ -1,5 +1,5 @@
 import MaintenanceTabs from 'Maintenance/MaintenanceTabs';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';

@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import UserMenu from 'Auth/UserMenu';
 import ChatToggle from 'Chat/ChatToggle';

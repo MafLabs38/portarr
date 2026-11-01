@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom';
+import { useParams } from 'react-router';
 
 import Alert from 'Components/Alert/Alert';
 import PageContent from 'Components/Page/PageContent';

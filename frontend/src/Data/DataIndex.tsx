@@ -1,6 +1,6 @@
 import ActiveFilter from 'Maintenance/ActiveFilter';
 import { useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 
 import { useApps } from 'Apps/useApps';
 import Alert from 'Components/Alert/Alert';

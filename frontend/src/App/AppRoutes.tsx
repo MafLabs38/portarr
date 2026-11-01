@@ -1,7 +1,7 @@
 import DataIndex from 'Data/DataIndex';
 import InfrastructureIndex from 'Infrastructure/InfrastructureIndex';
 import MaintenanceIndex from 'Maintenance/MaintenanceIndex';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router';
 
 import AccountPage from 'Account/AccountPage';
 import AppsIndex from 'Apps/AppsIndex';

@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 
 import usePermissions from 'Auth/usePermissions';
 import { CATALOG_WRITE, type PermissionOrAny, USERS_MANAGE } from 'Helpers/Props/permissions';

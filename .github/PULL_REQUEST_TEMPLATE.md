@@ -35,6 +35,7 @@ Known limitations:
 -
 
 - [ ] Accepted by the maintainer on the preview instance
+- [ ] The review section below lists, per agent, what was fixed and what was declined with its reason
 
 ## Definition of Done (vertical slices)
 - [ ] ≥ 80 % coverage on new code
@@ -45,6 +46,13 @@ Known limitations:
 - [ ] Translation keys added (`en`, `fr`)
 - [ ] Minimal permissions documented, secrets encrypted
 - [ ] Dogfooded on a real environment
+
+## Review
+<!-- One line per AI review agent (tests, quality, security, architecture): what was fixed, what was declined and why. An architecture verdict of "no" blocks the PR until it is addressed or decided. -->
+- tests:
+- quality:
+- security:
+- architecture:
 
 ## Checklist
 - [ ] My code follows the project's coding conventions (`CLAUDE.md`)
