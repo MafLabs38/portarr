@@ -60,6 +60,26 @@ public sealed class CronScheduleFixture
             .Should().Be(DateTimeOffset.Parse(expected, System.Globalization.CultureInfo.InvariantCulture));
     }
 
+    [Theory]
+    [InlineData("0 3 * * *", "Europe/Paris", "2026-02-01T02:00:00Z")]
+    [InlineData("0 3 * * *", "UTC", "2026-02-01T03:00:00Z")]
+    [InlineData("0 3 * * *", "America/New_York", "2026-02-01T08:00:00Z")]
+    public void should_read_the_expression_in_the_zone_the_tool_names(string expression, string zone, string expected)
+    {
+        var next = CronSchedule.NextAfter(expression, Now, TimeZoneInfo.FindSystemTimeZoneById(zone));
+
+        next.Should().Be(DateTimeOffset.Parse(expected, System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public void should_run_a_job_scheduled_in_the_hour_daylight_saving_skips_just_after_the_gap()
+    {
+        // 2026-03-29 02:30 does not exist in Paris (clocks go from 02:00 to 03:00): the job runs at 03:30 local, 01:30 UTC.
+        var next = CronSchedule.NextAfter("30 2 29 3 *", new DateTimeOffset(2026, 3, 28, 12, 0, 0, TimeSpan.Zero), TimeZoneInfo.FindSystemTimeZoneById("Europe/Paris"));
+
+        next.Should().Be(new DateTimeOffset(2026, 3, 29, 1, 30, 0, TimeSpan.Zero));
+    }
+
     [Fact]
     public void should_read_the_time_in_utc()
     {

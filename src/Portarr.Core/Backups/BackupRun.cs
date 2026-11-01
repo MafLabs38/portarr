@@ -26,6 +26,8 @@ public sealed record BackupSnapshot(string Id, DateTimeOffset At, IReadOnlyList<
 /// <c>Reference</c> is what the catalog names (<c>plan id</c>, <c>namespace/name</c>); <c>Repositories</c> the
 /// repositories it writes to, by the tool's own ids (never their addresses); <c>Snapshots</c> what the tool
 /// lists independently of the job's last run, when it does.
+/// <para><c>TimeZone</c> is the IANA zone the <c>Schedule</c> is read in (<c>UTC</c>, <c>Europe/Paris</c>); null when the tool does not
+/// say (Backrest reads its cron in the local time of its host): the next run is then not guessed.</para>
 /// </summary>
 public sealed record BackupJob(
     string Reference,
@@ -33,4 +35,5 @@ public sealed record BackupJob(
     string? Schedule,
     IReadOnlyList<string> Repositories,
     BackupRun? Run,
-    IReadOnlyList<BackupSnapshot>? Snapshots = null);
+    IReadOnlyList<BackupSnapshot>? Snapshots = null,
+    string? TimeZone = null);

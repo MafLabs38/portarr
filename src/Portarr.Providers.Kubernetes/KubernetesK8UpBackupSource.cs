@@ -110,7 +110,7 @@ public sealed class KubernetesK8UpBackupSource : IBackupSource
             run = new BackupRun(last, failed ? BackupResult.Failed : BackupResult.Success, success, null, snapshotId);
         }
 
-        return new BackupJob($"{ns}/{name}", name, schedule.Spec?.Backup?.Schedule, [KindOf(backend)], run, mine);
+        return new BackupJob($"{ns}/{name}", name, schedule.Spec?.Backup?.Schedule, [KindOf(backend)], run, mine, TimeZone: "UTC");
     }
 
     /// <summary>A finished Backup: when, and whether it succeeded. A running one is not an outcome.</summary>

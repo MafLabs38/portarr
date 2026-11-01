@@ -191,7 +191,7 @@ public sealed class DataService : IDataService
         }
 
         var (state, reason) = Judge(run, maxAge, now);
-        var next = state == CopyState.Waiting ? CronSchedule.NextAfter(job.Schedule, now) : null;
+        var next = state == CopyState.Waiting ? NextRun(job, now) : null;
         return new SourceCheck(reference, state, reason, job.Name, job.Schedule, job.Repositories, run, next);
     }
 
@@ -222,6 +222,24 @@ public sealed class DataService : IDataService
 
     /// <summary>Whether a snapshot path is the item or lies under it, by whole path segments: item <c>db</c> is not <c>/data/db-old</c>.</summary>
     private static bool HoldsItem(string path, string item) => $"/{path.Trim('/')}/".Contains($"/{item.Trim('/')}/", StringComparison.Ordinal);
+
+    /// <summary>The next firing, in the zone the tool reads its schedule in; none when the tool does not say (the cron text is all there is).</summary>
+    private static DateTimeOffset? NextRun(BackupJob job, DateTimeOffset now)
+    {
+        if (job.TimeZone is not { } name)
+        {
+            return null;
+        }
+
+        try
+        {
+            return CronSchedule.NextAfter(job.Schedule, now, TimeZoneInfo.FindSystemTimeZoneById(name));
+        }
+        catch (Exception exception) when (exception is TimeZoneNotFoundException or InvalidTimeZoneException)
+        {
+            return null;
+        }
+    }
 
     private static (CopyState State, string? Reason) JudgeManual(ManualCopy manual, TimeSpan maxAge, DateTimeOffset now)
     {

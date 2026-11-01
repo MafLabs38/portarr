@@ -114,7 +114,7 @@ public sealed class DataBackupsToolsFixture : IAsyncLifetime
         var offsite = assets["shop-db"].GetProperty("offsite");
         offsite.GetProperty("state").GetString().Should().Be("waiting");
         offsite.GetProperty("reason").GetString().Should().Be("no-run");
-        offsite.GetProperty("nextRunAt").GetDateTimeOffset().Should().Be(new DateTimeOffset(2026, 1, 2, 4, 30, 0, TimeSpan.Zero));
+        offsite.GetProperty("nextRunAt").ValueKind.Should().Be(JsonValueKind.Null, "Backrest reads its cron in its host's local time, which Portarr cannot see: only the cron text is shown");
         assets["shop-db"].GetProperty("state").GetString().Should().Be("waiting");
 
         // The last Backrest attempt failed after a success the day before.
