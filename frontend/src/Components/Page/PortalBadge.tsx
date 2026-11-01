@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import usePermissions from 'Auth/usePermissions';
 import { SYSTEM_VIEW } from 'Helpers/Props/permissions';
-import { usePortal } from 'System/Status/usePortal';
+import { usePortal } from 'Settings/General/usePortal';
 import useSystemStatus from 'System/Status/useSystemStatus';
 import translate from 'Utilities/String/translate';
 

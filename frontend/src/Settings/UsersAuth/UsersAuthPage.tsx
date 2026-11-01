@@ -5,6 +5,7 @@ import Alert from 'Components/Alert/Alert';
 import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
 import PageHeading from 'Components/Page/PageHeading';
+import SettingsNav from 'Settings/SettingsNav';
 import translate from 'Utilities/String/translate';
 
 import ActivityTable from './ActivityTable';
@@ -35,6 +36,7 @@ export default function UsersAuthPage() {
     <PageContent title={translate('UsersAndAuth')}>
       <PageContentBody>
         <PageHeading scope={translate('Settings')} title={translate('UsersAndAuth')} />
+        <SettingsNav />
         {users.isError || roles.isError ? <Alert kind="danger">{translate('ErrorLoadingUsers')}</Alert> : null}
         <MaintenanceTabs onSelect={(id) => setTab(id as Tab)} selected={tab} tabs={tabs}>
           {tab === 'users' && users.data && roles.data ? (

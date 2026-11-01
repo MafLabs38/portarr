@@ -8,6 +8,7 @@ const pages: [string, string][] = [
   ['/maintenance', 'What needs attention'],
   ['/assistant', 'Ask your AI about the fleet'],
   ['/system/status', 'Status'],
+  ['/settings/general', 'General'],
   ['/settings/users', 'Users & Auth'],
   ['/account/profile', 'Profile'],
   ['/account/api-keys', 'API keys'],

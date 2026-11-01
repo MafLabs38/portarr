@@ -5,7 +5,6 @@ import translate from 'Utilities/String/translate';
 
 import About from './About';
 import ApiReference from './ApiReference';
-import Identity from './Identity';
 import Logging from './Logging';
 import styles from './Status.module.css';
 
@@ -16,7 +15,6 @@ export default function Status() {
         <PageHeading scope={translate('System')} title={translate('Status')} />
         <div className={styles.cards}>
           <About />
-          <Identity />
           <Logging />
           <ApiReference />
         </div>
