@@ -25,6 +25,12 @@ public sealed class KubernetesNodeExporterSource : IHostMetricsSource
     private readonly NodeExporterSampler _sampler = new();
     private readonly ConcurrentDictionary<HostMachineKey, CachedPod> _pods = new();
 
+    /// <summary>The nodes of a cluster that declares <c>kubernetes.nodeExporter</c>, each with its route (D-72, D-105).</summary>
+    public IEnumerable<HostMetricsTarget> TargetsOf(CatalogEnvironment environment, EnvironmentMetrics? infrastructure)
+    {
+        return environment.Kubernetes()?.NodeExporter is { } nodeExporter ? KubernetesNodeTargets.Of(environment, nodeExporter, infrastructure) : [];
+    }
+
     public KubernetesNodeExporterSource(KubernetesApiClient client, TimeProvider timeProvider)
     {
         _client = client;
@@ -33,12 +39,12 @@ public sealed class KubernetesNodeExporterSource : IHostMetricsSource
 
     public bool Supports(HostMetricsTarget target)
     {
-        return target.Url is null && target.ApiServerPort is not null && target.Environment.Kubernetes is not null;
+        return target.Url is null && target.ApiServerPort is not null && target.Environment.Kubernetes() is not null;
     }
 
     public async Task<HostReading> ReadAsync(HostMetricsTarget target, CancellationToken cancellationToken)
     {
-        var cluster = target.Environment.Kubernetes ?? throw new InvalidOperationException($"Environment {target.Environment.Id} has no Kubernetes cluster.");
+        var cluster = target.Environment.Kubernetes() ?? throw new InvalidOperationException($"Environment {target.Environment.Id} has no Kubernetes cluster.");
         var exporter = cluster.NodeExporter ?? throw new InvalidOperationException($"Environment {target.Environment.Id} has no kubernetes.nodeExporter.");
 
         var cached = _pods.TryGetValue(target.Key, out var known) && _timeProvider.GetUtcNow() - known.At < PodLifetime ? known.Name : null;

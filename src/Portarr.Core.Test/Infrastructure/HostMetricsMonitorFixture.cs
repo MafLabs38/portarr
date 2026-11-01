@@ -147,44 +147,11 @@ public sealed class HostMetricsMonitorFixture
     }
 
     [Fact]
-    public void should_resolve_the_nodes_of_a_cluster_by_their_access_route()
+    public async Task should_show_a_target_a_source_will_not_read_as_a_reason_not_as_a_missing_card()
     {
-        var catalog = TestCatalog.Parse("""
-            environments:
-              - id: cluster
-                kubernetes:
-                  server: "https://10.0.0.20:6443"
-                  nodeExporter:
-                    port: 9100
-                    access: direct
-                    nodes: { behind-tunnel: api-server, elsewhere: "http://10.0.0.30:9100/metrics", disabled: off }
-            """);
-        catalog.Errors.Should().BeEmpty();
-        var infrastructure = new Dictionary<string, EnvironmentMetrics>
-        {
-            ["cluster"] = new("cluster", [Node("home", "10.0.0.21"), Node("behind-tunnel", "10.0.0.22"), Node("elsewhere", null), Node("no-address", null), Node("disabled", "10.0.0.23"), Node("looped", "127.0.0.1")], new Dictionary<string, WorkloadUsageSample>(), Now, null),
-        };
-
-        var targets = Monitor().ResolveTargets(catalog.Catalog, infrastructure);
-
-        targets.Select(t => (t.MachineId, t.Url?.ToString(), t.ApiServerPort, t.ConfigurationError)).Should().Equal(
-            ("home", "http://10.0.0.21:9100/metrics", null, null),
-            ("behind-tunnel", null, 9100, null),
-            ("elsewhere", "http://10.0.0.30:9100/metrics", null, null),
-            ("looped", null, null, ReasonCodes.InvalidAddress));
-    }
-
-    [Fact]
-    public async Task should_show_a_node_with_an_address_it_will_not_read_as_a_reason_not_as_a_missing_card()
-    {
-        UseCatalog("""
-            environments:
-              - { id: cluster, kubernetes: { server: "https://10.0.0.20:6443", nodeExporter: { access: direct } } }
-            """);
-        _infrastructure.Current.Returns(new Dictionary<string, EnvironmentMetrics>
-        {
-            ["cluster"] = new("cluster", [Node("looped", "127.0.0.1")], new Dictionary<string, WorkloadUsageSample>(), Now, null),
-        });
+        UseCatalog("environments: [{ id: cluster, kubernetes: { server: \"https://10.0.0.20:6443\" } }]");
+        _source.TargetsOf(Arg.Any<CatalogEnvironment>(), Arg.Any<EnvironmentMetrics?>())
+            .Returns(call => [new HostMetricsTarget(call.Arg<CatalogEnvironment>(), "looped", null, null, ReasonCodes.InvalidAddress)]);
         var monitor = Monitor();
 
         await monitor.SampleAsync(TestContext.Current.CancellationToken);
@@ -194,9 +161,6 @@ public sealed class HostMetricsMonitorFixture
     }
 
     private int Reads() => _source.ReceivedCalls().Count(call => call.GetMethodInfo().Name == nameof(IHostMetricsSource.ReadAsync));
-
-    private static MachineView Node(string name, string? address) =>
-        new(new MachineSample(name, name, MachineKind.KubernetesNode, 4, 8_000, null, null, UsageScope.Host, Address: address), []);
 
     private static HostReading Reading(double cpu, long usedBytes) =>
         new(2, cpu, 1, [cpu, cpu], new HostMemory(16_000, 16_000 - usedBytes, 4_000, 2_000, 1_000, 1_000), 0.5, null);

@@ -234,8 +234,6 @@ internal sealed class EnvironmentDocument
     /// <summary>The Portarr reader of this machine, in place of <c>docker</c> and <c>hostMetrics</c> (D-100, D-101).</summary>
     public ReaderDocument? Reader { get; set; }
 
-    public KubernetesDocument? Kubernetes { get; set; }
-
     public string? Address { get; set; }
 
     /// <summary>The environment this machine is a VM on (D-59): its hypervisor counts it as a guest.</summary>
@@ -253,44 +251,6 @@ internal sealed class EnvironmentDocument
 
     /// <summary>Knowledge about the machines of this environment, e.g. the nodes of a cluster (D-84).</summary>
     public List<MachineDocument>? Machines { get; set; }
-}
-
-internal sealed class NodeExporterDocument
-{
-    /// <summary>node_exporter's port on every node (default 9100).</summary>
-    public int? Port { get; set; }
-
-    /// <summary>direct (the node's InternalIP, default) or api-server (the API server's pod proxy).</summary>
-    public string? Access { get; set; }
-
-    /// <summary>Namespace of the node_exporter DaemonSet, for api-server access (default monitoring).</summary>
-    public string? Namespace { get; set; }
-
-    /// <summary>Label selector of its pods, for api-server access (default app.kubernetes.io/name=node-exporter).</summary>
-    public string? Selector { get; set; }
-
-    /// <summary>Per node name: direct, api-server, off, or a metrics URL.</summary>
-    public Dictionary<string, string>? Nodes { get; set; }
-}
-
-internal sealed class KubernetesDocument
-{
-    public string? Server { get; set; }
-
-    /// <summary>Name of the environment variable holding the ServiceAccount token (never the token itself).</summary>
-    public string? TokenEnv { get; set; }
-
-    /// <summary>Cluster CA certificate (PEM), relative to the catalog folder.</summary>
-    public string? CaFile { get; set; }
-
-    /// <summary>Accepts an <c>http://</c> API server (the token travels in clear): a lab or a test only.</summary>
-    public bool AllowInsecure { get; set; }
-
-    /// <summary>Per node name, the environment the node is a VM on (D-59); overrides the environment's <c>host</c>.</summary>
-    public Dictionary<string, string>? NodeHosts { get; set; }
-
-    /// <summary>node_exporter on the nodes (D-72).</summary>
-    public NodeExporterDocument? NodeExporter { get; set; }
 }
 
 /// <summary>

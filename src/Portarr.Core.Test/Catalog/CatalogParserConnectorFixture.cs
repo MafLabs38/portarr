@@ -199,7 +199,6 @@ public sealed class CatalogParserConnectorFixture
 
     [Theory]
     [InlineData("reader")]
-    [InlineData("kubernetes")]
     [InlineData("id")]
     [InlineData("notes")]
     public void should_not_let_a_connector_take_a_key_core_still_reads(string section)

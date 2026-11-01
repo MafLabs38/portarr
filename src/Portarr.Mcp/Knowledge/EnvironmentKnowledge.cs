@@ -124,7 +124,7 @@ public static class EnvironmentKnowledgeBuilder
 
     private static IEnumerable<string> MachineNames(CatalogEnvironment environment)
     {
-        return (environment.Machines ?? []).Select(m => m.Name).Concat(environment.Kubernetes?.NodeHosts?.Keys ?? []);
+        return (environment.Machines ?? []).Select(m => m.Name).Concat(environment.MachineHosts?.Keys ?? []);
     }
 
     private static bool Same(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);

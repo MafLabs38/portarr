@@ -11,6 +11,10 @@ public static partial class CatalogValues
     [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]{0,127}$")]
     private static partial Regex VariableNamePattern();
 
+    /// <summary>A Kubernetes namespace: a DNS label.</summary>
+    [GeneratedRegex("^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$")]
+    private static partial Regex NamespacePattern();
+
     // Must match ReaderTokenPrefix.
     [GeneratedRegex("^PORTARR_READER_[A-Za-z0-9_]{1,100}$")]
     private static partial Regex ReaderTokenVariablePattern();
@@ -41,6 +45,9 @@ public static partial class CatalogValues
 
         return $"{key} must be the name of an environment variable starting with {ReaderTokenPrefix} (e.g. {ReaderTokenPrefix}SERVER_1), never the token itself.";
     }
+
+    /// <summary>A Kubernetes namespace name: a DNS label.</summary>
+    public static bool IsNamespaceName(string value) => NamespacePattern().IsMatch(value);
 
     /// <summary>The name of an environment variable (the catalog names the variable that holds a secret, never the secret).</summary>
     public static bool IsVariableName(string value) => VariableNamePattern().IsMatch(value);

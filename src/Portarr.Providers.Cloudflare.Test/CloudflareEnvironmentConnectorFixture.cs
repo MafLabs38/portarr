@@ -18,7 +18,7 @@ public sealed class CloudflareEnvironmentConnectorFixture : EnvironmentConnector
 
     protected override string? SectionWithLiteralSecret => "{ accountId: abc, tokenEnv: \"cf-token-value!\" }";
 
-    private static CatalogParseResult Parse(string yaml) => CatalogParser.Parse(yaml, [new CloudflareEnvironmentConnector(), new StubEnvironmentConnector("docker", isRuntime: true)]);
+    private static CatalogParseResult Parse(string yaml) => CatalogParser.Parse(yaml, [new CloudflareEnvironmentConnector(), new StubEnvironmentConnector("docker", isRuntime: true), new StandInKubernetesConnector()]);
 
     [Fact]
     public void should_read_the_account_and_default_the_token_variable()

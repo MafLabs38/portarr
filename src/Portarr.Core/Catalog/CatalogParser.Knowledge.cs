@@ -214,7 +214,7 @@ public static partial class CatalogParser
             var result = new Dictionary<string, List<string>>(StringComparer.Ordinal);
             foreach (var environment in environments)
             {
-                var names = (environment.Machines ?? []).Select(m => m.Name).Concat(environment.Kubernetes?.NodeHosts?.Keys ?? []).Distinct(StringComparer.Ordinal);
+                var names = (environment.Machines ?? []).Select(m => m.Name).Concat(environment.MachineHosts?.Keys ?? []).Distinct(StringComparer.Ordinal);
                 foreach (var name in names)
                 {
                     if (!result.TryGetValue(name, out var owners))

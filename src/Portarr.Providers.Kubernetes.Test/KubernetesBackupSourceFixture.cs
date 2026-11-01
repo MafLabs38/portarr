@@ -11,7 +11,7 @@ namespace Portarr.Providers.Kubernetes.Test;
 /// <summary>The Kubernetes backup sources (D-62, D-81): CronJobs with their Jobs, K8up Schedules with their Backups and Snapshots.</summary>
 public sealed class KubernetesBackupSourceFixture : IDisposable
 {
-    private static readonly CatalogEnvironment Environment = new("cluster", "Cluster", null, Kubernetes: new KubernetesCluster(new Uri("https://10.0.0.10:6443"), "CLUSTER_TOKEN", null));
+    private static readonly CatalogEnvironment Environment = KubernetesEnvironments.With(new KubernetesCluster(new Uri("https://10.0.0.10:6443"), "CLUSTER_TOKEN", null));
 
     private readonly List<HttpRequestMessage> _requests = [];
     private readonly Dictionary<string, (HttpStatusCode Status, string Body)> _responses = [];

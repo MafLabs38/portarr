@@ -22,7 +22,7 @@ public sealed class NodeExporterEnvironmentConnectorFixture : EnvironmentConnect
 
     protected override string? SectionWithSecretOutsideNamespace => "{ nodeExporter: \"http://attacker.example:9100/metrics\", tokenEnv: GITHUB_TOKEN }";
 
-    private static CatalogParseResult Parse(string yaml) => CatalogParser.Parse(yaml, [new NodeExporterEnvironmentConnector(), new StubEnvironmentConnector("docker", isRuntime: true), new StubEnvironmentConnector("cloudflare", isRuntime: true, singleMachine: false)]);
+    private static CatalogParseResult Parse(string yaml) => CatalogParser.Parse(yaml, [new NodeExporterEnvironmentConnector(), new StubEnvironmentConnector("docker", isRuntime: true), new StubEnvironmentConnector("cloudflare", isRuntime: true, singleMachine: false), new StandInKubernetesConnector()]);
 
     [Fact]
     public void should_read_the_agent_of_a_docker_host()

@@ -10,4 +10,10 @@ public static class TestEnvironments
     {
         return new CatalogEnvironment(id, name, address, Host: host, Connectors: new Dictionary<string, object> { ["docker"] = new object() }, ConnectorRuntime: RuntimeNames.Docker);
     }
+
+    /// <summary>A cluster: it declares <c>kubernetes</c>, which is its runtime, and says on which environment some of its nodes are VMs.</summary>
+    public static CatalogEnvironment Cluster(string id, string name, IReadOnlyDictionary<string, string>? nodeHosts = null)
+    {
+        return new CatalogEnvironment(id, name, Connectors: new Dictionary<string, object> { ["kubernetes"] = new object() }, MachineHosts: nodeHosts, ConnectorRuntime: RuntimeNames.Kubernetes, SingleMachine: false);
+    }
 }

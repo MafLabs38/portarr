@@ -32,7 +32,6 @@ public sealed class CatalogHostParserFixture
     [InlineData("{ id: vm-1, host: vm-1 }", "cannot be its own host")]
     [InlineData("{ id: vm-1, host: cdn }", "must be a single machine")]
     [InlineData("{ id: vm-1, kubernetes: { server: \"https://10.0.0.20:6443\", nodeHosts: { node-1: nowhere } } }", "host 'nowhere'")]
-    [InlineData("{ id: vm-1, kubernetes: { server: \"https://10.0.0.20:6443\", nodeHosts: { node-1: \"\" } } }", "kubernetes.nodeHosts maps node names")]
     public void should_reject_an_invalid_host(string environment, string error)
     {
         var result = Parse($$"""

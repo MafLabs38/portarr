@@ -48,7 +48,7 @@ public sealed class FakeCluster : IDisposable
     }
 
     public static CatalogEnvironment Environment(KubernetesNodeExporter? nodeExporter = null) =>
-        new("cluster", "Cluster", null, Kubernetes: new KubernetesCluster(new Uri("https://10.0.0.10:6443"), "CLUSTER_TOKEN", null, NodeExporter: nodeExporter));
+        KubernetesEnvironments.With(new KubernetesCluster(new Uri("https://10.0.0.10:6443"), "CLUSTER_TOKEN", null, NodeExporter: nodeExporter));
 
     public void Dispose()
     {

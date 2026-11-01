@@ -72,11 +72,7 @@ public sealed class InfrastructureMonitorFixture
     {
         var hypervisor = TestEnvironments.DockerHost("hypervisor", "Hypervisor");
         var vm = TestEnvironments.DockerHost("vm-1", "VM 1", host: "hypervisor");
-        var cluster = new CatalogEnvironment(
-            "cluster",
-            "Cluster",
-            null,
-            Kubernetes: new KubernetesCluster(new Uri("https://cluster:6443"), "K8S_TOKEN", null, new Dictionary<string, string> { ["node-1"] = "hypervisor" }));
+        var cluster = TestEnvironments.Cluster("cluster", "Cluster", new Dictionary<string, string> { ["node-1"] = "hypervisor" });
         _inventory.Current.Returns(new[] { hypervisor, vm, cluster }.ToDictionary(e => e.Id, e => new EnvironmentInventory(e.Id, true, null, [], _clock.GetUtcNow())));
         _source.SampleAsync(hypervisor, Arg.Any<IReadOnlyList<Workload>>(), Arg.Any<CancellationToken>())
             .Returns(new InfrastructureSample([new MachineSample("hypervisor", "Hypervisor", MachineKind.DockerHost, 8, 64_000_000_000, 0.5, 8_000_000_000, UsageScope.Containers)], []));
