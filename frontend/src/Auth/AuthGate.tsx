@@ -31,7 +31,7 @@ export default function AuthGate({ children }: Readonly<AuthGateProps>) {
   }
 
   if (status.data?.setupRequired) {
-    return <SetupPage />;
+    return <SetupPage codeRequired={status.data.setupCodeRequired === true} />;
   }
 
   if (me.isError) {

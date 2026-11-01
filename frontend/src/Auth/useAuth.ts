@@ -22,7 +22,7 @@ export function useLogin() {
 }
 
 export function useSetup() {
-  return useApiMutation<{ username: string; displayName?: string; password: string }, Me>({
+  return useApiMutation<{ username: string; displayName?: string; password: string; setupCode?: string }, Me>({
     path: '/auth/setup',
     method: 'POST',
     reset: true,

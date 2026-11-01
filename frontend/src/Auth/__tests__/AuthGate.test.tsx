@@ -177,4 +177,60 @@ describe('SetupPage', () => {
 
     await waitFor(() => expect(body).toEqual({ username: 'root', password: 'a long enough passphrase' }));
   });
+
+  it('asks for the setup code a fresh install prints in its log, and sends it', async () => {
+    const user = userEvent.setup();
+    let body: unknown;
+    server.use(
+      unauthorized(),
+      http.get('/api/v1/auth/status', () =>
+        HttpResponse.json({ ...authStatus, setupRequired: true, setupCodeRequired: true }),
+      ),
+      http.post('/api/v1/auth/setup', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(me, { status: 201 });
+      }),
+    );
+    renderWithProviders(
+      <AuthGate>
+        <p>The app</p>
+      </AuthGate>,
+    );
+    const create = await screen.findByRole('button', { name: 'Create the administrator' });
+
+    await user.type(screen.getByLabelText('User name'), 'root');
+    await user.type(screen.getByLabelText('Password'), 'a long enough passphrase');
+    await user.type(screen.getByLabelText('Confirm the password'), 'a long enough passphrase');
+    expect(create).toBeDisabled();
+
+    await user.type(screen.getByLabelText('Setup code'), 'ABCD-1234');
+    await user.click(create);
+
+    await waitFor(() =>
+      expect(body).toEqual({ username: 'root', password: 'a long enough passphrase', setupCode: 'ABCD-1234' }),
+    );
+  });
+
+  it('says so when the setup code is refused', async () => {
+    const user = userEvent.setup();
+    server.use(
+      unauthorized(),
+      http.get('/api/v1/auth/status', () =>
+        HttpResponse.json({ ...authStatus, setupRequired: true, setupCodeRequired: true }),
+      ),
+      http.post('/api/v1/auth/setup', () => HttpResponse.json({ title: 'Setup code required' }, { status: 403 })),
+    );
+    renderWithProviders(
+      <AuthGate>
+        <p>The app</p>
+      </AuthGate>,
+    );
+    await user.type(await screen.findByLabelText('Setup code'), 'WRONG');
+    await user.type(screen.getByLabelText('User name'), 'root');
+    await user.type(screen.getByLabelText('Password'), 'a long enough passphrase');
+    await user.type(screen.getByLabelText('Confirm the password'), 'a long enough passphrase');
+    await user.click(screen.getByRole('button', { name: 'Create the administrator' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('That setup code is not right.');
+  });
 });

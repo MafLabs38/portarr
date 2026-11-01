@@ -13,6 +13,8 @@ export interface AuthStatus {
   setupRequired: boolean;
   name: string;
   logoUrl: string | null;
+  /** A fresh install asks for the one-time code printed in the Portarr log. */
+  setupCodeRequired?: boolean;
 }
 
 export interface UserAccount {

@@ -9,6 +9,8 @@ namespace Portarr.Core.Accounts;
 /// the password), read once, only while no user exists. <c>PORTARR__AUTH__COOKIESECURITY=Always</c> issues the session
 /// cookie as <c>Secure</c> (with the <c>__Host-</c> prefix) whatever the request looks like, for an install behind a TLS
 /// proxy Portarr does not trust; the default <c>Auto</c> follows the request, so plain HTTP on a LAN keeps working.
+/// A fresh install asks for a one-time setup code (printed in the log, written to <c>&lt;data&gt;/setup-code</c>) before
+/// the first administrator is created; <c>PORTARR__AUTH__REQUIRESETUPCODE=false</c> removes the guard.
 /// </summary>
 public sealed class AuthOptions
 {
@@ -21,6 +23,8 @@ public sealed class AuthOptions
     public int LockoutMinutes { get; set; } = 5;
 
     public CookieSecurity CookieSecurity { get; set; } = CookieSecurity.Auto;
+
+    public bool RequireSetupCode { get; set; } = true;
 
     public string? AdminUser { get; set; }
 

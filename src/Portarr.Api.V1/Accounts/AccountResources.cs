@@ -11,9 +11,10 @@ namespace Portarr.Api.V1.Accounts;
 public sealed record MeResource(int? Id, string Username, string DisplayName, string Role, IReadOnlyList<string> Permissions, string? AvatarUrl, string AuthMethod);
 
 /// <summary>Whether the first administrator still has to be created, and what the login page shows of the portal (its name and logo).</summary>
-public sealed record AuthStatusResource(bool SetupRequired, string Name, string? LogoUrl);
+public sealed record AuthStatusResource(bool SetupRequired, string Name, string? LogoUrl, bool SetupCodeRequired);
 
-public sealed record SetupRequest(string Username, string? DisplayName, string Password);
+/// <summary><c>SetupCode</c> is the one-time code printed in the Portarr log (and in <c>&lt;data&gt;/setup-code</c>) on a fresh install.</summary>
+public sealed record SetupRequest(string Username, string? DisplayName, string Password, string? SetupCode = null);
 
 public sealed record LoginRequest(string Username, string Password, bool Remember = false);
 
