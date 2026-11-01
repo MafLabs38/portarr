@@ -7,9 +7,10 @@ namespace Portarr.Core.Backups;
 
 /// <summary>
 /// What one backup source said of one environment: its jobs, or why it could not tell (<c>Error</c>: a reason
-/// code, <c>no-connector</c> when nothing reads that tool there).
+/// code, <c>no-connector</c> when nothing reads that tool there). <c>NotSetUp</c>: the error is something the operator has to
+/// configure (no connector, a missing credential), not a tool that failed.
 /// </summary>
-public sealed record SourceReading(string Kind, string EnvironmentId, IReadOnlyList<BackupJob> Jobs, string? Error, DateTimeOffset CheckedAt)
+public sealed record SourceReading(string Kind, string EnvironmentId, IReadOnlyList<BackupJob> Jobs, string? Error, DateTimeOffset CheckedAt, bool NotSetUp = false)
 {
     public static string KeyOf(string kind, string environmentId) => $"{kind}@{environmentId}";
 
@@ -38,10 +39,6 @@ public sealed partial class BackupMonitor : BackgroundService, IBackupMonitor
 {
     public const string NoConnector = "no-connector";
 
-    // Reasons that say the tool is declared but not set up on the environment (a missing connector, a missing
-    // credential, token or cluster CA): the operator must configure it. Any other reason is a tool that failed.
-    private static readonly HashSet<string> NotSetUpReasons = [NoConnector, "credentials-missing", ReasonCodes.TokenMissing, "ca-missing", "ca-invalid"];
-
     public static readonly TimeSpan Interval = TimeSpan.FromMinutes(1);
 
     private readonly ICatalogService _catalogService;
@@ -60,9 +57,6 @@ public sealed partial class BackupMonitor : BackgroundService, IBackupMonitor
 
     public BackupMonitorState Current => _current;
 
-    /// <summary>Whether a reading's reason code is a configuration problem (to set up) rather than a failure of the tool.</summary>
-    public static bool IsNotSetUp(string reason) => NotSetUpReasons.Contains(reason);
-
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
         var catalog = _catalogService.Current.Catalog;
@@ -73,7 +67,9 @@ public sealed partial class BackupMonitor : BackgroundService, IBackupMonitor
             .Distinct()
             .ToList();
 
-        var readings = await Task.WhenAll(wanted.Select(w => ReadAsync(w.Kind, environments[w.EnvironmentId], cancellationToken)));
+        var readings = await Task.WhenAll(wanted.Select(w => environments.TryGetValue(w.EnvironmentId, out var environment)
+            ? ReadAsync(w.Kind, environment, cancellationToken)
+            : Task.FromResult(new SourceReading(w.Kind, w.EnvironmentId, [], NoConnector, _timeProvider.GetUtcNow(), NotSetUp: true))));
         _current = new BackupMonitorState(readings.ToDictionary(r => r.Key, StringComparer.Ordinal));
     }
 
@@ -100,7 +96,7 @@ public sealed partial class BackupMonitor : BackgroundService, IBackupMonitor
         var source = _sources.FirstOrDefault(s => s.Kind == kind && s.Supports(environment));
         if (source is null)
         {
-            return new SourceReading(kind, environment.Id, [], NoConnector, now);
+            return new SourceReading(kind, environment.Id, [], NoConnector, now, NotSetUp: true);
         }
 
         try
@@ -109,7 +105,7 @@ public sealed partial class BackupMonitor : BackgroundService, IBackupMonitor
         }
         catch (BackupSourceUnavailableException unavailable)
         {
-            return new SourceReading(kind, environment.Id, [], unavailable.Reason, now);
+            return new SourceReading(kind, environment.Id, [], unavailable.Reason, now, unavailable.NotSetUp);
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {

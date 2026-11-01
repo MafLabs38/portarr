@@ -39,7 +39,7 @@ public sealed class DataServiceFixture
         var reference = new BackupSourceReference(BackupSourceKinds.K8up, "cluster", "shop/offsite");
         var window = TimeSpan.FromDays(7);
 
-        DataService.Check(reference, null, window, Now).Should().Match<SourceCheck>(c => c.State == CopyState.NotSetUp && c.Reason == "no-connector");
+        DataService.Check(reference, new SourceReading("k8up", "cluster", [], BackupMonitor.NoConnector, Now, NotSetUp: true), window, Now).Should().Match<SourceCheck>(c => c.State == CopyState.NotSetUp && c.Reason == "no-connector");
         DataService.Check(reference, new SourceReading("k8up", "cluster", [], "http-403", Now), window, Now).Should().Match<SourceCheck>(c => c.State == CopyState.Unknown && c.Reason == "http-403");
         DataService.Check(reference, new SourceReading("k8up", "cluster", [], null, Now), window, Now).Should().Match<SourceCheck>(c => c.State == CopyState.Missing && c.Reason == "not-found");
     }
@@ -111,19 +111,24 @@ public sealed class DataServiceFixture
         report.Sources.Select(s => (s.Kind, s.Error)).Should().Equal(("backrest", null), ("k8up", "http-403"));
     }
 
-    [Theory]
-    [InlineData("no-connector")]
-    [InlineData("credentials-missing")]
-    [InlineData("token-missing")]
-    [InlineData("ca-missing")]
-    [InlineData("ca-invalid")]
-    public void should_ask_the_operator_to_set_up_a_tool_that_is_declared_but_not_configured(string reason)
+    [Fact]
+    public void should_ask_the_operator_to_set_up_a_tool_whose_reading_says_so()
     {
         var reference = new BackupSourceReference(BackupSourceKinds.Backrest, "server-1", "plan");
 
-        var check = DataService.Check(reference, new SourceReading("backrest", "server-1", [], reason, Now), TimeSpan.FromHours(24), Now);
+        var check = DataService.Check(reference, new SourceReading("backrest", "server-1", [], "credentials-missing", Now, NotSetUp: true), TimeSpan.FromHours(24), Now);
 
-        check.Should().Match<SourceCheck>(c => c.State == CopyState.NotSetUp && c.Reason == reason);
+        check.Should().Match<SourceCheck>(c => c.State == CopyState.NotSetUp && c.Reason == "credentials-missing");
+    }
+
+    [Fact]
+    public void should_leave_a_source_not_read_yet_unknown_not_unconfigured()
+    {
+        var reference = new BackupSourceReference(BackupSourceKinds.Backrest, "server-1", "plan");
+
+        var check = DataService.Check(reference, null, TimeSpan.FromHours(24), Now);
+
+        check.Should().Match<SourceCheck>(c => c.State == CopyState.Unknown && c.Reason == DataService.NotReadYet);
     }
 
     [Theory]
@@ -190,7 +195,7 @@ public sealed class DataServiceFixture
                 Job("waits-local", Run("2026-01-31T03:00:00Z", BackupResult.Success, "2026-01-31T03:00:00Z")),
                 new BackupJob("waits-offsite", "waits-offsite", "0 4 * * *", ["b2"], null),
                 new BackupJob("x", "x", null, [], new BackupRun(null, null, At("2026-01-31T03:00:00Z")))),
-            new SourceReading("k8up", "cluster", [], BackupMonitor.NoConnector, Now),
+            new SourceReading("k8up", "cluster", [], BackupMonitor.NoConnector, Now, NotSetUp: true),
             new SourceReading("cronjob", "cluster", [], "unreachable", Now));
 
         report.Assets.Select(a => (a.Asset.Id, a.State)).Should().Equal(
@@ -213,7 +218,7 @@ public sealed class DataServiceFixture
             Reading("backrest", "server-1",
                 Job("ok", Run("2026-01-31T03:00:00Z", BackupResult.Success, "2026-01-31T03:00:00Z")),
                 new BackupJob("later", "later", null, [], null)),
-            new SourceReading("k8up", "cluster", [], BackupMonitor.NoConnector, Now),
+            new SourceReading("k8up", "cluster", [], BackupMonitor.NoConnector, Now, NotSetUp: true),
             Reading("cronjob", "cluster"));
 
         var covered = report.Assets.Single(a => a.Asset.Id == "covered");
@@ -295,6 +300,83 @@ public sealed class DataServiceFixture
     public void should_reject_the_retired_backups_section()
     {
         TestCatalog.Parse("backups:\n  - { id: old }\n").IsValid.Should().BeFalse("the backups section was replaced by data");
+    }
+
+    private const string ManualAsset = """
+        data:
+          - { id: notes, app: shop, kind: files, importance: critical, maxAge: 7d, where: { environment: server-1 }, targets: { local: { manual: "%DATE%" } } }
+        """;
+
+    [Theory]
+    [InlineData("2026-01-30T00:00:00Z", CopyState.Protected, null)]
+    [InlineData("2025-12-01T00:00:00Z", CopyState.Late, null)]
+    [InlineData("2026-03-01T00:00:00Z", CopyState.Unknown, "manual-in-the-future")]
+    public void should_judge_a_copy_the_operator_makes_by_hand_against_the_window_and_refuse_a_date_in_the_future(string date, CopyState state, string? reason)
+    {
+        var report = Build(ManualAsset.Replace("%DATE%", date, StringComparison.Ordinal));
+
+        var local = report.Assets.Single().Local!;
+
+        local.State.Should().Be(state);
+        local.Reason.Should().Be(reason);
+    }
+
+    [Fact]
+    public void should_leave_a_manual_copy_without_a_date_unknown_and_the_asset_without_a_size()
+    {
+        var report = Build("""
+            data:
+              - { id: notes, app: shop, kind: files, importance: critical, where: { environment: server-1 }, targets: { local: { manual: true } } }
+            """);
+
+        report.Assets.Single().Local.Should().Match<CopyView>(c => c.State == CopyState.Unknown && c.Reason == "manual" && c.LastSuccessAt == null && c.SizeBytes == null);
+    }
+
+    [Fact]
+    public void should_call_a_copy_with_no_source_missing_and_a_local_only_asset_without_an_offsite_copy()
+    {
+        var report = Build("""
+            data:
+              - { id: orphan, app: shop, kind: files, importance: critical, where: { environment: server-1 }, targets: { local: {} } }
+              - { id: local-only, app: shop, kind: files, importance: critical, where: { environment: server-1 }, targets: { local: { backrest: { plan: ok } } } }
+            """,
+            Reading("backrest", "server-1", Job("ok", Run("2026-01-31T03:00:00Z", BackupResult.Success, "2026-01-31T03:00:00Z"))));
+
+        var orphan = report.Assets.Single(a => a.Asset.Id == "orphan");
+        var localOnly = report.Assets.Single(a => a.Asset.Id == "local-only");
+
+        orphan.Local.Should().Match<CopyView>(c => c.State == CopyState.Missing && c.Reason == "no-source");
+        localOnly.Offsite.Should().BeNull();
+        localOnly.State.Should().Be(CopyState.Protected);
+    }
+
+    [Fact]
+    public void should_order_the_assets_by_state_then_importance_then_app_then_name()
+    {
+        var report = Build("""
+            data:
+              - { id: b-comfort, name: B, app: shop, kind: files, importance: comfort, where: { environment: server-1 }, targets: { local: { backrest: { plan: ok } } } }
+              - { id: a-critical, name: A, app: shop, kind: files, importance: critical, where: { environment: server-1 }, targets: { local: { backrest: { plan: ok } } } }
+              - { id: c-critical, name: C, app: shop, kind: files, importance: critical, where: { environment: server-1 }, targets: { local: { backrest: { plan: ok } } } }
+              - { id: gone, name: Gone, app: shop, kind: files, importance: comfort, where: { environment: server-1 }, targets: { local: { backrest: { plan: absent } } } }
+            """,
+            Reading("backrest", "server-1", Job("ok", Run("2026-01-31T03:00:00Z", BackupResult.Success, "2026-01-31T03:00:00Z"))));
+
+        report.Assets.Select(a => a.Asset.Id).Should().Equal("gone", "a-critical", "c-critical", "b-comfort");
+    }
+
+    [Fact]
+    public void should_match_an_item_by_whole_path_segments_not_by_a_substring()
+    {
+        var job = new BackupJob("shop/offsite", "offsite", null, [], new BackupRun(At("2026-01-31T04:00:00Z"), BackupResult.Success, At("2026-01-31T04:00:00Z")),
+            [new BackupSnapshot("old", At("2026-01-31T04:00:00Z"), ["/data/db-old"]), new BackupSnapshot("new", At("2026-01-30T04:00:00Z"), ["/data/db/pg"])]);
+        var reading = new SourceReading("k8up", "cluster", [job], null, Now);
+
+        var db = DataService.Check(new BackupSourceReference("k8up", "cluster", "shop/offsite", "db"), reading, TimeSpan.FromDays(7), Now);
+        var gone = DataService.Check(new BackupSourceReference("k8up", "cluster", "shop/offsite", "d"), reading, TimeSpan.FromDays(7), Now);
+
+        db.Run!.SnapshotId.Should().Be("new", "'db-old' is not 'db'");
+        gone.State.Should().Be(CopyState.Missing, "'d' is a part of a name, not a path segment");
     }
 
     private static DataReport Build(string data, params SourceReading[] readings)

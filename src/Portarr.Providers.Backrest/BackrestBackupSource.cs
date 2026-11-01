@@ -130,7 +130,7 @@ public sealed class BackrestBackupSource : IBackupSource
         var password = _configuration[endpoint.PasswordVariable];
         if (string.IsNullOrEmpty(user) || string.IsNullOrEmpty(password))
         {
-            throw new BackupSourceUnavailableException(CredentialsMissing);
+            throw new BackupSourceUnavailableException(CredentialsMissing, notSetUp: true);
         }
 
         return new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"{user}:{password}")));

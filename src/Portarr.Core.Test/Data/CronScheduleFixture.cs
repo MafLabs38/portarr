@@ -32,11 +32,32 @@ public sealed class CronScheduleFixture
     }
 
     [Fact]
-    public void should_fire_on_either_day_field_when_both_are_restricted()
+    public void should_fire_on_the_first_of_the_month_when_it_comes_before_the_monday()
     {
-        // The 1st of the month or a Monday: Monday 2 February comes after the 1st, which is a Sunday.
+        // The 1st of the month or a Monday: the 1st of February is a Sunday, before Monday the 2nd.
         CronSchedule.NextAfter("0 0 1 2 1", Now).Should().Be(new DateTimeOffset(2026, 2, 1, 0, 0, 0, TimeSpan.Zero));
+    }
+
+    [Fact]
+    public void should_fire_on_the_monday_when_it_comes_before_the_day_of_the_month()
+    {
         CronSchedule.NextAfter("0 0 3 2 1", Now).Should().Be(new DateTimeOffset(2026, 2, 2, 0, 0, 0, TimeSpan.Zero));
+    }
+
+    [Fact]
+    public void should_find_the_29th_of_february_in_the_next_leap_year()
+    {
+        CronSchedule.NextAfter("0 0 29 2 *", Now).Should().Be(new DateTimeOffset(2028, 2, 29, 0, 0, 0, TimeSpan.Zero));
+    }
+
+    [Theory]
+    [InlineData("2026-01-31T12:29:59Z", "2026-01-31T12:30:00Z")]
+    [InlineData("2026-01-31T12:30:00Z", "2026-02-01T12:30:00Z")]
+    [InlineData("2026-01-31T12:30:01Z", "2026-02-01T12:30:00Z")]
+    public void should_find_a_firing_strictly_after_the_moment_asked_not_at_it(string after, string expected)
+    {
+        CronSchedule.NextAfter("30 12 * * *", DateTimeOffset.Parse(after, System.Globalization.CultureInfo.InvariantCulture))
+            .Should().Be(DateTimeOffset.Parse(expected, System.Globalization.CultureInfo.InvariantCulture));
     }
 
     [Fact]

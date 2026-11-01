@@ -31,7 +31,7 @@ public sealed class KubernetesCronJobBackupSource : IBackupSource
         var cluster = environment.Kubernetes()!;
         if (_client.GetConfigurationError(cluster) is { } error)
         {
-            throw new BackupSourceUnavailableException(error);
+            throw new BackupSourceUnavailableException(error, notSetUp: true);
         }
 
         var cronJobs = await _client.ListAsync(cluster, "apis/batch/v1/cronjobs", KubernetesJsonContext.Default.ObjectListCronJob, cancellationToken) ?? [];

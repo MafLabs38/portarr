@@ -269,6 +269,8 @@ const en: Record<string, string> = {
   'Reason_http-401': 'credentials rejected',
   'Reason_http-403': 'access refused (missing permission)',
   Reason_manual: 'made by hand, date unknown',
+  'Reason_manual-in-the-future': 'the date written by hand is in the future',
+  'Reason_not-read-yet': 'not read yet',
   'Reason_no-connector': 'this tool is not configured on the environment',
   'Reason_no-run': 'the job has not run yet',
   'Reason_no-source': 'declared, and nothing produces it yet',
