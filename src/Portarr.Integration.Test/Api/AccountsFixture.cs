@@ -307,6 +307,30 @@ public sealed class AccountsFixture
     }
 
     [Fact]
+    public async Task should_guard_the_first_run_with_the_one_time_setup_code()
+    {
+        var options = await _database.CreateOptionsAsync();
+        await using var factory = new PortarrFactory(options, new Dictionary<string, string?> { ["Auth:RequireSetupCode"] = "true" });
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Requested-With", "portarr");
+        var codeFile = Path.Combine(options.DataFolder, "setup-code");
+        var code = (await File.ReadAllTextAsync(codeFile, Token)).Trim();
+
+        var status = await client.GetFromJsonAsync<JsonElement>("/api/v1/auth/status", Token);
+        var missing = await client.PostAsJsonAsync("/api/v1/auth/setup", new { username = "admin", password = PortarrFactory.Password }, Token);
+        var wrong = await client.PostAsJsonAsync("/api/v1/auth/setup", new { username = "admin", password = PortarrFactory.Password, setupCode = "0000-0000-0000-0000" }, Token);
+        var created = await client.PostAsJsonAsync("/api/v1/auth/setup", new { username = "admin", password = PortarrFactory.Password, setupCode = code }, Token);
+        var after = await client.GetFromJsonAsync<JsonElement>("/api/v1/auth/status", Token);
+
+        status.GetProperty("setupCodeRequired").GetBoolean().Should().BeTrue();
+        missing.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        wrong.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        created.StatusCode.Should().Be(HttpStatusCode.Created);
+        after.GetProperty("setupCodeRequired").GetBoolean().Should().BeFalse();
+        File.Exists(codeFile).Should().BeFalse("the code is gone once the administrator exists");
+    }
+
+    [Fact]
     public async Task should_issue_a_secure_host_prefixed_cookie_when_asked_to()
     {
         var options = await _database.CreateOptionsAsync();

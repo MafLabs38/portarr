@@ -121,13 +121,24 @@ public sealed class PortarrFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Test");
-        builder.ConfigureAppConfiguration(configuration => configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        builder.ConfigureAppConfiguration(configuration =>
         {
-            ["DataFolder"] = _options.DataFolder,
-            ["Database:Type"] = _options.Database.Type.ToString(),
-            ["Database:ConnectionString"] = _options.Database.ConnectionString,
-            ["LogsOfAllWorkloads"] = _options.LogsOfAllWorkloads.ToString(),
-        }.Concat(_settings)));
+            // The first run needs no setup code unless a test asks for it.
+            var settings = new Dictionary<string, string?>
+            {
+                ["DataFolder"] = _options.DataFolder,
+                ["Database:Type"] = _options.Database.Type.ToString(),
+                ["Database:ConnectionString"] = _options.Database.ConnectionString,
+                ["LogsOfAllWorkloads"] = _options.LogsOfAllWorkloads.ToString(),
+                ["Auth:RequireSetupCode"] = "false",
+            };
+            foreach (var (key, value) in _settings)
+            {
+                settings[key] = value;
+            }
+
+            configuration.AddInMemoryCollection(settings);
+        });
         builder.ConfigureServices(services =>
         {
             services.Replace(ServiceDescriptor.Singleton<TimeProvider>(Clock));

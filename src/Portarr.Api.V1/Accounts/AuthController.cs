@@ -25,15 +25,17 @@ public sealed class AuthController : ControllerBase
     private const long MaxAvatarRequestBytes = AvatarService.MaxBytes + 64 * 1024;
 
     private readonly IAccountService _accounts;
+    private readonly ISetupCode _setupCode;
     private readonly IApiKeyService _apiKeys;
     private readonly IAvatarService _avatars;
     private readonly IAuthAuditLog _audit;
     private readonly IPortalService _portal;
     private readonly TimeProvider _timeProvider;
 
-    public AuthController(IAccountService accounts, IApiKeyService apiKeys, IAvatarService avatars, IAuthAuditLog audit, IPortalService portal, TimeProvider timeProvider)
+    public AuthController(IAccountService accounts, ISetupCode setupCode, IApiKeyService apiKeys, IAvatarService avatars, IAuthAuditLog audit, IPortalService portal, TimeProvider timeProvider)
     {
         _accounts = accounts;
+        _setupCode = setupCode;
         _apiKeys = apiKeys;
         _avatars = avatars;
         _audit = audit;
@@ -48,30 +50,41 @@ public sealed class AuthController : ControllerBase
     public async Task<AuthStatusResource> GetStatusAsync(CancellationToken cancellationToken)
     {
         var identity = _portal.Get();
+        var setupRequired = await _accounts.SetupRequiredAsync(cancellationToken);
         return new AuthStatusResource(
-            await _accounts.SetupRequiredAsync(cancellationToken),
+            setupRequired,
             identity.Name,
-            identity.LogoFile is null ? null : $"{PortalResourceMapper.LogoPath}?v={identity.LogoFile.Hash}");
+            identity.LogoFile is null ? null : $"{PortalResourceMapper.LogoPath}?v={identity.LogoFile.Hash}",
+            setupRequired && _setupCode.Required);
     }
 
     /// <summary>Creates the first administrator and signs in. Accepted only while no user exists; once one does, always 409.</summary>
     /// <response code="201">Created and signed in.</response>
     /// <response code="400">The user name or the password is not acceptable.</response>
+    /// <response code="403">A setup code is required and the one sent is not right (it is printed in the Portarr log).</response>
     /// <response code="409">Portarr is already set up.</response>
     [HttpPost("setup")]
     [AllowAnonymous]
     [EnableRateLimiting(HttpServiceCollectionExtensions.LoginPolicyName)]
     [ProducesResponseType<MeResource>(StatusCodes.Status201Created)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status403Forbidden)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> SetupAsync(SetupRequest request, CancellationToken cancellationToken)
     {
+        if (_setupCode.Required && !_setupCode.Matches(request.SetupCode))
+        {
+            await _audit.AppendAsync("setup.failure", request.Username, null, "setup code refused", this.Client(), cancellationToken);
+            return Problem(title: "Setup code required", detail: "Enter the setup code printed in the Portarr log (also in the setup-code file of the data folder).", statusCode: StatusCodes.Status403Forbidden);
+        }
+
         var result = await _accounts.SetupAsync(request.Username, request.DisplayName, request.Password, this.Client(), cancellationToken);
         if (!result.Succeeded)
         {
             return this.ToProblem(result);
         }
 
+        _setupCode.Clear();
         await SignInAsync(result.Value!, persistent: true);
         return Created("/api/v1/auth/me", result.Value!.ToMe(AuthMethods.Cookie));
     }

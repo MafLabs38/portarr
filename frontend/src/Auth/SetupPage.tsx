@@ -14,20 +14,30 @@ export const minimumPasswordLength = 10;
  * The first run (F-SET-07, V7): while no user exists every page comes here to create the first administrator. The server
  * accepts it only while the users table is empty, so the page cannot be used to take over an installed Portarr.
  */
-export default function SetupPage() {
+export default function SetupPage({ codeRequired = false }: Readonly<{ codeRequired?: boolean }>) {
   const setup = useSetup();
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
+  const [setupCode, setSetupCode] = useState('');
 
   const tooShort = password.length > 0 && password.length < minimumPasswordLength;
   const mismatch = confirmation.length > 0 && confirmation !== password;
-  const ready = username.trim().length >= 3 && password.length >= minimumPasswordLength && confirmation === password;
+  const ready =
+    username.trim().length >= 3 &&
+    password.length >= minimumPasswordLength &&
+    confirmation === password &&
+    (!codeRequired || setupCode.trim().length > 0);
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
-    setup.mutate({ username: username.trim(), displayName: displayName.trim() || undefined, password });
+    setup.mutate({
+      username: username.trim(),
+      displayName: displayName.trim() || undefined,
+      password,
+      setupCode: codeRequired ? setupCode.trim() : undefined,
+    });
   };
 
   const message = (() => {
@@ -36,6 +46,9 @@ export default function SetupPage() {
     }
     if (setup.error instanceof ApiError && setup.error.status === 409) {
       return translate('SetupAlreadyDone');
+    }
+    if (setup.error instanceof ApiError && setup.error.status === 403) {
+      return translate('SetupCodeWrong');
     }
     return setup.error instanceof ApiError && setup.error.status === 400
       ? translate('SetupInvalid')
@@ -48,6 +61,30 @@ export default function SetupPage() {
         <AuthBrand />
         <p className={styles.lead}>{translate('SetupLead')}</p>
         <form className={styles.form} onSubmit={onSubmit}>
+          {codeRequired ? (
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="setup-code">
+                {translate('SetupCode')}
+              </label>
+              <input
+                aria-describedby="setup-code-help"
+                autoCapitalize="characters"
+                autoComplete="off"
+                autoFocus
+                className={styles.input}
+                id="setup-code"
+                maxLength={64}
+                onChange={(event) => setSetupCode(event.target.value)}
+                required
+                spellCheck={false}
+                type="text"
+                value={setupCode}
+              />
+              <span className={styles.help} id="setup-code-help">
+                {translate('SetupCodeHelpText')}
+              </span>
+            </div>
+          ) : null}
           <div className={styles.field}>
             <label className={styles.label} htmlFor="setup-username">
               {translate('Username')}
@@ -56,7 +93,7 @@ export default function SetupPage() {
               aria-describedby="setup-username-help"
               autoCapitalize="off"
               autoComplete="username"
-              autoFocus
+              autoFocus={!codeRequired}
               className={styles.input}
               id="setup-username"
               maxLength={32}

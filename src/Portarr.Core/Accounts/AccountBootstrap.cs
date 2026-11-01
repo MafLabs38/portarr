@@ -17,26 +17,33 @@ public interface IAccountBootstrap
 public sealed partial class AccountBootstrap : IAccountBootstrap
 {
     private readonly IAccountService _accounts;
+    private readonly ISetupCode _setupCode;
     private readonly AuthOptions _options;
     private readonly ILogger<AccountBootstrap> _logger;
 
-    public AccountBootstrap(IAccountService accounts, IOptions<AuthOptions> options, ILogger<AccountBootstrap> logger)
+    public AccountBootstrap(IAccountService accounts, ISetupCode setupCode, IOptions<AuthOptions> options, ILogger<AccountBootstrap> logger)
     {
         _accounts = accounts;
+        _setupCode = setupCode;
         _options = options.Value;
         _logger = logger;
     }
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
+        if (await _accounts.SetupRequiredAsync(cancellationToken) && !await RunUnattendedAsync(cancellationToken))
+        {
+            // Nobody was created: the setup screen is what remains, and it asks for a code.
+            _setupCode.Issue();
+        }
+    }
+
+    /// <summary>Whether the administrator was created from the environment.</summary>
+    private async Task<bool> RunUnattendedAsync(CancellationToken cancellationToken)
+    {
         if (string.IsNullOrWhiteSpace(_options.AdminUser) || string.IsNullOrWhiteSpace(_options.AdminPasswordFile))
         {
-            return;
-        }
-
-        if (!await _accounts.SetupRequiredAsync(cancellationToken))
-        {
-            return;
+            return false;
         }
 
         string password;
@@ -47,7 +54,7 @@ public sealed partial class AccountBootstrap : IAccountBootstrap
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             LogUnreadable(exception.GetType().Name);
-            return;
+            return false;
         }
 
         var result = await _accounts.SetupAsync(_options.AdminUser, null, password, "startup", cancellationToken);
@@ -55,6 +62,8 @@ public sealed partial class AccountBootstrap : IAccountBootstrap
         {
             LogRefused(result.Message ?? "refused");
         }
+
+        return result.Succeeded;
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The unattended first run could not read the password file ({Error}): the setup screen stays available")]

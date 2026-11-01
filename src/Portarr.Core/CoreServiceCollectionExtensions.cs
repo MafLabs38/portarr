@@ -97,6 +97,7 @@ public static class CoreServiceCollectionExtensions
             provider.GetRequiredService<IOptions<AuthOptions>>(),
             provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<ILogger<AccountService>>()));
+        services.AddSingleton<ISetupCode, SetupCode>();
         services.AddSingleton<IAccountBootstrap, AccountBootstrap>();
         services.AddSingleton<ISystemApiKeySource, ApiKeySource>();
         services.AddSingleton<IApiKeyService, ApiKeyService>();
