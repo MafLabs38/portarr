@@ -4,9 +4,9 @@ using Portarr.Core.Status;
 
 namespace Portarr.Api.V1.Catalog;
 
-public sealed record StatusResource(string Status, string Reason)
+public sealed record StatusResource(string Status, string Reason, IReadOnlyList<string>? ReasonArgs = null)
 {
-    public static StatusResource From(ResolvedStatus status) => new(status.Status.ToString(), status.Reason);
+    public static StatusResource From(ResolvedStatus status) => new(status.Status.ToString(), status.Reason, status.Args);
 }
 
 /// <summary>An app URL: <c>Scope</c> is public or lan, <c>Derived</c> when built from a published port.</summary>

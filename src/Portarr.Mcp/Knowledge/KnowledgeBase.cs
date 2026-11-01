@@ -186,7 +186,7 @@ public sealed class KnowledgeBase
         md.AppendLine("|---|---|---|---|---|");
         foreach (var app in apps)
         {
-            var status = app.Status.Status == HealthStatus.Healthy ? "Healthy" : $"{app.Status.Status}: {app.Status.Reason}";
+            var status = app.Status.Status == HealthStatus.Healthy ? "Healthy" : $"{app.Status.Status}: {StatusText.Of(app.Status)}";
             var runsOn = string.Join(", ", app.Workloads.Select(w => $"{w.EnvironmentId}/{w.Workload?.Node ?? w.Name}{(w.Workload?.Node is null ? string.Empty : $"/{w.Name}")}"));
             var urls = string.Join(" ", app.Urls.Select(u => $"{u.Scope.ToString().ToLowerInvariant()}: {SafeUrl.Of(u.Href)}"));
             var role = app.Role?.ToString().ToLowerInvariant() ?? "-";

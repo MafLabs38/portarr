@@ -4,7 +4,32 @@ using Portarr.Core.Workloads;
 
 namespace Portarr.Core.Status;
 
-public sealed record ResolvedStatus(HealthStatus Status, string Reason);
+/// <summary>
+/// A status and why. <c>Reason</c> is a code the interface translates (<c>timeout</c>, <c>certificate-expires-in-days</c>) with its
+/// <c>Args</c>, or, for the statuses that are not migrated yet, a sentence in English that is shown as it is.
+/// </summary>
+public sealed record ResolvedStatus(HealthStatus Status, string Reason, IReadOnlyList<string>? Args = null)
+{
+    public bool Equals(ResolvedStatus? other)
+    {
+        return other is not null && Status == other.Status && Reason == other.Reason && (Args ?? []).SequenceEqual(other.Args ?? []);
+    }
+
+    public override int GetHashCode() => HashCode.Combine(Status, Reason, Args?.Count ?? 0);
+}
+
+/// <summary>The codes of the reasons Core gives for what a check found (D-50, D-52, D-104); the interface says them in words.</summary>
+public static class StatusReasons
+{
+    public const string NotChecked = "not-checked-yet";
+    public const string CheckFailed = "check-failed";
+    public const string HttpStatus = "http-status";
+    public const string CertificateExpired = "certificate-expired";
+    public const string CertificateExpiresToday = "certificate-expires-today";
+    public const string CertificateExpiresInOneDay = "certificate-expires-in-one-day";
+    public const string CertificateExpiresInDays = "certificate-expires-in-days";
+    public const string CheckUp = "check-up";
+}
 
 /// <summary>
 /// Combines the states reported by the connectors (D-30: orchestration only, no metric
@@ -63,7 +88,7 @@ public static class StatusResolver
         var failingOptional = resolved.FirstOrDefault(r => r.Role == MemberRole.Optional && r.Status.Status >= HealthStatus.Degraded);
         if (failingOptional != default)
         {
-            return new ResolvedStatus(HealthStatus.Degraded, failingOptional.Status.Reason);
+            return new ResolvedStatus(HealthStatus.Degraded, failingOptional.Status.Reason, failingOptional.Status.Args);
         }
 
         return critical.Count > 0 ? worst : resolved.MaxBy(r => r.Status.Status).Status;
@@ -106,40 +131,40 @@ public static class StatusResolver
     {
         if (latest is null)
         {
-            return new(HealthStatus.Unknown, "Not checked yet");
+            return new(HealthStatus.Unknown, StatusReasons.NotChecked);
         }
 
         if (latest.Error == CheckErrors.CheckFailed)
         {
             // Portarr's own fault: the app is not known to be down, so it is not shown as down.
-            return new(HealthStatus.Unknown, "Portarr could not run this check");
+            return new(HealthStatus.Unknown, StatusReasons.CheckFailed);
         }
 
         if (latest.Error is not null)
         {
-            return new(HealthStatus.Down, DescribeError(latest.Error));
+            return ForCheckError(latest.Error);
         }
 
         if (latest.CertificateExpiresAt is { } expiry)
         {
             if (expiry <= now)
             {
-                return new(HealthStatus.Down, "Certificate expired");
+                return new(HealthStatus.Down, StatusReasons.CertificateExpired);
             }
 
             if (expiry - now < CertificateWarning)
             {
                 var days = (int)(expiry - now).TotalDays;
-                return new(HealthStatus.Degraded, days switch
+                return days switch
                 {
-                    0 => "Certificate expires today",
-                    1 => "Certificate expires in 1 day",
-                    _ => $"Certificate expires in {days} days",
-                });
+                    0 => new(HealthStatus.Degraded, StatusReasons.CertificateExpiresToday),
+                    1 => new(HealthStatus.Degraded, StatusReasons.CertificateExpiresInOneDay),
+                    _ => new(HealthStatus.Degraded, StatusReasons.CertificateExpiresInDays, [days.ToString(System.Globalization.CultureInfo.InvariantCulture)]),
+                };
             }
         }
 
-        return new(HealthStatus.Healthy, $"HTTP {latest.StatusCode} in {(int)(latest.Latency ?? TimeSpan.Zero).TotalMilliseconds} ms");
+        return new(HealthStatus.Healthy, StatusReasons.CheckUp, [latest.StatusCode?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty, ((int)(latest.Latency ?? TimeSpan.Zero).TotalMilliseconds).ToString(System.Globalization.CultureInfo.InvariantCulture)]);
     }
 
     /// <summary>The status a check gives its app: none before its first result; a failing non-critical check only degrades.</summary>
@@ -153,18 +178,15 @@ public static class StatusResolver
         return !check.Definition.Critical && check.Status.Status == HealthStatus.Down ? check.Status with { Status = HealthStatus.Degraded } : check.Status;
     }
 
-    private static string DescribeError(string error)
+    /// <summary>A check that failed: its error code is the reason (<c>timeout</c>, <c>dns-failure</c>…), an HTTP status carries its number.</summary>
+    private static ResolvedStatus ForCheckError(string error)
     {
         return error switch
         {
-            CheckErrors.Timeout => "Timeout",
-            CheckErrors.DnsFailure => "DNS lookup failed",
-            CheckErrors.ConnectionFailed => "Connection failed",
-            CheckErrors.TlsInvalid => "Invalid certificate",
-            CheckErrors.TlsExpired => "Certificate expired",
-            CheckErrors.KeywordMissing => "Keyword not found",
-            _ when error.StartsWith("http-", StringComparison.Ordinal) => $"HTTP {error[5..]}",
-            _ => "Unexpected response",
+            CheckErrors.Timeout or CheckErrors.DnsFailure or CheckErrors.ConnectionFailed or CheckErrors.TlsInvalid or CheckErrors.KeywordMissing => new(HealthStatus.Down, error),
+            CheckErrors.TlsExpired => new(HealthStatus.Down, StatusReasons.CertificateExpired),
+            _ when error.StartsWith("http-", StringComparison.Ordinal) => new(HealthStatus.Down, StatusReasons.HttpStatus, [error[5..]]),
+            _ => new(HealthStatus.Down, CheckErrors.InvalidResponse),
         };
     }
 
