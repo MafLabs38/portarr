@@ -30,13 +30,13 @@ export default function MaintenanceFreshness({ refresh, source }: Readonly<Maint
       <p className={styles.status}>
         {source.configured ? (
           <span>
-            {refresh.gitHubAt
-              ? translate('GitHubUpdated', { age: formatAge(refresh.gitHubAt, now) })
-              : translate('GitHubNotReadYet')}
-            {refresh.gitHubNextAt && !busy ? (
+            {refresh.codeAt
+              ? translate('CodeUpdated', { age: formatAge(refresh.codeAt, now) })
+              : translate('CodeNotReadYet')}
+            {refresh.codeNextAt && !busy ? (
               <>
                 {' · '}
-                {translate('NextIn', { time: formatUntil(refresh.gitHubNextAt, now) })}
+                {translate('NextIn', { time: formatUntil(refresh.codeNextAt, now) })}
               </>
             ) : null}
           </span>

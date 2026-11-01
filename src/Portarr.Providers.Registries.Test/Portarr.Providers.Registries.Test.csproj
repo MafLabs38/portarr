@@ -16,5 +16,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Portarr.Providers.Registries\Portarr.Providers.Registries.csproj" />
+    <ProjectReference Include="..\Portarr.Test.Common\Portarr.Test.Common.csproj" />
   </ItemGroup>
 </Project>

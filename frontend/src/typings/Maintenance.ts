@@ -130,8 +130,8 @@ export interface MaintenanceSummary {
 
 /** When the data was read and when it is read next (D-64, D-66), and the state of a manual refresh. */
 export interface MaintenanceRefresh {
-  gitHubAt: string | null;
-  gitHubNextAt: string | null;
+  codeAt: string | null;
+  codeNextAt: string | null;
   registriesAt: string | null;
   /** A manual refresh was accepted and its pass has not finished. */
   refreshing: boolean;

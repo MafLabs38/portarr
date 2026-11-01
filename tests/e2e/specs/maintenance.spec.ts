@@ -60,8 +60,8 @@ const report = {
     },
   ],
   refresh: {
-    gitHubAt: null,
-    gitHubNextAt: null,
+    codeAt: null,
+    codeNextAt: null,
     registriesAt: '2026-01-01T12:00:00Z',
     refreshing: false,
     availableAt: null,

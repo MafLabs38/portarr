@@ -4,7 +4,7 @@ Scans the repositories of the operator's GitHub accounts for the **Maintenance**
 
 ## Token
 
-Create a **fine-grained personal access token** (*Settings → Developer settings → Fine-grained tokens*), with the resource owner set to each account to scan (one token per organization if needed, or a token of an organization member with access to the repositories), **All repositories** (or the ones to scan), and these repository permissions only:
+Create a **fine-grained personal access token** (*Settings → Developer settings → Fine-grained tokens*), with the resource owner set to the account to scan (**a fine-grained token has a single resource owner**: declare one entry per account, each with its own `tokenEnv`, below), **All repositories** (or the ones to scan), and these repository permissions only:
 
 | Permission | Access | Used for |
 |---|---|---|
@@ -25,17 +25,20 @@ The token is **never written in the catalog**: give it through an environment va
 ```yaml
 sources:
   github:
-    owners: [example, example-org]
-    tokenEnv: GITHUB_TOKEN
-    pushedWithinMonths: 6
-    exclude: ["example/test-*"]
+    - owners: [example]                 # one entry per account, each with the token whose resource owner it is
+      tokenEnv: GITHUB_TOKEN_EXAMPLE
+    - owners: [example-org]
+      tokenEnv: GITHUB_TOKEN_ORG
+      pushedWithinMonths: 6
+      exclude: ["example-org/test-*"]
+      # apiUrl: https://github.example/api/v3/   # a GitHub Enterprise Server (https only); absent: github.com
 
 apps:
   - id: shop
     repository: example/shop        # links the app to its code (D-65)
 ```
 
-See [catalog.md](../catalog.md#code-sources) for every key.
+`github:` may also be one mapping (one account), as before. See [catalog.md](../catalog.md#code-sources) for every key.
 
 ## What Portarr reads
 

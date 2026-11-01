@@ -129,7 +129,16 @@ internal sealed class MachineDocument
 internal sealed class SourcesDocument
 {
     [YamlDotNet.Serialization.YamlMember(Alias = "github")]
-    public GitHubDocument? GitHub { get; set; }
+    public GitHubSourcesDocument? GitHub { get; set; }
+}
+
+/// <summary><c>github:</c> as one account (a mapping) or several (a list, each with its own <c>tokenEnv</c>).</summary>
+internal sealed class GitHubSourcesDocument
+{
+    public List<GitHubDocument> Accounts { get; set; } = [];
+
+    /// <summary>The declaration was a list: the errors name the entry (<c>sources.github[1]</c>).</summary>
+    public bool IsList { get; set; }
 }
 
 /// <summary>See <see cref="GitHubSource"/>.</summary>
@@ -147,6 +156,9 @@ internal sealed class GitHubDocument
     public List<string>? Exclude { get; set; }
 
     public bool? Forks { get; set; }
+
+    /// <summary>The REST API of a GitHub Enterprise Server; absent for github.com.</summary>
+    public string? ApiUrl { get; set; }
 
     public bool? Archived { get; set; }
 }

@@ -89,14 +89,14 @@ public sealed class MaintenanceReportFixture
     [Fact]
     public void should_say_which_repositories_have_code_scanning_off_and_which_have_pending_dependabot_pull_requests()
     {
-        var unscanned = Repository("shop") with { CodeScanning = AlertScan.Off, DependabotPullRequests = 2 };
+        var unscanned = Repository("shop") with { CodeScanning = AlertScan.Off, DependabotPullRequests = 2, DependabotPullsUrl = new Uri("https://github.com/example/shop/pulls/app%2Fdependabot") };
 
         var report = Build([unscanned, Repository("api")]);
 
         Item(report, "code-scanning-off").Should().Match<AttentionItem>(a => a.Level == AttentionLevel.Info && a.Subjects.Single().Label == "example/shop");
         var pulls = Item(report, "dependabot-prs");
         pulls.Count.Should().Be(2);
-        pulls.Subjects.Single().Url!.AbsoluteUri.Should().Be("https://github.com/example/shop/pulls/app%2Fdependabot");
+        pulls.Subjects.Single().Url!.AbsoluteUri.Should().Be("https://github.com/example/shop/pulls/app%2Fdependabot", "the address comes from the host's connector, Core builds none");
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public sealed class MaintenanceReportFixture
 
         var report = MaintenanceService.Build(parsed.Catalog, new Dictionary<string, EnvironmentInventory>(), new MaintenanceState(scan, new Dictionary<string, RegistryLookup>()));
 
-        Item(report, "github-error").Should().Match<AttentionItem>(a => a.Level == AttentionLevel.Warning && a.Count == 1 && a.Subjects.Single().Label == "rate-limited");
+        Item(report, "code-source-error").Should().Match<AttentionItem>(a => a.Level == AttentionLevel.Warning && a.Count == 1 && a.Subjects.Single().Label == "rate-limited");
     }
 
     [Fact]
@@ -152,22 +152,6 @@ public sealed class MaintenanceReportFixture
         report.Summary.DeployedRepositories.Should().Be(0);
     }
 
-    [Theory]
-    [InlineData("https://github.com/example/desktop-app", true)]
-    [InlineData("https://github.com/example/desktop-app/", true)]
-    [InlineData("https://github.com/example/desktop-app.git", true)]
-    [InlineData("HTTP://GITHUB.COM/example/desktop-app", true)]
-    [InlineData("https://gitlab.com/example/desktop-app", false)]
-    [InlineData("https://github.com/someone-else/desktop-app", false)]
-    [InlineData("https://github.com/example/desktop-app/tree/main", false)]
-    [InlineData("not a url", false)]
-    public void should_link_a_repository_from_the_oci_source_label_of_a_running_image_only_when_it_names_it(string label, bool linked)
-    {
-        var report = Build([Repository("desktop-app")], Container("tool", "tool:1", new() { [ImageCheck.SourceLabel] = label }));
-
-        report.Repositories.Single().Deployed.Should().Be(linked);
-    }
-
     private static MaintenanceReport Build(IReadOnlyList<CodeRepository> repositories, params Workload[] workloads)
     {
         return Build(repositories, new Dictionary<string, RegistryLookup>(), workloads);
@@ -178,7 +162,7 @@ public sealed class MaintenanceReportFixture
         var parsed = TestCatalog.Parse(Catalog);
         parsed.Errors.Should().BeEmpty();
         var inventory = new Dictionary<string, EnvironmentInventory> { ["server-1"] = new("server-1", true, null, workloads, Now) };
-        return MaintenanceService.Build(parsed.Catalog, inventory, new MaintenanceState(new RepositoryScan(repositories, null, Now), registries));
+        return MaintenanceService.Build(parsed.Catalog, inventory, new MaintenanceState(new RepositoryScan(repositories, null, Now), registries), null, [new GitHubLikeSource()]);
     }
 
     private static CodeRepository Repository(string name) => new(
@@ -187,4 +171,18 @@ public sealed class MaintenanceReportFixture
 
     private static Workload Container(string name, string image, Dictionary<string, string>? labels = null) =>
         new("server-1", name, name, image, WorkloadState.Running, WorkloadHealth.None, "Up", Now, null, labels ?? new Dictionary<string, string>());
+
+    /// <summary>What a code host's connector tells about its addresses and image names (the real rules are tested with the connector).</summary>
+    private sealed class GitHubLikeSource : ICodeRepositorySource
+    {
+        public bool Supports(CodeSource source) => true;
+
+        public string? GetConfigurationError(CodeSource source) => null;
+
+        public Task<IReadOnlyList<CodeRepository>> ScanAsync(CodeSource source, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<CodeRepository>>([]);
+
+        public string? RepositoryOfSourceLabel(string label) => label.StartsWith("https://github.com/", StringComparison.OrdinalIgnoreCase) ? label["https://github.com/".Length..].Replace(".git", string.Empty, StringComparison.Ordinal).TrimEnd('/') : null;
+
+        public string? RepositoryOfImage(ImageReference image) => image.Registry is "ghcr.io" or ImageReference.DockerHub ? image.Repository : null;
+    }
 }

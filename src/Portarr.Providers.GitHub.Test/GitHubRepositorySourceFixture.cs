@@ -170,6 +170,56 @@ public sealed class GitHubRepositorySourceFixture
         repositories.Single(r => r.Name == "broken").Should().Match<CodeRepository>(r => r.Dependabot.State == ScanningState.Unknown && r.CodeScanning.State == ScanningState.Unknown);
     }
 
+    [Theory]
+    [InlineData("https://github.com/example/desktop-app", "example/desktop-app")]
+    [InlineData("https://github.com/example/desktop-app/", "example/desktop-app")]
+    [InlineData("https://github.com/example/desktop-app.git", "example/desktop-app")]
+    [InlineData("HTTP://GITHUB.COM/example/desktop-app", "example/desktop-app")]
+    [InlineData("https://gitlab.com/example/desktop-app", null)]
+    [InlineData("https://github.com/example/desktop-app/tree/main", null)]
+    [InlineData("not a url", null)]
+    public void should_read_a_repository_from_the_oci_source_label_of_an_image_only_when_it_is_github(string label, string? expected)
+    {
+        Subject().RepositoryOfSourceLabel(label).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("ghcr.io/example/api:2", "example/api")]
+    [InlineData("example/api:2", "example/api")]
+    [InlineData("quay.io/example/api:2", null)]
+    public void should_read_a_repository_from_the_name_of_an_image_published_where_github_publishes(string image, string? expected)
+    {
+        Subject().RepositoryOfImage(ImageReference.Parse(image)!).Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task should_build_the_address_of_the_dependabot_pull_requests_from_the_repositorys_page()
+    {
+        var shop = (await Subject().ScanAsync(Source, TestContext.Current.CancellationToken)).Single();
+
+        shop.DependabotPullsUrl.Should().Be(new Uri("https://github.com/example/shop/pulls/app%2Fdependabot"));
+    }
+
+    [Fact]
+    public async Task should_read_a_github_enterprise_server_at_its_own_api_address_with_its_own_token()
+    {
+        _configuration["GHES_TOKEN"] = "server-token";
+        var server = Source with { TokenVariable = "GHES_TOKEN", ApiUrl = new Uri("https://github.example/api/v3/") };
+        Ok("/api/v3/user", """{ "login": "someone" }""");
+        Ok("/api/v3/users/example", """{ "login": "example", "type": "Organization" }""");
+        Ok("/api/v3/orgs/example/repos?type=all&sort=pushed&per_page=100", "[]");
+
+        await Subject().ScanAsync(server, TestContext.Current.CancellationToken);
+
+        _requests.Should().NotBeEmpty().And.OnlyContain(r => r.RequestUri!.Host == "github.example" && r.Headers.Authorization!.ToString() == "Bearer server-token");
+    }
+
+    [Fact]
+    public void should_read_only_github_sources()
+    {
+        Subject().Supports(Source).Should().BeTrue();
+    }
+
     [Fact]
     public void should_report_a_missing_token()
     {

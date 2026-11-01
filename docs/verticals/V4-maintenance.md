@@ -96,7 +96,7 @@ As proposed above. The page is built from memory (last scan, last lookups): open
 | Registries | each image repository every 6 h (1 h after a failure) | at most 25 repositories per minute, 3 in parallel; anonymous GET and HEAD only |
 | Both | on request (Refresh), at most once per 60 s | the guards above still apply |
 
-Everything is in memory: a restart rescans (the first scan takes about a minute). The API (`GET /api/v1/maintenance`) returns `refresh.gitHubAt`, `gitHubNextAt`, `registriesAt`, `refreshing` and `availableAt`.
+Everything is in memory: a restart rescans (the first scan takes about a minute). The API (`GET /api/v1/maintenance`) returns `refresh.codeAt`, `codeNextAt`, `registriesAt`, `refreshing` and `availableAt`.
 
 ## Statuses
 Maintenance findings are not app statuses: an app is not Down because a newer version exists. Severe vulnerabilities and failing CI become issues in V5 (F-SEC-04 rules: a critical vulnerability with a fix older than N days).

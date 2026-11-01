@@ -682,8 +682,8 @@ export const maintenanceReport: MaintenanceReport = {
     },
   ],
   refresh: {
-    gitHubAt: '2026-01-01T11:50:00Z',
-    gitHubNextAt: '2026-01-01T12:20:00Z',
+    codeAt: '2026-01-01T11:50:00Z',
+    codeNextAt: '2026-01-01T12:20:00Z',
     registriesAt: '2026-01-01T09:00:00Z',
     refreshing: false,
     availableAt: null,
