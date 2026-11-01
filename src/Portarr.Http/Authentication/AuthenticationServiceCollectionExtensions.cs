@@ -177,7 +177,7 @@ public static class AuthenticationServiceCollectionExtensions
         var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Portarr.Auth");
         foreach (var source in app.Services.GetServices<ISystemApiKeySource>().Where(s => !string.IsNullOrWhiteSpace(s.Key)))
         {
-            logger.LogWarning("{Variable} is set: it works as a bootstrap key with Admin permissions (the 'system' principal) and is deprecated; create per-user API keys instead", source.Name);
+            logger.LogWarning("{Variable} is set: it works as a bootstrap key with the view permissions and catalog.write (the 'system' principal) and is deprecated; create per-user API keys instead", source.Name);
         }
 
         return app;

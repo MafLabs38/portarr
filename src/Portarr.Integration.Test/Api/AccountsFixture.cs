@@ -216,6 +216,21 @@ public sealed class AccountsFixture
         (await Send(anonymous, HttpMethod.Get, "/api/v1/apps", second)).Should().Be(HttpStatusCode.Unauthorized, "a password reset revokes the keys");
     }
 
+    [Theory]
+    [InlineData("ApiKey")]
+    [InlineData("Mcp:ApiKey")]
+    public async Task should_give_an_environment_key_the_view_permissions_and_never_the_administration(string setting)
+    {
+        var key = new string('k', 48);
+        await using var factory = new PortarrFactory(await _database.CreateOptionsAsync(), new Dictionary<string, string?> { [setting] = key, ["Mcp:Enabled"] = "true" });
+        using var anonymous = factory.CreateClient();
+
+        (await Send(anonymous, HttpMethod.Get, "/api/v1/apps", key)).Should().Be(HttpStatusCode.OK);
+        (await Send(anonymous, HttpMethod.Get, "/api/v1/users", key)).Should().Be(HttpStatusCode.Forbidden, "the system key is not an Admin");
+        (await Send(anonymous, HttpMethod.Put, "/api/v1/system/logging", key)).Should().Be(HttpStatusCode.Forbidden);
+        (await Send(anonymous, HttpMethod.Get, "/api/v1/roles", key)).Should().Be(HttpStatusCode.Forbidden);
+    }
+
     [Fact]
     public async Task should_keep_an_admin_and_protect_ones_own_account()
     {

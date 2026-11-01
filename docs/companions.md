@@ -310,7 +310,6 @@ services:
     environment:
       PORTARR_AGENT_SECRET: ${AGENT_SECRET}
       PORTARR_MCP_URL: http://portarr:8484/mcp
-      PORTARR_MCP_APIKEY: ${PORTARR_MCP_APIKEY}
       CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN}   # or ANTHROPIC_API_KEY
     volumes:
       - agent-data:/data
@@ -323,7 +322,7 @@ volumes:
 |---|---|---|
 | `PORTARR_AGENT_SECRET` | — (required, 32+ characters) | Bearer secret Portarr sends; every route but `/healthz` checks it |
 | `PORTARR_MCP_URL` | — (required) | Portarr's MCP endpoint, e.g. `http://portarr:8484/mcp` |
-| `PORTARR_MCP_APIKEY` | — (required) | Portarr's MCP key; written only to a per-process file (mode 600), never on a command line, never passed to the CLI's environment |
+| `PORTARR_MCP_APIKEY` | — (optional) | A per-user API key for callers that send no token; normally unset: Portarr mints a token for each message. Written only to a per-process file (mode 600), never on a command line, never passed to the CLI's environment. Never an Admin-equivalent secret |
 | `CLAUDE_CODE_OAUTH_TOKEN` / `ANTHROPIC_API_KEY` | — | A subscription token (`claude setup-token`) or an API key; without one the agent is listed as unavailable |
 | `PORTARR_AGENT_PORT`, `PORTARR_AGENT_HOST` | `8488`, `0.0.0.0` | Listening address |
 | `PORTARR_AGENT_DATA` | `/data` | Conversations (`conversations/*.json`), the CLI's state, its empty working directory |

@@ -173,3 +173,12 @@ test("a process uses the user's token as its MCP key, else the shared key", asyn
   manager.send(without.id, 'hello');
   assert.equal(mcpKeyOf(adapter.last), 'k'.repeat(40));
 });
+
+test('a message with neither a token nor a shared key is refused instead of reaching Portarr without credentials', async () => {
+  const { manager } = await newManager(2, null);
+  const conversation = await manager.create(undefined, undefined, undefined);
+  assert.throws(
+    () => manager.send(conversation.id, 'hello'),
+    (error: ChatError) => error.status === 400,
+  );
+});
