@@ -60,7 +60,7 @@ public sealed class GitHubRepositorySource : ICodeRepositorySource
         await Parallel.ForEachAsync(
             repositories.Select((repository, index) => (repository, index)),
             new ParallelOptions { MaxDegreeOfParallelism = Parallelism, CancellationToken = cancellationToken },
-            async (item, token) => results[item.index] = await DescribeAsync(session, item.repository, token));
+            async (item, token) => results[item.index] = await DescribeOrDegradeAsync(session, item.repository, token));
 
         return results;
     }
@@ -120,6 +120,36 @@ public sealed class GitHubRepositorySource : ICodeRepositorySource
             : $"users/{Uri.EscapeDataString(owner)}/repos?type=owner&sort=pushed&per_page=100";
     }
 
+    /// <summary>One repository whose answers cannot be read is listed with what is known and its scans unknown, instead of failing the whole scan.</summary>
+    private static async Task<CodeRepository> DescribeOrDegradeAsync(Session session, GitHubRepository repository, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await DescribeAsync(session, repository, cancellationToken);
+        }
+        catch (Exception exception) when (exception is System.Text.Json.JsonException or InvalidOperationException)
+        {
+            var unknown = AlertScan.Unknown(ReasonCodes.From(exception));
+            return new CodeRepository(
+                repository.Owner.Login,
+                repository.Name,
+                new Uri(repository.HtmlUrl),
+                repository.Visibility ?? (repository.Private ? "private" : "public"),
+                repository.Language,
+                repository.Description,
+                repository.PushedAt,
+                repository.DefaultBranch ?? "main",
+                repository.Archived,
+                repository.Fork,
+                unknown,
+                unknown,
+                unknown,
+                null,
+                null,
+                null);
+        }
+    }
+
     private static async Task<CodeRepository> DescribeAsync(Session session, GitHubRepository repository, CancellationToken cancellationToken)
     {
         var path = $"repos/{repository.FullName}";
@@ -127,7 +157,7 @@ public sealed class GitHubRepositorySource : ICodeRepositorySource
 
         var dependabot = await ScanAsync(session, $"{path}/dependabot/alerts?state=open&per_page=100", GitHubJsonContext.Default.ListDependabotAlert, alerts => alerts.Select(a => a.SecurityAdvisory?.Severity), cancellationToken);
         var codeScanning = await ScanAsync(session, $"{path}/code-scanning/alerts?state=open&per_page=100", GitHubJsonContext.Default.ListCodeScanningAlert, alerts => alerts.Select(a => a.Rule?.SecuritySeverityLevel), cancellationToken);
-        var secrets = await ScanAsync(session, $"{path}/secret-scanning/alerts?state=open&per_page=100", GitHubJsonContext.Default.ListSecretScanningAlert, alerts => alerts.Select(_ => (string?)null), cancellationToken);
+        var secrets = await ScanAsync(session, $"{path}/secret-scanning/alerts?state=open&per_page=100&hide_secret=true", GitHubJsonContext.Default.ListSecretScanningAlert, alerts => alerts.Select(_ => (string?)null), cancellationToken);
 
         return new CodeRepository(
             repository.Owner.Login,

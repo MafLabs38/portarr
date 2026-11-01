@@ -30,8 +30,12 @@ internal sealed partial class GitHubClient
     /// <summary>Cached answers kept; a homelab scan needs a few hundred.</summary>
     private const int MaxCachedAnswers = 4000;
 
+    /// <summary>... and the bytes they may hold together: a count alone would let 4000 large answers fill the memory.</summary>
+    private const long MaxCachedBytes = 64L * 1024 * 1024;
+
     private readonly ConcurrentDictionary<string, CachedAnswer> _cache = new(StringComparer.Ordinal);
     private readonly TimeProvider _timeProvider;
+    private long _cachedBytes;
     private long _remaining = long.MaxValue;
     private long _resetAt;
 
@@ -70,12 +74,19 @@ internal sealed partial class GitHubClient
 
         if (response.Headers.ETag is { } etag && answer.IsSuccess)
         {
-            if (_cache.Count >= MaxCachedAnswers)
+            if (_cache.Count >= MaxCachedAnswers || Interlocked.Read(ref _cachedBytes) + body.Length > MaxCachedBytes)
             {
                 _cache.Clear();
+                Interlocked.Exchange(ref _cachedBytes, 0);
+            }
+
+            if (_cache.TryGetValue(key, out var replaced))
+            {
+                Interlocked.Add(ref _cachedBytes, -replaced.Response.Body.Length);
             }
 
             _cache[key] = new CachedAnswer(etag, answer);
+            Interlocked.Add(ref _cachedBytes, body.Length);
         }
 
         return answer;
