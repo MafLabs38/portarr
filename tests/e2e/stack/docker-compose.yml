@@ -42,8 +42,9 @@ services:
       - web
       - tools
     environment:
-      PORTARR__CATALOGFILE: /catalog/catalog.yaml
-      # The Identity card only offers its form when the catalog can be written (the specs never save anything).
+      # The catalog sits in /config, the folder the app user owns: the Identity card only offers its form when the catalog's folder can be
+      # written (a folder Docker creates for a bind mount belongs to root). The file itself is read-only: the specs never save anything.
+      PORTARR__CATALOGFILE: /config/catalog.yaml
       PORTARR__CATALOG__WRITABLE: 'true'
       # Required while the catalog is writable (a throwaway; the specs never use it).
       PORTARR__APIKEY: e2e-e2e-e2e-e2e-e2e-e2e-e2e-e2e-e2e
@@ -56,7 +57,7 @@ services:
       - '8484:8484'
     volumes:
       - portarr-config:/config
-      - ./catalog.yaml:/catalog/catalog.yaml:ro
+      - ./catalog.yaml:/config/catalog.yaml:ro
     configs:
       - source: admin-password
         target: /run/e2e/admin-password
