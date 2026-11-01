@@ -6,7 +6,7 @@ namespace Portarr.Providers.Docker.Test;
 /// <summary>Input checks that run before any request: no Docker Engine needed.</summary>
 public sealed class DockerWorkloadSourceInputFixture : IDisposable
 {
-    private static readonly CatalogEnvironment Environment = new("e", "E", new DockerEndpoint(new Uri("http://127.0.0.1:1")));
+    private static readonly CatalogEnvironment Environment = DockerEnvironments.With("e", "E", new DockerEndpoint(new Uri("http://127.0.0.1:1")));
 
     private readonly DockerHttpClientFactory _clients = new(new ConfigurationBuilder().Build());
 

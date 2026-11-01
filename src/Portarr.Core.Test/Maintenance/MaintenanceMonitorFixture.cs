@@ -3,6 +3,7 @@ using Microsoft.Extensions.Time.Testing;
 using Portarr.Core.Catalog;
 using Portarr.Core.Maintenance;
 using Portarr.Core.Workloads;
+using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Maintenance;
 
@@ -17,7 +18,7 @@ public sealed class MaintenanceMonitorFixture
 
     public MaintenanceMonitorFixture()
     {
-        var parsed = CatalogParser.Parse("sources:\n  github: { owners: [example] }\n");
+        var parsed = TestCatalog.Parse("sources:\n  github: { owners: [example] }\n");
         _catalog.Current.Returns(new CatalogState(parsed.Catalog, "catalog.yaml", true, [], null));
         var workloads = new[] { "proxy-1", "proxy-2" }
             .Select(name => new Workload("server-1", name, name, "proxy:1", WorkloadState.Running, WorkloadHealth.None, "Up", _clock.GetUtcNow(), null, new Dictionary<string, string>()))

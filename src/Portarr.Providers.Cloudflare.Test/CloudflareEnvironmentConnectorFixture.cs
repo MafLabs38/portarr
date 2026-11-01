@@ -1,4 +1,5 @@
 using Portarr.Core.Catalog;
+using Portarr.Test.Common;
 using Portarr.Test.Common.Contracts;
 
 namespace Portarr.Providers.Cloudflare.Test;
@@ -17,7 +18,7 @@ public sealed class CloudflareEnvironmentConnectorFixture : EnvironmentConnector
 
     protected override string? SectionWithLiteralSecret => "{ accountId: abc, tokenEnv: \"cf-token-value!\" }";
 
-    private static CatalogParseResult Parse(string yaml) => CatalogParser.Parse(yaml, [new CloudflareEnvironmentConnector()]);
+    private static CatalogParseResult Parse(string yaml) => CatalogParser.Parse(yaml, [new CloudflareEnvironmentConnector(), new StubEnvironmentConnector("docker", isRuntime: true)]);
 
     [Fact]
     public void should_read_the_account_and_default_the_token_variable()
@@ -46,7 +47,7 @@ public sealed class CloudflareEnvironmentConnectorFixture : EnvironmentConnector
     {
         var result = Parse("environments:\n  - { id: cdn, cloudflare: { accountId: abc }, docker: { url: \"http://10.0.0.10:2375\" } }\n");
 
-        result.Errors.Should().ContainSingle().Which.Should().Contain("declare one connector (docker, cloudflare or kubernetes)");
+        result.Errors.Should().ContainSingle().Which.Should().Contain("declare one connector (cloudflare, docker or kubernetes)");
     }
 
     [Fact]

@@ -21,13 +21,13 @@ public sealed partial class DockerWorkloadSource : IWorkloadSource
 
     public bool Supports(CatalogEnvironment environment)
     {
-        return environment.Docker is not null;
+        return environment.Docker() is not null;
     }
 
     /// <summary>A reason code when the endpoint asks for a token that the environment does not have (the Portarr reader does, D-100).</summary>
     public string? GetConfigurationError(CatalogEnvironment environment)
     {
-        return environment.Docker is { TokenVariable: not null } endpoint && _clients.TokenOf(endpoint) is null ? ReasonCodes.TokenMissing : null;
+        return environment.Docker() is { TokenVariable: not null } endpoint && _clients.TokenOf(endpoint) is null ? ReasonCodes.TokenMissing : null;
     }
 
     public async Task<IReadOnlyList<Workload>> ListAsync(CatalogEnvironment environment, CancellationToken cancellationToken)
@@ -131,6 +131,6 @@ public sealed partial class DockerWorkloadSource : IWorkloadSource
 
     private HttpClient Client(CatalogEnvironment environment)
     {
-        return _clients.Get(environment.Docker ?? throw new InvalidOperationException($"Environment {environment.Id} has no Docker endpoint."));
+        return _clients.Get(environment.Docker() ?? throw new InvalidOperationException($"Environment {environment.Id} has no Docker endpoint."));
     }
 }

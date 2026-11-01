@@ -20,8 +20,8 @@ public sealed class BackrestEnvironmentConnectorFixture : EnvironmentConnectorCo
 
     protected override string? SectionWithLiteralSecret => "{ url: \"http://10.0.0.10:9898\", userEnv: \"admin\", passwordEnv: \"pa ss\" }";
 
-    // An account is not a machine, whatever connector provides it: a stub stands for Cloudflare here.
-    private static CatalogParseResult Parse(string yaml) => CatalogParser.Parse(yaml, [new BackrestEnvironmentConnector(), new StubEnvironmentConnector("cloudflare", isRuntime: true, singleMachine: false)]);
+    // Stubs stand for the runtimes: an account is not a machine, whatever connector provides it.
+    private static CatalogParseResult Parse(string yaml) => CatalogParser.Parse(yaml, [new BackrestEnvironmentConnector(), new StubEnvironmentConnector("cloudflare", isRuntime: true, singleMachine: false), new StubEnvironmentConnector("docker", isRuntime: true)]);
 
     [Fact]
     public void should_read_the_url_and_the_variables_that_hold_the_credentials()

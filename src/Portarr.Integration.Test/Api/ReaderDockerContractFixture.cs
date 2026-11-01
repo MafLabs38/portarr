@@ -45,7 +45,7 @@ public sealed class ReaderDockerContractFixture : IAsyncLifetime
 
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["PORTARR_READER_CONTRACT"] = Token }).Build();
         _clients = new DockerHttpClientFactory(configuration);
-        _environment = new CatalogEnvironment("server-1", "Server 1", new DockerEndpoint(new Uri(_reader.BaseUrl, "/v1/docker/"), "PORTARR_READER_CONTRACT"));
+        _environment = new CatalogEnvironment("server-1", "Server 1", Connectors: new Dictionary<string, object> { ["docker"] = new DockerEndpoint(new Uri(_reader.BaseUrl, "/v1/docker/"), "PORTARR_READER_CONTRACT") }, ConnectorRuntime: RuntimeNames.Docker);
     }
 
     public async ValueTask DisposeAsync()

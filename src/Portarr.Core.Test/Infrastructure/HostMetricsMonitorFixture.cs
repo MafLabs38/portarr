@@ -3,6 +3,7 @@ using Microsoft.Extensions.Time.Testing;
 using Portarr.Core.Catalog;
 using Portarr.Core.Infrastructure;
 using Portarr.Core.Workloads;
+using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Infrastructure;
 
@@ -146,7 +147,7 @@ public sealed class HostMetricsMonitorFixture
     [Fact]
     public void should_resolve_the_nodes_of_a_cluster_by_their_access_route()
     {
-        var catalog = CatalogParser.Parse("""
+        var catalog = TestCatalog.Parse("""
             environments:
               - id: cluster
                 kubernetes:
@@ -203,7 +204,7 @@ public sealed class HostMetricsMonitorFixture
 
     private void UseCatalog(string yaml)
     {
-        var parsed = CatalogParser.Parse(yaml);
+        var parsed = TestCatalog.Parse(yaml);
         parsed.Errors.Should().BeEmpty();
         _catalogService.Current.Returns(new CatalogState(parsed.Catalog, "/config/catalog.yaml", true, [], Now));
     }

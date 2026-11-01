@@ -1,4 +1,5 @@
 using Portarr.Core.Catalog;
+using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Catalog;
 
@@ -8,7 +9,7 @@ public sealed class CatalogSourcesParserFixture
     [Fact]
     public void should_read_the_github_source_with_its_defaults()
     {
-        var result = CatalogParser.Parse("""
+        var result = TestCatalog.Parse("""
             sources:
               github:
                 owners: [example, example-org]
@@ -30,7 +31,7 @@ public sealed class CatalogSourcesParserFixture
     [InlineData("github: { owners: [example], pushedWithinMonths: -1 }", "pushedWithinMonths")]
     public void should_reject_an_invalid_github_source(string source, string error)
     {
-        var result = CatalogParser.Parse($"sources:\n  {source}\n");
+        var result = TestCatalog.Parse($"sources:\n  {source}\n");
 
         result.Errors.Should().ContainSingle().Which.Should().Contain(error);
     }
@@ -38,7 +39,7 @@ public sealed class CatalogSourcesParserFixture
     [Fact]
     public void should_reject_a_repository_url()
     {
-        CatalogParser.Parse("apps:\n  - { id: shop, repository: \"https://github.com/example/shop\" }\n")
+        TestCatalog.Parse("apps:\n  - { id: shop, repository: \"https://github.com/example/shop\" }\n")
             .Errors.Should().ContainSingle().Which.Should().Contain("repository must be owner/name");
     }
 

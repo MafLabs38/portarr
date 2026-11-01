@@ -6,7 +6,7 @@ namespace Portarr.Core.Test.Catalog;
 /// <summary>Machines that are VMs on another environment of the catalog: <c>host</c> and <c>nodeHosts</c> (D-59).</summary>
 public sealed class CatalogHostParserFixture
 {
-    private static CatalogParseResult Parse(string yaml) => CatalogParser.Parse(yaml, [new StubEnvironmentConnector("cloudflare", isRuntime: true, singleMachine: false)]);
+    private static CatalogParseResult Parse(string yaml) => TestCatalog.Parse(yaml);
 
     [Fact]
     public void should_read_the_host_of_an_environment_and_of_kubernetes_nodes()

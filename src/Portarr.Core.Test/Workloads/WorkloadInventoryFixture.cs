@@ -2,12 +2,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Portarr.Core.Catalog;
 using Portarr.Core.Workloads;
+using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Workloads;
 
 public sealed class WorkloadInventoryFixture
 {
-    private static readonly CatalogEnvironment Server = new("server-1", "Server 1", new DockerEndpoint(new Uri("http://proxy:2375")));
+    private static readonly CatalogEnvironment Server = TestEnvironments.DockerHost("server-1", "Server 1");
     private static readonly Workload Sonarr = new("server-1", "id", "sonarr", "sonarr", WorkloadState.Running, WorkloadHealth.None, "Up", DateTimeOffset.UnixEpoch, null, new Dictionary<string, string>());
 
     private readonly IWorkloadSource _source = Substitute.For<IWorkloadSource>();
@@ -18,7 +19,7 @@ public sealed class WorkloadInventoryFixture
     {
         var catalog = Substitute.For<ICatalogService>();
         catalog.Current.Returns(new CatalogState(new Portarr.Core.Catalog.Catalog([Server, new CatalogEnvironment("nas", "NAS", null)], [], []), "catalog.yaml", true, [], null));
-        _source.Supports(Arg.Any<CatalogEnvironment>()).Returns(call => call.Arg<CatalogEnvironment>().Docker is not null);
+        _source.Supports(Arg.Any<CatalogEnvironment>()).Returns(call => call.Arg<CatalogEnvironment>().Declares("docker"));
         _subject = new WorkloadInventory(catalog, [_source], _clock, NullLogger<WorkloadInventory>.Instance);
     }
 

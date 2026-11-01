@@ -1,4 +1,5 @@
 using Portarr.Core.Catalog;
+using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Catalog;
 
@@ -31,12 +32,12 @@ public sealed class CatalogKnowledgeParserFixture
           - { id: cdn, name: Example CDN, kind: cdn, console: "https://dash.cdn.example", account: ops@homelab.example, usedBy: [blog, cluster], notes: Pages and DNS. }
         """;
 
-    private static IReadOnlyList<string> Errors(string yaml) => CatalogParser.Parse(yaml).Errors;
+    private static IReadOnlyList<string> Errors(string yaml) => TestCatalog.Parse(yaml).Errors;
 
     [Fact]
     public void should_read_notes_access_machines_links_and_providers()
     {
-        var result = CatalogParser.Parse(Knowledge);
+        var result = TestCatalog.Parse(Knowledge);
 
         result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
         var server = result.Catalog.Environments[0];

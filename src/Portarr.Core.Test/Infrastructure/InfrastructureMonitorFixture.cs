@@ -3,12 +3,13 @@ using Microsoft.Extensions.Time.Testing;
 using Portarr.Core.Catalog;
 using Portarr.Core.Infrastructure;
 using Portarr.Core.Workloads;
+using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Infrastructure;
 
 public sealed class InfrastructureMonitorFixture
 {
-    private static readonly CatalogEnvironment Server = new("server-1", "Server 1", new DockerEndpoint(new Uri("http://proxy:2375")));
+    private static readonly CatalogEnvironment Server = TestEnvironments.DockerHost("server-1", "Server 1");
     private static readonly MachineSample Machine = new("server-1", "Server 1", MachineKind.DockerHost, 8, 16_000_000_000, 1.5, 4_000_000_000, UsageScope.Containers);
 
     private readonly IInfrastructureSource _source = Substitute.For<IInfrastructureSource>();
@@ -69,8 +70,8 @@ public sealed class InfrastructureMonitorFixture
     [Fact]
     public async Task should_show_the_vms_of_a_hypervisor_as_they_report_themselves()
     {
-        var hypervisor = new CatalogEnvironment("hypervisor", "Hypervisor", new DockerEndpoint(new Uri("http://hypervisor:2375")));
-        var vm = new CatalogEnvironment("vm-1", "VM 1", new DockerEndpoint(new Uri("http://vm-1:2375")), Host: "hypervisor");
+        var hypervisor = TestEnvironments.DockerHost("hypervisor", "Hypervisor");
+        var vm = TestEnvironments.DockerHost("vm-1", "VM 1", host: "hypervisor");
         var cluster = new CatalogEnvironment(
             "cluster",
             "Cluster",

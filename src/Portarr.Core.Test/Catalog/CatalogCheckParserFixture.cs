@@ -6,7 +6,6 @@ namespace Portarr.Core.Test.Catalog;
 /// <summary>The <c>check:</c> key of apps (D-50) and Cloudflare environments (D-53).</summary>
 public sealed class CatalogCheckParserFixture
 {
-    private static readonly StubEnvironmentConnector Cloudflare = new("cloudflare", isRuntime: true, singleMachine: false);
 
     [Fact]
     public void should_check_web_apps_by_default_and_not_services()
@@ -61,7 +60,7 @@ public sealed class CatalogCheckParserFixture
     [InlineData("check: { method: POST }", "Invalid YAML")]
     public void should_reject_an_invalid_check_naming_the_app(string check, string error)
     {
-        var result = CatalogParser.Parse($"apps:\n  - id: web\n    {check}\n");
+        var result = TestCatalog.Parse($"apps:\n  - id: web\n    {check}\n");
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainSingle().Which.Should().Contain(error);
@@ -88,27 +87,27 @@ public sealed class CatalogCheckParserFixture
     [Fact]
     public void should_name_the_runtimes_that_are_known_when_one_is_not()
     {
-        var result = CatalogParser.Parse("environments:\n  - id: cdn\n    runtime: nomad\n", [Cloudflare]);
+        var result = TestCatalog.Parse("environments:\n  - id: cdn\n    runtime: nomad\n");
 
-        result.Errors.Should().ContainSingle().Which.Should().Contain("runtime must be docker, cloudflare or kubernetes");
+        result.Errors.Should().ContainSingle().Which.Should().Contain("runtime must be cloudflare, docker or kubernetes");
     }
 
     [Fact]
     public void should_reject_a_selector_whose_runtime_is_not_the_environment_one()
     {
-        var result = CatalogParser.Parse("""
+        var result = TestCatalog.Parse("""
             environments:
               - { id: cdn, cloudflare: { accountId: abc } }
             apps:
               - { id: site, workloads: [{ runtime: docker@cdn, match: { name: site } }] }
-            """, [Cloudflare]);
+            """);
 
         result.Errors.Should().ContainSingle().Which.Should().Contain("use cloudflare@cdn");
     }
 
     private static Portarr.Core.Catalog.Catalog Parse(string yaml)
     {
-        var result = CatalogParser.Parse(yaml, [Cloudflare]);
+        var result = TestCatalog.Parse(yaml);
         result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
         return result.Catalog;
     }

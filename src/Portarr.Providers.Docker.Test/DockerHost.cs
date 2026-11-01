@@ -21,7 +21,7 @@ public sealed class DockerHost : IAsyncLifetime
     public IContainer Proxy { get; private set; } = null!;
 
     /// <summary>The engine Testcontainers itself uses (honors DOCKER_HOST, rootless, Docker Desktop).</summary>
-    public CatalogEnvironment Direct { get; } = new("local", "Local", new DockerEndpoint(TestcontainersSettings.OS.DockerEndpointAuthConfig.Endpoint));
+    public CatalogEnvironment Direct { get; } = DockerEnvironments.With("local", "Local", new DockerEndpoint(TestcontainersSettings.OS.DockerEndpointAuthConfig.Endpoint));
 
     public CatalogEnvironment ThroughProxy { get; private set; } = null!;
 
@@ -58,7 +58,7 @@ public sealed class DockerHost : IAsyncLifetime
             .Build();
 
         await Task.WhenAll(Talker.StartAsync(), Unhealthy.StartAsync(), Proxy.StartAsync());
-        ThroughProxy = new CatalogEnvironment("proxied", "Proxied", new DockerEndpoint(new Uri($"tcp://{Proxy.Hostname}:{Proxy.GetMappedPublicPort(2375)}")));
+        ThroughProxy = DockerEnvironments.With("proxied", "Proxied", new DockerEndpoint(new Uri($"tcp://{Proxy.Hostname}:{Proxy.GetMappedPublicPort(2375)}")));
     }
 
     public async ValueTask DisposeAsync()

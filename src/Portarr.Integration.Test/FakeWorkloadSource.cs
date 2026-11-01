@@ -20,7 +20,7 @@ public sealed class FakeWorkloadSource : IWorkloadSource
     /// <summary>The tail the last log stream was opened with.</summary>
     public int? LastTail { get; private set; }
 
-    public bool Supports(CatalogEnvironment environment) => environment.Docker is not null;
+    public bool Supports(CatalogEnvironment environment) => environment.Declares("docker");
 
     public Task<IReadOnlyList<Workload>> ListAsync(CatalogEnvironment environment, CancellationToken cancellationToken)
     {

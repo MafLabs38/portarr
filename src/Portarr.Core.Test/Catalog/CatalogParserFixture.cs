@@ -1,4 +1,5 @@
 using Portarr.Core.Catalog;
+using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Catalog;
 
@@ -32,10 +33,10 @@ public sealed class CatalogParserFixture
     [Fact]
     public void should_read_environments_stacks_and_apps()
     {
-        var result = CatalogParser.Parse(ValidCatalog);
+        var result = TestCatalog.Parse(ValidCatalog);
 
         result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
-        result.Catalog.Environments.Should().ContainSingle().Which.Docker!.Url.Should().Be(new Uri("http://socket-proxy:2375"));
+        result.Catalog.Environments.Should().ContainSingle().Which.Settings<Dictionary<string, string>>("docker")!["url"].Should().Be("http://socket-proxy:2375");
         result.Catalog.Apps.Should().HaveCount(2);
 
         var sonarr = result.Catalog.Apps[0];
@@ -48,7 +49,7 @@ public sealed class CatalogParserFixture
     [Fact]
     public void should_make_the_stack_shorthand_a_critical_member()
     {
-        var media = CatalogParser.Parse(ValidCatalog).Catalog.Stacks.Single();
+        var media = TestCatalog.Parse(ValidCatalog).Catalog.Stacks.Single();
 
         media.Members.Should().BeEquivalentTo(new[]
         {
@@ -74,7 +75,7 @@ public sealed class CatalogParserFixture
                   - { runtime: docker@server-1, match: { name: trading-scanner }, role: optional }
             """;
 
-        var result = CatalogParser.Parse(yaml);
+        var result = TestCatalog.Parse(yaml);
 
         result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
         result.Catalog.Environments.Single().Address.Should().Be("10.0.0.10");
@@ -87,13 +88,13 @@ public sealed class CatalogParserFixture
     {
         const string yaml = "apps:\n  - { id: a, stack: s }\nstacks:\n  - id: s\n    members: [{ app: a, role: optional }]";
 
-        CatalogParser.Parse(yaml).Catalog.Stacks.Single().Members.Should().Equal(new StackMember("a", MemberRole.Optional));
+        TestCatalog.Parse(yaml).Catalog.Stacks.Single().Members.Should().Equal(new StackMember("a", MemberRole.Optional));
     }
 
     [Fact]
     public void should_accept_an_empty_file()
     {
-        var result = CatalogParser.Parse(string.Empty);
+        var result = TestCatalog.Parse(string.Empty);
 
         result.IsValid.Should().BeTrue();
         result.Catalog.Apps.Should().BeEmpty();
@@ -108,7 +109,6 @@ public sealed class CatalogParserFixture
     [InlineData("apps:\n  - id: a\n    workloads: [{ runtime: docker@ghost, match: { name: a } }]", "environment 'ghost' is not declared")]
     [InlineData("apps:\n  - id: a\n    workloads: [{ runtime: podman@x }]", "must be docker@<environment id>")]
     [InlineData("stacks:\n  - id: s\n    members: [{ app: ghost }]", "member 'ghost' is not a declared app")]
-    [InlineData("environments:\n  - id: e\n    docker: { url: \"ssh://host\" }", "docker.url must be")]
     [InlineData("apps:\n  - id: a\n    colour: red", "colour")]
     [InlineData("apps: [", "Invalid YAML")]
     [InlineData("apps:\n  - id: a\n    icon: \"https://cdn.example/a.png\"", "not a URL")]
@@ -119,11 +119,10 @@ public sealed class CatalogParserFixture
     [InlineData("apps:\n  - id: a\n    urls: [{ href: \"ftp://user:secret@x\" }]", "ftp://***@x")]
     [InlineData("apps:\n  - id: a\n    urls: [{ href: \"http://x.example\", scope: intranet }]", "must be public or lan")]
     [InlineData("apps:\n  - id: a\n    urls: [{ href: \"https://admin:secret@x.example\" }]", "must not contain credentials")]
-    [InlineData("environments:\n  - id: e\n    docker: { url: \"ssh://root:secret@host\" }", "docker.url must be")]
     [InlineData("environments:\n  - { id: e, docker: { url: \"http://p:2375\" } }\napps:\n  - id: a\n    workloads: [{ runtime: docker@e, match: { name: a }, role: maybe }]", "must be critical or optional")]
     public void should_report_a_clear_error_and_return_an_empty_catalog(string yaml, string expected)
     {
-        var result = CatalogParser.Parse(yaml);
+        var result = TestCatalog.Parse(yaml);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(error => error.Contains(expected, StringComparison.Ordinal));
