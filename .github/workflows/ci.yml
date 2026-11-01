@@ -2,6 +2,11 @@
 # extended for Portarr (React frontend, SQLite/PostgreSQL matrix, E2E, security scans).
 # Pull requests are built and tested here, but only develop and main publish an image
 # (IMPLEMENTATION_PLAN.md §1.3). Releases (semantic-release, multi-arch) come later in P0.4.
+#
+# Two lanes. A pull request into develop (or stacked on another feature branch) runs the light lane: lint, the SQLite tests, the
+# frontend tests and the security scans, so that iterating on develop stays fast. The full lane adds PostgreSQL, the reader, the
+# E2E smoke test and SonarQube. It runs on every push to develop and main, on every pull request into main (where merging is
+# demanding), on a pull request labelled `full-ci` (add the label before pushing) and on demand (Run workflow).
 name: CI
 
 on:
@@ -9,6 +14,7 @@ on:
     branches: [main, develop]
   # Every pull request, including stacked ones whose base is another feature branch.
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -24,6 +30,28 @@ env:
   DOTNET_NOLOGO: "1"
 
 jobs:
+  # Decides the lane once, for every job below.
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    outputs:
+      full: ${{ steps.lane.outputs.full }}
+      databases: ${{ steps.lane.outputs.databases }}
+    steps:
+      - id: lane
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.base_ref }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: |
+          if [ "$EVENT" != "pull_request" ] || [ "$BASE" = "main" ] || echo "$LABELS" | grep -q '"full-ci"'; then
+            echo "full=true" >> "$GITHUB_OUTPUT"
+            echo 'databases=["sqlite","postgres"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "full=false" >> "$GITHUB_OUTPUT"
+            echo 'databases=["sqlite"]' >> "$GITHUB_OUTPUT"
+          fi
+
   lint:
     name: lint
     runs-on: ubuntu-latest
@@ -46,11 +74,11 @@ jobs:
   test-backend:
     name: test-backend (${{ matrix.database }})
     runs-on: ubuntu-latest
-    needs: lint
+    needs: [lint, plan]
     strategy:
       fail-fast: false
       matrix:
-        database: [sqlite, postgres]
+        database: ${{ fromJSON(needs.plan.outputs.databases) }}
     env:
       # Read by the persistence tests once C1 adds the database (TESTING.md §3).
       PORTARR_TEST_DATABASE: ${{ matrix.database }}
@@ -98,7 +126,8 @@ jobs:
   e2e-smoke:
     name: e2e-smoke
     runs-on: ubuntu-latest
-    needs: [test-backend, test-frontend]
+    needs: [plan, test-backend, test-frontend]
+    if: needs.plan.outputs.full == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -126,6 +155,8 @@ jobs:
   reader:
     name: reader
     runs-on: ubuntu-latest
+    needs: plan
+    if: needs.plan.outputs.full == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Format, lint and test
@@ -233,9 +264,9 @@ jobs:
   sonarqube:
     name: sonarqube
     runs-on: ubuntu-latest
-    needs: [test-backend, test-frontend]
-    # Runs once a SonarQube server is configured (repository variable + secret).
-    if: vars.SONAR_HOST_URL != ''
+    needs: [plan, test-backend, test-frontend]
+    # Full lane only, once a SonarQube server is configured (repository variable + secret).
+    if: needs.plan.outputs.full == 'true' && vars.SONAR_HOST_URL != ''
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
