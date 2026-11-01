@@ -1,5 +1,4 @@
-import SummaryTile, { type Tile } from 'Data/SummaryTile';
-
+import SummaryTile, { type Tile } from 'Components/SummaryTile/SummaryTile';
 import * as icons from 'Helpers/Props/icons';
 import * as kinds from 'Helpers/Props/kinds';
 import type { MaintenanceSummary } from 'typings/Maintenance';

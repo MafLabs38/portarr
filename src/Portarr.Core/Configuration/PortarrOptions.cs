@@ -35,6 +35,12 @@ public sealed class PortarrOptions
     public bool LogsOfAllWorkloads { get; set; }
 
     /// <summary>
+    /// Whether the registries are asked about the images that run (Maintenance, D-66): <c>PORTARR__IMAGEUPDATES=false</c> for an
+    /// air-gapped homelab, where every lookup would only fail. Images are then listed with the reason "disabled".
+    /// </summary>
+    public bool ImageUpdates { get; set; } = true;
+
+    /// <summary>
     /// Reverse proxies allowed to set X-Forwarded-For and X-Forwarded-Proto: comma-separated IPs or
     /// CIDR networks (e.g. <c>10.0.0.2,10.0.1.0/24</c>). Empty: forwarded headers are never trusted,
     /// so a client cannot pick its own address to dodge the per-client rate limits.

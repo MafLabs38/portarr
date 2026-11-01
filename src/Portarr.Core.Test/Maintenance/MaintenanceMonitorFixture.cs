@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using Portarr.Core.Catalog;
+using Portarr.Core.Configuration;
 using Portarr.Core.Maintenance;
 using Portarr.Core.Workloads;
 using Portarr.Test.Common;
@@ -59,6 +61,17 @@ public sealed class MaintenanceMonitorFixture
         _clock.Advance(TimeSpan.FromHours(1));
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
         await _registry.Received(2).ListTagsAsync(Arg.Any<ImageReference>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task should_ask_no_registry_when_image_updates_are_switched_off_and_say_why()
+    {
+        var monitor = Monitor(imageUpdates: false);
+
+        await monitor.RefreshAsync(TestContext.Current.CancellationToken);
+
+        await _registry.DidNotReceiveWithAnyArgs().ListTagsAsync(default!, TestContext.Current.CancellationToken);
+        monitor.Current.Registries["docker.io/library/proxy"].Should().Match<RegistryLookup>(l => l.Error == MaintenanceMonitor.DisabledReason && l.Tags.Count == 0);
     }
 
     [Fact]
@@ -221,5 +234,6 @@ public sealed class MaintenanceMonitorFixture
         await _registry.DidNotReceive().ListTagsAsync(Arg.Any<ImageReference>(), Arg.Any<CancellationToken>());
     }
 
-    private MaintenanceMonitor Monitor() => new(_catalog, _inventory, [_code], [_registry], _clock, NullLogger<MaintenanceMonitor>.Instance);
+    private MaintenanceMonitor Monitor(bool imageUpdates = true) =>
+        new(_catalog, _inventory, [_code], [_registry], Options.Create(new PortarrOptions { ImageUpdates = imageUpdates }), _clock, NullLogger<MaintenanceMonitor>.Instance);
 }
