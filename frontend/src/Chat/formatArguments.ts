@@ -6,7 +6,7 @@ export default function formatArguments(input: unknown): string {
   try {
     return JSON.stringify(input, null, 2);
   } catch {
-    // Only an object that cannot be serialized (a cycle) ends up here.
-    return typeof input === 'object' ? '{…}' : String(input);
+    // Only a value that JSON cannot hold ends up here: a bigint prints as itself, a cycle as a placeholder.
+    return typeof input === 'bigint' ? input.toString() : '{…}';
   }
 }

@@ -28,7 +28,7 @@ test.describe('Apps launcher', { tag: '@smoke' }, () => {
       ['Maintenance', /\/maintenance$/],
       ['Assistant', /\/assistant$/],
       ['System', /\/system\/status$/],
-      ['Settings', /\/settings\/users$/],
+      ['Settings', /\/settings\/general$/],
       ['Apps', /\/apps$/],
     ] as const) {
       await menu.getByRole('link', { name }).click();
