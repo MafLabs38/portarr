@@ -74,7 +74,8 @@ public sealed partial class AccountService : IAccountService
     private static readonly TimeSpan CacheLifetime = TimeSpan.FromSeconds(10);
 
     private static readonly PasswordHasher<string> Hasher = new();
-    private static readonly Lazy<string> DummyHash = new(() => Hasher.HashPassword("dummy", Guid.NewGuid().ToString("N")));
+    // Built with the type, so the first sign-in of an unknown user costs the same as any other.
+    private static readonly string DummyHash = Hasher.HashPassword("dummy", Guid.NewGuid().ToString("N"));
 
     private readonly AccountStore _store;
     private readonly IAuthAuditLog _audit;
@@ -83,7 +84,7 @@ public sealed partial class AccountService : IAccountService
     private readonly ILogger<AccountService> _logger;
     private readonly SemaphoreSlim _mutations = new(1, 1);
     private readonly ConcurrentDictionary<int, (DateTimeOffset At, AccountIdentity? Identity)> _identities = new();
-    private (DateTimeOffset At, IReadOnlyList<RoleDefinition> Roles)? _roles;
+    private volatile RoleCache? _roles;
 
     internal AccountService(AccountStore store, IAuthAuditLog audit, IOptions<AuthOptions> options, TimeProvider timeProvider, ILogger<AccountService> logger)
     {
@@ -158,7 +159,7 @@ public sealed partial class AccountService : IAccountService
 
         // One hash check whatever happens, so timing does not tell an unknown user from a wrong password.
         var tooLong = password.Length > MaximumPasswordLength;
-        var verdict = Hasher.VerifyHashedPassword(username, row?.PasswordHash ?? DummyHash.Value, tooLong ? string.Empty : password);
+        var verdict = Hasher.VerifyHashedPassword(username, row?.PasswordHash ?? DummyHash, tooLong ? string.Empty : password);
         verdict = tooLong ? PasswordVerificationResult.Failed : verdict;
         var usable = row is { Disabled: false } && (Iso.ParseOrNull(row.LockoutEnd) is not { } until || until <= now);
 
@@ -223,7 +224,7 @@ public sealed partial class AccountService : IAccountService
 
             var id = await _store.InsertUserAsync(new NewUser(name, display, Hasher.HashPassword(name, password), roleId, _timeProvider.GetUtcNow()), cancellationToken);
             Invalidate();
-            await _audit.AppendAsync("user.create", actor.Name, name, $"role {RoleName(roleId)}", actor.Client, cancellationToken);
+            await _audit.AppendAsync("user.create", actor.Name, name, $"role {await RoleNameAsync(roleId, cancellationToken)}", actor.Client, cancellationToken);
             return AccountResult<AccountUser>.Ok((await GetUserAsync(id, cancellationToken))!);
         }
         finally
@@ -276,7 +277,7 @@ public sealed partial class AccountService : IAccountService
             if (changesRole)
             {
                 await _store.SetRoleAsync(id, roleId!.Value, cancellationToken);
-                await _audit.AppendAsync("user.role", actor.Name, row.Username, $"role {row.RoleName} to {RoleName(roleId.Value)}", actor.Client, cancellationToken);
+                await _audit.AppendAsync("user.role", actor.Name, row.Username, $"role {row.RoleName} to {await RoleNameAsync(roleId.Value, cancellationToken)}", actor.Client, cancellationToken);
             }
 
             if (changesState)
@@ -294,7 +295,10 @@ public sealed partial class AccountService : IAccountService
         }
     }
 
-    public async Task<AccountResult<AccountUser>> ResetPasswordAsync(AccountActor actor, int id, string newPassword, CancellationToken cancellationToken)
+    public Task<AccountResult<AccountUser>> ResetPasswordAsync(AccountActor actor, int id, string newPassword, CancellationToken cancellationToken) =>
+        AloneAsync(() => ResetPasswordCoreAsync(actor, id, newPassword, cancellationToken), cancellationToken);
+
+    private async Task<AccountResult<AccountUser>> ResetPasswordCoreAsync(AccountActor actor, int id, string newPassword, CancellationToken cancellationToken)
     {
         var row = await _store.FindByIdAsync(id, cancellationToken);
         if (row is null)
@@ -310,10 +314,13 @@ public sealed partial class AccountService : IAccountService
         await _store.SetPasswordAsync(id, Hasher.HashPassword(row.Username, newPassword), AccountStore.NewStamp(), cancellationToken);
         Invalidate();
         await _audit.AppendAsync("user.password-reset", actor.Name, row.Username, null, actor.Client, cancellationToken);
-        return AccountResult<AccountUser>.Ok((await GetUserAsync(id, cancellationToken))!);
+        return await UserOrNotFoundAsync(id, cancellationToken);
     }
 
-    public async Task<AccountResult<AccountIdentity>> ChangePasswordAsync(AccountActor actor, string currentPassword, string newPassword, CancellationToken cancellationToken)
+    public Task<AccountResult<AccountIdentity>> ChangePasswordAsync(AccountActor actor, string currentPassword, string newPassword, CancellationToken cancellationToken) =>
+        AloneAsync(() => ChangePasswordCoreAsync(actor, currentPassword, newPassword, cancellationToken), cancellationToken);
+
+    private async Task<AccountResult<AccountIdentity>> ChangePasswordCoreAsync(AccountActor actor, string currentPassword, string newPassword, CancellationToken cancellationToken)
     {
         var row = actor.UserId is { } userId ? await _store.FindByIdAsync(userId, cancellationToken) : null;
         if (row is null)
@@ -335,10 +342,15 @@ public sealed partial class AccountService : IAccountService
         await _store.SetPasswordAsync(row.Id, Hasher.HashPassword(row.Username, newPassword), AccountStore.NewStamp(), cancellationToken);
         Invalidate();
         await _audit.AppendAsync("password.change", row.Username, row.Username, null, actor.Client, cancellationToken);
-        return AccountResult<AccountIdentity>.Ok((await ResolveAsync(row.Id, null, cancellationToken))!);
+        return await ResolveAsync(row.Id, null, cancellationToken) is { } identity
+            ? AccountResult<AccountIdentity>.Ok(identity)
+            : AccountResult<AccountIdentity>.Fail(AccountError.NotFound, "No such user.");
     }
 
-    public async Task<AccountResult<AccountUser>> UpdateProfileAsync(AccountActor actor, string displayName, CancellationToken cancellationToken)
+    public Task<AccountResult<AccountUser>> UpdateProfileAsync(AccountActor actor, string displayName, CancellationToken cancellationToken) =>
+        AloneAsync(() => UpdateProfileCoreAsync(actor, displayName, cancellationToken), cancellationToken);
+
+    private async Task<AccountResult<AccountUser>> UpdateProfileCoreAsync(AccountActor actor, string displayName, CancellationToken cancellationToken)
     {
         var display = displayName.Trim();
         if (ValidateDisplayName(display) is { } invalid)
@@ -354,7 +366,7 @@ public sealed partial class AccountService : IAccountService
         await _store.SetDisplayNameAsync(id, display, cancellationToken);
         Invalidate();
         await _audit.AppendAsync("profile.update", actor.Name, actor.Name, "display name changed", actor.Client, cancellationToken);
-        return AccountResult<AccountUser>.Ok((await GetUserAsync(id, cancellationToken))!);
+        return await UserOrNotFoundAsync(id, cancellationToken);
     }
 
     public async Task<AccountResult<AccountUser>> DeleteUserAsync(AccountActor actor, int id, CancellationToken cancellationToken)
@@ -389,7 +401,10 @@ public sealed partial class AccountService : IAccountService
         }
     }
 
-    public async Task<AccountResult<AccountUser>> SetAvatarAsync(AccountActor actor, int id, string? avatarFile, CancellationToken cancellationToken)
+    public Task<AccountResult<AccountUser>> SetAvatarAsync(AccountActor actor, int id, string? avatarFile, CancellationToken cancellationToken) =>
+        AloneAsync(() => SetAvatarCoreAsync(actor, id, avatarFile, cancellationToken), cancellationToken);
+
+    private async Task<AccountResult<AccountUser>> SetAvatarCoreAsync(AccountActor actor, int id, string? avatarFile, CancellationToken cancellationToken)
     {
         var row = await _store.FindByIdAsync(id, cancellationToken);
         if (row is null)
@@ -400,7 +415,7 @@ public sealed partial class AccountService : IAccountService
         await _store.SetAvatarAsync(id, avatarFile, cancellationToken);
         Invalidate();
         await _audit.AppendAsync("avatar.update", actor.Name, row.Username, avatarFile is null ? "removed" : "changed", actor.Client, cancellationToken);
-        return AccountResult<AccountUser>.Ok((await GetUserAsync(id, cancellationToken))!);
+        return await UserOrNotFoundAsync(id, cancellationToken);
     }
 
     public Task<IReadOnlyList<RoleDefinition>> ListRolesAsync(CancellationToken cancellationToken) => _store.ListRolesAsync(cancellationToken);
@@ -564,11 +579,32 @@ public sealed partial class AccountService : IAccountService
         }
 
         var roles = await _store.ListRolesAsync(cancellationToken);
-        _roles = (now, roles);
+        _roles = new RoleCache(now, roles);
         return roles;
     }
 
-    private string RoleName(int roleId) => _roles?.Roles.FirstOrDefault(r => r.Id == roleId)?.Name ?? roleId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    private async Task<string> RoleNameAsync(int roleId, CancellationToken cancellationToken) =>
+        (await RolesAsync(cancellationToken)).FirstOrDefault(r => r.Id == roleId)?.Name ?? roleId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>The roles as read at one moment, swapped as a whole so a reader never sees a half-written pair.</summary>
+    private sealed record RoleCache(DateTimeOffset At, IReadOnlyList<RoleDefinition> Roles);
+
+    /// <summary>Runs a mutation alone: the ones that read a row, check it and write it must not interleave.</summary>
+    private async Task<T> AloneAsync<T>(Func<Task<T>> mutation, CancellationToken cancellationToken)
+    {
+        await _mutations.WaitAsync(cancellationToken);
+        try
+        {
+            return await mutation();
+        }
+        finally
+        {
+            _mutations.Release();
+        }
+    }
+
+    private async Task<AccountResult<AccountUser>> UserOrNotFoundAsync(int id, CancellationToken cancellationToken) =>
+        await GetUserAsync(id, cancellationToken) is { } user ? AccountResult<AccountUser>.Ok(user) : AccountResult<AccountUser>.Fail(AccountError.NotFound, "No such user.");
 
     private void Invalidate()
     {
