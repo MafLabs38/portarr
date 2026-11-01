@@ -71,6 +71,7 @@ apps:
     name: Grafana
     urls: [{ href: "https://grafana.homelab.example" }]
     check:                            # overrides the default HTTP check (all keys optional)
+      type: http                      # the kind of check; http is the only one for now
       url: "http://10.0.0.10:3000/api/health"   # default: the public URL, else the LAN URL
       expect: [200, 401, 500-504]     # status codes or ranges; default 200-399 (redirects are not followed)
       keyword: database               # must appear in the first 64 KiB of the body

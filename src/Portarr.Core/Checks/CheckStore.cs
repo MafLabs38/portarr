@@ -3,20 +3,34 @@ using Portarr.Core.Catalog;
 
 namespace Portarr.Core.Checks;
 
-/// <summary>A check and its history, oldest result first. A published, immutable snapshot.</summary>
-public sealed record CheckState(string AppId, Uri Target, CheckDefinition Definition, IReadOnlyList<CheckResult> History)
+/// <summary>
+/// One check of an app: its app and its name. An app has one check today, named <see cref="MainName"/>; the store is keyed by the
+/// check, not by the app, so a second check of an app is a new key, not a reshape (D-50).
+/// </summary>
+public readonly record struct CheckId(string AppId, string Name = CheckId.MainName)
 {
+    public const string MainName = "main";
+
+    /// <summary>The check of an app, as a bare app id says it.</summary>
+    public static implicit operator CheckId(string appId) => new(appId);
+}
+
+/// <summary>A check and its history, oldest result first. A published, immutable snapshot.</summary>
+public sealed record CheckState(CheckId Id, Uri Target, CheckDefinition Definition, IReadOnlyList<CheckResult> History)
+{
+    public string AppId => Id.AppId;
+
     public CheckResult? Latest => History.Count > 0 ? History[^1] : null;
 }
 
 public interface ICheckStore
 {
-    CheckState? Get(string appId);
+    CheckState? Get(CheckId id);
 
-    void Record(string appId, Uri target, CheckDefinition definition, CheckResult result);
+    void Record(CheckId id, Uri target, CheckDefinition definition, CheckResult result);
 
-    /// <summary>Forgets the checks of apps that are no longer checked (removed, <c>check: false</c>).</summary>
-    void Retain(IReadOnlySet<string> appIds);
+    /// <summary>Forgets the checks that are no longer declared (app removed, <c>check: false</c>).</summary>
+    void Retain(IReadOnlySet<CheckId> ids);
 }
 
 /// <summary>
@@ -25,36 +39,36 @@ public interface ICheckStore
 /// </summary>
 public sealed class CheckStore : ICheckStore
 {
-    private readonly ConcurrentDictionary<string, CheckState> _states = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, CheckHistory> _histories = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<CheckId, CheckState> _states = new();
+    private readonly Dictionary<CheckId, CheckHistory> _histories = [];
     private readonly Lock _lock = new();
 
-    public CheckState? Get(string appId) => _states.GetValueOrDefault(appId);
+    public CheckState? Get(CheckId id) => _states.GetValueOrDefault(id);
 
-    public void Record(string appId, Uri target, CheckDefinition definition, CheckResult result)
+    public void Record(CheckId id, Uri target, CheckDefinition definition, CheckResult result)
     {
         lock (_lock)
         {
-            var current = _states.GetValueOrDefault(appId);
-            if (current is null || current.Target != target || current.Definition != definition || !_histories.TryGetValue(appId, out var history))
+            var current = _states.GetValueOrDefault(id);
+            if (current is null || current.Target != target || current.Definition != definition || !_histories.TryGetValue(id, out var history))
             {
                 history = new CheckHistory();
-                _histories[appId] = history;
+                _histories[id] = history;
             }
 
             history.Add(result);
-            _states[appId] = new CheckState(appId, target, definition, history.ToArray());
+            _states[id] = new CheckState(id, target, definition, history.ToArray());
         }
     }
 
-    public void Retain(IReadOnlySet<string> appIds)
+    public void Retain(IReadOnlySet<CheckId> ids)
     {
         lock (_lock)
         {
-            foreach (var appId in _states.Keys.Where(id => !appIds.Contains(id)).ToList())
+            foreach (var id in _states.Keys.Where(id => !ids.Contains(id)).ToList())
             {
-                _states.TryRemove(appId, out _);
-                _histories.Remove(appId);
+                _states.TryRemove(id, out _);
+                _histories.Remove(id);
             }
         }
     }

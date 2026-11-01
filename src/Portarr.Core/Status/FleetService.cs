@@ -154,7 +154,7 @@ public sealed class FleetService : IFleetService
         }
 
         // Results of a previous target or definition describe another check.
-        var state = _checks.Get(app.Id);
+        var state = _checks.Get(new CheckId(app.Id));
         if (state is not null && (state.Target != target || state.Definition != app.Check))
         {
             state = null;

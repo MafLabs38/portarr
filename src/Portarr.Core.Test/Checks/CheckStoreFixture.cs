@@ -41,7 +41,7 @@ public sealed class CheckStoreFixture
         _store.Record("app", Target, CheckDefinition.Default, Result(1));
         _store.Record("other", Target, CheckDefinition.Default, Result(1));
 
-        _store.Retain(new HashSet<string> { "other" });
+        _store.Retain(new HashSet<CheckId> { "other" });
 
         _store.Get("app").Should().BeNull();
         _store.Get("other").Should().NotBeNull();

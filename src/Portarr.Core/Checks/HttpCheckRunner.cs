@@ -6,9 +6,16 @@ using Portarr.Core.Catalog;
 
 namespace Portarr.Core.Checks;
 
-public interface IHttpCheckRunner
+/// <summary>
+/// Runs one kind of check (D-50): the scheduler gives each check to the runner whose <see cref="Type"/> its definition names, so a new
+/// kind of check (TCP, DNS) is a runner, not a change of the scheduler or the store.
+/// </summary>
+public interface ICheckRunner
 {
-    /// <summary>Probes the URL once; never throws for a failing target, only when <paramref name="cancellationToken"/> is cancelled.</summary>
+    /// <summary>The kind of check this runner runs (<see cref="CheckTypes"/>).</summary>
+    string Type { get; }
+
+    /// <summary>Probes the target once; never throws for a failing target, only when <paramref name="cancellationToken"/> is cancelled.</summary>
     Task<CheckResult> RunAsync(Uri target, CheckDefinition definition, CancellationToken cancellationToken);
 }
 
@@ -16,8 +23,10 @@ public interface IHttpCheckRunner
 /// One HTTP check (D-50): a GET without following redirects, a fresh connection each time so the TLS
 /// certificate is read on every check (D-52), the body read only for a keyword and capped.
 /// </summary>
-public sealed class HttpCheckRunner : IHttpCheckRunner
+public sealed class HttpCheckRunner : ICheckRunner
 {
+    public string Type => CheckTypes.Http;
+
     public const string HttpClientName = "checks";
 
     /// <summary>Largest part of a body searched for a keyword.</summary>

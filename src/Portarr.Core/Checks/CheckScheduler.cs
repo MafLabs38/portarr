@@ -17,18 +17,18 @@ public sealed partial class CheckScheduler : BackgroundService
 
     private readonly IFleetService _fleetService;
     private readonly ICheckStore _store;
-    private readonly IHttpCheckRunner _runner;
+    private readonly IReadOnlyList<ICheckRunner> _runners;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<CheckScheduler> _logger;
 
     // Only touched by RunDueAsync, which the loop never runs twice at the same time.
     private readonly Dictionary<string, DateTimeOffset> _nextRuns = new(StringComparer.Ordinal);
 
-    public CheckScheduler(IFleetService fleetService, ICheckStore store, IHttpCheckRunner runner, TimeProvider timeProvider, ILogger<CheckScheduler> logger)
+    public CheckScheduler(IFleetService fleetService, ICheckStore store, IEnumerable<ICheckRunner> runners, TimeProvider timeProvider, ILogger<CheckScheduler> logger)
     {
         _fleetService = fleetService;
         _store = store;
-        _runner = runner;
+        _runners = runners.ToList();
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -43,7 +43,7 @@ public sealed partial class CheckScheduler : BackgroundService
             .ToList();
 
         var appIds = checks.Select(c => c.AppId).ToHashSet(StringComparer.Ordinal);
-        _store.Retain(appIds);
+        _store.Retain(appIds.Select(id => new CheckId(id)).ToHashSet());
         foreach (var gone in _nextRuns.Keys.Where(id => !appIds.Contains(id)).ToList())
         {
             _nextRuns.Remove(gone);
@@ -60,7 +60,7 @@ public sealed partial class CheckScheduler : BackgroundService
         await Parallel.ForEachAsync(due, options, async (item, token) =>
         {
             var result = await ProbeAsync(item.Check, token);
-            _store.Record(item.AppId, item.Check.Target, item.Check.Definition, result);
+            _store.Record(new CheckId(item.AppId), item.Check.Target, item.Check.Definition, result);
             if (!result.Up && result.Error != CheckErrors.CheckFailed)
             {
                 LogCheckFailed(item.AppId, result.Error!);
@@ -76,7 +76,13 @@ public sealed partial class CheckScheduler : BackgroundService
     {
         try
         {
-            return await _runner.RunAsync(check.Target, check.Definition, cancellationToken);
+            if (_runners.FirstOrDefault(runner => runner.Type == check.Definition.Type) is not { } runner)
+            {
+                LogNoRunner(check.Definition.Type);
+                return new CheckResult(_timeProvider.GetUtcNow(), null, null, CheckErrors.CheckFailed, null);
+            }
+
+            return await runner.RunAsync(check.Target, check.Definition, cancellationToken);
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
@@ -105,6 +111,9 @@ public sealed partial class CheckScheduler : BackgroundService
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Check run failed")]
     private partial void LogTickFailed(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "No runner for the check type {Type}: the check is recorded as failed to run")]
+    private partial void LogNoRunner(string type);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "A check threw instead of reporting a result")]
     private partial void LogProbeThrew(Exception exception);
