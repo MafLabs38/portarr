@@ -1,22 +1,18 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Portarr.Api.V1.Catalog;
+using Portarr.Core.Catalog;
 
 namespace Portarr.Integration.Test.Api;
 
-/// <summary>
-/// Catalog writes through the API and the MCP write tools (D-83 to D-86): off by default, keyed, versioned,
-/// validated with field paths, audited, and the file's comments kept. The editor itself is unit-tested
-/// (CatalogTextEditorFixture, CatalogEditorFixture).
-/// </summary>
-[Trait("Category", "Integration")]
-public sealed class CatalogEditFixture : IAsyncLifetime
+/// <summary>The two hosts of CatalogEditFixture, built once for the class: catalog writes on, and off.</summary>
+public sealed class CatalogEditHosts : IAsyncLifetime
 {
-    private const string Key = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test";
+    public const string Key = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test";
 
-    private const string Catalog = """
+    public const string Catalog = """
         # Kept comment.
         environments:
           - { id: server-1, name: Server 1 }   # the box
@@ -25,20 +21,21 @@ public sealed class CatalogEditFixture : IAsyncLifetime
         """;
 
     private readonly TestDatabase _database;
-    private PortarrFactory _writable = null!;
-    private PortarrFactory _readOnly = null!;
-    private string _folder = null!;
 
-    public CatalogEditFixture(TestDatabase database)
+    public CatalogEditHosts(TestDatabase database)
     {
         _database = database;
     }
 
-    private static CancellationToken Token => TestContext.Current.CancellationToken;
+    public PortarrFactory Writable { get; private set; } = null!;
+
+    public PortarrFactory ReadOnly { get; private set; } = null!;
+
+    public string Folder { get; private set; } = null!;
 
     public async ValueTask InitializeAsync()
     {
-        (_writable, _folder) = await CreateAsync(new Dictionary<string, string?>
+        (Writable, Folder) = await CreateAsync(new Dictionary<string, string?>
         {
             ["Catalog:Writable"] = "true",
             ["ApiKey"] = Key,
@@ -46,14 +43,59 @@ public sealed class CatalogEditFixture : IAsyncLifetime
             ["Mcp:ApiKey"] = Key,
             ["Mcp:WriteTools"] = "true",
         });
-        (_readOnly, _) = await CreateAsync(new Dictionary<string, string?> { ["Mcp:Enabled"] = "true", ["Mcp:ApiKey"] = Key });
+        (ReadOnly, _) = await CreateAsync(new Dictionary<string, string?> { ["Mcp:Enabled"] = "true", ["Mcp:ApiKey"] = Key });
     }
 
     public async ValueTask DisposeAsync()
     {
-        await _writable.DisposeAsync();
-        await _readOnly.DisposeAsync();
+        await Writable.DisposeAsync();
+        await ReadOnly.DisposeAsync();
     }
+
+    /// <summary>Puts the writable host back as it started: the seeded catalog, no audit trail, reloaded. Every test that writes starts here.</summary>
+    public async Task ResetWritableAsync()
+    {
+        await File.WriteAllTextAsync(Path.Combine(Folder, "catalog.yaml"), Catalog, TestContext.Current.CancellationToken);
+        File.Delete(Path.Combine(Folder, "catalog.audit.jsonl"));
+        File.Delete(Path.Combine(Folder, "catalog.audit.jsonl.1"));
+        await Writable.Services.GetRequiredService<ICatalogService>().ReloadAsync(TestContext.Current.CancellationToken);
+    }
+
+    private async Task<(PortarrFactory Factory, string Folder)> CreateAsync(IReadOnlyDictionary<string, string?> settings)
+    {
+        var options = await _database.CreateOptionsAsync();
+        await File.WriteAllTextAsync(Path.Combine(options.DataFolder, "catalog.yaml"), Catalog);
+        var factory = new PortarrFactory(options, settings);
+        _ = factory.Services;
+        return (factory, options.DataFolder);
+    }
+}
+
+/// <summary>
+/// Catalog writes through the API and the MCP write tools (D-83 to D-86): off by default, keyed, versioned,
+/// validated with field paths, audited, and the file's comments kept. The editor itself is unit-tested
+/// (CatalogTextEditorFixture, CatalogEditorFixture). The hosts are shared by the class; a test that writes resets the
+/// writable one first.
+/// </summary>
+[Trait("Category", "Integration")]
+public sealed class CatalogEditFixture : IClassFixture<CatalogEditHosts>
+{
+    private const string Key = CatalogEditHosts.Key;
+
+    private readonly CatalogEditHosts _hosts;
+
+    public CatalogEditFixture(CatalogEditHosts hosts)
+    {
+        _hosts = hosts;
+    }
+
+    private static CancellationToken Token => TestContext.Current.CancellationToken;
+
+    private PortarrFactory _writable => _hosts.Writable;
+
+    private PortarrFactory _readOnly => _hosts.ReadOnly;
+
+    private string _folder => _hosts.Folder;
 
     [Fact]
     public async Task should_refuse_writes_when_off_and_hide_the_write_tools()
@@ -85,6 +127,7 @@ public sealed class CatalogEditFixture : IAsyncLifetime
     [Fact]
     public async Task should_refuse_to_set_how_a_host_is_reached()
     {
+        await _hosts.ResetWritableAsync();
         using var client = await _writable.CreateSignedInClientAsync();
         var version = await VersionAsync(client);
 
@@ -108,6 +151,7 @@ public sealed class CatalogEditFixture : IAsyncLifetime
     [Fact]
     public async Task should_write_audit_and_refuse_stale_or_invalid_edits()
     {
+        await _hosts.ResetWritableAsync();
         using var client = await _writable.CreateSignedInClientAsync();
         var version = await VersionAsync(client);
 
@@ -136,21 +180,19 @@ public sealed class CatalogEditFixture : IAsyncLifetime
     [Fact]
     public async Task should_edit_through_the_mcp_write_tools_with_the_same_rules()
     {
+        await _hosts.ResetWritableAsync();
         using var client = await _writable.CreateSignedInClientAsync();
-        (await client.SendAsync(Rpc("initialize", Initialize), Token)).StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var read = await CallAsync(client, "get_catalog_item", """{"section":"environments","id":"server-1"}""");
+        var read = await McpTestClient.CallAsync(client, "get_catalog_item", """{"section":"environments","id":"server-1"}""", Key);
         var version = JsonDocument.Parse(read).RootElement.GetProperty("version").GetString();
-        var added = await CallAsync(client, "add_link", $$"""{"item":{"id":"lan","from":"server-1","to":"server-1/nas","kind":"lan"},"version":"{{version}}"}""");
-        var notes = await CallAsync(client, "set_notes", $$"""{"section":"environments","id":"server-1","machine":"nas","notes":"The NAS.","version":"{{version}}"}""");
+        var added = await McpTestClient.CallRawAsync(client, "add_link", $$"""{"item":{"id":"lan","from":"server-1","to":"server-1/nas","kind":"lan"},"version":"{{version}}"}""", Key);
+        var notes = await McpTestClient.CallAsync(client, "set_notes", $$"""{"section":"environments","id":"server-1","machine":"nas","notes":"The NAS.","version":"{{version}}"}""", Key);
 
-        added.Should().Contain("is not a machine of an environment");
+        McpTestClient.IsError(added).Should().BeTrue("the link names a machine the catalog does not know yet");
+        McpTestClient.TextOf(added).Should().Contain("is not a machine of an environment");
         notes.Should().Contain("\"status\":\"applied\"");
         var item = await client.GetFromJsonAsync<CatalogItemResource>("/api/v1/catalog/environments/server-1", Token);
         item!.Item["machines"]![0]!["notes"]!.ToString().Should().Be("The NAS.");
     }
-
-    private const string Initialize = """{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}""";
 
     private static HttpRequestMessage Notes(string version, string notes, string? key) =>
         Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin/notes", new { version, notes }, key);
@@ -170,38 +212,5 @@ public sealed class CatalogEditFixture : IAsyncLifetime
     {
         var status = await client.GetFromJsonAsync<CatalogStatusResource>("/api/v1/catalog/status", Token);
         return status!.Version!;
-    }
-
-    private static HttpRequestMessage Rpc(string method, string parameters)
-    {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/mcp")
-        {
-            Content = new StringContent($$"""{"jsonrpc":"2.0","id":1,"method":"{{method}}","params":{{parameters}}}""", Encoding.UTF8, "application/json"),
-        };
-        request.Headers.Accept.ParseAdd("application/json");
-        request.Headers.Accept.ParseAdd("text/event-stream");
-        request.Headers.Add("MCP-Protocol-Version", "2025-06-18");
-        request.Headers.Add("X-Api-Key", Key);
-        return request;
-    }
-
-    /// <summary>The text of a tools/call answer (its result, or the error it reports).</summary>
-    private static async Task<string> CallAsync(HttpClient client, string tool, string arguments)
-    {
-        var response = await client.SendAsync(Rpc("tools/call", $$"""{"name":"{{tool}}","arguments":{{arguments}}}"""), Token);
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadAsStringAsync(Token);
-        var json = body.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.StartsWith("data: ", StringComparison.Ordinal))?["data: ".Length..] ?? body;
-        using var document = JsonDocument.Parse(json);
-        return document.RootElement.GetProperty("result").GetProperty("content")[0].GetProperty("text").GetString()!;
-    }
-
-    private async Task<(PortarrFactory Factory, string Folder)> CreateAsync(IReadOnlyDictionary<string, string?> settings)
-    {
-        var options = await _database.CreateOptionsAsync();
-        await File.WriteAllTextAsync(Path.Combine(options.DataFolder, "catalog.yaml"), Catalog);
-        var factory = new PortarrFactory(options, settings);
-        _ = factory.Services;
-        return (factory, options.DataFolder);
     }
 }

@@ -1,22 +1,16 @@
-using System.Net;
-using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Portarr.Core.Catalog;
 using Portarr.Core.Workloads;
 
 namespace Portarr.Integration.Test.Api;
 
-/// <summary>
-/// V5 over Streamable HTTP, tool by tool: every read tool answers on a real catalog, and the write tools edit the
-/// catalog file through the same editor as the API (versions, comments kept, audit), only when writes are on.
-/// What each tool says is unit-tested (FleetDigestFixture, KnowledgeBaseFixture, CatalogEditorFixture).
-/// </summary>
-[Trait("Category", "Integration")]
-public sealed class McpToolsFixture : IAsyncLifetime
+/// <summary>The two MCP hosts of McpToolsFixture, built once for the class: one read-only, one with the write tools on.</summary>
+public sealed class McpToolsHosts : IAsyncLifetime
 {
-    private const string Key = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test";
+    public const string Key = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test";
 
-    private const string Catalog = """
+    public const string Catalog = """
         # The catalog of the test fleet.
         environments:
           - { id: server-1, name: Server 1, docker: { url: "http://socket-proxy:2375" } }
@@ -27,50 +21,98 @@ public sealed class McpToolsFixture : IAsyncLifetime
         """;
 
     private readonly TestDatabase _database;
-    private PortarrFactory _writable = null!;
-    private PortarrFactory _readOnly = null!;
-    private string _folder = null!;
 
-    public McpToolsFixture(TestDatabase database)
+    public McpToolsHosts(TestDatabase database)
     {
         _database = database;
     }
 
+    public PortarrFactory Writable { get; private set; } = null!;
+
+    public PortarrFactory ReadOnly { get; private set; } = null!;
+
+    public string Folder { get; private set; } = null!;
+
     public async ValueTask InitializeAsync()
     {
-        _writable = await CreateAsync(new Dictionary<string, string?> { ["Mcp:Enabled"] = "true", ["Mcp:ApiKey"] = Key, ["Mcp:WriteTools"] = "true", ["Catalog:Writable"] = "true" }, folder => _folder = folder);
-        _readOnly = await CreateAsync(new Dictionary<string, string?> { ["Mcp:Enabled"] = "true", ["Mcp:ApiKey"] = Key }, _ => { });
+        (Writable, Folder) = await CreateAsync(new Dictionary<string, string?> { ["Mcp:Enabled"] = "true", ["Mcp:ApiKey"] = Key, ["Mcp:WriteTools"] = "true", ["Catalog:Writable"] = "true" });
+        (ReadOnly, _) = await CreateAsync(new Dictionary<string, string?> { ["Mcp:Enabled"] = "true", ["Mcp:ApiKey"] = Key });
     }
 
     public async ValueTask DisposeAsync()
     {
-        await _writable.DisposeAsync();
-        await _readOnly.DisposeAsync();
+        await Writable.DisposeAsync();
+        await ReadOnly.DisposeAsync();
     }
+
+    /// <summary>Puts the writable host back as it started: the seeded catalog file, no audit trail, reloaded. Every test that writes starts here.</summary>
+    public async Task ResetWritableAsync()
+    {
+        await File.WriteAllTextAsync(Path.Combine(Folder, "catalog.yaml"), Catalog, TestContext.Current.CancellationToken);
+        File.Delete(Path.Combine(Folder, "catalog.audit.jsonl"));
+        File.Delete(Path.Combine(Folder, "catalog.audit.jsonl.1"));
+        await Writable.Services.GetRequiredService<ICatalogService>().ReloadAsync(TestContext.Current.CancellationToken);
+    }
+
+    public async Task<(PortarrFactory Factory, string Folder)> CreateAsync(IReadOnlyDictionary<string, string?> settings)
+    {
+        var options = await _database.CreateOptionsAsync();
+        await File.WriteAllTextAsync(Path.Combine(options.DataFolder, "catalog.yaml"), Catalog);
+        var factory = new PortarrFactory(options, settings);
+        factory.Workloads.Workloads["server-1"] = [FakeWorkloadSource.Container("server-1", "jellyfin")];
+        await factory.Services.GetRequiredService<IWorkloadInventory>().RefreshAsync(TestContext.Current.CancellationToken);
+        return (factory, options.DataFolder);
+    }
+}
+
+/// <summary>
+/// V5 over Streamable HTTP, tool by tool: every read tool answers on a real catalog, and the write tools edit the
+/// catalog file through the same editor as the API (versions, comments kept, audit), only when writes are on.
+/// What each tool says is unit-tested (FleetDigestFixture, KnowledgeBaseFixture, CatalogEditorFixture). The hosts are
+/// shared by the class; a test that writes resets the writable one first.
+/// </summary>
+[Trait("Category", "Integration")]
+public sealed class McpToolsFixture : IClassFixture<McpToolsHosts>
+{
+    private const string Key = McpToolsHosts.Key;
+
+    private readonly McpToolsHosts _hosts;
+
+    public McpToolsFixture(McpToolsHosts hosts)
+    {
+        _hosts = hosts;
+    }
+
+    private PortarrFactory Writable => _hosts.Writable;
+
+    private PortarrFactory ReadOnly => _hosts.ReadOnly;
+
+    private string Folder => _hosts.Folder;
 
     [Fact]
     public async Task should_list_the_read_tools_and_add_the_write_tools_only_when_enabled()
     {
-        var readOnly = await ToolNamesAsync(_readOnly);
-        var writable = await ToolNamesAsync(_writable);
+        var readOnly = await ToolNamesAsync(ReadOnly);
+        var writable = await ToolNamesAsync(Writable);
 
         readOnly.Should().Contain(["get_overview", "list_apps", "get_app", "get_infrastructure", "find_workload", "get_data_coverage", "get_maintenance", "get_environment_knowledge"]);
         readOnly.Should().NotContain(["upsert_app", "remove_app", "set_portal", "set_notes"]);
         writable.Should().Contain(["get_catalog_item", "get_portal", "upsert_app", "remove_app", "upsert_stack", "set_portal", "set_notes"]);
     }
 
+    // Each tool answers with a fact only it can say about the seeded fleet (one app, one unreachable Docker host).
     [Theory]
-    [InlineData("get_overview", "{}", "needsAttention")]
-    [InlineData("list_apps", "{}", "Jellyfin")]
-    [InlineData("get_app", """{"app":"jellyfin"}""", "Jellyfin")]
-    [InlineData("get_infrastructure", "{}", "server-1")]
-    [InlineData("find_workload", """{"query":"jelly"}""", "jellyfin")]
-    [InlineData("get_data_coverage", "{}", "followed")]
-    [InlineData("get_maintenance", "{}", "repositories")]
-    [InlineData("get_environment_knowledge", "{}", "Server 1")]
+    [InlineData("get_overview", "{}", "\"apps\":{\"total\":1,\"healthy\":1")]
+    [InlineData("list_apps", "{}", "\"id\":\"jellyfin\",\"name\":\"Jellyfin\",\"status\":\"Healthy\"")]
+    [InlineData("get_app", """{"app":"jellyfin"}""", "\"image\":\"jellyfin:latest\"")]
+    [InlineData("get_infrastructure", "{}", "\"error\":\"unreachable\"")]
+    [InlineData("find_workload", """{"query":"jelly"}""", "\"apps\":[\"Jellyfin\"]")]
+    [InlineData("get_data_coverage", "{}", "\"assets\":[]")]
+    [InlineData("get_maintenance", "{}", "\"imagesUnknown\":1")]
+    [InlineData("get_environment_knowledge", "{}", "\"apps\":[\"jellyfin\"]")]
     public async Task should_answer_each_read_tool_from_the_catalog(string tool, string arguments, string expected)
     {
-        var text = await CallAsync(_readOnly, tool, arguments);
+        var text = await CallAsync(ReadOnly, tool, arguments);
 
         text.Should().Contain(expected, because: $"{tool} reads the fleet").And.NotContain(Key);
     }
@@ -78,115 +120,66 @@ public sealed class McpToolsFixture : IAsyncLifetime
     [Fact]
     public async Task should_refuse_an_unknown_app_with_the_known_ones()
     {
-        var failure = await CallRawAsync(_readOnly, "get_app", """{"app":"nope"}""");
+        var failure = await McpTestClient.CallRawAsync(ReadOnly.CreateClient(), "get_app", """{"app":"nope"}""", Key);
 
-        IsError(failure).Should().BeTrue();
-        failure.GetProperty("result").GetProperty("content")[0].GetProperty("text").GetString().Should().Contain("No app 'nope'");
+        McpTestClient.IsError(failure).Should().BeTrue();
+        McpTestClient.TextOf(failure).Should().Contain("No app 'nope'");
     }
 
     [Fact]
     public async Task should_edit_the_catalog_file_with_versions_keeping_comments_and_audit_the_change()
     {
-        var item = JsonDocument.Parse(await CallAsync(_writable, "get_catalog_item", """{"section":"apps"}""")).RootElement;
+        await _hosts.ResetWritableAsync();
+        var item = JsonDocument.Parse(await CallAsync(Writable, "get_catalog_item", """{"section":"apps"}""")).RootElement;
         var version = item.GetProperty("version").GetString()!;
 
-        var written = JsonDocument.Parse(await CallAsync(_writable, "upsert_app", $$"""{"item":{"id":"radarr","name":"Radarr"},"version":"{{version}}"}""")).RootElement;
+        var written = JsonDocument.Parse(await CallAsync(Writable, "upsert_app", $$"""{"item":{"id":"radarr","name":"Radarr"},"version":"{{version}}"}""")).RootElement;
         var next = written.GetProperty("version").GetString()!;
 
-        var file = await File.ReadAllTextAsync(Path.Combine(_folder, "catalog.yaml"), TestContext.Current.CancellationToken);
+        var file = await File.ReadAllTextAsync(Path.Combine(Folder, "catalog.yaml"), TestContext.Current.CancellationToken);
         file.Should().Contain("# The catalog of the test fleet.").And.Contain("# media").And.Contain("id: radarr");
         next.Should().NotBe(version);
-        (await CallAsync(_writable, "list_apps", "{}")).Should().Contain("Radarr");
+        (await CallAsync(Writable, "list_apps", "{}")).Should().Contain("Radarr");
 
-        var stale = await CallRawAsync(_writable, "upsert_app", $$"""{"item":{"id":"radarr","name":"Radarr 2"},"version":"{{version}}"}""");
-        IsError(stale).Should().BeTrue("a stale version is refused");
+        var stale = await McpTestClient.CallRawAsync(Writable.CreateClient(), "upsert_app", $$"""{"item":{"id":"radarr","name":"Radarr 2"},"version":"{{version}}"}""", Key);
+        McpTestClient.IsError(stale).Should().BeTrue("a stale version is refused");
 
-        var removed = await CallRawAsync(_writable, "remove_app", $$"""{"id":"radarr","version":"{{next}}"}""");
-        IsError(removed).Should().BeFalse();
-        (await File.ReadAllTextAsync(Path.Combine(_folder, "catalog.yaml"), TestContext.Current.CancellationToken)).Should().NotContain("radarr");
+        var removed = await McpTestClient.CallRawAsync(Writable.CreateClient(), "remove_app", $$"""{"id":"radarr","version":"{{next}}"}""", Key);
+        McpTestClient.IsError(removed).Should().BeFalse();
+        (await File.ReadAllTextAsync(Path.Combine(Folder, "catalog.yaml"), TestContext.Current.CancellationToken)).Should().NotContain("radarr");
 
-        var audit = await File.ReadAllTextAsync(Path.Combine(_folder, "catalog.audit.jsonl"), TestContext.Current.CancellationToken);
-        audit.Should().Contain("\"channel\":\"mcp\"").And.Contain("radarr");
+        var audit = (await File.ReadAllLinesAsync(Path.Combine(Folder, "catalog.audit.jsonl"), TestContext.Current.CancellationToken)).Select(l => JsonDocument.Parse(l).RootElement).ToList();
+        audit.Select(e => (e.GetProperty("channel").GetString(), e.GetProperty("operation").GetString(), e.GetProperty("id").GetString()))
+            .Should().Equal([("mcp", "upsert", "radarr"), ("mcp", "remove", "radarr")]);
     }
 
     [Fact]
-    public async Task should_set_the_notes_of_an_app_and_the_name_of_the_portal()
+    public async Task should_set_the_name_of_the_portal_and_the_notes_of_an_app()
     {
-        var version = JsonDocument.Parse(await CallAsync(_writable, "get_portal", "{}")).RootElement.GetProperty("version").GetString()!;
+        await _hosts.ResetWritableAsync();
+        var version = JsonDocument.Parse(await CallAsync(Writable, "get_portal", "{}")).RootElement.GetProperty("version").GetString()!;
 
-        var portal = JsonDocument.Parse(await CallAsync(_writable, "set_portal", $$"""{"version":"{{version}}","name":"My lab"}""")).RootElement;
-        var notes = JsonDocument.Parse(await CallAsync(_writable, "set_notes", $$"""{"section":"apps","id":"jellyfin","notes":"Runs on the NAS.","version":"{{portal.GetProperty("version").GetString()}}"}""")).RootElement;
+        var portal = JsonDocument.Parse(await CallAsync(Writable, "set_portal", $$"""{"version":"{{version}}","name":"My lab"}""")).RootElement;
+        var notes = JsonDocument.Parse(await CallAsync(Writable, "set_notes", $$"""{"section":"apps","id":"jellyfin","notes":"Runs on the NAS.","version":"{{portal.GetProperty("version").GetString()}}"}""")).RootElement;
 
         notes.GetProperty("version").GetString().Should().NotBeNullOrEmpty();
-        var file = await File.ReadAllTextAsync(Path.Combine(_folder, "catalog.yaml"), TestContext.Current.CancellationToken);
+        var file = await File.ReadAllTextAsync(Path.Combine(Folder, "catalog.yaml"), TestContext.Current.CancellationToken);
         file.Should().Contain("My lab").And.Contain("Runs on the NAS.");
     }
 
     [Fact]
     public async Task should_refuse_a_write_when_the_catalog_is_not_writable()
     {
-        var factory = await CreateAsync(new Dictionary<string, string?> { ["Mcp:Enabled"] = "true", ["Mcp:ApiKey"] = Key, ["Mcp:WriteTools"] = "true" }, _ => { });
+        var (factory, _) = await _hosts.CreateAsync(new Dictionary<string, string?> { ["Mcp:Enabled"] = "true", ["Mcp:ApiKey"] = Key, ["Mcp:WriteTools"] = "true" });
         await using (factory)
         {
-            var failure = await CallRawAsync(factory, "upsert_app", """{"item":{"id":"x","name":"X"},"version":"v"}""");
+            var failure = await McpTestClient.CallRawAsync(factory.CreateClient(), "upsert_app", """{"item":{"id":"x","name":"X"},"version":"v"}""", Key);
 
-            IsError(failure).Should().BeTrue();
+            McpTestClient.IsError(failure).Should().BeTrue();
         }
     }
 
-    private static async Task<IReadOnlyList<string>> ToolNamesAsync(PortarrFactory factory)
-    {
-        var response = await SendAsync(factory, "tools/list", "{}");
-        return response.GetProperty("result").GetProperty("tools").EnumerateArray().Select(t => t.GetProperty("name").GetString()!).ToList();
-    }
+    private static Task<IReadOnlyList<string>> ToolNamesAsync(PortarrFactory factory) => McpTestClient.ToolNamesAsync(factory.CreateClient(), Key);
 
-    private static async Task<string> CallAsync(PortarrFactory factory, string tool, string arguments)
-    {
-        var response = await CallRawAsync(factory, tool, arguments);
-        IsError(response).Should().BeFalse($"{tool}: {response.GetProperty("result").GetProperty("content")[0].GetProperty("text").GetString()}");
-        return response.GetProperty("result").GetProperty("content")[0].GetProperty("text").GetString()!;
-    }
-
-    private static bool IsError(JsonElement response) => response.GetProperty("result").TryGetProperty("isError", out var isError) && isError.GetBoolean();
-
-    private static Task<JsonElement> CallRawAsync(PortarrFactory factory, string tool, string arguments) =>
-        SendAsync(factory, "tools/call", $$"""{"name":"{{tool}}","arguments":{{arguments}}}""");
-
-    private static async Task<JsonElement> SendAsync(PortarrFactory factory, string method, string parameters)
-    {
-        using var client = factory.CreateClient();
-        var initialize = new HttpRequestMessage(HttpMethod.Post, "/mcp") { Content = Json("initialize", """{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}""") };
-        Headers(initialize);
-        (await client.SendAsync(initialize, TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
-
-        var request = new HttpRequestMessage(HttpMethod.Post, "/mcp") { Content = Json(method, parameters) };
-        Headers(request);
-        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
-        var json = body.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.StartsWith("data: ", StringComparison.Ordinal))?["data: ".Length..] ?? body;
-        return JsonDocument.Parse(json).RootElement.Clone();
-    }
-
-    private static StringContent Json(string method, string parameters) =>
-        new($$"""{"jsonrpc":"2.0","id":1,"method":"{{method}}","params":{{parameters}}}""", Encoding.UTF8, "application/json");
-
-    private static void Headers(HttpRequestMessage request)
-    {
-        request.Headers.Accept.ParseAdd("application/json");
-        request.Headers.Accept.ParseAdd("text/event-stream");
-        request.Headers.Add("MCP-Protocol-Version", "2025-06-18");
-        request.Headers.Add("X-Api-Key", Key);
-    }
-
-    private async Task<PortarrFactory> CreateAsync(IReadOnlyDictionary<string, string?> settings, Action<string> folder)
-    {
-        var options = await _database.CreateOptionsAsync();
-        await File.WriteAllTextAsync(Path.Combine(options.DataFolder, "catalog.yaml"), Catalog);
-        folder(options.DataFolder);
-        var factory = new PortarrFactory(options, settings);
-        factory.Workloads.Workloads["server-1"] = [FakeWorkloadSource.Container("server-1", "jellyfin")];
-        await factory.Services.GetRequiredService<IWorkloadInventory>().RefreshAsync(TestContext.Current.CancellationToken);
-        return factory;
-    }
+    private static Task<string> CallAsync(PortarrFactory factory, string tool, string arguments) => McpTestClient.CallAsync(factory.CreateClient(), tool, arguments, Key);
 }

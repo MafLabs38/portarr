@@ -8,7 +8,8 @@ test.describe('Assistant', { tag: '@smoke' }, () => {
 
     const server = page.getByRole('region', { name: 'MCP server' });
     await expect(server.getByText('State', { exact: true })).toBeVisible();
-    await expect(server.getByText(/^(On|Off)$/)).toBeVisible();
+    // The e2e stack does not turn the MCP server on.
+    await expect(server.getByText('Off', { exact: true })).toBeVisible();
   });
 
   test('the chat panel opens from the header, takes a message, and closes', async ({ page }) => {

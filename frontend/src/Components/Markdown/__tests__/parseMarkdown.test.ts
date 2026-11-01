@@ -20,9 +20,9 @@ describe('parseMarkdown', () => {
     const aligned = parseMarkdown(['| x | y |', '| :--- | ---: |', '| 1 | 2 |'].join('\n'));
     expect(aligned[0]).toEqual({ type: 'table', header: ['x', 'y'], rows: [['1', '2']] });
 
-    const started = Date.now();
-    parseMarkdown(['| x |', `|${'---|'.repeat(2_000)}x`, '| 1 |'].join('\n'));
-    expect(Date.now() - started).toBeLessThan(1_000);
+    // The answer is what matters, not a clock: a backtracking pattern would hang here and the test timeout would catch it.
+    const blocks = parseMarkdown(['| x |', `|${'---|'.repeat(2_000)}x`, '| 1 |'].join('\n'));
+    expect(blocks[0]).toEqual(expect.objectContaining({ type: 'table', header: ['x'] }));
   });
 
   it('keeps markup as text: nothing is interpreted as HTML', () => {

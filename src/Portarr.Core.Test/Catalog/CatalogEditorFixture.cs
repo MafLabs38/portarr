@@ -92,6 +92,50 @@ public sealed class CatalogEditorFixture : IDisposable
         }
     }
 
+    [Theory]
+    [InlineData("radarr\nevil: true")]
+    [InlineData("../../etc/passwd")]
+    [InlineData("a: b")]
+    [InlineData("")]
+    public async Task should_refuse_a_hostile_id_and_leave_the_file_alone(string id)
+    {
+        var before = await File.ReadAllTextAsync(CatalogFile, Token);
+
+        var result = await _subject.EditAsync(new CatalogEdit("apps", id, "upsert", await _subject.GetVersionAsync(Token), Actor, CatalogEdits.Upsert(id, Json("""{"name":"Radarr"}"""))), Token);
+
+        result.Succeeded.Should().BeFalse();
+        (await File.ReadAllTextAsync(CatalogFile, Token)).Should().Be(before);
+    }
+
+    [Theory]
+    [InlineData("apps:\n\t- { id: sonarr, name: Sonarr }\n")]
+    [InlineData("apps:\n  - { id: sonarr, name: Sonarr }\n---\napps: []\n")]
+    [InlineData("apps: &a\n  - *a\n")]
+    [InlineData("apps: [unclosed\n")]
+    public async Task should_refuse_to_edit_a_catalog_file_that_is_not_plain_valid_yaml_and_not_hang(string yaml)
+    {
+        await File.WriteAllTextAsync(CatalogFile, yaml, Token);
+
+        var result = await _subject.EditAsync(new CatalogEdit("apps", "sonarr", "set-notes", await _subject.GetVersionAsync(Token), Actor, CatalogEdits.SetNotes("apps", "sonarr", "Written.")), Token).WaitAsync(TimeSpan.FromSeconds(10), Token);
+
+        result.Succeeded.Should().BeFalse();
+        (await File.ReadAllTextAsync(CatalogFile, Token)).Should().Be(yaml);
+    }
+
+    [Fact]
+    public async Task should_rotate_the_audit_trail_once_it_is_too_big_and_keep_reading_across_the_two_files()
+    {
+        var path = Path.Combine(_folder, "catalog.audit.jsonl");
+        await File.WriteAllTextAsync(path, new string(' ', CatalogAuditLog.MaxBytes + 1), Token);
+        var log = new CatalogAuditLog(Options.Create(_options));
+
+        await log.AppendAsync(new CatalogAuditEntry(_clock.GetUtcNow(), "api", null, "set-notes", "apps", "sonarr", "a", "b", ["notes: added"]), Token);
+
+        File.Exists(path + ".1").Should().BeTrue("the full file moved aside");
+        new FileInfo(path).Length.Should().BeLessThan(CatalogAuditLog.MaxBytes);
+        (await log.ReadAsync(10, Token)).Should().ContainSingle().Which.Id.Should().Be("sonarr");
+    }
+
     [Fact]
     public async Task should_read_the_audit_trail_on_into_the_rotated_file()
     {
