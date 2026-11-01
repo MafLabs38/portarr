@@ -8,7 +8,7 @@ export interface RunnerConfig {
   secret: string;
   dataDir: string;
   portarrMcpUrl: string;
-  portarrMcpKey: string;
+  portarrMcpKey?: string;
   maxSessions: number;
   idleTimeoutMs: number;
   claudeCommand: string;
@@ -34,11 +34,11 @@ export function loadConfig(env: NodeJS.ProcessEnv): RunnerConfig {
   if (!/^https?:\/\/[^\s]+\/mcp$/.test(mcpUrl)) {
     errors.push("PORTARR_MCP_URL must be Portarr's MCP endpoint, e.g. http://portarr:8484/mcp.");
   }
-  const mcpKey = env.PORTARR_MCP_APIKEY ?? '';
-  if (mcpKey.trim().length < minimumSecretLength) {
-    errors.push(
-      `PORTARR_MCP_APIKEY must be Portarr's MCP key (PORTARR__MCP__APIKEY, ${minimumSecretLength} characters at least).`,
-    );
+  // Optional: Portarr mints a token per message (D-98), which is what the runner normally uses. A shared key only
+  // serves callers that send none, and it should be a per-user key, never an Admin-equivalent secret.
+  const mcpKey = env.PORTARR_MCP_APIKEY?.trim() ? env.PORTARR_MCP_APIKEY : undefined;
+  if (mcpKey !== undefined && mcpKey.trim().length < minimumSecretLength) {
+    errors.push(`PORTARR_MCP_APIKEY, when set, must be at least ${minimumSecretLength} characters.`);
   }
   if (errors.length > 0) {
     throw new Error(errors.join('\n'));

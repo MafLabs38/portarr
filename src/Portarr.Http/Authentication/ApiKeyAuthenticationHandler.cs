@@ -11,7 +11,7 @@ namespace Portarr.Http.Authentication;
 /// <summary>
 /// Authenticates a request that carries a key, as <c>X-Api-Key</c> or <c>Authorization: Bearer</c> (V7, D-97): a per-user
 /// <c>ptr_</c> key (the owner's permissions, narrowed by the key's scope), one of the deprecated environment keys (the
-/// <c>system</c> principal), or, on <c>/mcp</c> only, the chat runner's <c>ptc_</c> token. Environment keys are compared
+/// <c>system</c> principal, with the permissions of its source), or, on <c>/mcp</c> only, the chat runner's <c>ptc_</c> token. Environment keys are compared
 /// through their SHA-256 hashes in constant time, so neither the content nor the length of a key leaks through timing.
 /// </summary>
 public sealed class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
@@ -51,15 +51,18 @@ public sealed class ApiKeyAuthenticationHandler : AuthenticationHandler<Authenti
         }
 
         // Every environment key is compared, whichever matches, so the time does not tell which one is set.
-        var system = false;
+        HashSet<string>? systemPermissions = null;
         foreach (var source in _systemKeys)
         {
-            system |= ApiKeys.Matches(presented, source.Key);
+            if (ApiKeys.Matches(presented, source.Key))
+            {
+                (systemPermissions ??= new HashSet<string>(StringComparer.Ordinal)).UnionWith(source.Permissions);
+            }
         }
 
-        if (system)
+        if (systemPermissions is not null)
         {
-            return Success(PortarrClaims.CreatePrincipal(AccountIdentity.System, AuthMethods.System, SchemeName));
+            return Success(PortarrClaims.CreatePrincipal(AccountIdentity.ForSystem(systemPermissions), AuthMethods.System, SchemeName));
         }
 
         // Each service recognises its own prefix and answers null for any other key, so what the client sends only ever

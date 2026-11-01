@@ -6,7 +6,7 @@ namespace Portarr.Mcp;
 /// The MCP server (V5, D-70), section <c>Mcp</c>: <c>PORTARR__MCP__ENABLED</c>, <c>PORTARR__MCP__APIKEY</c>.
 /// Off by default. The endpoint takes a per-user API key or the chat runner's token (V7, D-97, D-98) in an
 /// <c>X-Api-Key</c> or <c>Authorization: Bearer</c> header; this shared key keeps working as a deprecated bootstrap
-/// key, as the built-in <c>system</c> principal with Admin permissions.
+/// key, as the built-in <c>system</c> principal with the view permissions (and <c>catalog.write</c> while the write tools are on).
 /// </summary>
 public sealed class McpOptions
 {
@@ -40,6 +40,11 @@ public sealed class McpApiKeySource : Portarr.Core.Configuration.ISystemApiKeySo
     public string Name => "PORTARR__MCP__APIKEY";
 
     public string? Key => _options.CurrentValue.ApiKey;
+
+    /// <summary>The view permissions the MCP tools read with, and <c>catalog.write</c> only while the write tools are on.</summary>
+    public IReadOnlySet<string> Permissions => _options.CurrentValue.WriteTools
+        ? Portarr.Core.Accounts.Permissions.View.Append(Portarr.Core.Accounts.Permissions.CatalogWrite).ToHashSet(StringComparer.Ordinal)
+        : Portarr.Core.Accounts.Permissions.View;
 }
 
 /// <summary>Fails startup when the deprecated shared key is set but too weak.</summary>

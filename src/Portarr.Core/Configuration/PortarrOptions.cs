@@ -50,7 +50,7 @@ public sealed class PortarrOptions
 
     /// <summary>
     /// Deprecated bootstrap key (V7, D-97): <c>PORTARR__APIKEY</c>, sent as <c>X-Api-Key</c> or <c>Authorization: Bearer</c>,
-    /// acts as the built-in <c>system</c> principal with Admin permissions; per-user API keys replace it. Never returned by
+    /// acts as the built-in <c>system</c> principal with the view permissions and catalog.write (never users, settings or secrets); per-user API keys replace it. Never returned by
     /// the API, never logged.
     /// </summary>
     public string? ApiKey { get; set; }

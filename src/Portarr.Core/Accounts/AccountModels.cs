@@ -42,7 +42,8 @@ public sealed record AccountIdentity(
 
     public bool Has(string permission) => Permissions.Contains(permission);
 
-    public static AccountIdentity System { get; } = new(null, SystemUsername, "System", BuiltInRoles.Admin, Portarr.Core.Accounts.Permissions.Keys, string.Empty, null);
+    /// <summary>The principal of an environment key, holding the permissions that key's source declares and nothing else.</summary>
+    public static AccountIdentity ForSystem(IReadOnlySet<string> permissions) => new(null, SystemUsername, "System", "System", permissions, string.Empty, null);
 }
 
 public enum AccountError

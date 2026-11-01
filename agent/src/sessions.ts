@@ -29,7 +29,8 @@ export interface SessionOptions {
   /** Where the per-session MCP configuration files are written (mode 600). */
   runDir: string;
   portarrMcpUrl: string;
-  portarrMcpKey: string;
+  /** A per-user key for callers that send no token; optional, Portarr mints a token per message (D-98). */
+  portarrMcpKey?: string;
   now?: () => Date;
 }
 
@@ -318,13 +319,17 @@ export class SessionManager {
 
   /** The MCP configuration of one process: Portarr's `/mcp`, its key or the user's token, and the origin the audit records (D-89). */
   private writeMcpConfig(conversationId: string, file: string, mcpToken?: string): void {
+    const key = mcpToken ?? this.options.portarrMcpKey;
+    if (!key) {
+      throw new ChatError(400, 'No MCP token for this message: Portarr mints one per message.');
+    }
     const config = {
       mcpServers: {
         [serverName]: {
           type: 'http',
           url: this.options.portarrMcpUrl,
           headers: {
-            'X-Api-Key': mcpToken ?? this.options.portarrMcpKey,
+            'X-Api-Key': key,
             'X-Portarr-Origin': `chat:${conversationId}`,
           },
         },

@@ -69,7 +69,7 @@ export class FakeAdapter implements AgentAdapter {
   }
 }
 
-export async function newManager(maxSessions = 2) {
+export async function newManager(maxSessions = 2, portarrMcpKey: string | null = 'k'.repeat(40)) {
   const dataDir = mkdtempSync(join(tmpdir(), 'portarr-agent-test-'));
   const store = new ConversationStore(dataDir);
   await store.init();
@@ -80,7 +80,7 @@ export async function newManager(maxSessions = 2) {
     workDir: dataDir,
     runDir: dataDir,
     portarrMcpUrl: 'http://portarr.example:8484/mcp',
-    portarrMcpKey: 'k'.repeat(40),
+    portarrMcpKey: portarrMcpKey ?? undefined,
   });
   await manager.init();
   return { manager, adapter, store, dataDir };
