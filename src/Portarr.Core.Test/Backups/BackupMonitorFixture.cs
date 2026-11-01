@@ -35,6 +35,8 @@ public sealed class BackupMonitorFixture
               local: { cronjob: shop/dump, k8up: { schedule: shop/offsite } }
         """;
 
+    private const string LeakedByTheTool = "s3cret-from-the-body";
+
     private static readonly DateTimeOffset Now = new(2026, 1, 31, 12, 0, 0, TimeSpan.Zero);
 
     private readonly FakeTimeProvider _clock = new(Now);
@@ -127,14 +129,14 @@ public sealed class BackupMonitorFixture
     {
         var cronjob = Source(BackupSourceKinds.CronJob);
         cronjob.ListJobsAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>())
-            .Returns<IReadOnlyList<BackupJob>>(_ => throw new HttpRequestException("the tool answered: token=s3cret-from-the-body", null, System.Net.HttpStatusCode.BadGateway));
+            .Returns<IReadOnlyList<BackupJob>>(_ => throw new HttpRequestException($"the tool answered: {LeakedByTheTool}", null, System.Net.HttpStatusCode.BadGateway));
         var monitor = Monitor(Source(BackupSourceKinds.Backrest), cronjob, Source(BackupSourceKinds.K8up));
 
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
 
         var reading = monitor.Current.Readings["cronjob@cluster"];
         reading.Error.Should().Be("http-502");
-        reading.ToString().Should().NotContain("s3cret-from-the-body");
+        reading.ToString().Should().NotContain(LeakedByTheTool);
     }
 
     [Fact]
