@@ -15,7 +15,10 @@ public static class RegistriesServiceCollectionExtensions
             client.Timeout = TimeSpan.FromSeconds(20);
             client.MaxResponseContentBufferSize = MaxResponseBytes;
             client.DefaultRequestHeaders.UserAgent.ParseAdd("Portarr");
-        });
+        })
+        // Redirects are followed by the client itself (a few, to an https host, without the token); every connection,
+        // the token realm's and a redirect's included, goes through the address policy (15-20).
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, ConnectCallback = RegistryAddressPolicy.ConnectAsync });
         services.AddSingleton<IImageRegistry, ContainerRegistryClient>();
 
         return services;
