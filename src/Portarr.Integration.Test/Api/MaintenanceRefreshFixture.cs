@@ -26,22 +26,12 @@ public sealed class MaintenanceRefreshFixture
         var second = await client.PostAsync("/api/v1/maintenance/refresh", null, TestContext.Current.CancellationToken);
         factory.Clock.Advance(TimeSpan.FromSeconds(40));
         var third = await client.PostAsync("/api/v1/maintenance/refresh", null, TestContext.Current.CancellationToken);
+        var report = await client.GetFromJsonAsync<MaintenanceResource>("/api/v1/maintenance", TestContext.Current.CancellationToken);
 
         first.StatusCode.Should().Be(HttpStatusCode.Accepted);
         second.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
         second.Headers.RetryAfter!.Delta.Should().Be(TimeSpan.FromSeconds(40));
         third.StatusCode.Should().Be(HttpStatusCode.Accepted);
-    }
-
-    [Fact]
-    public async Task should_tell_in_the_report_when_the_next_refresh_is_accepted()
-    {
-        await using var factory = new PortarrFactory(await _database.CreateOptionsAsync());
-        using var client = await factory.CreateSignedInClientAsync();
-
-        await client.PostAsync("/api/v1/maintenance/refresh", null, TestContext.Current.CancellationToken);
-        var report = await client.GetFromJsonAsync<MaintenanceResource>("/api/v1/maintenance", TestContext.Current.CancellationToken);
-
-        report!.Refresh.AvailableAt.Should().Be(factory.Clock.GetUtcNow().AddSeconds(60));
+        report!.Refresh.AvailableAt.Should().Be(factory.Clock.GetUtcNow().AddSeconds(60), "the report says when the next refresh is accepted");
     }
 }

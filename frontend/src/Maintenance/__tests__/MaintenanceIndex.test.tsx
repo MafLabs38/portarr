@@ -106,7 +106,7 @@ describe('MaintenanceIndex', () => {
     await waitFor(() => expect(requested).toBe(1));
   });
 
-  it('keeps the refresh button disabled while a refresh is running or just accepted', async () => {
+  it('keeps the refresh button disabled while a refresh is running', async () => {
     const running = { ...maintenanceReport, refresh: { ...maintenanceReport.refresh, refreshing: true } };
     server.use(http.get('/api/v1/maintenance', () => HttpResponse.json(running)));
     renderWithProviders(<MaintenanceIndex />);
@@ -125,5 +125,33 @@ describe('MaintenanceIndex', () => {
     await user.click(await screen.findByRole('button', { name: 'Refresh' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('already started');
+  });
+
+  it('says no code source is declared, with how to declare one', async () => {
+    const without = {
+      ...maintenanceReport,
+      codeSource: { configured: false, owners: [], scannedAt: null, error: null },
+      repositories: [],
+    };
+    server.use(http.get('/api/v1/maintenance', () => HttpResponse.json(without)));
+    renderWithProviders(<MaintenanceIndex />);
+
+    expect(await screen.findByText(/No code source is declared/)).toBeInTheDocument();
+  });
+
+  it('says why the last scan failed and that the last known state is shown', async () => {
+    const failed = { ...maintenanceReport, codeSource: { ...maintenanceReport.codeSource, error: 'rate-limited' } };
+    server.use(http.get('/api/v1/maintenance', () => HttpResponse.json(failed)));
+    renderWithProviders(<MaintenanceIndex />);
+
+    expect(await screen.findByText(/GitHub could not be scanned/)).toBeInTheDocument();
+    expect(screen.getByText(/The last known state is shown/)).toBeInTheDocument();
+  });
+
+  it('says so when the page could not be loaded', async () => {
+    server.use(http.get('/api/v1/maintenance', () => new HttpResponse(null, { status: 500 })));
+    renderWithProviders(<MaintenanceIndex />);
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
   });
 });

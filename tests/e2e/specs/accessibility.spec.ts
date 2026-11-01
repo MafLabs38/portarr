@@ -6,6 +6,7 @@ import { expect, test } from '@playwright/test';
 const pages: [string, string][] = [
   ['/data', 'Data and backups'],
   ['/maintenance', 'What needs attention'],
+  ['/maintenance?tab=images', 'What needs attention'],
   ['/assistant', 'Ask your AI about the fleet'],
   ['/system/status', 'Status'],
   ['/settings/general', 'General'],
