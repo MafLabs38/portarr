@@ -173,7 +173,11 @@ export default function ChatPanel() {
         />
       ) : null}
 
-      <p className={styles.scope}>{translate('ChatScope')}</p>
+      <p className={styles.scope}>
+        {translate(
+          status.data.mcpEnabled === undefined || chatCanWrite(status.data) ? 'ChatScope' : 'ChatScopeReadOnly',
+        )}
+      </p>
       {status.data.reachable ? null : <Alert kind="warning">{translate('ChatUnreachable')}</Alert>}
       {current && !current.available ? (
         <Alert kind="warning">{translate('ChatNoCredentials', { agent: current.name })}</Alert>

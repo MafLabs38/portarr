@@ -287,6 +287,8 @@ describe('chatItems', () => {
     useChatStore.setState({ open: true, conversationId: null, agent: null, model: null });
     renderWithProviders(<ChatPanel />);
 
-    expect(await screen.findByText(/can read the fleet but not change the catalog/)).toBeInTheDocument();
+    expect(await screen.findByText(/This catalog is read-only/)).toBeInTheDocument();
+    expect(screen.getByText(/it reads the fleet\. No shell/)).toBeInTheDocument();
+    expect(screen.queryByText(/edits the catalog with your approval/)).not.toBeInTheDocument();
   });
 });
