@@ -39,4 +39,8 @@ describe('describeLastSuccess', () => {
   it('says a copy that is declared but never succeeded', () => {
     expect(describeLastSuccess(copy({ state: 'missing' }), now)).toBe('never succeeded');
   });
+
+  it('says a copy it could not judge cannot be read, not that it never succeeded', () => {
+    expect(describeLastSuccess(copy({ state: 'unknown' }), now)).toBe("can't be read right now");
+  });
 });

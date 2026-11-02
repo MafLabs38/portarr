@@ -60,4 +60,35 @@ describe('WorkloadSummary', () => {
     expect(screen.getByText('Up 5 seconds')).toBeInTheDocument();
     expect(screen.getByText('starting')).toBeInTheDocument();
   });
+
+  it('shows a container of an unreadable environment as unknown, not as missing', () => {
+    render(
+      <WorkloadSummary
+        workloads={[
+          workload('api', {
+            found: false,
+            state: null,
+            statusText: null,
+            status: { status: 'Unknown', reason: 'Server 2 unreachable' },
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("can't be read right now")).toBeInTheDocument();
+    expect(screen.queryByText('Not found')).not.toBeInTheDocument();
+  });
+
+  it('counts unreadable containers apart from the ones that are down', () => {
+    render(
+      <WorkloadSummary
+        workloads={[
+          workload('front', {}),
+          workload('api', { found: false, state: null, statusText: null, status: { status: 'Unknown', reason: 'x' } }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('1/2 up · 1 unknown')).toBeInTheDocument();
+  });
 });
