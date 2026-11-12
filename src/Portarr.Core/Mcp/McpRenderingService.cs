@@ -90,9 +90,16 @@ public sealed class McpRenderingService : IMcpRenderingService
         var requiresSecrets = new List<string>();
         if (secrets.Count > 0 && _catalogService.Current.Catalog.SecretStore is { } store && _stores.Find(store.Kind) is { } provisioner)
         {
-            operations.Add(provisioner.Provision(store, secrets, resolvedOs));
-            notes.AddRange(provisioner.Notes(store, resolvedOs));
             requiresSecrets.AddRange(secrets.Select(s => provisioner.Identifier(store, s.Key)).Distinct(StringComparer.Ordinal));
+            if (renderer.ReadsVariables)
+            {
+                operations.Add(provisioner.Provision(store, secrets, resolvedOs));
+                notes.AddRange(provisioner.Notes(store, resolvedOs));
+            }
+            else
+            {
+                notes.Add($"{renderer.Name} cannot read a variable, so nothing can fill it from the store: read the secrets listed with your store's own command and write each value into its placeholder yourself. The file then holds them in clear: keep it private.");
+            }
         }
 
         return new McpRendering(server.Id, renderer.Id, renderer.Name, resolvedScope, true, removal ? [] : server.RequiredVariables(), operations, notes, requiresSecrets);

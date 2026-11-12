@@ -85,6 +85,12 @@ public interface IMcpClientRenderer
     /// <summary>The scopes this client can hold a server at.</summary>
     IReadOnlyList<string> Scopes { get; }
 
+    /// <summary>
+    /// Whether the client's command or file can refer to an environment variable. A client that cannot has nothing to read what the workstation
+    /// provisions: the Core then gives no provisioning step, and says the operator writes the values into the placeholders.
+    /// </summary>
+    bool ReadsVariables => true;
+
     /// <summary>How to add the server to the client. Called only for a scope the client supports.</summary>
     McpClientOperations Install(McpRenderContext context);
 

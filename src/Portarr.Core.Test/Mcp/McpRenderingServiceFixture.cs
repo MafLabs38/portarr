@@ -107,6 +107,19 @@ public sealed class McpRenderingServiceFixture
     }
 
     [Fact]
+    public void should_give_no_provisioning_to_a_client_that_cannot_read_a_variable_and_say_what_to_do()
+    {
+        var clients = new McpClientRegistry([new StandInMcpClient("plain", readsVariables: false, McpScopes.User)]);
+
+        var rendering = Service(Servers, clients).Install(Server(Servers, "memory"), "plain");
+
+        rendering.Operations.Should().NotContain(o => o.Kind == McpOperationKinds.Provision);
+        rendering.RequiresSecrets.Should().Equal("kv/mcp/memory");
+        rendering.Notes.Should().Contain(n => n.Contains("cannot read a variable", StringComparison.Ordinal) && n.Contains("keep it private", StringComparison.Ordinal));
+        rendering.Notes.Should().NotContain("Note of the vault store.");
+    }
+
+    [Fact]
     public void should_provision_nothing_without_a_store_or_a_secret_or_for_a_removal()
     {
         // the catalog the service reads has no store: the server (read from a catalog that has one) asks for a secret, and nothing is provisioned

@@ -27,6 +27,8 @@ public abstract class McpClientRendererBase : IMcpClientRenderer
 
     public abstract IReadOnlyList<string> Scopes { get; }
 
+    public virtual bool ReadsVariables => true;
+
     public McpClientOperations Install(McpRenderContext context)
     {
         return Compose(context, InstallOperations(context).ToList());

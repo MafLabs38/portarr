@@ -24,17 +24,38 @@ public sealed record McpServerDefinition(
     /// <summary>Every header and environment value of the server, whichever its transport.</summary>
     public IEnumerable<McpValue> Values => (Http?.Headers.Values ?? []).Concat(Stdio?.Env.Values ?? []);
 
-    /// <summary>A package run through <c>npx</c>, <c>uvx</c>, <c>bunx</c> or <c>pnpx</c> without a version: it changes under the operator's feet.</summary>
+    /// <summary>
+    /// A package run through <c>npx</c>, <c>uvx</c>, <c>bunx</c> or <c>pnpx</c> without a version: it changes under the operator's feet. The launcher
+    /// may be wrapped in <c>cmd /c</c>, which is how a Windows machine is told to run <c>npx</c>.
+    /// </summary>
     public bool RunsAnUnpinnedPackage
     {
         get
         {
-            if (Stdio is not { Command: "npx" or "uvx" or "bunx" or "pnpx" } stdio)
+            if (Stdio is null)
             {
                 return false;
             }
 
-            var package = stdio.Args.FirstOrDefault(a => !a.StartsWith('-'));
+            var launcher = Stdio.Command;
+            var args = Stdio.Args;
+            if (launcher.Equals("cmd", StringComparison.OrdinalIgnoreCase) || launcher.Equals("cmd.exe", StringComparison.OrdinalIgnoreCase))
+            {
+                if (args.Count < 2 || !args[0].Equals("/c", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                launcher = args[1];
+                args = args.Skip(2).ToList();
+            }
+
+            if (launcher is not ("npx" or "npx.cmd" or "uvx" or "bunx" or "pnpx"))
+            {
+                return false;
+            }
+
+            var package = args.FirstOrDefault(a => !a.StartsWith('-'));
             if (package is null)
             {
                 return false;

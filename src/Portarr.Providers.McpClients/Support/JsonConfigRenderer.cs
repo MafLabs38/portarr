@@ -60,6 +60,8 @@ public abstract partial class JsonConfigRenderer : McpClientRendererBase
         yield return Delete(FilePath(context), $"the entry \"{context.Server.Id}\" under {string.Join(" > ", RootPath(context))}");
     }
 
+    public override bool ReadsVariables => Reference("X") is not null;
+
     protected override IEnumerable<string> Notes(McpRenderContext context)
     {
         if (context.RequiredVariables().Count > 0 && Reference("X") is null)

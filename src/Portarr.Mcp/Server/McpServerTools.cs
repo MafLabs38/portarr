@@ -93,7 +93,7 @@ public sealed class McpServerTools
     [Description("How to install one of the operator's MCP servers in a client on this machine: the command to run and/or the entry to merge into the client's configuration file, the variables the machine must provide, and notes. Or, with action remove, how to remove it if present. Nothing is changed by this call: show the operator what you will do and wait for their approval.")]
     public McpInstallAnswer GetMcpServer(
         [Description("The server id or name from list_mcp_servers.")] string server,
-        [Description("The client you are: claude-code, claude-desktop, cursor, vscode, windsurf, gemini-cli, codex-cli, opencode or zed.")] string client,
+        [Description("The id of the client you are, as the catalog and the clients endpoint name it (such as claude-code or cursor); an unknown id is refused with the list of the valid ones.")] string client,
         [Description("user, project or local; omit for the server's default scope.")] string? scope = null,
         [Description("The operating system of this machine: windows, linux or macos; omit for linux.")] string? os = null,
         [Description("install (default) or remove.")] string? action = null)

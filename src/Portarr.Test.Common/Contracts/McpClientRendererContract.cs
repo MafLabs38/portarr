@@ -66,7 +66,7 @@ public abstract class McpClientRendererContract
 
     [Theory]
     [MemberData(nameof(Systems))]
-    public void should_name_the_variable_a_server_reads_and_never_hold_a_value(string os)
+    public void should_name_the_variable_a_server_reads(string os)
     {
         // A definition holds the name of a variable, never a value (D-111): what a renderer writes is the client's syntax for reading that name.
         var text = string.Join('\n', Servers.SelectMany(s => Renderer.Install(new McpRenderContext(s, Renderer.Scopes[0], os)).Operations).Select(o => o.Text));

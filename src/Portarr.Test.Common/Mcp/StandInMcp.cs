@@ -9,8 +9,14 @@ namespace Portarr.Test.Common.Mcp;
 public sealed class StandInMcpClient : IMcpClientRenderer
 {
     public StandInMcpClient(string id, params string[] scopes)
+        : this(id, true, scopes)
+    {
+    }
+
+    public StandInMcpClient(string id, bool readsVariables, params string[] scopes)
     {
         Id = id;
+        ReadsVariables = readsVariables;
         Name = $"Client {id}";
         Scopes = scopes.Length > 0 ? scopes : [McpScopes.User, McpScopes.Project, McpScopes.Local];
     }
@@ -20,6 +26,8 @@ public sealed class StandInMcpClient : IMcpClientRenderer
     public string Name { get; }
 
     public IReadOnlyList<string> Scopes { get; }
+
+    public bool ReadsVariables { get; }
 
     public McpClientOperations Install(McpRenderContext context) =>
         new([new McpOperation(McpOperationKinds.Command, "Stand-in install.", $"{Id} add {context.Server.Id} --scope {context.Scope} ({context.Os})")], [$"Note of {Id}."]);
