@@ -1224,7 +1224,7 @@ backups:
 
 ### 9.18 F-MCP — MCP servers and workstations (D-110 to D-116)
 
-Spec page: [verticals/mcp-servers.md](verticals/mcp-servers.md).
+Spec page: [verticals/mcp-servers.md](verticals/mcp-servers.md). The steps are the order of the work inside one pull request, not releases.
 
 | ID | Feature | Phase |
 |---|---|---|

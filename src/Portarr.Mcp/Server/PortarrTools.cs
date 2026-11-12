@@ -23,12 +23,14 @@ public sealed class PortarrTools
     private readonly FleetDigest _digest;
     private readonly ICatalogService _catalogService;
     private readonly IHttpContextAccessor _httpContext;
+    private readonly IMcpAttentionSource _mcpAttention;
 
-    public PortarrTools(FleetDigest digest, ICatalogService catalogService, IHttpContextAccessor httpContext)
+    public PortarrTools(FleetDigest digest, ICatalogService catalogService, IHttpContextAccessor httpContext, IMcpAttentionSource mcpAttention)
     {
         _digest = digest;
         _catalogService = catalogService;
         _httpContext = httpContext;
+        _mcpAttention = mcpAttention;
     }
 
     [RequiresPermissions(Permissions.AppsView, Permissions.InfrastructureView, Permissions.DataView, Permissions.MaintenanceView)]
@@ -36,22 +38,26 @@ public sealed class PortarrTools
     [Description("Start here. What needs attention across apps, infrastructure, data and maintenance, worst first (danger, warning, info), with app counts, environments and their connection, the busiest machines and data and maintenance counts.")]
     public Overview GetOverview()
     {
-        return ForCaller(_digest.GetOverview(), _httpContext.HttpContext?.User);
+        return WithMcpFinding(_digest.GetOverview(), _httpContext.HttpContext?.User);
     }
 
     /// <summary>
-    /// A dead MCP server is for those who may see the operator's MCP servers (D-115): the Observer, who may read the four
-    /// pages the overview mirrors, does not see that finding.
+    /// A dead MCP server is for those who may see the operator's MCP servers (D-115): the Observer, who may read the four pages the overview
+    /// mirrors, does not see that finding. It is added here, for the callers who hold <c>mcp.use</c>, and is in no other consumer of the attention list.
     /// </summary>
-    internal static Overview ForCaller(Overview overview, ClaimsPrincipal? user)
+    private Overview WithMcpFinding(Overview overview, ClaimsPrincipal? user)
     {
-        if (user?.HasPermission(Permissions.McpUse) == true)
+        if (user?.HasPermission(Permissions.McpUse) != true || _mcpAttention.GetDownFinding() is not { } down)
         {
             return overview;
         }
 
-        return overview with { NeedsAttention = overview.NeedsAttention.Where(f => f.Area != McpAttentionService.Area).ToList() };
+        var finding = new Finding(down.Area, down.Level.ToString().ToLowerInvariant(), down.Kind, down.Count, down.Subjects);
+        return overview with { NeedsAttention = overview.NeedsAttention.Append(finding).OrderBy(f => LevelRank(f.Level)).ToList() };
     }
+
+    /// <summary>Worst first: danger, warning, info. The sort is stable, so the findings of one level keep their order.</summary>
+    private static int LevelRank(string level) => level switch { "danger" => 0, "warning" => 1, "info" => 2, _ => 3 };
 
     [RequiresPermissions(Permissions.AppsView)]
     [McpServerTool(Name = "list_apps", Title = "List apps", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]

@@ -11,6 +11,9 @@ namespace Portarr.Providers.McpClients;
 /// </summary>
 public sealed class ClaudeDesktopRenderer : JsonConfigRenderer
 {
+    /// <summary>The bridge Claude Desktop needs to reach a remote server, pinned: an unpinned package runs on every start (version available on 2026-11-12).</summary>
+    private const string RemoteBridge = "mcp-remote@0.16.6";
+
     public override string Id => "claude-desktop";
 
     public override string Name => "Claude Desktop";
@@ -38,7 +41,7 @@ public sealed class ClaudeDesktopRenderer : JsonConfigRenderer
             return base.Entry(context);
         }
 
-        var args = new List<string> { "-y", "mcp-remote", http.Url.OriginalString };
+        var args = new List<string> { "-y", RemoteBridge, http.Url.OriginalString };
         var env = new JsonObject();
         foreach (var (name, value) in http.Headers.OrderBy(h => h.Key, StringComparer.Ordinal))
         {

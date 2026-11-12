@@ -248,31 +248,6 @@ public sealed class McpHealthMonitorFixture
         monitor.Current["memory"].State.Should().Be(McpHealthState.Healthy);
     }
 
-    [Fact]
-    public void should_list_the_servers_that_are_down_in_the_attention_list_with_the_time_since()
-    {
-        var health = Substitute.For<IMcpHealth>();
-        health.Current.Returns(new Dictionary<string, McpServerHealth>
-        {
-            ["memory"] = new("memory", McpHealthState.Down, Start.AddDays(-12), Start.AddDays(-12), Start, "timeout", null),
-            ["github"] = new("github", McpHealthState.Healthy, Start, Start, Start, null, 200),
-        });
-        _catalog.Current.Returns(State("""
-            mcpServers:
-              - { id: memory, name: Memory, transport: http, http: { url: "https://memory.homelab.example/mcp" } }
-              - { id: github, transport: http, http: { url: "https://github.homelab.example/mcp" } }
-            """));
-        var inner = Substitute.For<Portarr.Core.Attention.IAttentionService>();
-        inner.GetFindings().Returns([]);
-        var subject = new McpAttentionService(inner, _catalog, health, _clock);
-
-        var finding = subject.GetFindings().Should().ContainSingle().Subject;
-
-        finding.Area.Should().Be("mcp");
-        finding.Kind.Should().Be("mcp-server-down");
-        finding.Subjects.Should().Equal("Memory (down for 12 d)");
-    }
-
     [Theory]
     [InlineData(HttpStatusCode.OK, McpHealthState.Healthy)]
     [InlineData(HttpStatusCode.Unauthorized, McpHealthState.AuthenticationRequired)]
@@ -307,16 +282,6 @@ public sealed class McpHealthMonitorFixture
         up.State.Should().Be(McpHealthState.Healthy);
         up.Since.Should().Be(Start.AddHours(2));
         up.LastHealthyAt.Should().Be(Start.AddHours(2));
-    }
-
-    [Theory]
-    [InlineData(0, "1 min")]
-    [InlineData(5, "5 min")]
-    [InlineData(90, "1 h")]
-    [InlineData(60 * 49, "2 d")]
-    public void should_write_a_duration_as_short_as_the_list_wants(int minutes, string expected)
-    {
-        McpAttentionService.Duration(TimeSpan.FromMinutes(minutes)).Should().Be(expected);
     }
 
     private static CatalogState State(string yaml) => new(TestCatalog.Parse(yaml).Catalog, "catalog.yaml", true, [], null);

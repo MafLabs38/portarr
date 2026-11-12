@@ -73,9 +73,6 @@ internal sealed class FleetBuilder
 
     public Dictionary<string, EnvironmentMetrics> Metrics { get; } = [];
 
-    /// <summary>Wraps the attention service, as the host does with the MCP one; none by default.</summary>
-    public Func<IAttentionService, ICatalogService, IAttentionService>? DecorateAttention { get; set; }
-
     public FleetDigest Digest => Build().Digest;
 
     public KnowledgeBase Knowledge => Build().Knowledge;
@@ -124,8 +121,7 @@ internal sealed class FleetBuilder
         var source = Substitute.For<IWorkloadSource>();
         source.Supports(Arg.Any<CatalogEnvironment>()).Returns(call => call.Arg<CatalogEnvironment>().Runtime != RuntimeNames.None);
 
-        IAttentionService attention = new AttentionService(catalogService, fleet, inventory, [source], monitor, data, maintenance);
-        attention = DecorateAttention?.Invoke(attention, catalogService) ?? attention;
+        var attention = new AttentionService(catalogService, fleet, inventory, [source], monitor, data, maintenance);
         var digest = new FleetDigest(catalogService, fleet, inventory, monitor, hostMonitor, data, maintenance, attention, [source], clock);
         return (digest, new KnowledgeBase(digest, catalogService, fleet));
     }

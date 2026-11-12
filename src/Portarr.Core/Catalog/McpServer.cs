@@ -24,6 +24,27 @@ public sealed record McpServerDefinition(
     /// <summary>Every header and environment value of the server, whichever its transport.</summary>
     public IEnumerable<McpValue> Values => (Http?.Headers.Values ?? []).Concat(Stdio?.Env.Values ?? []);
 
+    /// <summary>A package run through <c>npx</c>, <c>uvx</c>, <c>bunx</c> or <c>pnpx</c> without a version: it changes under the operator's feet.</summary>
+    public bool RunsAnUnpinnedPackage
+    {
+        get
+        {
+            if (Stdio is not { Command: "npx" or "uvx" or "bunx" or "pnpx" } stdio)
+            {
+                return false;
+            }
+
+            var package = stdio.Args.FirstOrDefault(a => !a.StartsWith('-'));
+            if (package is null)
+            {
+                return false;
+            }
+
+            var at = package.LastIndexOf('@');
+            return at <= 0 || package.EndsWith("@latest", StringComparison.Ordinal);
+        }
+    }
+
     /// <summary>The variables the workstation must provide for this server, sorted: the names behind its <c>{ env: NAME }</c> values.</summary>
     public IReadOnlyList<string> RequiredVariables() => Values.Where(v => v.IsEnv).Select(v => v.EnvName!).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
 }

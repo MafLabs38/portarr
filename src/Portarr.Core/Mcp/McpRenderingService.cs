@@ -84,7 +84,7 @@ public sealed class McpRenderingService : IMcpRenderingService
         var own = removal ? renderer.Remove(context) : renderer.Install(context);
         var operations = own.Operations.ToList();
         var notes = own.Notes.ToList();
-        AddGenericNotes(context, operations, notes, removal);
+        AddGenericNotes(context, notes, removal);
 
         var secrets = removal ? [] : SecretsOf(server);
         var requiresSecrets = new List<string>();
@@ -102,11 +102,11 @@ public sealed class McpRenderingService : IMcpRenderingService
     private static string DefaultScope(McpServerDefinition server, IMcpClientRenderer renderer) => renderer.Scopes.Contains(server.Scope) ? server.Scope : renderer.Scopes[0];
 
     /// <summary>What holds for every client, whatever its adapter says.</summary>
-    private static void AddGenericNotes(McpRenderContext context, List<McpOperation> operations, List<string> notes, bool removal)
+    private static void AddGenericNotes(McpRenderContext context, List<string> notes, bool removal)
     {
-        if (context.Windows && operations.Exists(o => o.Kind == McpOperationKinds.Command))
+        if (!removal && context.Server.RunsAnUnpinnedPackage)
         {
-            notes.Add("Run the commands in PowerShell: they are quoted with single quotes, which cmd.exe does not read as quoting.");
+            notes.Add("This server runs a package without a pinned version: it changes under you. Pin a version in the catalog (such as @1.4.2) before installing it.");
         }
 
         if (!removal && context.Windows && context.Server.Stdio?.Command is "npx" or "npx.cmd")

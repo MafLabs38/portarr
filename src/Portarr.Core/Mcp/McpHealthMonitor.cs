@@ -79,6 +79,7 @@ public sealed partial class McpHealthMonitor : BackgroundService, IMcpHealth
 
         // A new address starts a new life: it runs now.
         var due = servers.Where(s => !_nextRuns.TryGetValue(s.Id, out var next) || next.Url != s.Http!.Url || next.Next <= now).ToList();
+        // Scheduled before the probe on purpose: a probe that is slow or cancelled must not be started again by the next tick. Memory only, so a restart probes everything.
         foreach (var server in due)
         {
             _nextRuns[server.Id] = (now + server.CheckInterval!.Value, server.Http!.Url);

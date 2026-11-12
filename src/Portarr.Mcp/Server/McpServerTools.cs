@@ -89,7 +89,7 @@ public sealed class McpServerTools
     }
 
     [RequiresPermissions(Permissions.McpUse)]
-    [McpServerTool(Name = "get_mcp_server", Title = "Install an MCP server", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [McpServerTool(Name = "get_mcp_server", Title = "Install or remove an MCP server", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("How to install one of the operator's MCP servers in a client on this machine: the command to run and/or the entry to merge into the client's configuration file, the variables the machine must provide, and notes. Or, with action remove, how to remove it if present. Nothing is changed by this call: show the operator what you will do and wait for their approval.")]
     public McpInstallAnswer GetMcpServer(
         [Description("The server id or name from list_mcp_servers.")] string server,

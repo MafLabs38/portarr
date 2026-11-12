@@ -1,7 +1,10 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using ModelContextProtocol;
 using Portarr.Core.Accounts;
+using Portarr.Core.Attention;
 using Portarr.Core.Catalog;
+using Portarr.Core.Maintenance;
 using Portarr.Core.Mcp;
 using Portarr.Http.Authentication;
 using Portarr.Mcp.Digest;
@@ -146,21 +149,37 @@ public sealed class McpServerToolsFixture
         act.Should().Throw<McpException>().Which.Message.Should().StartWith(expected);
     }
 
+    private static Overview OverviewFor(ClaimsPrincipal? user, bool mcpServerDown = true)
+    {
+        var attention = Substitute.For<IMcpAttentionSource>();
+        attention.GetDownFinding().Returns(mcpServerDown ? new AttentionFinding("mcp", AttentionLevel.Warning, "mcp-server-down", 1, ["Memory (down for 12 d)"]) : null);
+        var context = Substitute.For<IHttpContextAccessor>();
+        context.HttpContext.Returns(user is null ? null : new DefaultHttpContext { User = user });
+        return new PortarrTools(new FleetBuilder().Digest, Substitute.For<ICatalogService>(), context, attention).GetOverview();
+    }
+
     [Fact]
     public void should_hide_a_dead_mcp_server_from_whoever_may_not_see_the_mcp_servers()
     {
-        var overview = new FleetBuilder().Digest.GetOverview() with
-        {
-            NeedsAttention = [new Finding("mcp", "warning", "mcp-server-down", 1, ["Memory (down for 12 d)"]), new Finding("apps", "danger", "app-down", 1, ["Blog"])],
-        };
+        var observer = Caller(Permissions.AppsView, Permissions.InfrastructureView, Permissions.DataView, Permissions.MaintenanceView);
 
-        var observer = Caller(Permissions.AppsView, Permissions.InfrastructureView);
+        OverviewFor(observer).NeedsAttention.Select(f => f.Kind).Should().NotContain("mcp-server-down");
+        OverviewFor(null).NeedsAttention.Select(f => f.Kind).Should().NotContain("mcp-server-down");
+    }
+
+    [Fact]
+    public void should_show_a_dead_mcp_server_to_whoever_holds_mcp_use_in_its_place_in_the_list()
+    {
         var operatorPrincipal = Caller(Permissions.AppsView, Permissions.McpUse);
 
-        PortarrTools.ForCaller(overview, observer).NeedsAttention.Select(f => f.Kind).Should().Equal("app-down");
-        PortarrTools.ForCaller(overview, null).NeedsAttention.Select(f => f.Kind).Should().Equal("app-down");
-        PortarrTools.ForCaller(overview, operatorPrincipal).NeedsAttention.Select(f => f.Kind).Should().Equal("mcp-server-down", "app-down");
+        var list = OverviewFor(operatorPrincipal).NeedsAttention;
+
+        list.Should().Contain(f => f.Kind == "mcp-server-down" && f.Area == "mcp" && f.Level == "warning");
+        list.Select(f => f.Level).Should().BeInAscendingOrder(Comparer<string>.Create((x, y) => Rank(x).CompareTo(Rank(y))), "the list stays worst first");
+        OverviewFor(operatorPrincipal, mcpServerDown: false).NeedsAttention.Should().NotContain(f => f.Kind == "mcp-server-down");
     }
+
+    private static int Rank(string level) => level switch { "danger" => 0, "warning" => 1, "info" => 2, _ => 3 };
 
     [Fact]
     public void should_list_the_workstations_with_what_is_wanted_on_them()

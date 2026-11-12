@@ -70,12 +70,8 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IMaintenanceMonitor>(provider => provider.GetRequiredService<MaintenanceMonitor>());
         services.AddHostedService(provider => provider.GetRequiredService<MaintenanceMonitor>());
         services.AddSingleton<IMaintenanceService, MaintenanceService>();
-        services.AddSingleton<AttentionService>();
-        services.AddSingleton<IAttentionService>(provider => new McpAttentionService(
-            provider.GetRequiredService<AttentionService>(),
-            provider.GetRequiredService<ICatalogService>(),
-            provider.GetRequiredService<IMcpHealth>(),
-            provider.GetRequiredService<TimeProvider>()));
+        services.AddSingleton<IAttentionService, AttentionService>();
+        services.AddSingleton<IMcpAttentionSource, McpAttentionSource>();
 
         services.AddSingleton<ICheckStore, CheckStore>();
         services.AddSingleton<ICheckRunner, HttpCheckRunner>();

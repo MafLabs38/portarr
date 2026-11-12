@@ -20,4 +20,4 @@ An accepted ADR is never edited to change its decision: a new ADR supersedes it.
 | [0013](0013-connectors-own-their-environment-settings.md) | Connectors own their environment settings | D-105 |
 | [0014](0014-releases-with-semantic-release.md) | Releases are decided by semantic-release from main | D-109 |
 | [0015](0015-review-findings-are-answered-in-a-register-the-agents-read.md) | Review findings are answered in a register the agents read; a serious one not fixed is the maintainer's to accept | — |
-| [0016](0016-mcp-servers-are-described-by-portarr-and-installed-by-the-assistant.md) | MCP servers are described by Portarr and installed by the assistant | D-110 to D-116 |
+| [0016](0016-mcp-servers-are-defined-in-portarr-and-replicated-onto-machines.md) | MCP servers are defined in Portarr and replicated onto machines, never the other way | D-110 to D-116 |

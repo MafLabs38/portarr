@@ -150,4 +150,15 @@ public sealed class GoldenRenderingFixture
 
         rendering.Operations.First(o => o.Kind == McpOperationKinds.Command).Text.Should().Contain("'--allow=/srv/a,/srv/b'");
     }
+
+    [Fact]
+    public void should_tell_the_operator_to_use_powershell_for_the_commands_of_a_windows_machine_and_only_there()
+    {
+        var servers = Servers;
+        var rendering = RealMcp.Rendering(Parsed);
+
+        rendering.Install(servers[0], "claude-code", McpScopes.User, McpOperatingSystems.Windows).Notes.Should().Contain(n => n.Contains("PowerShell", StringComparison.Ordinal));
+        rendering.Install(servers[0], "claude-code", McpScopes.User, McpOperatingSystems.Linux).Notes.Should().NotContain(n => n.Contains("PowerShell", StringComparison.Ordinal));
+        rendering.Install(servers[0], "cursor", McpScopes.User, McpOperatingSystems.Windows).Notes.Should().NotContain(n => n.Contains("PowerShell", StringComparison.Ordinal), "Cursor is given a file entry, no command");
+    }
 }

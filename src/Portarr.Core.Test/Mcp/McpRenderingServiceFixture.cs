@@ -119,13 +119,19 @@ public sealed class McpRenderingServiceFixture
     }
 
     [Fact]
-    public void should_tell_a_windows_operator_to_use_powershell_for_commands_and_to_expect_npx_trouble()
+    public void should_warn_a_windows_operator_about_npx_and_every_operator_about_an_unpinned_package()
     {
         var windows = Service(Servers).Install(Server(Servers, "github"), "cursor", null, McpOperatingSystems.Windows);
         var linux = Service(Servers).Install(Server(Servers, "github"), "cursor", null, McpOperatingSystems.Linux);
 
-        windows.Notes.Should().Contain(n => n.Contains("PowerShell", StringComparison.Ordinal)).And.Contain(n => n.Contains("/c npx", StringComparison.Ordinal));
-        linux.Notes.Should().NotContain(n => n.Contains("PowerShell", StringComparison.Ordinal) || n.Contains("npx", StringComparison.Ordinal));
+        windows.Notes.Should().Contain(n => n.Contains("/c npx", StringComparison.Ordinal));
+        linux.Notes.Should().NotContain(n => n.Contains("npx", StringComparison.Ordinal));
+        windows.Notes.Should().NotContain(n => n.Contains("PowerShell", StringComparison.Ordinal), "how a command is quoted is the adapter's to say");
+
+        const string unpinned = "mcpServers:\n  - { id: loose, transport: stdio, stdio: { command: npx, args: [\"-y\", \"@example/pkg\"] } }";
+        var rendering = Service(unpinned).Install(Server(unpinned, "loose"), "cursor");
+        rendering.Notes.Should().Contain(n => n.Contains("without a pinned version", StringComparison.Ordinal));
+        Service(unpinned).Remove(Server(unpinned, "loose"), "cursor").Notes.Should().NotContain(n => n.Contains("pinned", StringComparison.Ordinal));
     }
 
     [Fact]

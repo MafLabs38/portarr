@@ -28,7 +28,7 @@ The formats below were read from each client's own documentation on **2026-11-12
 Several details were not on the pages read; each one is said in the notes of the rendering, and none is guessed silently.
 
 - **Windows locations** of the user files of Claude Code, Cursor, VS Code, Codex CLI, OpenCode and Zed follow the usual conventions (`%USERPROFILE%`, `%APPDATA%`); only Claude Desktop and Windsurf document a Windows path.
-- **Claude Desktop** documents no remote-server entry for its file and no variable syntax: a remote server is rendered through the `mcp-remote` bridge, the variables become placeholders the operator replaces, and the page says Claude Desktop can also add a remote server as a custom connector.
+- **Claude Desktop** documents no remote-server entry for its file and no variable syntax: a remote server is rendered through the `mcp-remote` bridge, pinned to a version (0.16.6, checked 2026-11-12: an unpinned package runs on every start), the variables become placeholders the operator replaces, and the page says Claude Desktop can also add a remote server as a custom connector.
 - **Zed** documents no variable syntax: placeholders, as for Claude Desktop.
 - **Windsurf** documentation moved to Devin's; older builds read `~/.codeium/windsurf/mcp_config.json` (said in the notes).
 - **OpenCode** documents two shapes: the current `mcp.servers.<name>` is rendered, and the notes say older versions put the entry directly under `mcp`.

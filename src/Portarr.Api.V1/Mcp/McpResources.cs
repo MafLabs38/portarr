@@ -119,7 +119,7 @@ internal static class McpResourceMapper
             server.CheckInterval is { } interval ? interval.ToString("c", global::System.Globalization.CultureInfo.InvariantCulture) : null,
             view.Status,
             view.Health?.ToResource(),
-            IsUnpinned(server),
+            server.RunsAnUnpinnedPackage,
             server.Notes);
     }
 
@@ -143,23 +143,5 @@ internal static class McpResourceMapper
             rendering.RequiresSecrets,
             rendering.Operations.Select(o => new McpOperationResource(o.Kind, o.Description, o.Text, o.Path)).ToList(),
             rendering.Notes);
-    }
-
-    /// <summary>A package run through <c>npx</c> or <c>uvx</c> without a version: it changes under the operator's feet.</summary>
-    internal static bool IsUnpinned(McpServerDefinition server)
-    {
-        if (server.Stdio is not { Command: "npx" or "uvx" or "bunx" or "pnpx" } stdio)
-        {
-            return false;
-        }
-
-        var package = stdio.Args.FirstOrDefault(a => !a.StartsWith('-'));
-        if (package is null)
-        {
-            return false;
-        }
-
-        var at = package.LastIndexOf('@');
-        return at <= 0 || package.EndsWith("@latest", StringComparison.Ordinal);
     }
 }

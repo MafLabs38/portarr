@@ -26,12 +26,12 @@ public abstract class McpClientRendererBase : IMcpClientRenderer
 
     public McpClientOperations Install(McpRenderContext context)
     {
-        return new McpClientOperations(InstallOperations(context).ToList(), Notes(context).ToList());
+        return Compose(context, InstallOperations(context).ToList());
     }
 
     public McpClientOperations Remove(McpRenderContext context)
     {
-        return new McpClientOperations(RemoveOperations(context).ToList(), Notes(context).ToList());
+        return Compose(context, RemoveOperations(context).ToList());
     }
 
     protected abstract IEnumerable<McpOperation> InstallOperations(McpRenderContext context);
@@ -40,6 +40,18 @@ public abstract class McpClientRendererBase : IMcpClientRenderer
 
     /// <summary>What the operator must know beyond the operations: a restart, a format that could not be verified.</summary>
     protected virtual IEnumerable<string> Notes(McpRenderContext context) => [];
+
+    /// <summary>The operations, and the notes of the client; on Windows, the one that says where this library's quoting is understood.</summary>
+    private McpClientOperations Compose(McpRenderContext context, List<McpOperation> operations)
+    {
+        var notes = Notes(context).ToList();
+        if (context.Windows && operations.Exists(o => o.Kind == McpOperationKinds.Command))
+        {
+            notes.Add("Run the commands in PowerShell: they are quoted with single quotes, which cmd.exe does not read as quoting.");
+        }
+
+        return new McpClientOperations(operations, notes);
+    }
 
     protected static string Json(JsonNode node) => node.ToJsonString(Indented);
 

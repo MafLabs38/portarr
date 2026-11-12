@@ -102,6 +102,76 @@ public sealed class McpCheckRunnerFixture : CoreTest<McpCheckRunner>
     }
 
     [Fact]
+    public async Task should_stop_reading_a_stream_that_stays_open_as_soon_as_its_first_event_ends()
+    {
+        // The server answers with an event and keeps the stream open (CRLF line ends): the probe has what it needs and must not wait for the timeout.
+        Given(new FakeHttpHandler((_, _) =>
+        {
+            var content = new StreamContent(new OpenStream(Encoding.UTF8.GetBytes("event: message\r\ndata: " + Result + "\r\n\r\n")));
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/event-stream");
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        }));
+        using var cancel = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancel.CancelAfter(TimeSpan.FromSeconds(10));
+
+        var result = await Subject.RunAsync(Target, Definition, cancel.Token);
+
+        result.Up.Should().BeTrue();
+    }
+
+    /// <summary>A body that gives its bytes and then never ends, until the read is cancelled: a server-sent stream that stays open.</summary>
+    private sealed class OpenStream : Stream
+    {
+        private readonly byte[] _first;
+        private int _position;
+
+        public OpenStream(byte[] first)
+        {
+            _first = first;
+        }
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_position < _first.Length)
+            {
+                var count = Math.Min(buffer.Length, _first.Length - _position);
+                _first.AsMemory(_position, count).CopyTo(buffer);
+                _position += count;
+                return count;
+            }
+
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return 0;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    [Fact]
     public async Task should_time_out_after_the_check_timeout()
     {
         Given(new FakeHttpHandler(async (_, token) =>

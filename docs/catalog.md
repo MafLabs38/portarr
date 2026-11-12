@@ -1,6 +1,6 @@
 # The catalog (`catalog.yaml`)
 
-The catalog declares what you run: **environments**, **stacks** and **apps**, plus the **data you follow** (and which backup tools should protect it), the **code sources** you make apps from, and **what you know** about the fleet for people and AI assistants: notes, how to reach each machine, network links and external providers ([Knowledge](#knowledge-for-people-and-assistants)). Workloads (containers, pods, Pages projects, Workers) are never declared: Portarr discovers them and links them to apps through selectors (spec §4.2).
+The catalog declares what you run: **environments**, **stacks** and **apps**, plus the **data you follow** (and which backup tools should protect it), the **code sources** you make apps from, **what you know** about the fleet for people and AI assistants: notes, how to reach each machine, network links and external providers ([Knowledge](#knowledge-for-people-and-assistants)), and the **MCP servers** you use with your AI assistants and the **workstations** you use them from ([MCP servers](#mcp-servers)). Workloads (containers, pods, Pages projects, Workers) are never declared: Portarr discovers them and links them to apps through selectors (spec §4.2).
 
 - Location: `<data folder>/catalog.yaml` (`/config/catalog.yaml` in the image), or `PORTARR__CATALOGFILE`.
 - Reloaded as soon as the file is saved. A broken edit keeps the last valid catalog; the errors are shown on the Apps page and at `GET /api/v1/catalog/status`.
@@ -439,7 +439,7 @@ curl -s -X PUT localhost:8484/api/v1/catalog/apps/blog/notes -H "X-Api-Key: $KEY
 - **Versions**: every write sends the version it read; if the file changed since (by hand, by another client), the write is refused with 409 and the current version. Writes are serialized.
 - **Validation**: the whole resulting file goes through the parser; an error is a 400 whose `errors` are keyed by field path (`apps[blog].check.url`) and the file is not touched.
 - **What changes in the file**: only what differs. A changed value is rewritten in place, a new key or item is added after the last one with the file's indentation and style (an item of a list written `- { … }` is written that way), a removed one loses its lines; comments and formatting elsewhere stay. Limits: a comment *inside* a rewritten node is lost (a flow item is rewritten whole; a list whose order changed is rewritten), and a comment line above a removed item stays.
-- **Safety**: the file is written to a temporary file and renamed over the catalog (atomic); a catalog bind-mounted as a single file is rewritten in place instead. Each write keeps the previous version and is appended to `catalog.audit.jsonl` next to the catalog (when, channel `api`, `mcp` or `ui`, client address, operation, item, versions before and after, which keys changed; never values or keys). 30 writes per minute per client.
+- **Safety**: the file is written to a temporary file and renamed over the catalog (atomic); a catalog bind-mounted as a single file is rewritten in place instead. Each write keeps the previous version and is appended to `catalog.audit.jsonl` next to the catalog (when, channel `api` or `mcp`, client address, operation, item, versions before and after, which keys changed; never values or keys). 30 writes per minute per client.
 
 ## Icons
 
