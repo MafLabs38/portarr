@@ -90,6 +90,10 @@ export default function McpAcceptForm({
           {translate('McpCaptureFormWanted', { workstations: workstations.join(', ') })}
         </label>
       ) : null}
+      <section aria-label={translate('McpCaptureFormDefinition')} className={styles.definition}>
+        <p className={styles.hint}>{translate('McpCaptureFormDefinitionHint')}</p>
+        <pre className={styles.yaml}>{group.proposal.yaml}</pre>
+      </section>
       <div className={styles.actions}>
         <button className={styles.primary} disabled={pending} type="submit">
           {translate(replacing ? 'McpCaptureFormSubmitReplace' : 'McpCaptureFormSubmitNew')}

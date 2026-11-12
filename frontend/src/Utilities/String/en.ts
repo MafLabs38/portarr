@@ -402,6 +402,7 @@ const en: Record<string, string> = {
   McpReasonTlsExpired: 'expired certificate',
   McpReasonNotMcp: 'not an MCP server',
   McpReasonCheckFailed: 'Portarr could not run the check',
+  McpUnknown: 'Unknown',
   McpReasonHttp: 'HTTP {code}',
   McpDefinition: 'Definition',
   McpHealth: 'Health',
@@ -480,6 +481,9 @@ const en: Record<string, string> = {
   McpCaptureFormSubmitNew: 'Add to the catalog',
   McpCaptureFormSubmitReplace: 'Update the definition',
   McpCaptureFormCancel: 'Cancel',
+  McpCaptureFormDefinition: 'What will be written',
+  McpCaptureFormDefinitionHint:
+    'Read it all before you accept: every argument and every value is part of what the clients will run.',
   McpCaptureWritten: 'Written to the catalog as {server}.',
   McpCaptureWantedUpdated: 'Wanted list updated: {workstations}.',
   McpCaptureSkipped: 'Not updated: {reasons}',

@@ -140,6 +140,7 @@ public sealed class CatalogMcpParserFixture
     [InlineData("transport: stdio\n    check: true\n    stdio: { command: npx }", "cannot reach")]
     [InlineData("transport: stdio\n    stdio: { command: npx, env: { 1BAD: { env: GOOD } } }", "invalid name")]
     [InlineData("transport: stdio\n    stdio: { command: npx, env: { TOKEN: { env: not-a-name } } }", "environment variable")]
+    [InlineData("transport: stdio\n    stdio: { command: npx, env: { TOKEN: { env: \"GOOD_NAME\\n\" } } }", "environment variable")]
     [InlineData("transport: stdio\n    stdio: { command: npx, env: { LEVEL: {} } }", "needs a value")]
     public void should_refuse_an_invalid_server(string body, string expected)
     {

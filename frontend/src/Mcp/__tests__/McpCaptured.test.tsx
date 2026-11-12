@@ -65,6 +65,9 @@ describe('MCP captured tab', () => {
     await user.click(await within(search).findByRole('button', { name: 'Add to the catalog…' }));
     const form = within(search).getByRole('form', { name: 'Add to the catalog' });
     expect(within(form).getByLabelText('Id in the catalog')).toHaveValue('search-tool');
+    expect(
+      within(within(form).getByRole('region', { name: 'What will be written' })).getByText(/id: search-tool/),
+    ).toBeInTheDocument();
     const variable = within(form).getByLabelText('header X-Api-Key: variable that holds it');
     expect(variable).toHaveValue('SEARCH_TOOL_X_API_KEY');
     await user.clear(variable);

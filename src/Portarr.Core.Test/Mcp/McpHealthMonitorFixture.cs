@@ -124,17 +124,38 @@ public sealed class McpHealthMonitorFixture
     }
 
     [Fact]
-    public async Task should_not_blame_the_server_when_the_probe_itself_fails()
+    public async Task should_say_unknown_and_not_down_when_the_probe_itself_fails()
     {
         var monitor = Monitor;
         await monitor.RunDueAsync(TestContext.Current.CancellationToken);
-        var before = monitor.Current["memory"];
 
         _probeBug = true;
         _clock.Advance(TimeSpan.FromMinutes(5));
         await monitor.RunDueAsync(TestContext.Current.CancellationToken);
 
-        monitor.Current["memory"].Should().Be(before, "what the operator reads is the last real check, not a bug of Portarr (D-104)");
+        var health = monitor.Current["memory"];
+        health.State.Should().Be(McpHealthState.Unknown, "a bug of Portarr is not a dead server (D-104)");
+        health.Error.Should().Be("check-failed");
+        health.LastHealthyAt.Should().Be(Start, "what was known about the server is kept");
+        health.IsUp.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task should_start_a_new_period_when_a_real_check_follows_an_unknown_one()
+    {
+        var monitor = Monitor;
+        _probeBug = true;
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+        _probeBug = false;
+        _status = HttpStatusCode.BadGateway;
+        _body = "Bad gateway";
+        _clock.Advance(TimeSpan.FromMinutes(5));
+
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+
+        var health = monitor.Current["memory"];
+        health.State.Should().Be(McpHealthState.Down);
+        health.Since.Should().Be(_clock.GetUtcNow());
     }
 
     [Fact]

@@ -42,7 +42,7 @@ The four tabs answer four questions; the assistant asks them all, mixes them and
 
 | Tool | Arguments | Returns |
 |---|---|---|
-| `get_overview` | — | App counts; **needs attention** (grouped findings, danger → warning → info: `app-down`, `environment-unreachable`, `machine-not-ready`, `backup-failed`, `data-missing`, `backup-late`, `backup-tool-not-set-up`, `critical-without-offsite`, `critical-offsite-pending`, the Maintenance attention kinds…); environments and their connection; the 5 busiest machines; data and maintenance counts; catalog errors (count only) |
+| `get_overview` | — | App counts; **needs attention** (grouped findings, danger → warning → info: `app-down`, `environment-unreachable`, `machine-not-ready`, `backup-failed`, `data-missing`, `backup-late`, `backup-tool-not-set-up`, `critical-without-offsite`, `critical-offsite-pending`, the Maintenance attention kinds…, and `mcp-server-down` for a caller who holds `mcp.use`, D-115); environments and their connection; the 5 busiest machines; data and maintenance counts; catalog errors (count only) |
 | `list_apps` | `status`, `stack`, `environment` (optional) | Apps, worst first: status and reason, stack and role, environments, main URL |
 | `get_app` | `app` (id or name) | Status and reason, URLs, workloads with environment, machine, hypervisor, image and usage, the HTTP check, data assets and coverage, images and verdicts, repository. Unknown app: an error naming close matches |
 | `get_infrastructure` | `environment` (optional) | Machines: kind, readiness, roles, scope, CPU and memory now / lowest / highest over the live window, capacity, hypervisor, guests, top 5 consumers with their apps |

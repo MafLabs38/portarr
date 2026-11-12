@@ -127,7 +127,12 @@ public sealed partial class McpCaptureService : IMcpCaptureService
             await AddToWorkstationsAsync(group, serverId, actor, updated, skipped, errors, cancellationToken);
         }
 
-        await _store.ResolveAsync(rows.Select(r => r.RowId).ToList(), McpCaptureStore.Accepted, user, serverId, _timeProvider.GetUtcNow(), cancellationToken);
+        if (errors.Count == 0)
+        {
+            // A group whose workstations could not all be updated stays in the inbox (now as "same"), so that the person can try again.
+            await _store.ResolveAsync(rows.Select(r => r.RowId).ToList(), McpCaptureStore.Accepted, user, serverId, _timeProvider.GetUtcNow(), cancellationToken);
+        }
+
         return new AcceptResult(true, false, serverId, updated, skipped, errors, null);
     }
 

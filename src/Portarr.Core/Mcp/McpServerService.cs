@@ -8,6 +8,7 @@ public sealed record McpServerView(McpServerDefinition Server, McpServerHealth? 
 {
     public const string HealthyStatus = "healthy";
     public const string AuthenticationRequiredStatus = "authentication-required";
+    public const string UnknownStatus = "unknown";
     public const string DownStatus = "down";
 
     /// <summary>The server has a check but no result yet (just started, or just added).</summary>
@@ -30,6 +31,7 @@ public sealed record McpServerView(McpServerDefinition Server, McpServerHealth? 
                 McpHealthState.Healthy => HealthyStatus,
                 McpHealthState.AuthenticationRequired => AuthenticationRequiredStatus,
                 McpHealthState.Down => DownStatus,
+                McpHealthState.Unknown => UnknownStatus,
                 _ => WaitingStatus,
             };
         }

@@ -214,11 +214,14 @@ public sealed class McpClientRendererFixture
                   args: ["-y", "{{literal}}"]
             """).Catalog.McpServerList[0];
 
-        foreach (var client in new[] { "claude-code", "gemini-cli", "codex-cli" })
+        foreach (var client in McpClients.Ids)
         {
-            var rendering = McpClients.Find(client)!.Install(server, McpClients.Find(client)!.Scopes[0], McpOperatingSystems.Windows);
+            foreach (var system in new[] { McpOperatingSystems.Windows, McpOperatingSystems.Linux, McpOperatingSystems.MacOs })
+            {
+                var rendering = McpClients.Find(client)!.Install(server, McpClients.Find(client)!.Scopes[0], system);
 
-            rendering.Operations.Where(o => o.Kind == McpOperationKinds.Command).Should().OnlyContain(o => !o.Text.Contains(literal, StringComparison.Ordinal));
+                rendering.Operations.Where(o => o.Kind == McpOperationKinds.Command).Should().OnlyContain(o => !o.Text.Contains(literal, StringComparison.Ordinal));
+            }
         }
     }
 

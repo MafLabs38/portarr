@@ -110,7 +110,7 @@ One renderer per client behind one contract (rule 8). Given a server, a scope an
 ### Health of the servers (D-114)
 
 - Only **remote servers**, only **the server**: Portarr never asks whether a workstation is on, and a laptop switched off every evening is not an event.
-- A new check type `mcp`, run by its own monitor (`McpHealthMonitor`, with the tick and the concurrency of the check scheduler, D-50): the state is richer than up or down (healthy, asking for credentials, down) and is persisted (last healthy, since), which the check results are not. One `initialize` request per interval (default 5 minutes, never seconds), without credentials.
+- A new check type `mcp`, run by its own monitor (`McpHealthMonitor`, with the tick and the concurrency of the check scheduler, D-50): the state is richer than up or down (healthy, asking for credentials, down) and is persisted (last healthy, since), which the check results are not. One `initialize` request per interval (default 5 minutes; `check.interval` accepts 10 seconds to 24 hours), without credentials.
 
 | Answer | State |
 |---|---|

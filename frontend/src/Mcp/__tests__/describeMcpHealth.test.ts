@@ -45,6 +45,10 @@ describe('describeMcpHealth', () => {
 
   it('waits for the first check of a server just added', () => {
     expect(at({ ...memory, status: 'waiting', health: null })).toMatchObject({ label: 'Waiting for the first check' });
+    expect(at({ ...memory, status: 'unknown' })).toMatchObject({
+      label: 'Unknown',
+      detail: 'Portarr could not run the check',
+    });
   });
 
   it('writes a duration in the largest sensible unit', () => {

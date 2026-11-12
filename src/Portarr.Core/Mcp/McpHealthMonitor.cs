@@ -88,12 +88,6 @@ public sealed partial class McpHealthMonitor : BackgroundService, IMcpHealth
         await Parallel.ForEachAsync(due, options, async (server, token) =>
         {
             var result = await ProbeAsync(server, token);
-            if (result.Error == CheckErrors.CheckFailed)
-            {
-                // D-104: a check that Portarr could not run says nothing about the server. What the operator reads stays as it was.
-                return;
-            }
-
             var health = Next(server.Id, _current.GetValueOrDefault(server.Id), result);
             lock (_lock)
             {
@@ -111,6 +105,14 @@ public sealed partial class McpHealthMonitor : BackgroundService, IMcpHealth
     /// </summary>
     internal static McpServerHealth Next(string serverId, McpServerHealth? previous, CheckResult result)
     {
+        if (result.Error == CheckErrors.CheckFailed)
+        {
+            // D-104: a check that Portarr could not run says nothing about the server: Unknown, never Down. The last real state is not lost:
+            // the time of the last healthy check stays, and it counts from the first check that was not Unknown.
+            var unknownSince = previous?.State == McpHealthState.Unknown ? previous.Since : result.At;
+            return new McpServerHealth(serverId, McpHealthState.Unknown, unknownSince, previous?.LastHealthyAt, result.At, result.Error, null);
+        }
+
         var up = result.Up;
         var state = McpHealthState.Down;
         if (up)
@@ -118,7 +120,7 @@ public sealed partial class McpHealthMonitor : BackgroundService, IMcpHealth
             state = result.StatusCode is 401 or 403 ? McpHealthState.AuthenticationRequired : McpHealthState.Healthy;
         }
 
-        var since = previous is not null && previous.IsUp == up ? previous.Since : result.At;
+        var since = previous is not null && previous.State != McpHealthState.Unknown && previous.IsUp == up ? previous.Since : result.At;
         var lastHealthy = up ? result.At : previous?.LastHealthyAt;
         return new McpServerHealth(serverId, state, since, lastHealthy, result.At, result.Error, result.StatusCode);
     }

@@ -52,6 +52,7 @@ const statusKinds: Record<McpStatus, { kind: kinds.Kind; icon: LucideIcon }> = {
   healthy: { kind: kinds.SUCCESS, icon: icons.HEALTHY },
   'authentication-required': { kind: kinds.SUCCESS, icon: icons.HEALTHY },
   down: { kind: kinds.DANGER, icon: icons.DOWN },
+  unknown: { kind: kinds.DISABLED, icon: icons.UNKNOWN },
   waiting: { kind: kinds.DISABLED, icon: icons.UNKNOWN },
   'not-checked': { kind: kinds.DISABLED, icon: icons.UNKNOWN },
 };
@@ -91,6 +92,8 @@ export default function describeMcpHealth(server: McpServer, now: number = Date.
         detail: reason ? `${reason} · ${seen}` : seen,
       };
     }
+    case 'unknown':
+      return { kind, icon, label: translate('McpUnknown'), detail: translate('McpReasonCheckFailed') };
     case 'waiting':
       return { kind, icon, label: translate('McpWaiting'), detail: null };
     default:

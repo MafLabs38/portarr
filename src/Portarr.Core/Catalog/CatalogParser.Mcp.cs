@@ -18,11 +18,11 @@ public static partial class CatalogParser
     private static readonly TimeSpan MinMcpTimeout = TimeSpan.FromSeconds(1);
 
     /// <summary>An HTTP header name: letters, digits and dashes.</summary>
-    [GeneratedRegex("^[A-Za-z][A-Za-z0-9-]{0,63}$")]
+    [GeneratedRegex("^[A-Za-z][A-Za-z0-9-]{0,63}\\z")]
     internal static partial Regex McpHeaderNamePattern();
 
     /// <summary>An environment variable name.</summary>
-    [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]{0,127}$")]
+    [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]{0,127}\\z")]
     internal static partial Regex McpVariableNamePattern();
 
     /// <summary>A header or variable whose value is a credential: it must name a variable, never hold the value.</summary>
@@ -38,19 +38,19 @@ public static partial class CatalogParser
     internal static partial Regex McpShellCharacterPattern();
 
     /// <summary>The key of a secret in a Vault-like store: one name.</summary>
-    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")]
+    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\z")]
     internal static partial Regex McpSecretKeyPattern();
 
     /// <summary>The name of an Azure Key Vault secret: letters, digits and dashes.</summary>
-    [GeneratedRegex("^[A-Za-z0-9-]{1,63}$")]
+    [GeneratedRegex("^[A-Za-z0-9-]{1,63}\\z")]
     internal static partial Regex McpAzureSecretNamePattern();
 
     /// <summary>The path in Vault under which the MCP secrets live: <c>kv/mcp</c>.</summary>
-    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*$")]
+    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*\z")]
     internal static partial Regex McpVaultPrefixPattern();
 
     /// <summary>What an Azure Key Vault secret's name starts with: <c>mcp-</c>.</summary>
-    [GeneratedRegex("^[A-Za-z0-9-]{0,50}$")]
+    [GeneratedRegex("^[A-Za-z0-9-]{0,50}\\z")]
     internal static partial Regex McpAzurePrefixPattern();
 
     private sealed partial class Builder

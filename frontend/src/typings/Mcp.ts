@@ -1,5 +1,5 @@
 /** The state of an MCP server's check (D-114). `waiting`: no result yet; `not-checked`: a local process, or `check: false`. */
-export type McpStatus = 'healthy' | 'authentication-required' | 'down' | 'waiting' | 'not-checked';
+export type McpStatus = 'healthy' | 'authentication-required' | 'down' | 'unknown' | 'waiting' | 'not-checked';
 
 export interface McpValue {
   /** `header` of a remote server, `env` of a local one. */
