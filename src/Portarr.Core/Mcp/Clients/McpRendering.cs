@@ -2,7 +2,7 @@ using Portarr.Core.Catalog;
 namespace Portarr.Core.Mcp.Clients;
 
 
-/// <summary>What an assistant does to install or remove a server in a client (V9, D-113).</summary>
+/// <summary>What an assistant does to install or remove a server in a client (D-113).</summary>
 /// <param name="Kind">One of <see cref="McpOperationKinds"/>.</param>
 /// <param name="Description">One sentence for the operator: what this does, where.</param>
 /// <param name="Text">The command to run, or the snippet to merge into the file.</param>

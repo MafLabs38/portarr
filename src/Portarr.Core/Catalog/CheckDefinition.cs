@@ -47,7 +47,7 @@ public static class CheckTypes
 {
     public const string Http = "http";
 
-    /// <summary>The probe of a remote MCP server (V9, D-114): Portarr's own runner, not a kind an app can choose, so it is not in <see cref="All"/>.</summary>
+    /// <summary>The probe of a remote MCP server (D-114): Portarr's own runner, not a kind an app can choose, so it is not in <see cref="All"/>.</summary>
     public const string Mcp = "mcp";
 
     public static IReadOnlyList<string> All { get; } = [Http];

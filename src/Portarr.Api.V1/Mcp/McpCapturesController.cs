@@ -8,7 +8,7 @@ using Portarr.Http.Authentication;
 namespace Portarr.Api.V1.Mcp;
 
 /// <summary>
-/// The inbox of captured MCP servers (V9, D-116): what the assistants handed over from the workstations, compared with the catalog. Reading it
+/// The inbox of captured MCP servers (D-116): what the assistants handed over from the workstations, compared with the catalog. Reading it
 /// needs <c>mcp.use</c>. Deciding needs a **person**: a browser session that holds <c>catalog.write</c>, never an API key, the MCP tools or the
 /// chat (D-112), because accepting writes a definition that becomes a command or a credentialed address on the operator's machines.
 /// </summary>
@@ -71,6 +71,7 @@ public sealed class McpCapturesController : ControllerBase
     /// <response code="200">How many captured servers were dismissed.</response>
     /// <response code="400">The group is no longer in the inbox.</response>
     [HttpPost("{key}/dismiss")]
+    [Authorize(Policy = Permissions.CatalogWrite)]
     [Authorize(Policy = AuthenticationServiceCollectionExtensions.SessionPolicyName)]
     [ProducesResponseType<DismissResult>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest)]

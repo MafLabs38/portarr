@@ -7,7 +7,7 @@ using Portarr.Core.Mcp.Capture;
 namespace Portarr.Integration.Test.Api;
 
 /// <summary>
-/// The inbox of captured MCP servers, end to end (V9, D-112, D-116): an assistant hands over what a workstation has, the operator sees it
+/// The inbox of captured MCP servers, end to end (D-112, D-116): an assistant hands over what a workstation has, the operator sees it
 /// against the catalog, and only a person (a browser session that holds <c>catalog.write</c>) accepts it, through the editor.
 /// </summary>
 [Trait("Category", "Integration")]

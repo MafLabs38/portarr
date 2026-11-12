@@ -5,7 +5,7 @@ using Portarr.Core.Maintenance;
 namespace Portarr.Core.Mcp;
 
 /// <summary>
-/// Adds the MCP servers that are Down to "what needs attention" (V9, D-114): finding <c>mcp-server-down</c>, area <c>mcp</c>,
+/// Adds the MCP servers that are Down to "what needs attention" (D-114): finding <c>mcp-server-down</c>, area <c>mcp</c>,
 /// each server with how long it has been down. A decorator of the cross-domain service, so the other areas stay as they are.
 /// The MCP tools show the area only to callers who hold <c>mcp.use</c>.
 /// </summary>

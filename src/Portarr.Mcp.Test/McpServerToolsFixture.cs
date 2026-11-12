@@ -12,7 +12,7 @@ using Portarr.Test.Common;
 
 namespace Portarr.Mcp.Test;
 
-/// <summary>What the MCP tools tell an assistant about the operator's MCP servers (V9): their health, and how to install one for its own client.</summary>
+/// <summary>What the MCP tools tell an assistant about the operator's MCP servers: their health, and how to install one for its own client.</summary>
 public sealed class McpServerToolsFixture
 {
     private const string Catalog = """

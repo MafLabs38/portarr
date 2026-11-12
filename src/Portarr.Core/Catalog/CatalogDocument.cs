@@ -28,13 +28,13 @@ internal sealed class CatalogDocument
     /// <summary>The name and logo of the portal (D-91).</summary>
     public PortalDocument? Portal { get; set; }
 
-    /// <summary>The MCP servers the operator uses (V9, D-111).</summary>
+    /// <summary>The MCP servers the operator uses (D-111).</summary>
     public List<McpServerDocument>? McpServers { get; set; }
 
-    /// <summary>The machines the operator works from with an assistant (V9, D-111).</summary>
+    /// <summary>The machines the operator works from with an assistant (D-111).</summary>
     public List<WorkstationDocument>? Workstations { get; set; }
 
-    /// <summary>The operator's vault, where the secrets of the MCP servers live (V9, D-117).</summary>
+    /// <summary>The operator's vault, where the secrets of the MCP servers live (D-117).</summary>
     public SecretStoreDocument? SecretStore { get; set; }
 }
 

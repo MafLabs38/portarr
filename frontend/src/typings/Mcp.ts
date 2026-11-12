@@ -1,4 +1,4 @@
-/** The state of an MCP server's check (V9, D-114). `waiting`: no result yet; `not-checked`: a local process, or `check: false`. */
+/** The state of an MCP server's check (D-114). `waiting`: no result yet; `not-checked`: a local process, or `check: false`. */
 export type McpStatus = 'healthy' | 'authentication-required' | 'down' | 'waiting' | 'not-checked';
 
 export interface McpValue {
@@ -133,7 +133,7 @@ export interface McpProposedVariable {
 
 export type McpCaptureState = 'new' | 'same' | 'differs';
 
-/** The same server seen on one or several workstations, compared with the catalog (V9, D-116). */
+/** The same server seen on one or several workstations, compared with the catalog (D-116). */
 export interface McpCaptureGroup {
   key: string;
   state: McpCaptureState;

@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Time.Testing;
+using Portarr.Core.Attention;
+using Portarr.Core.Mcp;
 using Portarr.Test.Common;
 
 namespace Portarr.Mcp.Test;
@@ -17,6 +20,27 @@ public sealed class KnowledgeBaseFixture
             .And.Contain("\n  - **VM 1** (`vm-1`, docker, VM on Hypervisor)")
             .And.Contain("| Sonarr (`sonarr`) | Healthy | critical | vm-1/sonarr | public: https://sonarr.homelab.example/ |")
             .And.Contain("cluster/node-1/shop-abc");
+    }
+
+    [Fact]
+    public void should_not_tell_every_reader_about_a_dead_mcp_server()
+    {
+        var fleet = new FleetBuilder
+        {
+            CatalogText = FleetBuilder.Catalog + "\nmcpServers:\n  - id: memory\n    transport: http\n    http: { url: \"https://memory.homelab.example/mcp\" }\n",
+            DecorateAttention = (inner, catalog) =>
+            {
+                var health = Substitute.For<IMcpHealth>();
+                health.Current.Returns(new Dictionary<string, McpServerHealth>
+                {
+                    ["memory"] = new("memory", McpHealthState.Down, FleetBuilder.Now.AddDays(-12), null, FleetBuilder.Now, "refused", null),
+                });
+                return new McpAttentionService(inner, catalog, health, new FakeTimeProvider(FleetBuilder.Now));
+            },
+        };
+
+        fleet.Digest.GetOverview().NeedsAttention.Should().Contain(f => f.Area == McpAttentionService.Area);
+        fleet.Knowledge.BuildInfrastructure().Should().NotContain("mcp-server-down").And.NotContain("down for 12");
     }
 
     [Fact]

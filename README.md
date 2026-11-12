@@ -22,6 +22,7 @@ Portarr connects those dots.
 - **Data** — databases, storage and **backup verification** (is the last backup recent, external, plausible?).
 - **Maintenance** — image updates, deployed vs declared vs released versions, end-of-life runtimes, Dependabot alerts.
 - **Security** — image CVEs (Trivy), dependency vulnerabilities, login events.
+- **MCP servers** — describe your MCP servers once, see which are down, and let any assistant install them on any workstation ([docs/verticals/mcp-servers.md](docs/verticals/mcp-servers.md)).
 - **Alerts** — e-mail, in-app and browser push notifications, periodic digest.
 - **As code** — catalog in YAML or container labels, Terraform provider, Helm chart.
 

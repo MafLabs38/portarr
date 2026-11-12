@@ -2,7 +2,7 @@ using Portarr.Core.Mcp.Capture;
 
 namespace Portarr.Core.Test.Mcp.Capture;
 
-/// <summary>What an assistant may hand over (V9, D-116): never a secret value, bounded, and what the catalog would accept.</summary>
+/// <summary>What an assistant may hand over (D-116): never a secret value, bounded, and what the catalog would accept.</summary>
 public sealed class McpCaptureValidatorFixture
 {
     private static CapturedServer Remote(string name = "memory", string url = "https://memory.homelab.example/mcp", params CapturedValue[] headers) =>
@@ -94,5 +94,52 @@ public sealed class McpCaptureValidatorFixture
         Errors(Remote() with { Command = "npx" }).Should().ContainSingle().Which.Should().Contain("not a command");
         Errors(Local() with { Url = "https://a.homelab.example/mcp" }).Should().ContainSingle().Which.Should().Contain("not an url");
         Errors(Remote() with { Transport = "websocket" }).Should().ContainSingle().Which.Should().Contain("transport must be");
+    }
+
+    [Theory]
+    [InlineData(50, true)]
+    [InlineData(51, false)]
+    public void should_accept_at_most_the_largest_number_of_servers(int count, bool accepted)
+    {
+        var servers = Enumerable.Range(0, count).Select(i => Remote(name: $"server-{i}", url: $"https://s{i}.homelab.example/mcp")).ToArray();
+
+        Errors(servers).Count.Should().Be(accepted ? 0 : 1);
+    }
+
+    [Theory]
+    [InlineData(50, true)]
+    [InlineData(51, false)]
+    public void should_accept_at_most_the_largest_number_of_arguments(int count, bool accepted)
+    {
+        var args = Enumerable.Range(0, count).Select(i => $"a{i}").ToArray();
+
+        Errors(Local(args: args)).Count.Should().Be(accepted ? 0 : 1);
+    }
+
+    [Theory]
+    [InlineData(50, true)]
+    [InlineData(51, false)]
+    public void should_accept_at_most_the_largest_number_of_headers(int count, bool accepted)
+    {
+        var headers = Enumerable.Range(0, count).Select(i => new CapturedValue($"X-Header-{i}", null, "value")).ToArray();
+
+        Errors(Remote(headers: headers)).Count.Should().Be(accepted ? 0 : 1);
+    }
+
+    [Theory]
+    [InlineData("https://memory.homelab.example/mcp#fragment")]
+    [InlineData("https://memory.homelab.example/mcp\u0007")]
+    public void should_refuse_a_url_with_a_fragment_or_a_control_character(string url)
+    {
+        Errors(Remote(url: url)).Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public void should_refuse_a_name_a_command_and_a_literal_with_a_control_character_or_too_long()
+    {
+        Errors(Remote(name: "mem\u0001ory")).Should().NotBeEmpty();
+        Errors(Local(command: new string('c', 261))).Should().NotBeEmpty();
+        Errors(Local(args: [new string('a', 501)])).Should().NotBeEmpty();
+        Errors(Remote(headers: [new CapturedValue("Accept", null, "line\nbreak")])).Should().NotBeEmpty();
     }
 }

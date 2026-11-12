@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Portarr.Core.Catalog;
+using Portarr.Core.Mcp;
 using Portarr.Core.Status;
 using Portarr.Mcp.Digest;
 
@@ -67,10 +68,12 @@ public sealed class KnowledgeBase
         Line(md, $"- Environments: {overview.Environments.Count}; machines: {infrastructure.Sum(e => e.Machines.Count)}");
         Line(md, $"- Data followed: {d.Followed} ({d.Protected} protected, {d.Late} late, {d.Failed} failed, {d.Missing} missing, {d.Waiting} waiting for a first run, {d.NotSetUp} with a tool not set up, {d.Unknown} unknown); {d.CriticalOffsite} of {d.CriticalAssets} critical assets have an off-site copy ({d.CriticalOffsitePending} pending a first run)");
         Line(md, $"- Code: {m.Repositories} repositories ({m.CriticalOrHighAlerts} critical or high alerts, {m.CiFailing} with CI failing); images: {m.Images} running ({m.ImagesBehind} behind, {m.ImagesMajor} with a new major version)");
-        if (overview.NeedsAttention.Count > 0)
+        // The knowledge base is read by every holder of the four view permissions: a dead MCP server is for those who hold mcp.use (D-115).
+        var attention = overview.NeedsAttention.Where(f => f.Area != McpAttentionService.Area).ToList();
+        if (attention.Count > 0)
         {
             Line(md, "- Needs attention:");
-            foreach (var finding in overview.NeedsAttention)
+            foreach (var finding in attention)
             {
                 Line(md, $"  - {finding.Level} · {finding.Kind} ({finding.Count}): {string.Join("; ", finding.Subjects)}");
             }

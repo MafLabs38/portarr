@@ -13,7 +13,7 @@ import type {
 // A remote server is checked every few minutes: a page open for a while follows without asking every second.
 const refetchInterval = 30_000;
 
-/** The operator's MCP servers with their health (V9). */
+/** The operator's MCP servers with their health. */
 export function useMcpServers() {
   return useApiQuery<McpServer[]>({ path: '/mcp/servers', refetchInterval });
 }
@@ -26,7 +26,7 @@ export function useMcpServer(id: string, os: string) {
   });
 }
 
-/** The machines the operator works from with an assistant, and the servers wanted on each (V9). */
+/** The machines the operator works from with an assistant, and the servers wanted on each. */
 export function useMcpWorkstations() {
   return useApiQuery<McpWorkstation[]>({ path: '/mcp/workstations', refetchInterval });
 }
@@ -40,7 +40,7 @@ export function useMcpWorkstation(id: string, os?: string) {
   });
 }
 
-/** What the assistants handed over from the workstations and nobody decided yet, compared with the catalog (V9, D-116). */
+/** What the assistants handed over from the workstations and nobody decided yet, compared with the catalog (D-116). */
 export function useMcpCaptures() {
   return useApiQuery<McpCaptureGroup[]>({ path: '/mcp/captures', refetchInterval });
 }

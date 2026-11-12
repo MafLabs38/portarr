@@ -24,7 +24,7 @@ public interface IMcpCaptureService
 }
 
 /// <summary>
-/// The inbox of captured MCP servers (V9, D-116): an assistant hands over what a workstation has, the operator reviews it against the
+/// The inbox of captured MCP servers (D-116): an assistant hands over what a workstation has, the operator reviews it against the
 /// catalog and accepts it. Nothing an assistant sends reaches the catalog by itself: accepting is a person's act, written with the editor
 /// (version, backup, audit), and a catalog that is read-only gets the YAML to paste instead.
 /// </summary>
@@ -212,29 +212,44 @@ public sealed partial class McpCaptureService : IMcpCaptureService
                 continue;
             }
 
-            var done = false;
-            for (var attempt = 0; attempt < Attempts && !done; attempt++)
+            var error = await AddToWorkstationAsync(workstation, serverId, clients, actor, cancellationToken);
+            if (error is null)
             {
-                var result = await _editor.EditAsPersonAsync(
-                    new CatalogEdit(
-                        CatalogSections.Workstations,
-                        workstation,
-                        "capture-wanted",
-                        await _editor.GetVersionAsync(cancellationToken),
-                        actor,
-                        current => current is null ? throw new CatalogEditException(CatalogEditStatus.NotFound, $"No workstation '{workstation}'.") : WithWanted(current, serverId, clients)),
-                    cancellationToken);
-                done = result.Status != CatalogEditStatus.Conflict;
-                if (result.Succeeded)
-                {
-                    updated.Add(workstation);
-                }
-                else if (done)
-                {
-                    errors.AddRange(result.Errors.Select(e => $"{workstation}: {e}"));
-                }
+                updated.Add(workstation);
+            }
+            else
+            {
+                errors.AddRange(error);
             }
         }
+    }
+
+    /// <summary>Writes the server into one workstation, trying again when the catalog changed meanwhile. Null when it succeeded, else what went wrong.</summary>
+    private async Task<IReadOnlyList<string>?> AddToWorkstationAsync(string workstation, string serverId, IReadOnlyList<string> clients, CatalogActor actor, CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < Attempts; attempt++)
+        {
+            var result = await _editor.EditAsPersonAsync(
+                new CatalogEdit(
+                    CatalogSections.Workstations,
+                    workstation,
+                    "capture-wanted",
+                    await _editor.GetVersionAsync(cancellationToken),
+                    actor,
+                    current => current is null ? throw new CatalogEditException(CatalogEditStatus.NotFound, $"No workstation '{workstation}'.") : WithWanted(current, serverId, clients)),
+                cancellationToken);
+            if (result.Succeeded)
+            {
+                return null;
+            }
+
+            if (result.Status != CatalogEditStatus.Conflict)
+            {
+                return result.Errors.Select(e => $"{workstation}: {e}").ToList();
+            }
+        }
+
+        return [$"{workstation}: the catalog kept changing while the server was added; add it to this workstation again."];
     }
 
     /// <summary>

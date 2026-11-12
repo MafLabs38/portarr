@@ -3,7 +3,7 @@ using Portarr.Test.Common;
 namespace Portarr.Core.Test.Mcp;
 
 /// <summary>
-/// The catalog of the end-to-end stack (tests/e2e/stack) feeds the Playwright journey of the MCP page (V9). It is not parsed by anything in the
+/// The catalog of the end-to-end stack (tests/e2e/stack) feeds the Playwright journey of the MCP page. It is not parsed by anything in the
 /// unit tests, so a typo would only show up in a CI run that builds an image: this reads the MCP part of it with the real parser.
 /// </summary>
 public sealed class E2eStackCatalogFixture

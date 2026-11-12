@@ -5,7 +5,7 @@ using Portarr.Core.Mcp.Clients;
 namespace Portarr.Api.V1.Mcp;
 
 /// <summary>
-/// An MCP server of the catalog and its health (V9). No secret: a header or variable is a literal or the name of a variable on the
+/// An MCP server of the catalog and its health. No secret: a header or variable is a literal or the name of a variable on the
 /// workstation. <c>Status</c> is healthy, authentication-required, down, waiting (no result yet) or not-checked (a local process, or check: false).
 /// </summary>
 public sealed record McpServerResource(
@@ -54,7 +54,7 @@ public sealed record McpServerDetailResource(McpServerResource Server, string Os
 /// <summary>An MCP server wanted on a workstation, in these clients, at this scope (null: the server's own).</summary>
 public sealed record McpWantedResource(string Server, IReadOnlyList<string> Clients, string? Scope);
 
-/// <summary>A machine the operator works from with an assistant (V9): its system, its assistants and the servers wanted on it.</summary>
+/// <summary>A machine the operator works from with an assistant: its system, its assistants and the servers wanted on it.</summary>
 public sealed record McpWorkstationResource(
     string Id,
     string Name,

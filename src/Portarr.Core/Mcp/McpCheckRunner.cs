@@ -8,7 +8,7 @@ using Portarr.Core.Checks;
 namespace Portarr.Core.Mcp;
 
 /// <summary>
-/// The probe of a remote MCP server (V9, D-114): one <c>initialize</c> request, which any MCP server answers whatever its tools,
+/// The probe of a remote MCP server (D-114): one <c>initialize</c> request, which any MCP server answers whatever its tools,
 /// without credentials, without following a redirect, with the checks' client (fresh connection, valid certificate required).
 /// A JSON-RPC answer, even an error, means a server is there; 401 and 403 mean it is there and enforcing; anything else is a
 /// failure with the reason code the checks already use. The body is read up to <see cref="HttpCheckRunner.MaxBodyBytes"/>, and

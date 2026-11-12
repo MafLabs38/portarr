@@ -5,7 +5,7 @@ using Portarr.Core.Datastore;
 namespace Portarr.Core.Mcp;
 
 /// <summary>
-/// What a check of a remote MCP server says (V9, D-114). <c>AuthenticationRequired</c> is a healthy server that answered 401 or
+/// What a check of a remote MCP server says (D-114). <c>AuthenticationRequired</c> is a healthy server that answered 401 or
 /// 403 to a probe without credentials: it is there and enforcing, nothing more can be said without a credential.
 /// </summary>
 public enum McpHealthState

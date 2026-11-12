@@ -3,7 +3,7 @@ using Portarr.Core.Mcp.Clients;
 
 namespace Portarr.Core.Catalog;
 
-// The MCP servers of the catalog (V9, D-111): what an assistant installs, and what Portarr checks (D-114). Like the
+// The MCP servers of the catalog (D-111): what an assistant installs, and what Portarr checks (D-114). Like the
 // knowledge of the catalog (D-84) a definition holds no secret: a header or a variable is a harmless literal or the name
 // of a variable on the workstation, and the parser refuses what looks like a secret.
 public static partial class CatalogParser
@@ -261,7 +261,8 @@ public static partial class CatalogParser
             if (!Uri.TryCreate(document.Url.Trim(), UriKind.Absolute, out var url)
                 || url.Scheme is not (HttpScheme or HttpsScheme)
                 || url.UserInfo.Length > 0
-                || url.Fragment.Length > 0)
+                || url.Fragment.Length > 0
+                || McpControlCharacterPattern().IsMatch(document.Url))
             {
                 _errors.Add($"{owner}: http.url '{Redact(document.Url)}' must be an absolute http(s) URL without credentials or fragment.");
                 return null;
@@ -431,7 +432,7 @@ public static partial class CatalogParser
         }
 
         /// <summary>
-        /// The operator's secret store (V9, D-117): its kind, its address and the prefix under which the MCP secrets live. A name and a place, never a
+        /// The operator's secret store (D-117): its kind, its address and the prefix under which the MCP secrets live. A name and a place, never a
         /// secret: Portarr holds none and reads none.
         /// </summary>
         private McpSecretStore? BuildSecretStore(SecretStoreDocument? document)

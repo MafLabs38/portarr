@@ -57,7 +57,7 @@ const statusKinds: Record<McpStatus, { kind: kinds.Kind; icon: LucideIcon }> = {
 };
 
 /**
- * What the pages say about a server's health (V9, D-114): healthy and since when it was last seen, or down and
+ * What the pages say about a server's health (D-114): healthy and since when it was last seen, or down and
  * for how long, with the last time it was healthy. A local server is not checked, which is not a fault.
  */
 export default function describeMcpHealth(server: McpServer, now: number = Date.now()): McpHealthDescription {

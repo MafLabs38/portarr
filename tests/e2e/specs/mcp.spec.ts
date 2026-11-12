@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-// V9: the operator's MCP servers, the workstations, and the inbox of captured servers. The stack's catalog declares three servers (a stub
+// the operator's MCP servers, the workstations, and the inbox of captured servers. The stack's catalog declares three servers (a stub
 // that answers like an MCP server, a port nothing listens on, a local process) and two workstations. No assistant is ever called.
 test.describe('MCP', { tag: '@smoke' }, () => {
   test('lists the servers: one up, one down since a moment, a local one that is not monitored', async ({ page }) => {

@@ -4,7 +4,7 @@ using Portarr.Core.Mcp.Clients;
 namespace Portarr.Core.Mcp.Capture;
 
 /// <summary>
-/// Checks what an assistant hands over (V9, D-116) before anything is stored: bounded sizes, known clients and scopes, an address or a
+/// Checks what an assistant hands over (D-116) before anything is stored: bounded sizes, known clients and scopes, an address or a
 /// command that is what the catalog would accept, and above all **no secret value** (the same heuristic as the catalog, D-84). A value
 /// that looks like a secret, or a literal under a name that suggests a credential, refuses the capture, naming the field and never the value.
 /// </summary>
@@ -90,7 +90,8 @@ public static class McpCaptureValidator
             || url.Scheme is not ("http" or "https")
             || url.UserInfo.Length > 0
             || url.Fragment.Length > 0
-            || server.Url!.Length > CatalogParser.MaxMcpTextLength)
+            || server.Url!.Length > CatalogParser.MaxMcpTextLength
+            || CatalogParser.McpControlCharacterPattern().IsMatch(server.Url))
         {
             errors.Add($"{key}: url must be an absolute http(s) address without credentials or fragment.");
         }

@@ -1,7 +1,7 @@
 namespace Portarr.Core.Catalog;
 
 /// <summary>
-/// An MCP server the operator uses (V9, D-111): described once, installed by an assistant on any workstation. The
+/// An MCP server the operator uses (D-111): described once, installed by an assistant on any workstation. The
 /// definition holds no secret: a header or a variable is a literal that is not a secret, or the name of a variable that
 /// exists on the workstation (<see cref="McpValue"/>). <c>Scope</c> is where a client installs it by default.
 /// <c>AppId</c> links the server to an app of the catalog. <c>CheckInterval</c> is null when the server is not checked
@@ -54,7 +54,7 @@ public static class McpSecretStoreKinds
 }
 
 /// <summary>
-/// The operator's secret store (V9, D-117): where the secrets of the MCP servers live. Portarr holds no secret and reads none: it names the
+/// The operator's secret store (D-117): where the secrets of the MCP servers live. Portarr holds no secret and reads none: it names the
 /// store, and a secret by its key under <c>Prefix</c>; the workstation reads it with the store's own command, under the store's own access
 /// control. <c>Address</c> is the store's address (Vault's <c>VAULT_ADDR</c>, an Azure Key Vault's URL).
 /// </summary>

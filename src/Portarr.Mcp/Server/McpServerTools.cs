@@ -74,7 +74,7 @@ public sealed record PlanItem(string Server, string Client, string ClientName, s
 public sealed record WorkstationPlanAnswer(string Workstation, string Os, IReadOnlyList<PlanItem> Install, IReadOnlyList<PlanItem> Remove, IReadOnlyList<string> RequiresEnv, IReadOnlyList<string> RequiresSecrets, string Instructions);
 
 /// <summary>
-/// The tools about the operator's MCP servers (V9, D-110): which they are and how to install one for the client of the assistant that
+/// The tools about the operator's MCP servers (D-110): which they are and how to install one for the client of the assistant that
 /// asks, on its machine. Read-only: Portarr describes, the assistant installs, with the operator's approval. Both need <c>mcp.use</c>.
 /// </summary>
 public sealed class McpServerTools

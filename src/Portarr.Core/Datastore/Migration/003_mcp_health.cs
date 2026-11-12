@@ -3,7 +3,7 @@ using FluentMigrator;
 namespace Portarr.Core.Datastore.Migration;
 
 /// <summary>
-/// The health of the MCP servers the catalog declares (V9, D-114): the current state, since when, and when the server
+/// The health of the MCP servers the catalog declares (D-114): the current state, since when, and when the server
 /// was last seen healthy, so that "down for 12 days" survives a restart. One row per server, replaced at each check;
 /// the history of results stays in memory like every check (D-51). Timestamps are ISO 8601 text, as everywhere.
 /// </summary>

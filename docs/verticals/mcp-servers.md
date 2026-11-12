@@ -1,6 +1,6 @@
 # MCP servers and workstations
 
-> Status: **in progress** (sandbox, steps 1 to 4 built; the maintainer's acceptance and the pull request remain). Features: F-MCP-01 to F-MCP-08. Decisions: D-110 to D-117. Builds on [V5](V5-ai-mcp.md) (Portarr's own MCP server, D-68 to D-71, D-86), [V7](V7-accounts.md) (accounts, per-user keys, permissions), the checks (D-50, D-51) and the catalog ([catalog.md](../catalog.md)).
+> Status: **built, in review** (steps 1 to 4 in one pull request, after the sandbox; the maintainer's acceptance remains). Features: F-MCP-01 to F-MCP-08. Decisions: D-110 to D-117. Builds on [V5](V5-ai-mcp.md) (Portarr's own MCP server, D-68 to D-71, D-86), [V7](V7-accounts.md) (accounts, per-user keys, permissions), the checks (D-50, D-51) and the catalog ([catalog.md](../catalog.md)).
 
 ## Need
 
@@ -110,7 +110,7 @@ One renderer per client behind one contract (rule 8). Given a server, a scope an
 ### Health of the servers (D-114)
 
 - Only **remote servers**, only **the server**: Portarr never asks whether a workstation is on, and a laptop switched off every evening is not an event.
-- A new check type `mcp` on the existing check machinery (scheduler, runner contract, results, uptime bar; D-50, D-51): one `initialize` request per interval (default 5 minutes, never seconds), without credentials.
+- A new check type `mcp`, run by its own monitor (`McpHealthMonitor`, with the tick and the concurrency of the check scheduler, D-50): the state is richer than up or down (healthy, asking for credentials, down) and is persisted (last healthy, since), which the check results are not. One `initialize` request per interval (default 5 minutes, never seconds), without credentials.
 
 | Answer | State |
 |---|---|
@@ -164,7 +164,7 @@ One new permission, **`mcp.use`**: see the MCP page, the definitions, the health
 - **Servers**: one row per server (icon, name, transport, state with "seen 2 min ago" or "down for 12 days", how many workstations want it). A detail page shows the definition, a block per client with the rendered operations and a copy button, and the wanted-on list.
 - **Workstations**: a matrix, workstations in rows and servers in columns, a cell is *wanted* or empty. A click opens the workstation, its plan and the vault keys it needs.
 - **Captured**: the inbox described above; empty until a capture arrives.
-- The empty state explains the sections. All strings go through `translate()` (en, fr). Demo mode ships simulated servers and workstations.
+- The empty state explains the sections. All strings go through `translate()` (English source, D-26). Demo mode ships simulated servers and workstations.
 
 ### Portarr's MCP tools
 
@@ -180,7 +180,7 @@ The server instructions (V5) gain: the catalog describes, you install; show the 
 
 ## Slicing
 
-One vertical, four steps. Each is developed in the sandbox, accepted there, then becomes one PR.
+One vertical, four steps, developed in the sandbox and delivered in one pull request (rule 7: one vertical, one PR).
 
 1. **Servers and their health.** `mcpServers` section and validation, the `mcp` check type with the persisted last-healthy, the renderers for the main clients, `mcp.use`, the API, `list_mcp_servers` and `get_mcp_server`, the Servers tab.
 2. **Workstations.** The `workstations` section, `list_workstations` and `get_workstation_plan`, the Workstations tab.
@@ -198,8 +198,8 @@ One vertical, four steps. Each is developed in the sandbox, accepted there, then
 - [ ] A Down server appears in `get_overview` with the time since, for a caller with `mcp.use` only
 - [ ] (Step 3) A capture with a secret value is refused, field named; accepting a capture needs `catalog.write` and a browser session; the catalog audit shows the user
 - [ ] (Step 4) The plan lists the vault keys per workstation and the provisioning command per operating system; no secret value appears anywhere
-- [ ] Servers, Workstations and Captured tabs, empty states, demo data, en and fr strings; one Playwright journey; the Assistant page unchanged
+- [ ] Servers, Workstations and Captured tabs, empty states, demo data, strings through `translate()`; one Playwright journey; the Assistant page unchanged
 
 ## Definition of Done
 
-[IMPLEMENTATION_PLAN.md §1.1](../IMPLEMENTATION_PLAN.md) applies to each of the four steps: unit, integration (SQLite and PostgreSQL), E2E, UI checklist, demo data, documentation (`docs/connectors/mcp-clients.md`: one section per client with the version checked), en and fr strings, no personal values, dogfooding on the maintainer's workstations in the preview, and the maintainer's acceptance.
+[IMPLEMENTATION_PLAN.md §1.1](../IMPLEMENTATION_PLAN.md) applies to each of the four steps: unit, integration (SQLite and PostgreSQL), E2E, UI checklist, demo data, documentation (`docs/connectors/mcp-clients.md`: one section per client with the version checked), strings through `translate()`, no personal values, dogfooding on the maintainer's workstations in the preview, and the maintainer's acceptance.

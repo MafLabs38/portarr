@@ -8,7 +8,7 @@ using Portarr.Core.Mcp.Clients;
 namespace Portarr.Api.V1.Mcp;
 
 /// <summary>
-/// The operator's MCP servers (V9): what the catalog declares, whether each remote one is up and since when, and how to install
+/// The operator's MCP servers: what the catalog declares, whether each remote one is up and since when, and how to install
 /// each in every client. Read-only: the definitions are edited in the catalog file (D-112), and nothing here reaches a workstation (D-110).
 /// </summary>
 [ApiController]

@@ -11,7 +11,7 @@ interface McpCapturedTabProps {
 }
 
 /**
- * The inbox of captured servers (V9, D-116): what the assistants handed over from the machines, each compared with the catalog. A person
+ * The inbox of captured servers (D-116): what the assistants handed over from the machines, each compared with the catalog. A person
  * decides: add, update, keep the catalog's version, or dismiss. Nothing here reaches the catalog until then.
  */
 export default function McpCapturedTab({ groups, isError }: Readonly<McpCapturedTabProps>) {

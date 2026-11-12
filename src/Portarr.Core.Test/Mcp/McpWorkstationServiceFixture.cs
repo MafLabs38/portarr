@@ -5,7 +5,7 @@ using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Mcp;
 
-/// <summary>The plan of a workstation (V9, D-110): what to install, what to remove if present, what the machine must provide.</summary>
+/// <summary>The plan of a workstation (D-110): what to install, what to remove if present, what the machine must provide.</summary>
 public sealed class McpWorkstationServiceFixture
 {
     private const string Catalog = """

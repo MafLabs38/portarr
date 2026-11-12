@@ -5,7 +5,7 @@ using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Mcp.Capture;
 
-/// <summary>The comparison with the catalog and the definition that accepting a captured server writes (V9, D-116).</summary>
+/// <summary>The comparison with the catalog and the definition that accepting a captured server writes (D-116).</summary>
 public sealed class McpCaptureDescribeFixture
 {
     private const string Catalog = """

@@ -202,6 +202,7 @@ Each row is a PR (or a stack). The listed tests come on top of the generic DoD.
 | **V13 Security** | Trivy (image vulnerabilities), identity provider events | F-SEC-01/02 |
 | **V14 Tool configuration** | Connectors that push configuration to their tool through its API (alert rules, scrape targets), with audit (D-36, D-37). No workload actions (D-31) | D-36 |
 | **V15 IaC for Portarr** | `portarr` Terraform provider (apps, stacks, connectors as code) and Helm chart for Portarr itself. The collector kit is not shipped (D-38) | F-API-05 |
+| **MCP servers and workstations** (no V number: [its page](verticals/mcp-servers.md)) | The operator's MCP servers and workstations in the catalog, an install plan per AI client, the health of the MCP server, the capture inbox, secrets by reference to the operator's vault. Built on V5 and V7 | F-MCP-01 to F-MCP-08 |
 
 ---
 

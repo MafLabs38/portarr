@@ -17,7 +17,7 @@ const workstationsTab = 'workstations';
 const capturedTab = 'captured';
 
 /**
- * "Which MCP servers do I use, are they alive, and where do I want them?" (V9): the servers the catalog declares, each remote one with
+ * "Which MCP servers do I use, are they alive, and where do I want them?": the servers the catalog declares, each remote one with
  * its health and since when, and the workstations with the servers wanted on each. Portarr describes, the assistant on a machine
  * installs (D-110). The tab is kept in the URL (`?tab=workstations`).
  */

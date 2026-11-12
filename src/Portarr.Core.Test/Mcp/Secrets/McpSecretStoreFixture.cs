@@ -8,7 +8,7 @@ using CatalogModel = Portarr.Core.Catalog.Catalog;
 namespace Portarr.Core.Test.Mcp.Secrets;
 
 /// <summary>
-/// The secrets stay in the operator's vault (V9, D-117): the rendering names the keys a workstation must be able to read and gives the command
+/// The secrets stay in the operator's vault (D-117): the rendering names the keys a workstation must be able to read and gives the command
 /// that reads them into the variables the client uses, so that no value passes through Portarr, an assistant or its provider.
 /// </summary>
 public sealed class McpSecretStoreFixture

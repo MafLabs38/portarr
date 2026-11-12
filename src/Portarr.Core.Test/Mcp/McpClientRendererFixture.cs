@@ -7,7 +7,7 @@ using Portarr.Test.Common;
 namespace Portarr.Core.Test.Mcp;
 
 /// <summary>
-/// Golden files for the renderers (V9, D-113): <c>Golden/&lt;client&gt;.txt</c> holds, for one remote and one local server, what
+/// Golden files for the renderers (D-113): <c>Golden/&lt;client&gt;.txt</c> holds, for one remote and one local server, what
 /// the client gets at each of its scopes, on Linux, plus the Windows paths, the commands and a removal. A client whose format changes
 /// shows as a diff of its file. To refresh them after a deliberate change: <c>PORTARR_UPDATE_GOLDEN=1</c>, then read the diff.
 /// </summary>
@@ -195,5 +195,38 @@ public sealed class McpClientRendererFixture
 
         File.Exists(path).Should().BeTrue($"the golden file {client}.txt must exist: run once with PORTARR_UPDATE_GOLDEN=1 and read it");
         File.ReadAllText(path).ReplaceLineEndings("\n").Should().Be(actual.ReplaceLineEndings("\n"));
+    }
+
+    [Theory]
+    [InlineData("it's")]
+    [InlineData("it\u2018s")]
+    [InlineData("it\u2019s")]
+    [InlineData("it\u201As")]
+    [InlineData("it\u201Bs")]
+    public void should_never_put_a_quote_character_inside_the_quotes_of_a_command(string literal)
+    {
+        var server = TestCatalog.Parse($$"""
+            mcpServers:
+              - id: tricky
+                transport: stdio
+                stdio:
+                  command: npx
+                  args: ["-y", "{{literal}}"]
+            """).Catalog.McpServerList[0];
+
+        foreach (var client in new[] { "claude-code", "gemini-cli", "codex-cli" })
+        {
+            var rendering = McpClients.Find(client)!.Install(server, McpClients.Find(client)!.Scopes[0], McpOperatingSystems.Windows);
+
+            rendering.Operations.Where(o => o.Kind == McpOperationKinds.Command).Should().OnlyContain(o => !o.Text.Contains(literal, StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
+    public void should_tell_the_operator_to_use_powershell_for_the_commands_of_a_windows_machine()
+    {
+        var rendering = McpClients.Find("claude-code")!.Install(Servers[0], "user", McpOperatingSystems.Windows);
+
+        rendering.Notes.Should().Contain(n => n.Contains("PowerShell", StringComparison.Ordinal));
     }
 }

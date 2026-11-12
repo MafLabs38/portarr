@@ -165,12 +165,12 @@ describe('MCP captured tab', () => {
     open();
 
     const search = await screen.findByRole('listitem', { name: 'Search Tool' });
-    await user.click(within(search).getByRole('button', { name: 'Dismiss' }));
+    await user.click(await within(search).findByRole('button', { name: 'Dismiss' }));
 
     await waitFor(() => expect(bodies).toEqual([{ path: 'aaaaaaaaaaaa/dismiss', body: null }]));
   });
 
-  it('offers only to dismiss to a role that may not write the catalog, and says why', async () => {
+  it('offers no decision to a role that may not write the catalog, and says why', async () => {
     server.use(
       http.get('/api/v1/auth/me', () =>
         HttpResponse.json({ ...me, role: 'Reader', permissions: me.permissions.filter((p) => p !== 'catalog.write') }),
@@ -182,6 +182,6 @@ describe('MCP captured tab', () => {
 
     expect(await within(search).findByText(/needs a role that may edit it/)).toBeInTheDocument();
     expect(within(search).queryByRole('button', { name: 'Add to the catalog…' })).not.toBeInTheDocument();
-    expect(within(search).getByRole('button', { name: 'Dismiss' })).toBeInTheDocument();
+    expect(within(search).queryByRole('button', { name: 'Dismiss' })).not.toBeInTheDocument();
   });
 });

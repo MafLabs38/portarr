@@ -41,6 +41,9 @@ public sealed record McpRenderContext(McpServerDefinition Server, string Scope, 
 /// </summary>
 public abstract class McpClientRenderer : IMcpClientRenderer
 {
+    /// <summary>The characters that end a single-quoted string: the ASCII one, and the typographic ones PowerShell also reads as quotes (U+2018 to U+201B).</summary>
+    private static readonly char[] SingleQuotes = ['\'', '\u2018', '\u2019', '\u201A', '\u201B'];
+
     private static readonly JsonSerializerOptions Indented = new() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
     public abstract string Id { get; }
@@ -99,7 +102,7 @@ public abstract class McpClientRenderer : IMcpClientRenderer
     }
 
     /// <summary>A text between single quotes for a POSIX shell or PowerShell, or null when it holds a quote (the operator then uses the file).</summary>
-    protected static string? Quote(string text) => text.Contains('\'', StringComparison.Ordinal) ? null : $"'{text}'";
+    protected static string? Quote(string text) => text.IndexOfAny(SingleQuotes) >= 0 ? null : $"'{text}'";
 
     private McpRendering Render(McpServerDefinition server, string scope, string os, bool removal, McpSecretStore? secretStore)
     {
@@ -111,6 +114,11 @@ public abstract class McpClientRenderer : IMcpClientRenderer
         var context = new McpRenderContext(server, scope, os);
         var operations = (removal ? RemoveOperations(context) : InstallOperations(context)).ToList();
         var notes = Notes(context).ToList();
+        if (context.Windows && operations.Exists(o => o.Kind == McpOperationKinds.Command))
+        {
+            notes.Add("Run the commands in PowerShell: they are quoted with single quotes, which cmd.exe does not read as quoting.");
+        }
+
         if (!removal && context.Windows && server.Stdio?.Command is "npx" or "npx.cmd")
         {
             notes.Add("On native Windows, if the client cannot start npx, declare the command as cmd with the arguments /c npx … (not verified for every client).");

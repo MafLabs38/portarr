@@ -111,9 +111,11 @@ function Actions({ group, canWrite, dismissing, onForm, onExisting, onDismiss }:
           {translate(same ? 'McpCaptureUseExisting' : 'McpCaptureKeep')}
         </button>
       ) : null}
-      <button className={styles.button} disabled={dismissing} onClick={onDismiss} type="button">
-        {translate('McpCaptureDismiss')}
-      </button>
+      {canWrite ? (
+        <button className={styles.button} disabled={dismissing} onClick={onDismiss} type="button">
+          {translate('McpCaptureDismiss')}
+        </button>
+      ) : null}
     </div>
   );
 }

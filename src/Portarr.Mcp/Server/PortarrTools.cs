@@ -40,7 +40,7 @@ public sealed class PortarrTools
     }
 
     /// <summary>
-    /// A dead MCP server is for those who may see the operator's MCP servers (V9, D-115): the Observer, who may read the four
+    /// A dead MCP server is for those who may see the operator's MCP servers (D-115): the Observer, who may read the four
     /// pages the overview mirrors, does not see that finding.
     /// </summary>
     internal static Overview ForCaller(Overview overview, ClaimsPrincipal? user)

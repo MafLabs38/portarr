@@ -4,7 +4,7 @@ using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Mcp.Capture;
 
-/// <summary>Two descriptions are the same server whatever they are called and wherever they were seen (V9, D-116).</summary>
+/// <summary>Two descriptions are the same server whatever they are called and wherever they were seen (D-116).</summary>
 public sealed class McpIdentityFixture
 {
     private static CapturedServer Remote(string url) => new("x", "http", url, null, [], [], []);

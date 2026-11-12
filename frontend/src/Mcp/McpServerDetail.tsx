@@ -54,7 +54,7 @@ function InstallCard({ os, onOsChange, renderings }: Readonly<InstallCardProps>)
 
 /**
  * One MCP server: what the catalog says about it, how it is doing, and how to install it in every client for the operating
- * system of the machine (V9).
+ * system of the machine.
  */
 export default function McpServerDetail() {
   const { id = '' } = useParams();

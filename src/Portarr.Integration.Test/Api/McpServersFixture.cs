@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Portarr.Integration.Test.Api;
 
-/// <summary>Wiring, JSON shape and permission of the MCP endpoints (V9). The rendering rules themselves are unit-tested (McpClientRendererFixture).</summary>
+/// <summary>Wiring, JSON shape and permission of the MCP endpoints. The rendering rules themselves are unit-tested (McpClientRendererFixture).</summary>
 [Trait("Category", "Integration")]
 public sealed class McpServersFixture : IAsyncLifetime
 {

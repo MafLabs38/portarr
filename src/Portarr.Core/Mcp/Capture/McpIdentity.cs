@@ -3,7 +3,7 @@ using Portarr.Core.Catalog;
 namespace Portarr.Core.Mcp.Capture;
 
 /// <summary>
-/// What makes two descriptions the same MCP server whatever they are called and whichever machine they were seen on (V9, D-116): for a remote
+/// What makes two descriptions the same MCP server whatever they are called and whichever machine they were seen on (D-116): for a remote
 /// server its address (scheme and host in lower case, no trailing slash, the query kept); for a local one run through <c>npx</c>, <c>uvx</c>
 /// or alike, the package without its version; for any other program, the program and its arguments.
 /// </summary>

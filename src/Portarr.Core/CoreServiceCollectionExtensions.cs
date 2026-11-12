@@ -80,7 +80,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<ICheckRunner, HttpCheckRunner>();
         services.AddHostedService<CheckScheduler>();
 
-        // The health of the operator's MCP servers (V9, D-114): the server is checked, never the workstation.
+        // The health of the operator's MCP servers (D-114): the server is checked, never the workstation.
         services.AddSingleton<IMcpHealthStore, McpHealthStore>();
         services.AddSingleton<McpCheckRunner>();
         services.AddSingleton<McpHealthMonitor>();

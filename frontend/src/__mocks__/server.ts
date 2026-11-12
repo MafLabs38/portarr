@@ -757,7 +757,7 @@ export const knowledge: Knowledge = {
 
 const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
 
-/** The operator's MCP servers (V9): one up, one down for twelve days, one local process that is not checked. */
+/** The operator's MCP servers: one up, one down for twelve days, one local process that is not checked. */
 export const mcpServers: McpServer[] = [
   {
     id: 'memory',
@@ -881,7 +881,7 @@ export function mcpDetail(id: string, os: string): McpServerDetail | undefined {
   };
 }
 
-/** The machines the operator works from (V9): a Linux dev VM and a Windows PC that wants fewer servers. */
+/** The machines the operator works from: a Linux dev VM and a Windows PC that wants fewer servers. */
 export const mcpWorkstations: McpWorkstation[] = [
   {
     id: 'wacken',
@@ -945,7 +945,7 @@ export function mcpWorkstationPlan(id: string, os?: string): McpWorkstationPlan 
   };
 }
 
-/** What the assistants handed over (V9, D-116): a server the catalog does not have, and one it has but described differently. */
+/** What the assistants handed over (D-116): a server the catalog does not have, and one it has but described differently. */
 export const mcpCaptureGroups: McpCaptureGroup[] = [
   {
     key: 'aaaaaaaaaaaa',

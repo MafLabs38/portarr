@@ -7,7 +7,7 @@ namespace Portarr.Core.Mcp.Capture;
 /// </summary>
 public sealed record CapturedValue(string Name, string? Variable, string? Literal);
 
-/// <summary>An MCP server found in the configuration of a client on a workstation, as an assistant describes it (V9, D-116).</summary>
+/// <summary>An MCP server found in the configuration of a client on a workstation, as an assistant describes it (D-116).</summary>
 public sealed record CapturedServer(
     string Name,
     string Transport,

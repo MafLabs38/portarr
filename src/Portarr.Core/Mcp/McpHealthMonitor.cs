@@ -6,7 +6,7 @@ using Portarr.Core.Checks;
 namespace Portarr.Core.Mcp;
 
 /// <summary>
-/// Checks the remote MCP servers of the catalog at their interval (V9, D-114) and keeps their health: the state, since when,
+/// Checks the remote MCP servers of the catalog at their interval (D-114) and keeps their health: the state, since when,
 /// and when each was last seen healthy. The figures are loaded from the database at start and saved at every check, so
 /// a restart does not forget that a server has been down for twelve days. Local (<c>stdio</c>) servers and servers with
 /// <c>check: false</c> are not checked, and no workstation is ever probed. The catalog is read on every tick, so an edit is picked up quickly.

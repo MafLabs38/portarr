@@ -4,7 +4,7 @@ using YamlDotNet.Serialization;
 
 namespace Portarr.Core.Catalog;
 
-// YAML shape of the mcpServers section (V9). Kept apart from the domain records, like the rest of the catalog document.
+// YAML shape of the mcpServers section. Kept apart from the domain records, like the rest of the catalog document.
 #pragma warning disable CA1002, CA2227 // Mutable lists and maps are what the YAML deserializer fills.
 
 /// <summary>See <see cref="McpServerDefinition"/>.</summary>

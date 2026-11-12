@@ -56,7 +56,7 @@ function PlanSection({
 }
 
 /**
- * One workstation: what the catalog says about it and its plan (V9, D-110): what an assistant on that machine installs, what it removes
+ * One workstation: what the catalog says about it and its plan (D-110): what an assistant on that machine installs, what it removes
  * if present, and the variables the machine must provide. The system defaults to the machine's own; the operator may look at another.
  */
 export default function McpWorkstationDetail() {

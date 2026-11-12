@@ -3,7 +3,7 @@ using FluentMigrator;
 namespace Portarr.Core.Datastore.Migration;
 
 /// <summary>
-/// The inbox of captured MCP servers (V9, D-116): what an assistant handed over from a workstation, waiting for the operator to accept it
+/// The inbox of captured MCP servers (D-116): what an assistant handed over from a workstation, waiting for the operator to accept it
 /// into the catalog or dismiss it. A capture is one hand-over (one workstation, client and scope); each of its servers is a row with its own
 /// status, so the operator decides server by server. The payload is the assistant's description as JSON: names, addresses, commands and the
 /// names of variables, never a secret value (the validator refuses those before anything is stored).

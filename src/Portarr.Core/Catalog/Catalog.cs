@@ -32,10 +32,10 @@ public sealed record Catalog(
     /// <summary>External providers and accounts (D-84).</summary>
     public IReadOnlyList<CatalogProvider> ExternalProviders => Providers ?? [];
 
-    /// <summary>The MCP servers the operator uses (V9, D-111).</summary>
+    /// <summary>The MCP servers the operator uses (D-111).</summary>
     public IReadOnlyList<McpServerDefinition> McpServerList => McpServers ?? [];
 
-    /// <summary>The machines the operator works from with an assistant (V9, D-111).</summary>
+    /// <summary>The machines the operator works from with an assistant (D-111).</summary>
     public IReadOnlyList<WorkstationDefinition> WorkstationList => Workstations ?? [];
 }
 

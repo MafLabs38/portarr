@@ -3,11 +3,11 @@ using Portarr.Core.Mcp.Clients;
 
 namespace Portarr.Core.Mcp;
 
-/// <summary>A workstation with the servers wanted on it, resolved against the catalog (V9).</summary>
+/// <summary>A workstation with the servers wanted on it, resolved against the catalog.</summary>
 public sealed record McpWorkstationView(WorkstationDefinition Workstation, IReadOnlyList<McpServerView> Wanted);
 
 /// <summary>
-/// What an assistant on a workstation does to bring it in line with the catalog (V9, D-110): <c>Install</c> the wanted servers in each
+/// What an assistant on a workstation does to bring it in line with the catalog (D-110): <c>Install</c> the wanted servers in each
 /// client, <c>Remove</c> (if present) the servers of the catalog that are not wanted there, and provide <c>RequiresEnv</c>, for which it must be
 /// able to read the keys of <c>RequiresSecrets</c> in the operator's secret store (D-117). Nothing is
 /// tracked about whether it was applied: the assistant that applies it is the witness (D-114).
@@ -47,9 +47,9 @@ public sealed class McpWorkstationService : IMcpWorkstationService
 
     public IReadOnlyList<McpWorkstationView> List()
     {
-        var servers = _servers.List();
+        var servers = _servers.List().ToDictionary(s => s.Server.Id, StringComparer.Ordinal);
         return _catalogService.Current.Catalog.WorkstationList
-            .Select(w => new McpWorkstationView(w, w.Wanted.Select(x => servers.First(s => s.Server.Id == x.ServerId)).ToList()))
+            .Select(w => new McpWorkstationView(w, w.Wanted.Select(x => servers.GetValueOrDefault(x.ServerId)).OfType<McpServerView>().ToList()))
             .ToList();
     }
 
@@ -68,7 +68,11 @@ public sealed class McpWorkstationService : IMcpWorkstationService
         var install = new List<McpRendering>();
         foreach (var wanted in workstation.Wanted)
         {
-            var server = servers.First(s => s.Id == wanted.ServerId);
+            if (servers.Find(s => s.Id == wanted.ServerId) is not { } server)
+            {
+                continue;
+            }
+
             install.AddRange(wanted.Clients.Select(client => _servers.Render(server, client, wanted.Scope, system)));
         }
 

@@ -14,10 +14,10 @@ public static class CatalogSections
     public const string Links = "links";
     public const string Providers = "providers";
 
-    /// <summary>The MCP servers (V9, D-111). Not in <see cref="All"/>: only a person edits them (D-112), through <see cref="ICatalogEditor.EditAsPersonAsync"/>.</summary>
+    /// <summary>The MCP servers (D-111). Not in <see cref="All"/>: only a person edits them (D-112), through <see cref="ICatalogEditor.EditAsPersonAsync"/>.</summary>
     public const string McpServers = "mcpServers";
 
-    /// <summary>The workstations (V9, D-111). Person-only like <see cref="McpServers"/>.</summary>
+    /// <summary>The workstations (D-111). Person-only like <see cref="McpServers"/>.</summary>
     public const string Workstations = "workstations";
 
     /// <summary>The identity of the portal (D-91): one mapping, not a list, edited through the same editor (id <c>portal</c>).</summary>
