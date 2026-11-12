@@ -19,3 +19,4 @@ An accepted ADR is never edited to change its decision: a new ADR supersedes it.
 | [0012](0012-kubernetes-reuses-the-node-exporter-parser.md) | The Kubernetes connector reuses the node_exporter parser | D-72 |
 | [0013](0013-connectors-own-their-environment-settings.md) | Connectors own their environment settings | D-105 |
 | [0014](0014-releases-with-semantic-release.md) | Releases are decided by semantic-release from main | D-109 |
+| [0015](0015-review-findings-are-answered-in-a-register-the-agents-read.md) | Review findings are answered in a register the agents read; a serious one not fixed is the maintainer's to accept | — |
