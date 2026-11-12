@@ -74,7 +74,7 @@ describe('McpServerDetail', () => {
     expect(screen.getByText('Not monitored')).toBeInTheDocument();
   });
 
-  it('says which vault key sits behind a variable, never a value (D-117)', async () => {
+  it('says which vault key sits behind a variable, never a value (D-116)', async () => {
     renderPage('memory');
 
     const definition = await screen.findByRole('region', { name: 'Definition' });

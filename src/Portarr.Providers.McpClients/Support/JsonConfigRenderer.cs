@@ -117,10 +117,13 @@ public abstract class JsonConfigRenderer : McpClientRendererBase
 
     private string Text(McpValue value) => value.IsEnv ? Ref(value.EnvName!) : value.Literal!;
 
-    /// <summary>A command-line argument: as is when it is plain, between single quotes otherwise, null when it holds a quote.</summary>
+    /// <summary>
+    /// A command-line argument: as is when it is plain, between single quotes otherwise, null when it holds a quote. A comma is not plain: in PowerShell's
+    /// argument mode it is the array operator, so <c>a,b</c> would reach the program as two arguments.
+    /// </summary>
     protected static string? Arg(string text)
     {
-        return text.Length > 0 && text.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '@' or '%' or '+' or '=' or ':' or ',' or '.' or '/' or '-')
+        return text.Length > 0 && text.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '@' or '%' or '+' or '=' or ':' or '.' or '/' or '-')
             ? text
             : Quote(text);
     }

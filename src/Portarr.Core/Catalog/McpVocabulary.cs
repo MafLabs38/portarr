@@ -13,6 +13,9 @@ public interface IMcpVocabulary
 
     IReadOnlyList<string> SecretStoreKinds { get; }
 
+    /// <summary>The scopes a client holds a server at; empty for a client nobody registered.</summary>
+    IReadOnlyList<string> ScopesOf(string client);
+
     /// <summary>Null when the prefix suits the kind of store, else the sentence for the operator.</summary>
     string? CheckSecretPrefix(string kind, string prefix);
 
@@ -22,10 +25,12 @@ public interface IMcpVocabulary
 
 public sealed class McpVocabulary : IMcpVocabulary
 {
+    private readonly IMcpClientRegistry _clients;
     private readonly IMcpSecretStoreRegistry _stores;
 
     public McpVocabulary(IMcpClientRegistry clients, IMcpSecretStoreRegistry stores)
     {
+        _clients = clients;
         Clients = clients.Ids;
         SecretStoreKinds = stores.Kinds;
         _stores = stores;
@@ -37,6 +42,8 @@ public sealed class McpVocabulary : IMcpVocabulary
     public IReadOnlyList<string> Clients { get; }
 
     public IReadOnlyList<string> SecretStoreKinds { get; }
+
+    public IReadOnlyList<string> ScopesOf(string client) => _clients.Find(client)?.Scopes ?? [];
 
     public string? CheckSecretPrefix(string kind, string prefix) => _stores.Find(kind)?.CheckPrefix(prefix);
 

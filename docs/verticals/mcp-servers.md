@@ -153,7 +153,7 @@ Portarr holds no secret and hands none out. The secrets live in the operator's v
 ### Security (D-112)
 
 - **A server definition is instructions an assistant will execute**: a `stdio` command runs code on a workstation, an `http` URL receives its headers. So a definition exists only in **the catalog file**, edited by a person. The catalog edit API, the MCP tools and the chat cannot create, change or remove `mcpServers`, `workstations` or `secretStore`, and `get_catalog_item` leaves them out (the same principle as 17-1 in D-86). An assistant can only **read** what the catalog says.
-- All the MCP tools are read-only. Nothing in this vertical writes to the catalog.
+- The four MCP tools of this vertical are read-only, and nothing in this vertical writes to the catalog. The catalog write tools of V5 (D-86, off by default) refuse `mcpServers`, `workstations` and `secretStore`.
 - Portarr cannot make a client ask permission. The guards are the instruction to the assistant and the client's own prompts for file edits and commands. The page says so.
 - `http://` needs `allowInsecure: true` on the server (D-103). A `stdio` command is a program and its arguments, never a shell line. An unpinned `npx` or `uvx` package is flagged on the server's page.
 - Commands are written for a POSIX shell, or for PowerShell on Windows (a note says so). A text that would break the quoting is refused when the catalog is read, or the operator is sent to the file operation.
@@ -207,7 +207,7 @@ One vertical, three steps, developed in the sandbox and delivered in one pull re
 - [x] For each supported client, the rendering of an `http` and a `stdio` server matches its golden file and contains no secret value; a quote character that would escape the quoting is never written inside a command
 - [x] A healthy fixture server, a 401 one, a dead one, a non-MCP one and a probe that failed give the five states; the last healthy time and the down-since survive a restart on SQLite and PostgreSQL; nothing probes a workstation
 - [x] `mcp.use` is held by Admin and Operator and by neither Observer nor Guest; role × endpoint and role × tool matrices
-- [x] The catalog edit API, the MCP tools and the chat cannot touch `mcpServers`, `workstations` or `secretStore`; the item endpoint leaves them out; every MCP tool is read-only
+- [x] The catalog edit API, the MCP tools and the chat cannot touch `mcpServers`, `workstations` or `secretStore`; the item endpoint leaves them out; the four MCP tools are read-only, and the catalog write tools refuse these sections
 - [x] Adding a client is a new class and its registration: no other file of Core changes (a test registers a stand-in client)
 - [ ] (the maintainer, on the preview) An assistant connected to the sandbox obtains the exact command to add a server at user scope for its client, and a workstation's plan with what to install and what to remove
 - [x] A Down server appears in `get_overview` with the time since, for a caller with `mcp.use` only

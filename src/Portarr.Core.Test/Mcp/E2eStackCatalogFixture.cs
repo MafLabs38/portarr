@@ -26,7 +26,9 @@ public sealed class E2eStackCatalogFixture
     public void should_declare_the_servers_and_workstations_the_mcp_journey_walks()
     {
         var text = Read();
-        var mcp = text[text.IndexOf("mcpServers:", StringComparison.Ordinal)..];
+        var start = text.IndexOf("mcpServers:", StringComparison.Ordinal);
+        start.Should().BeGreaterThanOrEqualTo(0, "the e2e stack catalog must declare the mcpServers the journey walks");
+        var mcp = text[start..];
 
         var result = TestCatalog.Parse(mcp);
 

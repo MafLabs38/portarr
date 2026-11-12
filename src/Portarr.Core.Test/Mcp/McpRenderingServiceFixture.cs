@@ -74,11 +74,25 @@ public sealed class McpRenderingServiceFixture
     [Fact]
     public void should_say_a_client_does_not_hold_a_scope_without_asking_the_adapter()
     {
-        var rendering = Service(Servers).Install(Server(Servers, "github"), "zed");
+        var rendering = Service(Servers).Install(Server(Servers, "github"), "zed", McpScopes.Project);
 
         rendering.Supported.Should().BeFalse();
         rendering.Operations.Should().BeEmpty();
         rendering.Notes.Should().ContainSingle().Which.Should().Be("Client zed has no 'project' scope; it holds servers at: user.");
+    }
+
+    [Fact]
+    public void should_fall_back_to_the_clients_first_scope_when_none_is_asked_for_an_installation_and_a_removal_alike()
+    {
+        var github = Server(Servers, "github");
+
+        var install = Service(Servers).Install(github, "zed");
+        var removal = Service(Servers).Remove(github, "zed");
+
+        install.Scope.Should().Be("user");
+        install.Supported.Should().BeTrue();
+        removal.Scope.Should().Be("user");
+        removal.Supported.Should().BeTrue();
     }
 
     [Fact]

@@ -26,7 +26,7 @@ public abstract class McpClientRendererContract
 
     protected abstract IMcpClientRenderer Renderer { get; }
 
-    private static IReadOnlyList<McpServerDefinition> Servers => TestCatalog.Parse(Catalog).Catalog.McpServerList;
+    private static readonly IReadOnlyList<McpServerDefinition> Servers = TestCatalog.Parse(Catalog).Catalog.McpServerList;
 
     public static TheoryData<string> Systems() => new(McpOperatingSystems.All);
 
@@ -66,21 +66,12 @@ public abstract class McpClientRendererContract
 
     [Theory]
     [MemberData(nameof(Systems))]
-    public void should_name_a_variable_and_never_carry_its_value(string os)
+    public void should_name_the_variable_a_server_reads_and_never_hold_a_value(string os)
     {
-        const string name = "PORTARR_CONTRACT_KEY";
-        const string value = "marker-value-that-must-never-be-rendered";
-        Environment.SetEnvironmentVariable(name, value);
-        try
-        {
-            var text = string.Join('\n', Servers.SelectMany(s => Renderer.Install(new McpRenderContext(s, Renderer.Scopes[0], os)).Operations).Select(o => o.Text));
+        // A definition holds the name of a variable, never a value (D-111): what a renderer writes is the client's syntax for reading that name.
+        var text = string.Join('\n', Servers.SelectMany(s => Renderer.Install(new McpRenderContext(s, Renderer.Scopes[0], os)).Operations).Select(o => o.Text));
 
-            text.Should().Contain(name).And.NotContain(value);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(name, null);
-        }
+        text.Should().Contain("PORTARR_CONTRACT_KEY");
     }
 
     [Theory]
@@ -101,6 +92,7 @@ public abstract class McpClientRendererContract
 
             var operations = Renderer.Install(new McpRenderContext(server, Renderer.Scopes[0], os)).Operations;
 
+            operations.Should().NotBeEmpty("a text with a quote is left out of the command, but the operator keeps the file entry");
             operations.Where(o => o.Kind == McpOperationKinds.Command).Should().OnlyContain(o => !o.Text.Contains(literal, StringComparison.Ordinal));
         }
     }

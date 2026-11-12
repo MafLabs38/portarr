@@ -9,7 +9,7 @@ export interface McpValue {
   literal: string | null;
   /** Or the name of the variable that holds the value on the workstation. */
   variable: string | null;
-  /** The key, in the operator's secret store, of the secret the workstation puts in that variable (D-117). */
+  /** The key, in the operator's secret store, of the secret the workstation puts in that variable (D-116). */
   secret: string | null;
 }
 

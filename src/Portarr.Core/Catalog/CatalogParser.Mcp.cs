@@ -171,6 +171,14 @@ public static partial class CatalogParser
                     _errors.Add($"{owner}: {key}.clients must list at least one client, or be left out for all of them.");
                 }
 
+                if (scope is not null && McpScopes.All.Contains(scope))
+                {
+                    foreach (var client in clients.Where(c => !_mcp.ScopesOf(c).Contains(scope)))
+                    {
+                        _errors.Add($"{owner}: {key}.scope '{scope}' is not held by {client}, which holds servers at: {string.Join(", ", _mcp.ScopesOf(client))}.");
+                    }
+                }
+
                 result.Add(new WantedServer(serverId, clients, scope));
             }
 
@@ -388,7 +396,7 @@ public static partial class CatalogParser
         }
 
         /// <summary>
-        /// The key of the secret behind a variable (D-117): a name under the store's prefix, never a value. It needs a <c>secretStore</c>; false (and an
+        /// The key of the secret behind a variable (D-116): a name under the store's prefix, never a value. It needs a <c>secretStore</c>; false (and an
         /// error, unless the store itself was already refused) when it cannot be used.
         /// </summary>
         private bool BuildSecretKey(string owner, string key, McpValueDocument value, out string? secretKey)
@@ -420,7 +428,7 @@ public static partial class CatalogParser
         }
 
         /// <summary>
-        /// The operator's secret store (D-117): its kind, its address and the prefix under which the MCP secrets live. A name and a place, never a
+        /// The operator's secret store (D-116): its kind, its address and the prefix under which the MCP secrets live. A name and a place, never a
         /// secret: Portarr holds none and reads none.
         /// </summary>
         private McpSecretStore? BuildSecretStore(SecretStoreDocument? document)

@@ -84,7 +84,7 @@ describe('McpWorkstationDetail', () => {
     expect(screen.queryByRole('region', { name: 'github · Cursor' })).not.toBeInTheDocument();
   });
 
-  it('tells the operator which keys of the vault the machine needs, so that he grants them there (D-117)', async () => {
+  it('tells the operator which keys of the vault the machine needs, so that he grants them there (D-116)', async () => {
     renderPlan('wacken');
 
     expect(await screen.findByText(/to these keys in your vault .*: kv\/mcp\/memory\./)).toBeInTheDocument();

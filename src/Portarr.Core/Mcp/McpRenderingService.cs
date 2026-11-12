@@ -12,7 +12,7 @@ namespace Portarr.Core.Mcp;
 public interface IMcpRenderingService
 {
     /// <summary>
-    /// How to install the server in a client: the scope defaults to the server's, the operating system to Linux. Throws
+    /// How to install the server in a client: the scope defaults to the server's when the client holds it, else to the client's first; the operating system to Linux. Throws
     /// <see cref="ArgumentException"/> naming the valid values when the client, the scope or the system is unknown.
     /// </summary>
     McpRendering Install(McpServerDefinition server, string client, string? scope = null, string? os = null);
@@ -20,7 +20,7 @@ public interface IMcpRenderingService
     /// <summary>How to remove the server from a client, if present; same defaults and errors as <see cref="Install"/>.</summary>
     McpRendering Remove(McpServerDefinition server, string client, string? scope = null, string? os = null);
 
-    /// <summary>The installation in every client, each at the scope it holds the server at (the server's own, else the client's first).</summary>
+    /// <summary>The installation in every client, each at its default scope.</summary>
     IReadOnlyList<McpRendering> InstallEverywhere(McpServerDefinition server, string? os = null);
 
     /// <summary>The operating system as the renderers expect it: trimmed, lower case, and the default when none is given.</summary>
@@ -54,7 +54,7 @@ public sealed class McpRenderingService : IMcpRenderingService
 
     public IReadOnlyList<McpRendering> InstallEverywhere(McpServerDefinition server, string? os = null)
     {
-        return _clients.All.Select(c => Install(server, c.Id, c.Scopes.Contains(server.Scope) ? server.Scope : c.Scopes[0], os)).ToList();
+        return _clients.All.Select(c => Install(server, c.Id, null, os)).ToList();
     }
 
     public string NormalizeOs(string? os) => string.IsNullOrWhiteSpace(os) ? DefaultOs : os.Trim().ToLowerInvariant();
@@ -63,7 +63,7 @@ public sealed class McpRenderingService : IMcpRenderingService
     {
         var renderer = _clients.Find(client?.Trim().ToLowerInvariant())
             ?? throw new ArgumentException($"Unknown client '{client}'. Clients: {string.Join(", ", _clients.Ids)}.", nameof(client));
-        var resolvedScope = string.IsNullOrWhiteSpace(scope) ? server.Scope : scope.Trim().ToLowerInvariant();
+        var resolvedScope = string.IsNullOrWhiteSpace(scope) ? DefaultScope(server, renderer) : scope.Trim().ToLowerInvariant();
         if (!McpScopes.All.Contains(resolvedScope))
         {
             throw new ArgumentException($"Unknown scope '{scope}'. Scopes: {string.Join(", ", McpScopes.All)}.", nameof(scope));
@@ -97,6 +97,9 @@ public sealed class McpRenderingService : IMcpRenderingService
 
         return new McpRendering(server.Id, renderer.Id, renderer.Name, resolvedScope, true, removal ? [] : server.RequiredVariables(), operations, notes, requiresSecrets);
     }
+
+    /// <summary>The scope a client shows a server at when none is asked, for an installation and a removal alike: the server's own when the client holds it, else the client's first.</summary>
+    private static string DefaultScope(McpServerDefinition server, IMcpClientRenderer renderer) => renderer.Scopes.Contains(server.Scope) ? server.Scope : renderer.Scopes[0];
 
     /// <summary>What holds for every client, whatever its adapter says.</summary>
     private static void AddGenericNotes(McpRenderContext context, List<McpOperation> operations, List<string> notes, bool removal)

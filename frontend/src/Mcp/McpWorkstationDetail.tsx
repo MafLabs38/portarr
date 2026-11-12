@@ -10,8 +10,8 @@ import PageHeading from 'Components/Page/PageHeading';
 import type { McpRendering, McpWorkstation } from 'typings/Mcp';
 import translate from 'Utilities/String/translate';
 
+import styles from './McpDetail.module.css';
 import McpRenderingBlock from './McpRenderingBlock';
-import styles from './McpServerDetail.module.css';
 import { useMcpWorkstation } from './useMcp';
 
 const systems = ['linux', 'macos', 'windows'] as const;

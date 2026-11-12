@@ -91,6 +91,17 @@ public sealed class McpCheckRunnerFixture : CoreTest<McpCheckRunner>
     }
 
     [Fact]
+    public async Task should_be_down_on_a_server_error_whatever_the_body_says()
+    {
+        Given(Answer(HttpStatusCode.InternalServerError, """{"jsonrpc":"2.0","id":1,"error":{"code":-32603,"message":"boom"}}"""));
+
+        var result = await Subject.RunAsync(Target, Definition, TestContext.Current.CancellationToken);
+
+        result.Up.Should().BeFalse();
+        result.Error.Should().Be("http-500");
+    }
+
+    [Fact]
     public async Task should_time_out_after_the_check_timeout()
     {
         Given(new FakeHttpHandler(async (_, token) =>

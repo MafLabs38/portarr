@@ -4,8 +4,8 @@ import type { McpServer } from 'typings/Mcp';
 import translate from 'Utilities/String/translate';
 
 import describeMcpHealth from './describeMcpHealth';
+import styles from './McpDetail.module.css';
 import McpHealthLabel from './McpHealthLabel';
-import styles from './McpServerDetail.module.css';
 
 interface McpDefinitionCardProps {
   server: McpServer;

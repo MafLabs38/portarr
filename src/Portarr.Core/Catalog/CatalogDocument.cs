@@ -34,7 +34,7 @@ internal sealed class CatalogDocument
     /// <summary>The machines the operator works from with an assistant (D-111).</summary>
     public List<WorkstationDocument>? Workstations { get; set; }
 
-    /// <summary>The operator's vault, where the secrets of the MCP servers live (D-117).</summary>
+    /// <summary>The operator's vault, where the secrets of the MCP servers live (D-116).</summary>
     public SecretStoreDocument? SecretStore { get; set; }
 }
 

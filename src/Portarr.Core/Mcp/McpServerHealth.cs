@@ -68,17 +68,22 @@ public sealed class McpHealthStore : IMcpHealthStore
         var rows = await connection.QueryAsync<Row>(new CommandDefinition(
             """SELECT "ServerId", "State", "Since", "LastHealthyAt", "LastCheckedAt", "Error", "StatusCode" FROM "McpServerHealth" """,
             cancellationToken: cancellationToken));
-        return rows
-            .Where(r => Enum.TryParse<McpHealthState>(r.State, out _))
-            .Select(r => new McpServerHealth(
-                r.ServerId,
-                Enum.Parse<McpHealthState>(r.State),
-                Iso.Parse(r.Since),
-                Iso.ParseOrNull(r.LastHealthyAt),
-                Iso.Parse(r.LastCheckedAt),
-                r.Error,
-                r.StatusCode))
-            .ToList();
+        return rows.Select(Read).OfType<McpServerHealth>().ToList();
+    }
+
+    /// <summary>A row as a health, or null when it cannot be read: one bad row costs that server its history, not every server.</summary>
+    private static McpServerHealth? Read(Row row)
+    {
+        try
+        {
+            return Enum.TryParse<McpHealthState>(row.State, out var state)
+                ? new McpServerHealth(row.ServerId, state, Iso.Parse(row.Since), Iso.ParseOrNull(row.LastHealthyAt), Iso.Parse(row.LastCheckedAt), row.Error, row.StatusCode)
+                : null;
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
     }
 
     public async Task SaveAsync(McpServerHealth health, CancellationToken cancellationToken)

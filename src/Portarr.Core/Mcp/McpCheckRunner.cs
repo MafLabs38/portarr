@@ -61,6 +61,11 @@ public sealed class McpCheckRunner : ICheckRunner
             {
                 // The server is there and asks for credentials: healthy, said so by the state.
             }
+            else if (statusCode >= 500)
+            {
+                // A server that fails is down, whatever its body says.
+                error = CheckErrors.UnexpectedStatus(statusCode);
+            }
             else if (!IsJsonRpc(await ReadBodyAsync(response.Content, linked.Token)))
             {
                 error = statusCode >= 400 ? CheckErrors.UnexpectedStatus(statusCode) : CheckErrors.InvalidResponse;

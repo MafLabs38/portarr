@@ -72,10 +72,17 @@ public sealed class CatalogWorkstationParserFixture
     [InlineData("  - { id: pc, os: linux, clients: [cursor], mcp: [{ server: memory, clients: [zed] }] }", "which is not a client of this workstation")]
     [InlineData("  - { id: pc, os: linux, clients: [cursor], mcp: [{ server: memory, clients: [] }] }", "must list at least one client")]
     [InlineData("  - { id: pc, os: linux, clients: [cursor], mcp: [{ server: memory, scope: machine }] }", "scope must be")]
+    [InlineData("  - { id: pc, os: linux, clients: [zed, cursor], mcp: [{ server: memory, scope: project }] }", "scope 'project' is not held by zed, which holds servers at: user")]
     [InlineData("  - { id: Bad_Id, os: linux, clients: [cursor] }", "must be lowercase letters")]
     public void should_refuse_an_invalid_workstation(string workstation, string expected)
     {
         Errors(workstation).Should().Contain(error => error.Contains(expected, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void should_accept_a_scope_in_the_clients_that_hold_it_and_not_ask_the_ones_it_is_not_wanted_in()
+    {
+        Errors("  - { id: pc, os: linux, clients: [zed, cursor], mcp: [{ server: memory, clients: [cursor], scope: project }] }").Should().BeEmpty();
     }
 
     [Fact]

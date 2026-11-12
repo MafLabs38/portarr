@@ -92,12 +92,12 @@ public sealed class McpWorkstationServiceFixture
     }
 
     [Fact]
-    public void should_leave_out_a_removal_in_a_client_that_cannot_hold_the_server_at_its_scope()
+    public void should_remove_in_the_scope_the_client_holds_when_it_cannot_hold_the_servers_own()
     {
-        // github's own scope is project: Zed has only the user scope, so there is nothing to remove there.
+        // github's own scope is project: Zed has only the user scope, where the server page installs it, so that is where a removal looks.
         var plan = _service.GetPlan(_service.Find("gaming-pc")!.Workstation);
 
-        plan.Remove.Select(r => $"{r.ServerId}/{r.Client}").Should().Equal("memory/zed");
+        plan.Remove.Select(r => $"{r.ServerId}/{r.Client}/{r.Scope}").Should().BeEquivalentTo("memory/zed/user", "github/zed/user");
         plan.Install.Should().ContainSingle().Which.ServerId.Should().Be("search");
     }
 

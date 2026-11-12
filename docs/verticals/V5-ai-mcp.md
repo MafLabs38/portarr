@@ -25,7 +25,7 @@ The four tabs answer four questions; the assistant asks them all, mixes them and
 | In | Out (later) |
 |---|---|
 | An MCP server inside Portarr (official C# SDK), Streamable HTTP at `/mcp`, stateless | stdio transport, a separate binary; prompts; subscriptions and change notifications |
-| Read-only tools over the views the pages show (fleet, Infrastructure, Data, Maintenance), eight at the first slice, and the four MCP tools of [mcp-servers.md](mcp-servers.md) on top | Any tool that acts (start, stop, restart, open a PR): out of scope (D-31) |
+| Read-only tools over the views the pages show (fleet, Infrastructure, Data, Maintenance), seven at the first slice and eight today (`get_environment_knowledge` came with D-83 to D-86), and the four MCP tools of [mcp-servers.md](mcp-servers.md) on top | Any tool that acts (start, stop, restart, open a PR): out of scope (D-31) |
 | Two Markdown resources: the infrastructure knowledge base and the glossary, generated on each read | Issues, events and history (they come with the Overview and Notifications verticals of the plan); logs; long-term metrics (Prometheus, V8) |
 | Off by default; keyed (per-user API keys since V7, D-97; the shared key is deprecated) | OAuth for MCP clients (D-99, step 2) |
 | An **Assistant** page: server state, how to connect, knowledge preview | An assistant chat inside Portarr: [the chat vertical](V6-chat.md), through an optional agent runner; Portarr itself never calls an LLM |
@@ -127,7 +127,7 @@ When the server is off, an info alert says how to turn it on.
 - [x] `/mcp` is not served unless `PORTARR__MCP__ENABLED=true`; startup fails when it is on without a key of 32+ characters
 - [x] Without the key, or with a wrong one: 401; with `X-Api-Key` or a bearer token: initialize, tools/list, tools/call and resources/read work
 - [x] More than 120 requests per minute from one client: 429, wrong keys included
-- [x] Eight tools (at the first slice; the MCP tools of [mcp-servers.md](mcp-servers.md) come on top), all read-only and closed-world, reusing the Core services and the API mappers; none acts
+- [x] Seven tools at the first slice, eight today (the MCP tools of [mcp-servers.md](mcp-servers.md) come on top), all read-only and closed-world, reusing the Core services and the API mappers; none acts
 - [x] `get_overview` lists what needs attention across apps, infrastructure, data and maintenance, worst first, naming its subjects
 - [x] `get_app` tells where an app runs down to the machine and the hypervisor, and how to reach it
 - [x] The knowledge base nests VMs under their hypervisor and lists stacks, apps, URLs, data, jobs, repositories

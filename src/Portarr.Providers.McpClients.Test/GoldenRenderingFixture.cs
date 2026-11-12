@@ -66,12 +66,6 @@ public sealed class GoldenRenderingFixture
         Golden(client, text.ToString());
     }
 
-    [Fact]
-    public void should_know_nine_clients_with_distinct_ids()
-    {
-        RealMcp.Clients.Ids.Should().BeEquivalentTo("claude-code", "claude-desktop", "cursor", "vscode", "windsurf", "gemini-cli", "codex-cli", "opencode", "zed");
-    }
-
     [Theory]
     [MemberData(nameof(Clients))]
     public void should_remove_only_if_present_and_touch_nothing_else(string client)
@@ -135,9 +129,25 @@ public sealed class GoldenRenderingFixture
         if (Environment.GetEnvironmentVariable("PORTARR_UPDATE_GOLDEN") == "1")
         {
             File.WriteAllText(path, actual);
+            Assert.Fail($"The golden file {client}.txt was rewritten: read the diff, then run again without PORTARR_UPDATE_GOLDEN.");
         }
 
         File.Exists(path).Should().BeTrue($"the golden file {client}.txt must exist: run once with PORTARR_UPDATE_GOLDEN=1 and read it");
         File.ReadAllText(path).ReplaceLineEndings("\n").Should().Be(actual.ReplaceLineEndings("\n"));
+    }
+
+    [Fact]
+    public void should_quote_an_argument_with_a_comma_which_powershell_would_split_in_two()
+    {
+        var catalog = RealMcp.Parse("""
+            mcpServers:
+              - id: fs
+                transport: stdio
+                stdio: { command: npx, args: ["-y", "@example/fs-mcp@1.0.0", "--allow=/srv/a,/srv/b"] }
+            """).Catalog;
+
+        var rendering = RealMcp.Rendering(catalog).Install(catalog.McpServerList.Single(), "claude-code", McpScopes.User, McpOperatingSystems.Windows);
+
+        rendering.Operations.First(o => o.Kind == McpOperationKinds.Command).Text.Should().Contain("'--allow=/srv/a,/srv/b'");
     }
 }

@@ -9,8 +9,8 @@ import type { McpRendering } from 'typings/Mcp';
 import translate from 'Utilities/String/translate';
 
 import McpDefinitionCard from './McpDefinitionCard';
+import styles from './McpDetail.module.css';
 import McpRenderingBlock from './McpRenderingBlock';
-import styles from './McpServerDetail.module.css';
 import { useMcpServer } from './useMcp';
 
 const systems = ['linux', 'macos', 'windows'] as const;
