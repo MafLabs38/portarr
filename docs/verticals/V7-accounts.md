@@ -77,7 +77,7 @@ The built-in sets live in code and cannot be edited; **Duplicate** starts a cust
 
 ### API keys, chat and MCP (D-97, D-98)
 
-- `ptr_…` keys: SHA-256 stored, prefix shown, last used, expiry, revoke; the permissions are the owner's role *now* narrowed by the scope; a disabled owner's keys fail. `PORTARR__APIKEY` and `PORTARR__MCP__APIKEY` keep working as the `system` principal (Admin) and log a startup warning.
+- `ptr_…` keys: SHA-256 stored, prefix shown, last used, expiry, revoke; the permissions are the owner's role *now* narrowed by the scope; a disabled owner's keys fail. `PORTARR__APIKEY` and `PORTARR__MCP__APIKEY` keep working as scoped `system` principals (the view permissions, plus `catalog.write` for the first, or for the second while the write tools are on) and log a startup warning.
 - Chat: the runner stays unaware of users. Portarr records the owner of each conversation (`ChatConversations`) and filters or refuses everything else (404). With each message it mints a token (`ptc_…`, stored hashed) and sends it as `mcpToken`; the runner writes it as the MCP key of a process it starts (`agent/src/sessions.ts`); without it the configured key is used, so the protocol change is backwards compatible. The token opens `/mcp` only, and the audit's `via` comes from it.
 - MCP tools: each read tool needs the permission of its page (`get_overview` and the knowledge base need all four views), every catalog tool needs `catalog.write`; the catalog audit lines carry the user.
 

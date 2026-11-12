@@ -68,7 +68,7 @@ Four more read-only tools describe the operator's own MCP servers and how to ins
 
 ### Security model (D-70)
 
-- **Off by default.** `PORTARR__MCP__ENABLED=true` maps `/mcp`. Since V7 (D-97) a call needs a per-user API key (Account, API keys), the chat runner's token, or the deprecated `PORTARR__MCP__APIKEY` (optional, at least 32 characters when set; acts as the `system` principal, Admin). Each tool needs the permission of the page it mirrors (D-98).
+- **Off by default.** `PORTARR__MCP__ENABLED=true` maps `/mcp`. Since V7 (D-97) a call needs a per-user API key (Account, API keys), the chat runner's token, or the deprecated `PORTARR__MCP__APIKEY` (optional, at least 32 characters when set; acts as a `system` principal limited to the view permissions, plus `catalog.write` while the write tools are on, D-97; it never holds `mcp.use`). Each tool needs the permission of the page it mirrors (D-98).
 - **API key** in `X-Api-Key` or `Authorization: Bearer`; SHA-256 of both sides compared with `CryptographicOperations.FixedTimeEquals` (no content or length timing leak). Missing or wrong: **401** with `WWW-Authenticate: Bearer realm="portarr-mcp"`. The key is never returned (`/api/v1/assistant` only says whether one is set) and never logged.
 - **Rate limit**: 120 requests per minute per client address (forwarded only from trusted proxies), counted before authentication so wrong keys are throttled too; then **429**.
 - **No secrets in answers**: URLs lose credentials, query and fragment (`SafeUrl`); workload labels, environment variables, Docker and Kubernetes endpoints and token variable names are never part of a tool output; failures are reason codes; catalog errors are a count.

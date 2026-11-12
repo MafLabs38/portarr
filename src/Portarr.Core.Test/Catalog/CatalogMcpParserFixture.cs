@@ -150,6 +150,7 @@ public sealed class CatalogMcpParserFixture
     [InlineData("transport: stdio\n    stdio: { command: npx, args: [\"-y\", \"pkg@1.0.0\", \"--token\", \"abc123\"] }", "looks like a credential")]
     [InlineData("transport: stdio\n    stdio: { command: npx, args: [\"-y\", \"pkg@1.0.0\", \"X-Api-Key=abc123\"] }", "looks like a credential")]
     [InlineData("transport: stdio\n    stdio: { command: CMD.EXE, args: [\"/c\", \"npx\", \"%PATH%\"] }", "is read by cmd.exe")]
+    [InlineData("transport: stdio\n    stdio: { command: 'C:\\Windows\\System32\\cmd.exe', args: [\"/c\", \"npx\", \"pkg&whoami\"] }", "is read by cmd.exe")]
     public void should_refuse_an_invalid_server(string body, string expected)
     {
         var errors = Errors($"mcpServers:\n  - id: memory\n    {body}");

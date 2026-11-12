@@ -395,7 +395,12 @@ public static partial class CatalogParser
 
         private static bool IsCredentialName(string name) => McpCredentialWordPattern().IsMatch(name) && !McpNotACredentialPattern().IsMatch(name);
 
-        private static bool GoesThroughCmd(string command) => command.Equals("cmd", StringComparison.OrdinalIgnoreCase) || command.Equals("cmd.exe", StringComparison.OrdinalIgnoreCase);
+        private static bool GoesThroughCmd(string command)
+        {
+            // The program may be given with its path (C:\Windows\System32\cmd.exe): only the file name says what runs.
+            var name = command[(command.LastIndexOfAny(['\\', '/']) + 1)..];
+            return name.Equals("cmd", StringComparison.OrdinalIgnoreCase) || name.Equals("cmd.exe", StringComparison.OrdinalIgnoreCase);
+        }
 
         /// <summary>
         /// Headers or environment of a server. A value is a text that is not a secret, or <c>{ env: NAME }</c>; a name that
