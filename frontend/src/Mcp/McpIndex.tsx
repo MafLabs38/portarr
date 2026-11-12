@@ -7,14 +7,12 @@ import PageContentBody from 'Components/Page/PageContentBody';
 import PageHeading from 'Components/Page/PageHeading';
 import translate from 'Utilities/String/translate';
 
-import McpCapturedTab from './McpCapturedTab';
 import McpServersTab from './McpServersTab';
 import McpWorkstationsTab from './McpWorkstationsTab';
-import { useMcpCaptures, useMcpServers, useMcpWorkstations } from './useMcp';
+import { useMcpServers, useMcpWorkstations } from './useMcp';
 
 const serversTab = 'servers';
 const workstationsTab = 'workstations';
-const capturedTab = 'captured';
 
 /**
  * "Which MCP servers do I use, are they alive, and where do I want them?": the servers the catalog declares, each remote one with
@@ -24,10 +22,9 @@ const capturedTab = 'captured';
 export default function McpIndex() {
   const servers = useMcpServers();
   const workstations = useMcpWorkstations();
-  const captures = useMcpCaptures();
   const [params, setParams] = useSearchParams();
   const requested = params.get('tab');
-  const tab = requested === workstationsTab || requested === capturedTab ? requested : serversTab;
+  const tab = requested === workstationsTab ? requested : serversTab;
 
   return (
     <PageContent title={translate('MCP')}>
@@ -42,7 +39,6 @@ export default function McpIndex() {
           tabs={[
             { id: serversTab, label: translate('McpServersTab'), count: servers.data?.length },
             { id: workstationsTab, label: translate('McpWorkstationsTab'), count: workstations.data?.length },
-            { id: capturedTab, label: translate('McpCapturedTab'), count: captures.data?.length },
           ]}
         >
           {tab === serversTab ? <McpServersTab servers={servers.data} /> : null}
@@ -53,7 +49,6 @@ export default function McpIndex() {
               workstations={workstations.data}
             />
           ) : null}
-          {tab === capturedTab ? <McpCapturedTab groups={captures.data} isError={captures.isError} /> : null}
         </MaintenanceTabs>
       </PageContentBody>
     </PageContent>

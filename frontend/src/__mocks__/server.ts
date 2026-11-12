@@ -9,14 +9,7 @@ import type CatalogStatus from 'typings/CatalogStatus';
 import type DataReport from 'typings/Data';
 import type { InfrastructureEnvironment } from 'typings/Infrastructure';
 import type MaintenanceReport from 'typings/Maintenance';
-import type {
-  McpCaptureGroup,
-  McpRendering,
-  McpServer,
-  McpServerDetail,
-  McpWorkstation,
-  McpWorkstationPlan,
-} from 'typings/Mcp';
+import type { McpRendering, McpServer, McpServerDetail, McpWorkstation, McpWorkstationPlan } from 'typings/Mcp';
 import type Portal from 'typings/Portal';
 import type Stack from 'typings/Stack';
 import type SystemStatus from 'typings/SystemStatus';
@@ -946,87 +939,6 @@ export function mcpWorkstationPlan(id: string, os?: string): McpWorkstationPlan 
 }
 
 /** What the assistants handed over (D-116): a server the catalog does not have, and one it has but described differently. */
-export const mcpCaptureGroups: McpCaptureGroup[] = [
-  {
-    key: 'aaaaaaaaaaaa',
-    state: 'new',
-    matchId: null,
-    matchName: null,
-    server: {
-      name: 'Search Tool',
-      transport: 'http',
-      url: 'https://search.homelab.example/mcp',
-      command: null,
-      args: [],
-      headers: [{ name: 'X-Api-Key', variable: null, literal: null }],
-      env: [],
-    },
-    sightings: [
-      {
-        rowId: 1,
-        workstation: 'quimper',
-        workstationKnown: true,
-        client: 'claude-code',
-        scope: 'user',
-        name: 'Search Tool',
-        receivedAt: minutesAgo(5),
-      },
-      {
-        rowId: 2,
-        workstation: 'laptop',
-        workstationKnown: false,
-        client: 'cursor',
-        scope: 'user',
-        name: 'search',
-        receivedAt: minutesAgo(30),
-      },
-    ],
-    differences: [],
-    proposal: {
-      id: 'search-tool',
-      name: 'Search Tool',
-      scope: 'user',
-      variables: [{ kind: 'header', name: 'X-Api-Key', variable: 'SEARCH_TOOL_X_API_KEY', fromCapture: false }],
-      yaml: 'mcpServers:\n  - id: search-tool\n    transport: http',
-    },
-    version: 'c0ffee0000000001',
-  },
-  {
-    key: 'bbbbbbbbbbbb',
-    state: 'differs',
-    matchId: 'memory',
-    matchName: 'memory',
-    server: {
-      name: 'memory',
-      transport: 'http',
-      url: 'https://memory.homelab.example/mcp',
-      command: null,
-      args: [],
-      headers: [{ name: 'X-Api-Key', variable: 'OTHER_KEY', literal: null }],
-      env: [],
-    },
-    sightings: [
-      {
-        rowId: 3,
-        workstation: 'wacken',
-        workstationKnown: true,
-        client: 'claude-code',
-        scope: 'user',
-        name: 'memory',
-        receivedAt: minutesAgo(2),
-      },
-    ],
-    differences: ['header X-Api-Key: variable MEMORY_MCP_KEY → OTHER_KEY'],
-    proposal: {
-      id: 'memory',
-      name: 'memory',
-      scope: 'user',
-      variables: [{ kind: 'header', name: 'X-Api-Key', variable: 'OTHER_KEY', fromCapture: true }],
-      yaml: 'mcpServers:\n  - id: memory',
-    },
-    version: 'c0ffee0000000002',
-  },
-];
 
 export function resetMockState() {
   logLevel = 'Information';
@@ -1055,19 +967,6 @@ export const handlers = [
     const detail = mcpDetail(String(params.id), new URL(request.url).searchParams.get('os') ?? 'linux');
     return detail ? HttpResponse.json(detail) : HttpResponse.json({ title: 'No such MCP server' }, { status: 404 });
   }),
-  http.get('/api/v1/mcp/captures', () => HttpResponse.json(mcpCaptureGroups)),
-  http.post('/api/v1/mcp/captures/:key/accept', ({ params }) =>
-    HttpResponse.json({
-      written: true,
-      readOnly: false,
-      serverId: String(params.key) === 'aaaaaaaaaaaa' ? 'search' : 'memory',
-      workstationsUpdated: ['quimper'],
-      skipped: [],
-      errors: [],
-      yaml: null,
-    }),
-  ),
-  http.post('/api/v1/mcp/captures/:key/dismiss', () => HttpResponse.json({ dismissed: 1 })),
   http.get('/api/v1/mcp/workstations', () => HttpResponse.json(mcpWorkstations)),
   http.get('/api/v1/mcp/workstations/:id', ({ params, request }) => {
     const plan = mcpWorkstationPlan(String(params.id), new URL(request.url).searchParams.get('os') ?? undefined);

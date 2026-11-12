@@ -1,6 +1,6 @@
 # MCP secret stores
 
-Your MCP servers need keys. Portarr never holds them ([mcp-servers.md](../verticals/mcp-servers.md), D-117): the catalog names a secret by its key in **your vault**, and the rendering gives the command the workstation runs to read it. The vault's own access control decides which machine reads which key. This page says, for each kind of store, what the command is, what the store must hold, and what to grant.
+Your MCP servers need keys. Portarr never holds them ([mcp-servers.md](../verticals/mcp-servers.md), D-116): the catalog names a secret by its key in **your vault**, and the rendering gives the command the workstation runs to read it. The vault's own access control decides which machine reads which key. This page says, for each kind of store, what the command is, what the store must hold, and what to grant.
 
 The commands below are the standard ones of each store's CLI; Portarr writes them, it never runs them. The Vault ones, and the policies below, were run on 2026-11-12 against a throwaway Vault 1.18 server (a KV version 2 engine at `kv`): a token holding only the policy for `kv/data/mcp/memory` read `kv/mcp/memory` through the provisioning command and was refused every other key; the prefix policy read both MCP keys and nothing outside it. The Azure ones were not run against a real vault: try them once by hand on a workstation before relying on them.
 

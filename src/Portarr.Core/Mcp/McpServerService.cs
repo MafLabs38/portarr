@@ -1,5 +1,4 @@
 using Portarr.Core.Catalog;
-using Portarr.Core.Mcp.Clients;
 
 namespace Portarr.Core.Mcp;
 
@@ -50,21 +49,10 @@ public interface IMcpServerService
 
     /// <summary>A server by id or by name (case-insensitive), or null.</summary>
     McpServerView? Find(string idOrName);
-
-    /// <summary>
-    /// How to install the server in a client: the scope defaults to the server's, the operating system to Linux.
-    /// Throws <see cref="ArgumentException"/> naming the valid values when the client, scope or system is unknown.
-    /// </summary>
-    McpRendering Render(McpServerDefinition server, string client, string? scope = null, string? os = null);
-
-    /// <summary>How to remove the server from a client, if present; same defaults and errors as <see cref="Render"/>.</summary>
-    McpRendering RenderRemoval(McpServerDefinition server, string client, string? scope = null, string? os = null);
 }
 
 public sealed class McpServerService : IMcpServerService
 {
-    public const string DefaultOs = McpOperatingSystems.Linux;
-
     private readonly ICatalogService _catalogService;
     private readonly IMcpHealth _health;
 
@@ -85,42 +73,5 @@ public sealed class McpServerService : IMcpServerService
         var servers = List();
         return servers.FirstOrDefault(s => string.Equals(s.Server.Id, idOrName, StringComparison.OrdinalIgnoreCase))
             ?? servers.FirstOrDefault(s => string.Equals(s.Server.Name, idOrName, StringComparison.OrdinalIgnoreCase));
-    }
-
-    public McpRendering Render(McpServerDefinition server, string client, string? scope = null, string? os = null)
-    {
-        var (renderer, resolvedScope, resolvedOs) = Resolve(server, client, scope, os);
-        return renderer.Install(server, resolvedScope, resolvedOs, _catalogService.Current.Catalog.SecretStore);
-    }
-
-    public McpRendering RenderRemoval(McpServerDefinition server, string client, string? scope = null, string? os = null)
-    {
-        var (renderer, resolvedScope, resolvedOs) = Resolve(server, client, scope, os);
-        return renderer.Remove(server, resolvedScope, resolvedOs);
-    }
-
-    /// <summary>The operating system as the renderers expect it: trimmed, lower case, and the default when none is given.</summary>
-    public static string NormalizeOs(string? os) => string.IsNullOrWhiteSpace(os) ? DefaultOs : os.Trim().ToLowerInvariant();
-
-    /// <summary>The scope a client shows a server at: the server's own when the client holds it, else the client's first one.</summary>
-    public static string ScopeFor(McpServerDefinition server, IMcpClientRenderer client) => client.Scopes.Contains(server.Scope) ? server.Scope : client.Scopes[0];
-
-    private static (IMcpClientRenderer Renderer, string Scope, string Os) Resolve(McpServerDefinition server, string client, string? scope, string? os)
-    {
-        var renderer = McpClients.Find(client?.Trim().ToLowerInvariant())
-            ?? throw new ArgumentException($"Unknown client '{client}'. Clients: {string.Join(", ", McpClients.Ids)}.", nameof(client));
-        var resolvedScope = string.IsNullOrWhiteSpace(scope) ? server.Scope : scope.Trim().ToLowerInvariant();
-        if (!McpScopes.All.Contains(resolvedScope))
-        {
-            throw new ArgumentException($"Unknown scope '{scope}'. Scopes: {string.Join(", ", McpScopes.All)}.", nameof(scope));
-        }
-
-        var resolvedOs = NormalizeOs(os);
-        if (!McpOperatingSystems.All.Contains(resolvedOs))
-        {
-            throw new ArgumentException($"Unknown operating system '{os}'. Systems: {string.Join(", ", McpOperatingSystems.All)}.", nameof(os));
-        }
-
-        return (renderer, resolvedScope, resolvedOs);
     }
 }

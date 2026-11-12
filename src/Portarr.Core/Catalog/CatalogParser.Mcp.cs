@@ -37,21 +37,9 @@ public static partial class CatalogParser
     [GeneratedRegex(@"[;&|<>`$]")]
     internal static partial Regex McpShellCharacterPattern();
 
-    /// <summary>The key of a secret in a Vault-like store: one name.</summary>
-    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\z")]
-    internal static partial Regex McpSecretKeyPattern();
 
-    /// <summary>The name of an Azure Key Vault secret: letters, digits and dashes.</summary>
-    [GeneratedRegex("^[A-Za-z0-9-]{1,63}\\z")]
-    internal static partial Regex McpAzureSecretNamePattern();
 
-    /// <summary>The path in Vault under which the MCP secrets live: <c>kv/mcp</c>.</summary>
-    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._-]*(/[A-Za-z0-9][A-Za-z0-9._-]*)*\z")]
-    internal static partial Regex McpVaultPrefixPattern();
 
-    /// <summary>What an Azure Key Vault secret's name starts with: <c>mcp-</c>.</summary>
-    [GeneratedRegex("^[A-Za-z0-9-]{0,50}\\z")]
-    internal static partial Regex McpAzurePrefixPattern();
 
     private sealed partial class Builder
     {
@@ -112,10 +100,10 @@ public static partial class CatalogParser
                 _errors.Add($"{owner}: environment '{environmentId}' is not an environment of the catalog.");
             }
 
-            var clients = BuildWorkstationClients(owner, "clients", document.Clients, McpClients.Ids);
+            var clients = BuildWorkstationClients(owner, "clients", document.Clients, _mcp.Clients);
             if (clients.Count == 0 && document.Clients is not { Count: > 0 })
             {
-                _errors.Add($"{owner}: clients must list the assistants installed there ({string.Join(", ", McpClients.Ids)}).");
+                _errors.Add($"{owner}: clients must list the assistants installed there ({string.Join(", ", _mcp.Clients)}).");
             }
 
             var wanted = BuildWanted(owner, document.Mcp ?? [], clients, servers);
@@ -131,9 +119,9 @@ public static partial class CatalogParser
             foreach (var value in values ?? [])
             {
                 var client = value?.Trim().ToLowerInvariant();
-                if (client is null || !McpClients.Ids.Contains(client))
+                if (client is null || !_mcp.Clients.Contains(client))
                 {
-                    _errors.Add($"{owner}: {key} has an unknown client '{Redact(value ?? string.Empty)}'. Clients: {string.Join(", ", McpClients.Ids)}.");
+                    _errors.Add($"{owner}: {key} has an unknown client '{Redact(value ?? string.Empty)}'. Clients: {string.Join(", ", _mcp.Clients)}.");
                 }
                 else if (!allowed.Contains(client))
                 {
@@ -421,10 +409,9 @@ public static partial class CatalogParser
                 return false;
             }
 
-            var valid = _secretStore.Kind == McpSecretStoreKinds.AzureKeyVault ? McpAzureSecretNamePattern().IsMatch(value.Secret) : McpSecretKeyPattern().IsMatch(value.Secret);
-            if (!valid)
+            if (_mcp.CheckSecretKey(_secretStore.Kind, value.Secret) is { } problem)
             {
-                _errors.Add($"{owner}: {key}.secret must be the key of the secret under the store's prefix ({(_secretStore.Kind == McpSecretStoreKinds.AzureKeyVault ? "letters, digits and dashes" : "letters, digits, dots, dashes and underscores")}), never its value.");
+                _errors.Add($"{owner}: {key}.secret {problem}");
                 return false;
             }
 
@@ -447,20 +434,17 @@ public static partial class CatalogParser
             var errors = _errors.Count;
 
             var kind = document.Kind?.Trim().ToLowerInvariant();
-            if (kind is null || !McpSecretStoreKinds.All.Contains(kind))
+            var knownKind = kind is not null && _mcp.SecretStoreKinds.Contains(kind);
+            if (!knownKind)
             {
-                _errors.Add($"{owner}: kind must be {string.Join(" or ", McpSecretStoreKinds.All)}.");
+                _errors.Add($"{owner}: kind must be {string.Join(" or ", _mcp.SecretStoreKinds)}.");
             }
 
             var address = BuildSecretStoreAddress(owner, document);
             var prefix = CatalogValues.Blank(document.Prefix) ?? string.Empty;
-            if (kind == McpSecretStoreKinds.Vault && !McpVaultPrefixPattern().IsMatch(prefix))
+            if (knownKind && _mcp.CheckSecretPrefix(kind!, prefix) is { } prefixProblem)
             {
-                _errors.Add($"{owner}: prefix must be the path under which the MCP secrets live, such as kv/mcp (letters, digits, slashes, dots, dashes and underscores; no slash at either end).");
-            }
-            else if (kind == McpSecretStoreKinds.AzureKeyVault && !McpAzurePrefixPattern().IsMatch(prefix))
-            {
-                _errors.Add($"{owner}: prefix is put before the key to make the secret's name: at most 50 letters, digits and dashes (mcp-), or left out.");
+                _errors.Add($"{owner}: prefix {prefixProblem}");
             }
 
             return _errors.Count > errors || address is null ? null : new McpSecretStore(kind!, address, prefix);

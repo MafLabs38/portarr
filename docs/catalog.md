@@ -338,7 +338,7 @@ providers:                               # external providers and accounts you u
 
 ## MCP servers
 
-The MCP servers you use with your AI assistants ([verticals/mcp-servers.md](verticals/mcp-servers.md), D-110 to D-117). Portarr checks the remote ones, remembers when each was last seen healthy, and tells any assistant how to install each in its own client, on its own machine. Seen at `/mcp-servers`, for the roles that hold `mcp.use` (Admin and Operator).
+The MCP servers you use with your AI assistants ([verticals/mcp-servers.md](verticals/mcp-servers.md), D-110 to D-116). Portarr checks the remote ones, remembers when each was last seen healthy, and tells any assistant how to install each in its own client, on its own machine. Seen at `/mcp-servers`, for the roles that hold `mcp.use` (Admin and Operator).
 
 ```yaml
 mcpServers:
@@ -367,7 +367,7 @@ mcpServers:
 - **Health** (remote servers only): every 5 minutes (`check.interval`, 10 seconds to 24 hours), Portarr sends one MCP `initialize` request without credentials. A valid answer, even an error answer, is **healthy**; a 401 or 403 is **healthy, asks for credentials** (the server is there and enforcing); a timeout, a refused connection, a name that does not resolve, an invalid certificate, a 5xx or anything that is not MCP is **down**. The pages say since when it is up or down and when it was last seen healthy, and keep that across restarts. A local (`stdio`) server, or one with `check: false`, is **not checked**: it is a process on the machine that uses it. A down server is also listed in the Overview's "needs attention" (MCP tool `get_overview`) for roles that hold `mcp.use`.
 - **Installation.** `GET /api/v1/mcp/servers/{id}?os=windows|linux|macos` (and the MCP tools `list_mcp_servers` and `get_mcp_server`) give, for each client, the command and the file entry that install the server; the page shows them with a copy button. The clients and what was checked about each are in [connectors/mcp-clients.md](connectors/mcp-clients.md).
 - **A package run through `npx` or `uvx` without a version** is flagged on the server's page: it changes under you.
-- **Only a person edits these definitions**: the catalog file, or the Captured tab of the MCP page with a browser session that holds `catalog.write`. The API, the MCP write tools and the chat cannot create, change or remove them (D-112), and `get_catalog_item` does not return them.
+- **The catalog file is the only place these are defined** (D-110, D-112). The catalog edit API, the MCP tools and the chat cannot create, change or remove them, and `get_catalog_item` does not return them. Portarr never reads what a machine has: if a machine differs, it is brought in line with the catalog.
 - A server that is **not checked** is shown as "Not monitored": it is not a fault.
 
 ### Workstations
@@ -392,22 +392,9 @@ workstations:
 - Validation: `os` and at least one client are required, every client, server and environment must exist, a server is listed once, and `scope` is one of user, project, local.
 - Like the servers, workstations are edited by a person only (D-112).
 
-### Capturing what a machine already has
-
-You do not have to type the servers. On a workstation, ask your assistant: *"capture my MCP configuration into Portarr"*. It reads the client's configuration and calls the MCP tool `submit_mcp_capture` with, for each server, its name, address or command and arguments, and the **names** of its headers and variables. It never sends a secret value: a key, a token or a password is refused and the whole capture with it, naming the field and never the value; for a value written in the file, the assistant sends the name of the variable that should hold it.
-
-The capture lands in an **inbox** (the **Captured** tab of the MCP page), never in the catalog. Each server there is compared with the catalog, by identity: a remote server by its address (host in lower case, no trailing slash), a local server run through `npx` or `uvx` by its package without the version, any other program by itself and its arguments. So the same server seen on three machines under three names is one line, and:
-
-- **New**: the catalog has nothing like it. *Add to the catalog…* asks for its id and name, and for the variable that holds each value the assistant did not send; the proposal is shown, and the YAML to paste when the catalog is read-only.
-- **Already in the catalog as X**: *Add to the wanted lists* adds it to the workstations it was seen on.
-- **Differs from X**: what differs is listed (`header X-Api-Key: variable A → B`, `args: … → …`). *Update X…* replaces the definition, keeping its notes, scope, check and app; *Add as a new server…* keeps both; *Keep the catalog's version* only updates the wanted lists. A value the assistant redacted is never a difference.
-- *Dismiss* removes it from the inbox and writes nothing.
-
-Accepting is a **person's** act (D-112): a browser session whose role holds `catalog.write`, never an API key, an MCP tool or the chat. It writes the catalog through the same editor as the rest (version, backup, audit with the user and the channel `ui`), and, unless unticked, adds the server to the wanted list of each workstation of the catalog it was seen on (and the client to the machine's `clients` when it was missing). A workstation that is not in the catalog is left alone and said so. When the catalog is read-only (`PORTARR__CATALOG__WRITABLE` off, as in a GitOps deployment), nothing is written: the page gives the YAML to paste into the file, and the server stays in the inbox. A newer capture of the same workstation, client and scope replaces the servers still waiting from the previous one; the inbox keeps the trail of what was decided (the last 200 hand-overs).
-
 ### Secrets
 
-Portarr holds **no secret** and reads none (D-117). The secrets of your MCP servers live in **your vault**, and the vault's own access control decides which machine reads which key.
+Portarr holds **no secret** and reads none (D-116). The secrets of your MCP servers live in **your vault**, and the vault's own access control decides which machine reads which key.
 
 ```yaml
 secretStore:

@@ -29,12 +29,6 @@ public interface ICatalogEditor
     Task<IReadOnlyList<string>> GetIdsAsync(string section, CancellationToken cancellationToken);
 
     Task<CatalogEditResult> EditAsync(CatalogEdit edit, CancellationToken cancellationToken);
-
-    /// <summary>
-    /// The same edit, for the sections only a person writes (<see cref="CatalogSections.PersonOnly"/>, D-112). Callers must be a browser session
-    /// that holds <c>catalog.write</c>: the API keys, the MCP tools and the chat call <see cref="EditAsync"/>, which refuses these sections.
-    /// </summary>
-    Task<CatalogEditResult> EditAsPersonAsync(CatalogEdit edit, CancellationToken cancellationToken);
 }
 
 public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
@@ -96,17 +90,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
             .ToList() ?? [];
     }
 
-    public Task<CatalogEditResult> EditAsync(CatalogEdit edit, CancellationToken cancellationToken)
-    {
-        return EditAsync(edit, CatalogSections.All, cancellationToken);
-    }
-
-    public Task<CatalogEditResult> EditAsPersonAsync(CatalogEdit edit, CancellationToken cancellationToken)
-    {
-        return EditAsync(edit, [.. CatalogSections.All, .. CatalogSections.PersonOnly], cancellationToken);
-    }
-
-    private async Task<CatalogEditResult> EditAsync(CatalogEdit edit, IReadOnlyList<string> sections, CancellationToken cancellationToken)
+    public async Task<CatalogEditResult> EditAsync(CatalogEdit edit, CancellationToken cancellationToken)
     {
         if (!Writable)
         {
@@ -118,7 +102,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
                     : "The catalog is read-only: set PORTARR__CATALOG__WRITABLE=true to edit it through Portarr.");
         }
 
-        if (!sections.Contains(edit.Section) && edit.Section != CatalogSections.Portal)
+        if (!CatalogSections.All.Contains(edit.Section) && edit.Section != CatalogSections.Portal)
         {
             return Refused(CatalogEditStatus.Invalid, string.Empty, $"section must be one of {string.Join(", ", CatalogSections.All)}.");
         }

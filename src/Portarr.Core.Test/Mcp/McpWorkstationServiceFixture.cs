@@ -2,6 +2,7 @@ using Portarr.Core.Catalog;
 using Portarr.Core.Mcp;
 using Portarr.Core.Mcp.Clients;
 using Portarr.Test.Common;
+using Portarr.Test.Common.Mcp;
 
 namespace Portarr.Core.Test.Mcp;
 
@@ -42,7 +43,7 @@ public sealed class McpWorkstationServiceFixture
         catalog.Current.Returns(new CatalogState(TestCatalog.Parse(Catalog).Catalog, "catalog.yaml", true, [], null));
         var health = Substitute.For<IMcpHealth>();
         health.Current.Returns(new Dictionary<string, McpServerHealth>());
-        _service = new McpWorkstationService(catalog, new McpServerService(catalog, health));
+        _service = new McpWorkstationService(catalog, new McpServerService(catalog, health), TestMcp.Rendering(catalog));
     }
 
     [Fact]
@@ -73,7 +74,7 @@ public sealed class McpWorkstationServiceFixture
             "memory/claude-code/user",
             "memory/cursor/user",
             "github/claude-code/project");
-        plan.Install.Single(r => r.Client == "cursor").Operations.Single().Path.Should().Be(@"%USERPROFILE%\.cursor\mcp.json");
+        plan.Install.Single(r => r.Client == "cursor").Operations.Single().Text.Should().Contain("(windows)");
         plan.RequiresEnv.Should().Equal("GITHUB_TOKEN", "MEMORY_MCP_KEY");
     }
 
@@ -105,7 +106,7 @@ public sealed class McpWorkstationServiceFixture
     {
         var workstation = _service.Find("dev-laptop")!.Workstation;
 
-        _service.GetPlan(workstation, "linux").Install[0].Operations.Last().Path.Should().Be("~/.claude.json");
+        _service.GetPlan(workstation, "linux").Install[0].Operations.Single().Text.Should().Contain("(linux)");
 
         var act = () => _service.GetPlan(workstation, "amiga");
         act.Should().Throw<ArgumentException>().WithMessage("Unknown operating system 'amiga'*");

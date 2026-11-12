@@ -12,6 +12,7 @@ using Portarr.Providers.Cloudflare;
 using Portarr.Providers.Docker;
 using Portarr.Providers.GitHub;
 using Portarr.Providers.Kubernetes;
+using Portarr.Providers.McpClients;
 using Portarr.Providers.NodeExporter;
 using Portarr.Providers.Registries;
 
@@ -34,6 +35,7 @@ builder.Services.AddBackrestProvider();
 builder.Services.AddNodeExporterProvider();
 builder.Services.AddGitHubProvider();
 builder.Services.AddRegistriesProvider();
+builder.Services.AddMcpClientsProvider();
 builder.Services
     .AddPortarrHttp()
     .AddPortarrApiV1()

@@ -18,7 +18,8 @@ using Portarr.Core.Infrastructure;
 using Portarr.Core.Instrumentation;
 using Portarr.Core.Maintenance;
 using Portarr.Core.Mcp;
-using Portarr.Core.Mcp.Capture;
+using Portarr.Core.Mcp.Clients;
+using Portarr.Core.Mcp.Secrets;
 using Portarr.Core.Portal;
 using Portarr.Core.Status;
 using Portarr.Core.SystemInfo;
@@ -86,10 +87,12 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<McpHealthMonitor>();
         services.AddSingleton<IMcpHealth>(provider => provider.GetRequiredService<McpHealthMonitor>());
         services.AddHostedService(provider => provider.GetRequiredService<McpHealthMonitor>());
+        services.AddSingleton<IMcpClientRegistry, McpClientRegistry>();
+        services.AddSingleton<IMcpSecretStoreRegistry, McpSecretStoreRegistry>();
+        services.AddSingleton<IMcpVocabulary, McpVocabulary>();
+        services.AddSingleton<IMcpRenderingService, McpRenderingService>();
         services.AddSingleton<IMcpServerService, McpServerService>();
         services.AddSingleton<IMcpWorkstationService, McpWorkstationService>();
-        services.AddSingleton<IMcpCaptureStore, McpCaptureStore>();
-        services.AddSingleton<IMcpCaptureService, McpCaptureService>();
 
         // Timeouts are per check (catalog), not per client.
         services.AddHttpClient(HttpCheckRunner.HttpClientName, client => client.Timeout = Timeout.InfiniteTimeSpan)

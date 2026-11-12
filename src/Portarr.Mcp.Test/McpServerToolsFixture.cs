@@ -1,14 +1,13 @@
 using System.Security.Claims;
-using Microsoft.AspNetCore.Http;
 using ModelContextProtocol;
 using Portarr.Core.Accounts;
 using Portarr.Core.Catalog;
 using Portarr.Core.Mcp;
-using Portarr.Core.Mcp.Capture;
 using Portarr.Http.Authentication;
 using Portarr.Mcp.Digest;
 using Portarr.Mcp.Server;
 using Portarr.Test.Common;
+using Portarr.Test.Common.Mcp;
 
 namespace Portarr.Mcp.Test;
 
@@ -45,8 +44,6 @@ public sealed class McpServerToolsFixture
         ["memory"] = new McpServerHealth("memory", McpHealthState.Down, Now.AddDays(-12), Now.AddDays(-12), Now, "timeout", null),
     };
 
-    private readonly IMcpCaptureService _captures = Substitute.For<IMcpCaptureService>();
-
     private McpServerTools Tools
     {
         get
@@ -56,9 +53,8 @@ public sealed class McpServerToolsFixture
             var health = Substitute.For<IMcpHealth>();
             health.Current.Returns(_health);
             var servers = new McpServerService(catalog, health);
-            var context = Substitute.For<IHttpContextAccessor>();
-            context.HttpContext.Returns(new DefaultHttpContext { User = Caller(Permissions.McpUse) });
-            return new McpServerTools(servers, new McpWorkstationService(catalog, servers), _captures, context);
+            var rendering = TestMcp.Rendering(catalog);
+            return new McpServerTools(servers, new McpWorkstationService(catalog, servers, rendering), rendering);
         }
     }
 
@@ -101,7 +97,7 @@ public sealed class McpServerToolsFixture
         answer.Action.Should().Be("install");
         answer.Supported.Should().BeTrue();
         answer.RequiresEnv.Should().Equal("MEMORY_MCP_KEY");
-        answer.Operations.Select(o => o.Kind).Should().Equal("command", "file");
+        answer.Operations.Select(o => o.Kind).Should().Equal("command");
         answer.Instructions.Should().Contain("wait for their approval").And.Contain("never write a secret value");
     }
 
@@ -112,7 +108,7 @@ public sealed class McpServerToolsFixture
 
         answer.Scope.Should().Be("project");
         answer.Os.Should().Be("windows");
-        answer.Operations.Should().ContainSingle().Which.Path.Should().Be(@".cursor\mcp.json");
+        answer.Operations.Should().ContainSingle().Which.Text.Should().Contain("(windows)");
     }
 
     [Fact]
@@ -198,47 +194,6 @@ public sealed class McpServerToolsFixture
         var act = () => Tools.GetWorkstationPlan(workstation, os);
 
         act.Should().Throw<McpException>().Which.Message.Should().StartWith(expected);
-    }
-
-    [Fact]
-    public async Task should_hand_over_a_capture_to_the_inbox_and_say_that_nothing_reached_the_catalog()
-    {
-        _captures.SubmitAsync(Arg.Any<CaptureRequest>(), Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(new CaptureReceipt(7, 2, 1));
-
-        var answer = await Tools.SubmitMcpCapture(
-            " Dev-Laptop ",
-            "Claude-Code",
-            "USER",
-            [
-                new CaptureServerInput("memory", "HTTP", "https://memory.homelab.example/mcp", Headers: [new CaptureValueInput("X-Api-Key", "MEMORY_MCP_KEY")]),
-                new CaptureServerInput("github", "stdio", Command: "npx", Args: ["-y", "pkg"], Env: [new CaptureValueInput("LOG_LEVEL", null, "info")]),
-            ],
-            TestContext.Current.CancellationToken);
-
-        answer.Should().Be(new CaptureAnswer(7, 2, 1, answer.Message));
-        answer.Message.Should().Contain("Nothing was added to the catalog");
-        await _captures.Received(1).SubmitAsync(
-            Arg.Is<CaptureRequest>(r =>
-                r.Workstation == "dev-laptop"
-                && r.Client == "claude-code"
-                && r.Scope == "user"
-                && r.Servers.Count == 2
-                && r.Servers[0].Transport == "http"
-                && r.Servers[0].Headers[0].Variable == "MEMORY_MCP_KEY"
-                && r.Servers[1].Env[0].Literal == "info"),
-            Arg.Any<string?>(),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task should_refuse_the_whole_capture_naming_the_fields_and_say_that_nothing_was_stored()
-    {
-        _captures.SubmitAsync(Arg.Any<CaptureRequest>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
-            .Returns<Task<CaptureReceipt>>(_ => throw new McpCaptureException(["servers[0].headers.Authorization: looks like a credential: send the name of the variable that holds it, never the value."]));
-
-        var act = () => Tools.SubmitMcpCapture("dev-laptop", "claude-code", "user", [new CaptureServerInput("memory", "http", "https://memory.homelab.example/mcp")], TestContext.Current.CancellationToken);
-
-        (await act.Should().ThrowAsync<McpException>()).Which.Message.Should().StartWith("Refused, nothing was stored:").And.Contain("servers[0].headers.Authorization");
     }
 
     private static ClaimsPrincipal Caller(params string[] permissions)

@@ -33,9 +33,9 @@ public static partial class CatalogParser
 
     /// <summary>
     /// As above, with the secret variable names the operator allows outside each connector's namespace
-    /// (<c>Catalog:SecretVariables</c>).
+    /// (<c>Catalog:SecretVariables</c>) and the names the MCP adapters registered (<paramref name="mcp"/>; none by default).
     /// </summary>
-    public static CatalogParseResult Parse(string yaml, IEnumerable<IEnvironmentConnector> connectors, IReadOnlySet<string>? allowedSecretVariables)
+    public static CatalogParseResult Parse(string yaml, IEnumerable<IEnvironmentConnector> connectors, IReadOnlySet<string>? allowedSecretVariables, IMcpVocabulary? mcp = null)
     {
         var registered = EnvironmentConnectorRegistry.Validate(connectors);
         var (full, plain) = CatalogDeserializers.For(registered.Select(c => c.Section).ToHashSet(StringComparer.Ordinal));
@@ -49,7 +49,7 @@ public static partial class CatalogParser
             return new CatalogParseResult(Catalog.Empty, [$"Invalid YAML at line {exception.Start.Line}: {Innermost(exception).Message}"]);
         }
 
-        return new Builder(registered, plain, allowedSecretVariables ?? new HashSet<string>()).Build(document ?? new CatalogDocument());
+        return new Builder(registered, plain, allowedSecretVariables ?? new HashSet<string>(), mcp ?? McpVocabulary.None).Build(document ?? new CatalogDocument());
     }
 
     private static Exception Innermost(Exception exception)
@@ -104,12 +104,14 @@ public static partial class CatalogParser
         private readonly IReadOnlyList<IEnvironmentConnector> _connectors;
         private readonly IDeserializer _plain;
         private readonly IReadOnlySet<string> _allowedSecretVariables;
+        private readonly IMcpVocabulary _mcp;
 
-        public Builder(IReadOnlyList<IEnvironmentConnector> connectors, IDeserializer plain, IReadOnlySet<string> allowedSecretVariables)
+        public Builder(IReadOnlyList<IEnvironmentConnector> connectors, IDeserializer plain, IReadOnlySet<string> allowedSecretVariables, IMcpVocabulary mcp)
         {
             _connectors = connectors;
             _plain = plain;
             _allowedSecretVariables = allowedSecretVariables;
+            _mcp = mcp;
         }
 
         public CatalogParseResult Build(CatalogDocument document)

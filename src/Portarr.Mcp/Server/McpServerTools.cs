@@ -1,13 +1,11 @@
 using System.ComponentModel;
 using System.Globalization;
-using Microsoft.AspNetCore.Http;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Portarr.Core.Accounts;
 using Portarr.Core.Catalog;
 using Portarr.Core.Checks;
 using Portarr.Core.Mcp;
-using Portarr.Core.Mcp.Capture;
 using Portarr.Core.Mcp.Clients;
 
 namespace Portarr.Mcp.Server;
@@ -43,25 +41,6 @@ public sealed record McpInstallAnswer(
     IReadOnlyList<string> Notes,
     string Instructions);
 
-/// <summary>A header or an environment entry of a server found in a client's configuration: its name and a variable or a harmless literal, never a secret value.</summary>
-public sealed record CaptureValueInput(
-    [property: Description("The name of the header or of the environment variable the server gets.")] string Name,
-    [property: Description("The NAME of the environment variable that holds the value on this machine. For a secret you saw written in the file, propose a name (for example the server's id in capitals plus the header); never send the secret.")] string? Variable = null,
-    [property: Description("A harmless text (a media type, a log level). Never a key, a token, a password: under a name that suggests a credential it is refused.")] string? Literal = null);
-
-/// <summary>An MCP server found in a client's configuration on this machine.</summary>
-public sealed record CaptureServerInput(
-    [property: Description("The name the client gives the server.")] string Name,
-    [property: Description("http for a remote server, stdio for a local process.")] string Transport,
-    [property: Description("A remote server's address, without credentials.")] string? Url = null,
-    [property: Description("A local server's program (npx, uvx, a path), never a shell line.")] string? Command = null,
-    [property: Description("A local server's arguments, one per entry.")] IReadOnlyList<string>? Args = null,
-    [property: Description("A remote server's headers.")] IReadOnlyList<CaptureValueInput>? Headers = null,
-    [property: Description("A local server's environment.")] IReadOnlyList<CaptureValueInput>? Env = null);
-
-/// <summary>What happened to a capture: it waits in the inbox for the operator.</summary>
-public sealed record CaptureAnswer(int CaptureId, int Servers, int Replaced, string Message);
-
 /// <summary>A machine the operator works from, the assistants installed there and the servers wanted on it.</summary>
 public sealed record WorkstationLine(string Id, string Name, string Os, string? Environment, IReadOnlyList<string> Clients, IReadOnlyList<WantedLine> Wanted, string? Notes);
 
@@ -92,15 +71,13 @@ public sealed class McpServerTools
 
     private readonly IMcpServerService _servers;
     private readonly IMcpWorkstationService _workstations;
-    private readonly IMcpCaptureService _captures;
-    private readonly IHttpContextAccessor _httpContext;
+    private readonly IMcpRenderingService _rendering;
 
-    public McpServerTools(IMcpServerService servers, IMcpWorkstationService workstations, IMcpCaptureService captures, IHttpContextAccessor httpContext)
+    public McpServerTools(IMcpServerService servers, IMcpWorkstationService workstations, IMcpRenderingService rendering)
     {
         _servers = servers;
         _workstations = workstations;
-        _captures = captures;
-        _httpContext = httpContext;
+        _rendering = rendering;
     }
 
     [RequiresPermissions(Permissions.McpUse)]
@@ -133,14 +110,14 @@ public sealed class McpServerTools
         McpRendering rendering;
         try
         {
-            rendering = removal ? _servers.RenderRemoval(view.Server, client, scope, os) : _servers.Render(view.Server, client, scope, os);
+            rendering = removal ? _rendering.Remove(view.Server, client, scope, os) : _rendering.Install(view.Server, client, scope, os);
         }
         catch (ArgumentException exception)
         {
             throw new McpException(exception.Message);
         }
 
-        var system = string.IsNullOrWhiteSpace(os) ? McpServerService.DefaultOs : os.Trim().ToLowerInvariant();
+        var system = _rendering.NormalizeOs(os);
         return new McpInstallAnswer(
             rendering.ServerId,
             rendering.Client,
@@ -185,44 +162,6 @@ public sealed class McpServerTools
         }
 
         return new WorkstationPlanAnswer(plan.Workstation.Id, plan.Os, plan.Install.Select(Item).ToList(), plan.Remove.Select(Item).ToList(), plan.RequiresEnv, plan.RequiresSecrets, Instructions);
-    }
-
-    [RequiresPermissions(Permissions.McpUse)]
-    [McpServerTool(Name = "submit_mcp_capture", Title = "Hand over the MCP configuration of this machine", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Hands over the MCP servers configured in one client on this machine, so that the operator can review them and add them to Portarr's catalog. Writes only Portarr's inbox: nothing reaches the catalog until the operator accepts it in the MCP page. Read the client's configuration file yourself and describe each server: its name, address or command and arguments, and the NAMES of its headers or variables. NEVER send a secret value: a key, a token or a password is refused, and the whole capture with it; for a value written in the file, send the name of the environment variable that should hold it. Tell the operator what you are about to send and wait for their approval.")]
-    public async Task<CaptureAnswer> SubmitMcpCapture(
-        [Description("The id of this machine from list_workstations, or the one the operator gives (lowercase letters, digits, dashes).")] string workstation,
-        [Description("The client whose configuration you read: claude-code, claude-desktop, cursor, vscode, windsurf, gemini-cli, codex-cli, opencode or zed.")] string client,
-        [Description("The scope you read: user, project or local.")] string scope,
-        [Description("Every MCP server of that configuration, at most 50.")] IReadOnlyList<CaptureServerInput> servers,
-        CancellationToken cancellationToken = default)
-    {
-        var request = new CaptureRequest(
-            workstation?.Trim().ToLowerInvariant() ?? string.Empty,
-            client?.Trim().ToLowerInvariant() ?? string.Empty,
-            scope?.Trim().ToLowerInvariant() ?? string.Empty,
-            (servers ?? []).Select(Captured).ToList());
-        try
-        {
-            var receipt = await _captures.SubmitAsync(request, _httpContext.HttpContext?.User.Identity?.Name, cancellationToken);
-            return new CaptureAnswer(receipt.CaptureId, receipt.Servers, receipt.Replaced, "Handed over: the operator reviews it in the MCP page (Captured tab). Nothing was added to the catalog.");
-        }
-        catch (McpCaptureException exception)
-        {
-            throw new McpException("Refused, nothing was stored: " + string.Join(" ", exception.Errors));
-        }
-    }
-
-    private static CapturedServer Captured(CaptureServerInput input)
-    {
-        return new CapturedServer(
-            input.Name,
-            input.Transport?.Trim().ToLowerInvariant() ?? string.Empty,
-            input.Url,
-            input.Command,
-            input.Args ?? [],
-            (input.Headers ?? []).Select(v => new CapturedValue(v.Name, v.Variable, v.Literal)).ToList(),
-            (input.Env ?? []).Select(v => new CapturedValue(v.Name, v.Variable, v.Literal)).ToList());
     }
 
     private static WorkstationLine WorkstationOf(WorkstationDefinition workstation)

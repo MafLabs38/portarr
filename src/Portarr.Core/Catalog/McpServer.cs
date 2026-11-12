@@ -20,6 +20,12 @@ public sealed record McpServerDefinition(
     string? Notes = null)
 {
     public bool IsHttp => Transport == McpTransports.Http;
+
+    /// <summary>Every header and environment value of the server, whichever its transport.</summary>
+    public IEnumerable<McpValue> Values => (Http?.Headers.Values ?? []).Concat(Stdio?.Env.Values ?? []);
+
+    /// <summary>The variables the workstation must provide for this server, sorted: the names behind its <c>{ env: NAME }</c> values.</summary>
+    public IReadOnlyList<string> RequiredVariables() => Values.Where(v => v.IsEnv).Select(v => v.EnvName!).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
 }
 
 /// <summary>A remote server: its address and the headers a client sends. <c>AllowInsecure</c> accepts a plain <c>http://</c> address (D-103).</summary>
@@ -40,21 +46,12 @@ public sealed record McpValue(string? Literal, string? EnvName, string? SecretKe
 
     public bool IsEnv => EnvName is not null;
 
-    /// <summary>The key, in the operator's secret store, of the secret whose value the workstation puts in <see cref="EnvName"/> (D-117).</summary>
+    /// <summary>The key, in the operator's secret store, of the secret whose value the workstation puts in <see cref="EnvName"/> (D-116).</summary>
     public bool HasSecret => SecretKey is not null;
 }
 
-/// <summary>The kinds of secret store the catalog can name (D-117): the operator's own vault, never a store of Portarr's.</summary>
-public static class McpSecretStoreKinds
-{
-    public const string Vault = "vault";
-    public const string AzureKeyVault = "azure-key-vault";
-
-    public static IReadOnlyList<string> All { get; } = [Vault, AzureKeyVault];
-}
-
 /// <summary>
-/// The operator's secret store (D-117): where the secrets of the MCP servers live. Portarr holds no secret and reads none: it names the
+/// The operator's secret store (D-116): where the secrets of the MCP servers live. Portarr holds no secret and reads none: it names the
 /// store, and a secret by its key under <c>Prefix</c>; the workstation reads it with the store's own command, under the store's own access
 /// control. <c>Address</c> is the store's address (Vault's <c>VAULT_ADDR</c>, an Azure Key Vault's URL).
 /// </summary>

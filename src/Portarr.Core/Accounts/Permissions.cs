@@ -23,7 +23,7 @@ public static class Permissions
     public const string MaintenanceView = "maintenance.view";
 
     /// <summary>
-    /// The MCP page and tools (D-115): the operator's MCP servers, their health, the plan of a workstation and the capture inbox.
+    /// The MCP page and tools (D-115): the operator's MCP servers, their health, the plan of a workstation.
     /// Deliberately not a <c>.view</c> permission: the Observer, who looks at the infrastructure, has no use for the configuration of the operator's assistants.
     /// </summary>
     public const string McpUse = "mcp.use";

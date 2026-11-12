@@ -9,7 +9,7 @@ public sealed record McpWorkstationView(WorkstationDefinition Workstation, IRead
 /// <summary>
 /// What an assistant on a workstation does to bring it in line with the catalog (D-110): <c>Install</c> the wanted servers in each
 /// client, <c>Remove</c> (if present) the servers of the catalog that are not wanted there, and provide <c>RequiresEnv</c>, for which it must be
-/// able to read the keys of <c>RequiresSecrets</c> in the operator's secret store (D-117). Nothing is
+/// able to read the keys of <c>RequiresSecrets</c> in the operator's secret store (D-116). Nothing is
 /// tracked about whether it was applied: the assistant that applies it is the witness (D-114).
 /// </summary>
 public sealed record McpWorkstationPlan(
@@ -38,11 +38,13 @@ public sealed class McpWorkstationService : IMcpWorkstationService
 {
     private readonly ICatalogService _catalogService;
     private readonly IMcpServerService _servers;
+    private readonly IMcpRenderingService _rendering;
 
-    public McpWorkstationService(ICatalogService catalogService, IMcpServerService servers)
+    public McpWorkstationService(ICatalogService catalogService, IMcpServerService servers, IMcpRenderingService rendering)
     {
         _catalogService = catalogService;
         _servers = servers;
+        _rendering = rendering;
     }
 
     public IReadOnlyList<McpWorkstationView> List()
@@ -73,7 +75,7 @@ public sealed class McpWorkstationService : IMcpWorkstationService
                 continue;
             }
 
-            install.AddRange(wanted.Clients.Select(client => _servers.Render(server, client, wanted.Scope, system)));
+            install.AddRange(wanted.Clients.Select(client => _rendering.Install(server, client, wanted.Scope, system)));
         }
 
         // Every other (server, client) pair of this machine: remove it if it is there. A client that cannot hold the server at its scope has nothing to remove.
@@ -83,7 +85,7 @@ public sealed class McpWorkstationService : IMcpWorkstationService
             var wantedIn = workstation.ClientsWanting(server.Id);
             foreach (var client in workstation.Clients.Where(c => !wantedIn.Contains(c)))
             {
-                var rendering = _servers.RenderRemoval(server, client, null, system);
+                var rendering = _rendering.Remove(server, client, null, system);
                 if (rendering.Supported)
                 {
                     remove.Add(rendering);

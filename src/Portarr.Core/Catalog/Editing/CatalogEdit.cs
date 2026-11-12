@@ -14,22 +14,16 @@ public static class CatalogSections
     public const string Links = "links";
     public const string Providers = "providers";
 
-    /// <summary>The MCP servers (D-111). Not in <see cref="All"/>: only a person edits them (D-112), through <see cref="ICatalogEditor.EditAsPersonAsync"/>.</summary>
+    /// <summary>The MCP servers (D-111). Not in <see cref="All"/>: they are edited in the catalog file only (D-112), never through the editor.</summary>
     public const string McpServers = "mcpServers";
 
-    /// <summary>The workstations (D-111). Person-only like <see cref="McpServers"/>.</summary>
+    /// <summary>The workstations (D-111). Not in <see cref="All"/> either, like <see cref="McpServers"/>.</summary>
     public const string Workstations = "workstations";
 
     /// <summary>The identity of the portal (D-91): one mapping, not a list, edited through the same editor (id <c>portal</c>).</summary>
     public const string Portal = "portal";
 
     public static readonly IReadOnlyList<string> All = [Environments, Stacks, Apps, Data, Links, Providers];
-
-    /// <summary>
-    /// The sections whose items become commands or credentialed addresses on the operator's machines (D-112): the API keys, the MCP tools and
-    /// the chat cannot write them. Only the editor's person-only entry point does, for a browser session that holds <c>catalog.write</c>.
-    /// </summary>
-    public static readonly IReadOnlyList<string> PersonOnly = [McpServers, Workstations];
 
     /// <summary>The sections that carry <c>notes</c>.</summary>
     public static readonly IReadOnlyList<string> WithNotes = [Environments, Stacks, Apps, Links, Providers];

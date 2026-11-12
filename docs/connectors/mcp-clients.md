@@ -1,6 +1,6 @@
 # MCP clients
 
-Portarr renders an MCP server of the [catalog](../catalog.md#mcp-servers) for each of these AI assistants ([mcp-servers.md](../verticals/mcp-servers.md), D-113). A renderer says, for a **scope** (`user`, `project`, `local`) and an **operating system**, the command to run and/or the entry to merge into the client's configuration file, and the variables the machine must provide. It never writes a secret value. Each renderer has a golden file under `src/Portarr.Core.Test/Mcp/Golden/`: when a client changes its format, the diff of that file is the review.
+Portarr renders an MCP server of the [catalog](../catalog.md#mcp-servers) for each of these AI assistants ([mcp-servers.md](../verticals/mcp-servers.md), D-113). A renderer (an adapter in `Portarr.Providers.McpClients`; the Core composes the generic parts) says, for a **scope** (`user`, `project`, `local`) and an **operating system**, the command to run and/or the entry to merge into the client's configuration file, and the variables the machine must provide. It never writes a secret value. Each renderer has a golden file under `src/Portarr.Providers.McpClients.Test/Golden/`: when a client changes its format, the diff of that file is the review.
 
 The formats below were read from each client's own documentation on **2026-11-12**. The client formats move fast: when something here is wrong for the version you run, the golden file and the renderer are the one place to change.
 

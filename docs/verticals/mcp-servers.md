@@ -1,19 +1,29 @@
 # MCP servers and workstations
 
-> Status: **built, in review** (steps 1 to 4 in one pull request, after the sandbox; the maintainer's acceptance remains). D-110 to D-117 and ADR 0016 stay proposed (🟡) until the maintainer merges: freezing a decision is his. Features: F-MCP-01 to F-MCP-08. Decisions: D-110 to D-117. Builds on [V5](V5-ai-mcp.md) (Portarr's own MCP server, D-68 to D-71, D-86), [V7](V7-accounts.md) (accounts, per-user keys, permissions), the checks (D-50, D-51) and the catalog ([catalog.md](../catalog.md)).
+> Status: **built, in review** (reworked around one principle: Portarr is the master). The maintainer's acceptance remains. Features: F-MCP-01 to F-MCP-07. Decisions: D-110 to D-116, all proposed (🟡) until the maintainer merges: freezing a decision is his. Builds on [V5](V5-ai-mcp.md) (Portarr's own MCP server, D-68 to D-71, D-86), [V7](V7-accounts.md) (accounts, per-user keys, permissions), the checks (D-50, D-51) and the catalog ([catalog.md](../catalog.md)).
+
+## The principle
+
+**Portarr is a configuration tool, and Portarr is the master.** The infrastructure is described in Portarr's configuration, the apps of the portal are described there, and so are the MCP servers. What Portarr says is the truth, and it flows **one way**: from the catalog (YAML) to the machines.
+
+- An MCP server is configured **once**, in the catalog. From that definition Portarr produces the configuration of **any client** (Claude Code, Cursor…) for **any machine**.
+- Portarr **never reads** what a machine really contains, and never imports a machine's configuration into the catalog. How a machine happens to be configured does not matter: if it differs from the catalog, the catalog is right and the machine is brought in line.
+- Portarr **never reaches a machine** and keeps no state about one. A workstation switched off is not an event.
+
+Everything below follows from these three lines. A feature that makes a machine a source of configuration, or Portarr a watcher of machines, is out of the vertical.
 
 ## Need
 
-> "I have many machines and every time I struggle to describe how my MCP servers are installed: I change assistant (Claude Code, Copilot, Cursor…), or I configured a server on one machine and forgot the others. I want a definition portal where I can install MCP servers easily by copying the configuration of my other machines, make them uniform, and know them, because I forget some. I used a memory MCP server once that was always down and I never noticed."
+> "Portarr is a configuration tool. I define the infrastructure by configuration, the apps that serve as my portal by configuration, and I want MCP servers managed by Portarr too, by configuration. If the configuration of a server is stored in Portarr for Claude, for example, Portarr can replicate it on any machine. I have many machines (the dev VM, a training PC, a gaming PC) and I struggle to keep my MCP servers the same everywhere. And I used a memory MCP server once that was always down and I never noticed."
 
 Two needs, in this order of importance:
 
-1. **A portal of definitions.** Each MCP server is described once. Any assistant on any workstation can ask how to install it for its own client, and the configuration already present on one workstation can be *captured* into the portal instead of retyped.
-2. **A health view of the servers.** An MCP server runs on a server and is expected to be up. Portarr checks the **server**, not the machines that use it, and remembers when it was last seen healthy, so a server that has been dead for two weeks is noticed.
+1. **One definition, replicated.** Each MCP server is described once in the catalog. For each workstation the catalog says which servers are wanted and in which clients. An assistant on that workstation fetches the exact configuration for **its own client** and applies it, with the operator's approval.
+2. **A health view of the servers.** An MCP server runs on a server and is expected to be up. Portarr checks the **server**, never the machines that use it, and remembers when it was last seen healthy, so a server that has been dead for two weeks is noticed.
 
 ## Goal
 
-The catalog describes the MCP servers the operator uses and the workstations where assistants run. An assistant connected to Portarr fetches the exact configuration to install a server for **its own client** on **its own machine**, and can hand over what is already configured there. The operator reviews what was captured, accepts it into the catalog, and sees at a glance which servers are healthy and for how long.
+The catalog describes the MCP servers the operator uses and the workstations where assistants run, and which servers are wanted where. An assistant connected to Portarr fetches the plan of its machine: what to install, for its client, in the client's own syntax. The operator sees at a glance which servers are healthy and for how long, and which workstation wants what.
 
 ## Vocabulary
 
@@ -22,20 +32,20 @@ The catalog describes the MCP servers the operator uses and the workstations whe
 | **MCP server** | Something an assistant connects to (Portarr's own `/mcp`, a memory server, a GitHub server…). Remote (`http`) or a local process (`stdio`). |
 | **Client** | An assistant application with its own configuration file and format: Claude Code, Claude Desktop, Cursor, VS Code with Copilot, Windsurf, Gemini CLI, Codex CLI, OpenCode, Zed. |
 | **Workstation** | A machine where the operator works with an assistant: a laptop, a training PC, a gaming PC, the dev VM. Only a **name** matters. Production machines are not workstations unless declared: nothing is installed on them by default. |
-| **Wanted** | The servers the operator wants on a workstation. Declarative, nothing is verified. |
-| **Capture** | A snapshot of the MCP servers configured in a client on a workstation, sent by an assistant to Portarr's inbox for the operator to review. |
+| **Wanted** | The servers the operator wants on a workstation, and in which clients. Declarative: nothing is verified. |
+| **Plan** | What the catalog says a workstation should have: the operations to install what is wanted, and to remove what is not. |
 | **Secret store** | The operator's vault (HashiCorp Vault, Azure Key Vault…). It holds the secret values and decides, with its own access control, which machine may read which key. |
 
 ## Scope
 
 | In | Out |
 |---|---|
-| Catalog sections `mcpServers`, `workstations` and `secretStore`, validated like the rest of the catalog | Portarr writing to a workstation, running a command on it, or reaching it at all (D-110) |
-| A menu entry **MCP**: servers, workstations, the capture inbox | Knowing whether a workstation is on, or what its files really contain (D-114) |
-| Rendering a server for each supported client and scope: command and/or file change | An agent or companion on workstations |
+| Catalog sections `mcpServers`, `workstations` and `secretStore`, validated like the rest of the catalog | Reading, importing or comparing what a machine really has: **Portarr is the master** (D-110) |
+| A menu entry **MCP**: Servers and Workstations | Portarr writing to a workstation, running a command on it, or reaching it at all; any state about a machine (D-110) |
+| Rendering a server for each supported client and scope: command and/or file change | An agent, a daemon or a periodic check on workstations |
 | Health of remote servers, with "last healthy" kept across restarts (D-114) | Probing with credentials; local (`stdio`) servers are not checked |
-| Capture: an assistant submits a workstation's configuration to an inbox; the operator reviews, merges duplicates and accepts (D-116) | An assistant defining servers directly (D-112) |
-| Secret references to the operator's vault, with the command each workstation runs to read them (D-117) | Storing, reading, or handing out a secret value: Portarr holds none |
+| The plan of a workstation: what to install, what to remove | An assistant defining or changing servers (D-112) |
+| Secret references to the operator's vault, with the command each workstation runs to read them (D-116) | Storing, reading, or handing out a secret value: Portarr holds none |
 
 ## Design
 
@@ -82,13 +92,15 @@ secretStore:                          # optional, see "Secrets"
   prefix: kv/mcp                      # where the MCP secrets live
 ```
 
+- This file is the **only place** where a server or a workstation is defined (D-112). It is edited by the operator, like every other section.
 - A value is a harmless literal or `{ env: NAME }`. A header or variable whose name suggests a credential (authorization, key, token, secret, password…) accepts only the second form. A literal that looks like a secret is refused by the heuristic of D-84 (private keys, token formats, `password=…`, credentials in URLs, long random strings), naming the field, never the value.
 - `{ env: NAME }` is a variable **on the workstation**, read by the client. Portarr never reads it (unlike a connector's `tokenEnv`; D-108's namespaces do not apply). `secret:` is the key, under the store's `prefix`, whose value the workstation puts in that variable; it needs a `secretStore`.
+- The clients a workstation may name, and the kinds of secret store, are those of the implementations that registered (D-113, D-116): the parser asks for them, it holds no list.
 - Validation errors (unknown server, client, environment or `app`, duplicate id, `secret:` without a `secretStore`) are shown like the other catalog errors; a broken edit keeps the last valid catalog.
 
 ### Rendering (D-113)
 
-One renderer per client behind one contract (rule 8). Given a server, a scope and an operating system it returns **operations**. Each renderer is written from the client's documentation and records the version it was checked against ([connectors/mcp-clients.md](../connectors/mcp-clients.md)).
+One renderer per client behind one contract, `IMcpClientRenderer` (rule 8). Given a server, a scope and an operating system it returns **operations**. Each renderer is written from the client's documentation and records the version it was checked against ([connectors/mcp-clients.md](../connectors/mcp-clients.md)).
 
 ```jsonc
 // get_mcp_server { server: "memory", client: "claude-code", scope: "user" } — illustrative shape
@@ -105,11 +117,12 @@ One renderer per client behind one contract (rule 8). Given a server, a scope an
 ```
 
 - A rendering contains no secret value, only the client's syntax for "read this variable". A client without one gets a placeholder and a sentence saying so.
-- The supported clients are the main ones (the list in the vocabulary). Each is one renderer with golden-file tests, so adding one never touches the others.
+- **Structure.** Two narrow contracts, each an adapter: `IMcpClientRenderer` (one AI client: its scopes and the operations and notes that are specific to it) and `IMcpSecretStoreProvisioner` (one kind of vault: the provisioning command, and the checks of its prefix and keys). Neither knows the other, nor how a server is chosen, defaulted or validated. **Portarr.Core composes**: a rendering service looks the client up, checks the scope and the operating system, adds what is generic (the variables a workstation must provide, the provisioning operation of the catalog's secret store, the PowerShell and `npx` notes) and returns one rendering. Registries, filled by dependency injection, hold the adapters, and a small vocabulary interface tells the catalog parser which client ids and store kinds exist: **no list is written in Core**. The adapters are in their own library, `Portarr.Providers.McpClients`, which registers them like a connector does (D-36), so another library can add a client without touching it.
+- Each renderer has golden-file tests, so a client whose format changes shows as a diff of its file, and adding one never touches the others.
 
 ### Health of the servers (D-114)
 
-- Only **remote servers**, only **the server**: Portarr never asks whether a workstation is on, and a laptop switched off every evening is not an event.
+- Only **remote servers**, only **the server**: Portarr never asks whether a workstation is on, and a laptop switched off every evening is not an event. The only background work of this vertical is this check, and it contacts the servers' own addresses.
 - A new check type `mcp`, run by its own monitor (`McpHealthMonitor`: its own tick and a concurrency of four, in the spirit of the check scheduler, D-50): the state is richer than up or down (healthy, asking for credentials, down) and is persisted (last healthy, since), which the check results are not. One `initialize` request per interval (default 5 minutes; `check.interval` accepts 10 seconds to 24 hours), without credentials.
 
 | Answer | State |
@@ -125,61 +138,49 @@ One renderer per client behind one contract (rule 8). Given a server, a scope an
 ### Workstations and the plan
 
 - Workstations are declared by name; `mcp` lists what is wanted. `get_workstation_plan` returns, for a workstation: to **install**, the rendering of every wanted server for each of its clients; to **remove**, the removal operation of every server of the catalog that is not wanted there ("if present": the operator removes a server from a workstation by taking it out of the wanted list); and the secret keys the workstation must be able to read. Servers the catalog does not know are left alone. Every operation is shown to the operator and approved before it runs.
+- The workstation page and the Workstations tab show **what the catalog wants where**: a matrix of workstations and servers. Nothing in them says what a machine actually has.
 - There is **no installed state**. Whether the plan was applied is not tracked; the assistant that applied it is the witness.
 
-### Capture and uniformization (D-116)
-
-The way a catalog fills itself:
-
-1. On a workstation, the operator says "capture my MCP configuration into Portarr". The assistant reads the client's configuration and calls `submit_mcp_capture { workstation, client, scope, servers: [...] }` with, for each server, its name, transport, URL or command and arguments, and the **names** of headers and variables. It is told never to send a value; the server also refuses any value the secret heuristic recognises, naming the field.
-2. The capture lands in an **inbox** (database), never in the catalog. A hand-over holds at most 50 servers, and the inbox at most 500 servers waiting for a decision: past that a hand-over is refused until some are accepted or dismissed. A server that waits is never dropped.
-3. In the **Captured** tab the operator sees each server compared with the catalog: *New*, *Same as `x`*, or *Differs from `x`* with the difference. Servers seen on several workstations under different names are grouped by an identity (the transport and the normalised URL, or the package without its version). The operator accepts as a new definition, merges into an existing one (the definition keeps one spelling for all), or dismisses.
-4. Accepting writes the catalog through the editor (versioned, audited with the user and the channel `ui`), and adds the server to the capturing workstation's wanted list when the operator leaves that box ticked.
-
-This is also how the operator rediscovers what they had installed and forgot.
-
-### Secrets (D-117)
+### Secrets (D-116)
 
 Portarr holds no secret and hands none out. The secrets live in the operator's vault; **its access control** decides which machine reads which key.
 
 - The catalog names a secret by its key (`secret: memory`, under the store's `prefix`). The renderer produces, for the workstation's operating system, the **provisioning** command that puts the vault's value in the variable the client reads, resolved by the workstation's own shell when it starts (`export MEMORY_MCP_KEY="$(vault kv get -field=value kv/mcp/memory)"`; the Azure Key Vault equivalent uses the Azure CLI). The value never passes through the assistant or its provider.
 - `get_workstation_plan` and the workstation page list the keys each workstation needs. The operator grants them in the vault (a policy, a role assignment), as for any other machine; Portarr does not check them.
 - Without a `secretStore`, only `{ env: NAME }` exists and the operator provisions the variables as they like.
-- One provisioner per store kind behind one contract (rule 8), written from the vault's CLI documentation and tested against golden outputs.
+- One provisioner per store kind behind one contract (`IMcpSecretStoreProvisioner`, rule 8), in the same implementation library as the renderers, written from the vault's CLI documentation and tested against golden outputs.
 
 ### Security (D-112)
 
-- **A server definition is instructions an assistant will execute**: a `stdio` command runs code on a workstation, an `http` URL receives its headers. So a definition can be created or changed only by **a person**: in the catalog file, or in the UI with `catalog.write` and a **browser session** (as account and key management already require, D-94). An API key, an MCP tool or the chat cannot create, change or remove `mcpServers`, `workstations` or `secretStore`, and `get_catalog_item` leaves them out (the same principle as 17-1 in D-86).
-- An assistant may only **propose** (the capture inbox) and **read**. A proposal never takes effect by itself.
+- **A server definition is instructions an assistant will execute**: a `stdio` command runs code on a workstation, an `http` URL receives its headers. So a definition exists only in **the catalog file**, edited by a person. The catalog edit API, the MCP tools and the chat cannot create, change or remove `mcpServers`, `workstations` or `secretStore`, and `get_catalog_item` leaves them out (the same principle as 17-1 in D-86). An assistant can only **read** what the catalog says.
+- All the MCP tools are read-only. Nothing in this vertical writes to the catalog.
 - Portarr cannot make a client ask permission. The guards are the instruction to the assistant and the client's own prompts for file edits and commands. The page says so.
-- `http://` needs `allowInsecure: true` on the server (D-103). A `stdio` command is a program and its arguments, never a shell line. An unpinned `npx` or `uvx` package is flagged on the server's page. A capture's text is capped, escaped when displayed and never treated as instructions.
+- `http://` needs `allowInsecure: true` on the server (D-103). A `stdio` command is a program and its arguments, never a shell line. An unpinned `npx` or `uvx` package is flagged on the server's page.
+- Commands are written for a POSIX shell, or for PowerShell on Windows (a note says so). A text that would break the quoting is refused when the catalog is read, or the operator is sent to the file operation.
 - The health probe sends one fixed `initialize` request to the declared URL, without credentials, with the checks' timeout and body cap, and follows no redirect.
 
 ### Permissions (D-115)
 
-A workstation's assistant connects with an API key of a user who holds `mcp.use` (Admin or Operator). A read-only key does not carry it (it keeps only the `*.view` permissions of its owner), so it sees none of the five MCP tools: create a full key for the account that will capture and install.
+A workstation's assistant connects with an API key of a user who holds `mcp.use` (Admin or Operator). A read-only key does not carry it (it keeps only the `*.view` permissions of its owner), so it sees none of the four MCP tools: create a full key for the account that will install.
 
-One new permission, **`mcp.use`**: see the MCP page, the definitions, the health, the plans and the inbox, call the MCP tools, and submit a capture. It is **not** a `.view` permission, so the Observer (every page, read only) and the Guest do not get it: someone who looks at the infrastructure is a consumer and has no use for the configuration of the operator's assistants. Admin and Operator hold it. Accepting a capture or editing a definition also needs `catalog.write`.
+One new permission, **`mcp.use`**: see the MCP page, the definitions, the health and the plans, and call the MCP tools. It is **not** a `.view` permission, so the Observer (every page, read only) and the Guest do not get it: someone who looks at the infrastructure is a consumer and has no use for the configuration of the operator's assistants. Admin and Operator hold it.
 
 ### The UI
 
-- Sidebar entry **MCP**, route `/mcp-servers` (`/mcp` is Portarr's own endpoint), three tabs in the Maintenance tabs pattern.
+- Sidebar entry **MCP**, route `/mcp-servers` (`/mcp` is Portarr's own endpoint), two tabs in the Maintenance tabs pattern.
 - **Servers**: one row per server (icon, name, transport, state with "seen 2 min ago" or "down for 12 days", how many workstations want it). A detail page shows the definition, a block per client with the rendered operations and a copy button, and the wanted-on list.
 - **Workstations**: a matrix, workstations in rows and servers in columns, a cell is *wanted* or empty. A click opens the workstation, its plan and the vault keys it needs.
-- **Captured**: the inbox described above; empty until a capture arrives.
 - The empty state explains the sections. All strings go through `translate()` (English source, D-26). Demo mode does not exist yet (C7): until the catalog declares servers the page shows its empty state.
 
 ### The API
 
-All under `/api/v1/mcp`, all needing `mcp.use`:
+All under `/api/v1/mcp`, all needing `mcp.use`, all read-only:
 
 | Endpoint | Returns |
 |---|---|
 | `GET servers`, `GET servers/{id}?os=` | The servers with their health; one server with its rendering for every client |
 | `GET clients` | The supported clients, their scopes and formats |
 | `GET workstations`, `GET workstations/{id}?os=` | The workstations; one plan (install, remove, variables, vault keys) |
-| `GET captures` | The inbox, grouped by server, compared with the catalog |
-| `POST captures/{key}/accept`, `POST captures/{key}/dismiss` | A person's decision: also needs `catalog.write` and a browser session (D-112); accept carries the `version` of the card that was read |
 
 ### Portarr's MCP tools
 
@@ -189,32 +190,31 @@ All under `/api/v1/mcp`, all needing `mcp.use`:
 | `get_mcp_server` `server, client, scope?, os?, action?` (install or remove) | `mcp.use` | The rendering |
 | `list_workstations` | `mcp.use` | Workstations, clients, wanted servers |
 | `get_workstation_plan` `workstation, os?` | `mcp.use` | What to install, what to remove, the vault keys needed |
-| `submit_mcp_capture` | `mcp.use`, writes the inbox only | The capture's id and what will be reviewed |
 
-The server instructions (V5) gain: the catalog describes, you install; show the operator exactly what you write and wait; never send a secret value. The built-in chat (V6) uses these tools like any other client, with the permissions of its user; `submit_mcp_capture` is for an assistant running on a workstation.
+The server instructions (V5) gain: the catalog describes, you install; show the operator exactly what you write and wait. The built-in chat (V6) uses these tools like any other client, with the permissions of its user.
 
 ## Slicing
 
-One vertical, four steps, developed in the sandbox and delivered in one pull request (rule 7: one vertical, one PR).
+One vertical, three steps, developed in the sandbox and delivered in one pull request (rule 7: one vertical, one PR). The detailed plan is validated by the maintainer before any code.
 
-1. **Servers and their health.** `mcpServers` section and validation, the `mcp` check type with the persisted last-healthy, the renderers for the main clients, `mcp.use`, the API, `list_mcp_servers` and `get_mcp_server`, the Servers tab.
+1. **Servers and their health.** `mcpServers` section and validation, the `mcp` check type with the persisted last-healthy and the Unknown state, the renderer contract, the registry and the implementation library with the nine renderers, `mcp.use`, the API, `list_mcp_servers` and `get_mcp_server`, the Servers tab.
 2. **Workstations.** The `workstations` section, `list_workstations` and `get_workstation_plan`, the Workstations tab.
-3. **Capture.** The inbox table, `submit_mcp_capture`, the Captured tab, identity and merge, the editor write by a person (D-112).
-4. **Secrets.** The `secretStore` section, `secret:` references, the provisioners for the vault kinds, the vault keys in the plan.
+3. **Secrets.** The `secretStore` section, `secret:` references, the provisioners for the vault kinds (same library), the vault keys in the plan.
 
 ## Acceptance criteria
 
-- [x] A catalog with the sections loads; each validation error names the field; a literal secret is refused without echoing it
-- [x] For each supported client, the rendering of an `http` and a `stdio` server matches its golden file and contains no secret value
-- [x] A healthy fixture server, a 401 one, a dead one and a non-MCP one give the four states; the last healthy time survives a restart on SQLite and PostgreSQL; nothing probes a workstation
+- [x] A catalog with the sections loads; each validation error names the field; a literal secret is refused without echoing it; a client or a store kind nobody registered is an unknown name
+- [x] For each supported client, the rendering of an `http` and a `stdio` server matches its golden file and contains no secret value; a quote character that would escape the quoting is never written inside a command
+- [x] A healthy fixture server, a 401 one, a dead one, a non-MCP one and a probe that failed give the five states; the last healthy time and the down-since survive a restart on SQLite and PostgreSQL; nothing probes a workstation
 - [x] `mcp.use` is held by Admin and Operator and by neither Observer nor Guest; role × endpoint and role × tool matrices
-- [x] The API, the MCP write tools and the chat cannot touch `mcpServers`, `workstations` or `secretStore`; the item endpoint leaves them out
+- [x] The catalog edit API, the MCP tools and the chat cannot touch `mcpServers`, `workstations` or `secretStore`; the item endpoint leaves them out; every MCP tool is read-only
+- [x] Adding a client is a new class and its registration: no other file of Core changes (a test registers a stand-in client)
 - [ ] (the maintainer, on the preview) An assistant connected to the sandbox obtains the exact command to add a server at user scope for its client, and a workstation's plan with what to install and what to remove
 - [x] A Down server appears in `get_overview` with the time since, for a caller with `mcp.use` only
-- [x] (Step 3) A capture with a secret value is refused, field named; accepting a capture needs `catalog.write` and a browser session; the catalog audit shows the user
-- [x] (Step 4) The plan lists the vault keys per workstation and the provisioning command per operating system; no secret value appears anywhere
-- [x] Servers, Workstations and Captured tabs, empty states, strings through `translate()`; one Playwright journey; the Assistant page unchanged
+- [x] The plan lists the vault keys per workstation and the provisioning command per operating system; no secret value appears anywhere
+- [x] Servers and Workstations tabs, empty states, strings through `translate()`; one Playwright journey; the Assistant page unchanged
+- [x] No background work other than the health check of remote servers (nothing runs per workstation)
 
 ## Definition of Done
 
-[IMPLEMENTATION_PLAN.md §1.1](../IMPLEMENTATION_PLAN.md) applies to each of the four steps: unit, integration (SQLite and PostgreSQL), E2E, UI checklist, demo data (waits for C7), documentation (`docs/connectors/mcp-clients.md`: one section per client with the version checked), strings through `translate()`, no personal values, dogfooding on the maintainer's workstations in the preview, and the maintainer's acceptance.
+[IMPLEMENTATION_PLAN.md §1.1](../IMPLEMENTATION_PLAN.md) applies to each of the three steps: unit, integration (SQLite and PostgreSQL), E2E, UI checklist, demo data (waits for C7), documentation (`docs/connectors/mcp-clients.md`: one section per client with the version checked), strings through `translate()`, no personal values, dogfooding on the maintainer's workstations in the preview, and the maintainer's acceptance.
