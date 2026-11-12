@@ -989,6 +989,7 @@ export const mcpCaptureGroups: McpCaptureGroup[] = [
       variables: [{ kind: 'header', name: 'X-Api-Key', variable: 'SEARCH_TOOL_X_API_KEY', fromCapture: false }],
       yaml: 'mcpServers:\n  - id: search-tool\n    transport: http',
     },
+    version: 'c0ffee0000000001',
   },
   {
     key: 'bbbbbbbbbbbb',
@@ -1023,6 +1024,7 @@ export const mcpCaptureGroups: McpCaptureGroup[] = [
       variables: [{ kind: 'header', name: 'X-Api-Key', variable: 'OTHER_KEY', fromCapture: true }],
       yaml: 'mcpServers:\n  - id: memory',
     },
+    version: 'c0ffee0000000002',
   },
 ];
 

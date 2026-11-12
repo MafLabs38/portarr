@@ -229,4 +229,33 @@ public sealed class McpClientRendererFixture
 
         rendering.Notes.Should().Contain(n => n.Contains("PowerShell", StringComparison.Ordinal));
     }
+
+    [Theory]
+    [MemberData(nameof(Clients))]
+    public void should_name_the_variable_and_never_carry_its_value(string client)
+    {
+        const string name = "PORTARR_TEST_MARKER_KEY";
+        const string value = "marker-value-that-must-never-be-rendered";
+        var server = TestCatalog.Parse($$"""
+            mcpServers:
+              - id: remote
+                transport: http
+                http: { url: "https://remote.homelab.example/mcp", headers: { X-Api-Key: { env: {{name}} } } }
+              - id: local
+                transport: stdio
+                stdio: { command: npx, args: ["-y", "@example/local-mcp@1.0.0"], env: { LOCAL_KEY: { env: {{name}} } } }
+            """).Catalog.McpServerList;
+        Environment.SetEnvironmentVariable(name, value);
+        try
+        {
+            var renderer = McpClients.Find(client)!;
+            var text = string.Join('\n', server.SelectMany(s => renderer.Install(s, renderer.Scopes[0], McpOperatingSystems.Linux).Operations).Select(o => o.Text));
+
+            text.Should().Contain(name).And.NotContain(value);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(name, null);
+        }
+    }
 }

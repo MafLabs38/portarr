@@ -59,6 +59,44 @@ public sealed class McpCapturesFixture
 
     private static string Key(JsonElement group) => group.GetProperty("key").GetString()!;
 
+    private static string Version(JsonElement group) => group.GetProperty("version").GetString()!;
+
+    [Fact]
+    public async Task should_refuse_to_accept_a_server_that_was_handed_over_again_since_the_person_read_it()
+    {
+        var (factory, file) = await StartAsync();
+        await using var _ = factory;
+        using var admin = await factory.CreateSignedInClientAsync("Admin");
+        var before = await File.ReadAllTextAsync(file, Token);
+        await Hand(factory, "dev-laptop", "claude-code", Remote("search", "https://search.homelab.example/mcp"));
+        var reviewed = (await GroupsAsync(admin)).Should().ContainSingle().Subject;
+
+        await Hand(factory, "dev-laptop", "claude-code", Remote("search", "https://search.homelab.example/mcp", new CapturedValue("X-Other", null, "changed")));
+        var response = await admin.PostAsJsonAsync($"/api/v1/mcp/captures/{Key(reviewed)}/accept", new { version = Version(reviewed), mode = "new", addToWorkstations = false }, Token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await File.ReadAllTextAsync(file, Token)).Should().Be(before);
+        var again = (await GroupsAsync(admin)).Should().ContainSingle().Subject;
+        Version(again).Should().NotBe(Version(reviewed));
+    }
+
+    [Fact]
+    public async Task should_keep_a_capture_that_still_waits_however_many_come_after_it()
+    {
+        var (factory, _) = await StartAsync();
+        await using var _ = factory;
+        using var admin = await factory.CreateSignedInClientAsync("Admin");
+        await Hand(factory, "dev-laptop", "claude-code", Remote("first", "https://first.homelab.example/mcp"));
+
+        for (var i = 0; i < 205; i++)
+        {
+            await Hand(factory, $"machine-{i}", "claude-code", Remote($"later-{i}", $"https://later-{i}.homelab.example/mcp"));
+        }
+
+        var names = (await GroupsAsync(admin)).Select(g => g.GetProperty("server").GetProperty("name").GetString()).ToList();
+        names.Should().Contain("first").And.HaveCount(206);
+    }
+
     [Fact]
     public async Task should_show_a_new_server_with_a_proposal_and_add_it_to_the_catalog_and_the_workstation_when_a_person_accepts()
     {
@@ -74,7 +112,7 @@ public sealed class McpCapturesFixture
         group.GetProperty("proposal").GetProperty("variables")[0].GetProperty("variable").GetString().Should().Be("SEARCH_TOOL_X_API_KEY");
         group.GetProperty("sightings")[0].GetProperty("workstationKnown").GetBoolean().Should().BeTrue();
 
-        var accepted = await admin.PostAsJsonAsync($"/api/v1/mcp/captures/{Key(group)}/accept", new { mode = "new", id = "search", name = "Search", variables = new Dictionary<string, string> { ["header:X-Api-Key"] = "SEARCH_KEY" }, addToWorkstations = true }, Token);
+        var accepted = await admin.PostAsJsonAsync($"/api/v1/mcp/captures/{Key(group)}/accept", new { version = Version(group), mode = "new", id = "search", name = "Search", variables = new Dictionary<string, string> { ["header:X-Api-Key"] = "SEARCH_KEY" }, addToWorkstations = true }, Token);
 
         accepted.StatusCode.Should().Be(HttpStatusCode.OK);
         var result = await accepted.Content.ReadFromJsonAsync<JsonElement>(Token);
@@ -103,7 +141,7 @@ public sealed class McpCapturesFixture
         group.GetProperty("state").GetString().Should().Be("same");
         group.GetProperty("matchId").GetString().Should().Be("memory");
 
-        var accepted = await admin.PostAsJsonAsync($"/api/v1/mcp/captures/{Key(group)}/accept", new { mode = "existing", addToWorkstations = true }, Token);
+        var accepted = await admin.PostAsJsonAsync($"/api/v1/mcp/captures/{Key(group)}/accept", new { version = Version(group), mode = "existing", addToWorkstations = true }, Token);
 
         accepted.StatusCode.Should().Be(HttpStatusCode.OK);
         var text = await File.ReadAllTextAsync(file, Token);
@@ -124,7 +162,7 @@ public sealed class McpCapturesFixture
         group.GetProperty("state").GetString().Should().Be("differs");
         group.GetProperty("differences")[0].GetString().Should().Be("header X-Api-Key: variable MEMORY_MCP_KEY → OTHER_KEY");
 
-        var accepted = await admin.PostAsJsonAsync($"/api/v1/mcp/captures/{Key(group)}/accept", new { mode = "replace", addToWorkstations = false }, Token);
+        var accepted = await admin.PostAsJsonAsync($"/api/v1/mcp/captures/{Key(group)}/accept", new { version = Version(group), mode = "replace", addToWorkstations = false }, Token);
 
         accepted.StatusCode.Should().Be(HttpStatusCode.OK);
         var text = await File.ReadAllTextAsync(file, Token);
@@ -163,7 +201,7 @@ public sealed class McpCapturesFixture
         await Hand(factory, "dev-laptop", "claude-code", Remote("search", "https://search.homelab.example/mcp"));
         var group = (await GroupsAsync(admin)).Should().ContainSingle().Subject;
 
-        var response = await admin.PostAsJsonAsync($"/api/v1/mcp/captures/{Key(group)}/accept", new { mode = "new", addToWorkstations = true }, Token);
+        var response = await admin.PostAsJsonAsync($"/api/v1/mcp/captures/{Key(group)}/accept", new { version = Version(group), mode = "new", addToWorkstations = true }, Token);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var result = await response.Content.ReadFromJsonAsync<JsonElement>(Token);
@@ -183,7 +221,7 @@ public sealed class McpCapturesFixture
         await Hand(factory, "dev-laptop", "claude-code", Remote("search", "https://search.homelab.example/mcp"));
         var group = (await GroupsAsync(admin)).Should().ContainSingle().Subject;
 
-        var response = await admin.PostAsJsonAsync($"/api/v1/mcp/captures/{Key(group)}/accept", new { mode = "new", id = "memory", addToWorkstations = false }, Token);
+        var response = await admin.PostAsJsonAsync($"/api/v1/mcp/captures/{Key(group)}/accept", new { version = Version(group), mode = "new", id = "memory", addToWorkstations = false }, Token);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await response.Content.ReadAsStringAsync(Token)).Should().Contain("already has a server 'memory'");

@@ -1,6 +1,6 @@
 # MCP servers and workstations
 
-> Status: **built, in review** (steps 1 to 4 in one pull request, after the sandbox; the maintainer's acceptance remains). Features: F-MCP-01 to F-MCP-08. Decisions: D-110 to D-117. Builds on [V5](V5-ai-mcp.md) (Portarr's own MCP server, D-68 to D-71, D-86), [V7](V7-accounts.md) (accounts, per-user keys, permissions), the checks (D-50, D-51) and the catalog ([catalog.md](../catalog.md)).
+> Status: **built, in review** (steps 1 to 4 in one pull request, after the sandbox; the maintainer's acceptance remains). D-110 to D-117 and ADR 0016 stay proposed (🟡) until the maintainer merges: freezing a decision is his. Features: F-MCP-01 to F-MCP-08. Decisions: D-110 to D-117. Builds on [V5](V5-ai-mcp.md) (Portarr's own MCP server, D-68 to D-71, D-86), [V7](V7-accounts.md) (accounts, per-user keys, permissions), the checks (D-50, D-51) and the catalog ([catalog.md](../catalog.md)).
 
 ## Need
 
@@ -114,7 +114,7 @@ One renderer per client behind one contract (rule 8). Given a server, a scope an
 
 | Answer | State |
 |---|---|
-| A valid MCP `initialize` result | **Healthy** |
+| A valid MCP `initialize` answer, a JSON-RPC error answer included (a server is there) | **Healthy** |
 | 401 or 403 | **Healthy, authentication required**: the server is there and enforcing; nothing more can be said without a credential |
 | Timeout, refused, DNS, TLS, 5xx, anything that is not MCP | **Down**, with the reason code of the checks |
 | A `stdio` server, or `check: false` | **Not checked** |

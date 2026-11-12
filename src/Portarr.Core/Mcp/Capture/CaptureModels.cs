@@ -92,13 +92,14 @@ public sealed record McpCaptureGroup(
     CapturedServer Server,
     IReadOnlyList<McpCaptureSighting> Sightings,
     IReadOnlyList<string> Differences,
-    McpCaptureProposal Proposal);
+    McpCaptureProposal Proposal,
+    string Version);
 
 /// <summary>The id and name a new definition would get, the variables to name, and the YAML to paste into a catalog that is read-only.</summary>
 public sealed record McpCaptureProposal(string Id, string Name, string Scope, IReadOnlyList<McpProposedVariable> Variables, string Yaml);
 
 /// <summary>What the operator decided for a group (D-116). <c>Variables</c> maps <c>kind:name</c> (<c>header:X-Api-Key</c>, <c>env:GITHUB_TOKEN</c>) to the variable that holds it.</summary>
-public sealed record AcceptRequest(string Mode, string? Id, string? Name, IReadOnlyDictionary<string, string>? Variables, bool AddToWorkstations);
+public sealed record AcceptRequest(string Mode, string? Id, string? Name, IReadOnlyDictionary<string, string>? Variables, bool AddToWorkstations, string? Version = null);
 
 /// <summary>
 /// The outcome of accepting. <c>Written</c> is false when the catalog is read-only (nothing is written, the group stays in the inbox

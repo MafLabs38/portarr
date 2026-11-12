@@ -99,6 +99,25 @@ public sealed class McpHealthMonitorFixture
     }
 
     [Fact]
+    public async Task should_start_a_new_healthy_period_when_a_down_server_answers_again()
+    {
+        var monitor = Monitor;
+        _status = HttpStatusCode.BadGateway;
+        _body = "Bad gateway";
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+        _clock.Advance(TimeSpan.FromMinutes(5));
+
+        _status = HttpStatusCode.OK;
+        _body = Result;
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+
+        var health = monitor.Current["memory"];
+        health.State.Should().Be(McpHealthState.Healthy);
+        health.Since.Should().Be(_clock.GetUtcNow());
+        health.LastHealthyAt.Should().Be(_clock.GetUtcNow());
+    }
+
+    [Fact]
     public async Task should_not_check_a_local_server_nor_one_whose_check_is_off()
     {
         Given("""

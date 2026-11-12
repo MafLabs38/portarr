@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json.Nodes;
 using Portarr.Core.Catalog;
 using Portarr.Core.Catalog.Editing;
@@ -34,7 +36,7 @@ public sealed partial class McpCaptureService
         var map = variables.ToDictionary(v => $"{v.Kind}:{v.Name}", v => v.Variable, StringComparer.Ordinal);
         var yaml = ProposalYaml(BuildItem(latest.Server, id, name, scope, map, null));
 
-        return new McpCaptureGroup(McpIdentity.KeyOf(identity), state, match?.Id, match?.Name, latest.Server, sightings, differences, new McpCaptureProposal(id, name, scope, variables, yaml));
+        return new McpCaptureGroup(McpIdentity.KeyOf(identity), state, match?.Id, match?.Name, latest.Server, sightings, differences, new McpCaptureProposal(id, name, scope, variables, yaml), VersionOf(rows));
     }
 
     /// <summary>What is not the same between the catalog's definition and what was captured; empty when they agree. A redacted value is never a difference.</summary>
@@ -138,6 +140,13 @@ public sealed partial class McpCaptureService
     }
 
     /// <summary>An id from a name: lower case, letters and digits, dashes between; made unique among the ids of the catalog.</summary>
+    /// <summary>
+    /// What the operator reviewed, as a token: the hand-overs of the group, which never change once stored. A machine that hands the server over again
+    /// adds a row, so the token changes and an acceptance of the old card is refused (D-112: a proposal never takes effect by itself).
+    /// </summary>
+    internal static string VersionOf(IEnumerable<McpCaptureRow> rows) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join(',', rows.Select(r => r.RowId))))).ToLowerInvariant()[..16];
+
     internal static string Slug(string name, IEnumerable<string> taken)
     {
         var slug = NotAlphanumeric().Replace(name.ToLowerInvariant(), "-").Trim('-');

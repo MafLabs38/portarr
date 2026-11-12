@@ -134,7 +134,7 @@ export default function McpCaptureCard({ group }: Readonly<McpCaptureCardProps>)
 
   const decide = (mode: McpAcceptMode, decision: Decision) =>
     accept.mutate(
-      { key: group.key, mode, ...decision },
+      { key: group.key, mode, version: group.version, ...decision },
       {
         onSuccess: (result) => {
           setOutcome(result);

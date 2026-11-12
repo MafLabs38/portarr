@@ -112,6 +112,7 @@ test.describe('MCP', { tag: '@smoke' }, () => {
               variables: [{ kind: 'header', name: 'X-Api-Key', variable: 'NOTES_TOOL_X_API_KEY', fromCapture: false }],
               yaml: 'mcpServers:\n  - id: notes-tool',
             },
+            version: 'c0ffee00000000aa',
           },
         ],
       }),

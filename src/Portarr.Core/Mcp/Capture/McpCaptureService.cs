@@ -74,6 +74,11 @@ public sealed partial class McpCaptureService : IMcpCaptureService
         var group = Describe(rows[0].Identity, rows, catalog);
         var actor = new CatalogActor(Channel, client, null, user);
 
+        if (!string.Equals(request.Version, group.Version, StringComparison.Ordinal))
+        {
+            throw new McpCaptureException("This server was handed over again since you opened it: reload the inbox and review it again.");
+        }
+
         if (request.Mode is not (McpAcceptModes.New or McpAcceptModes.Replace or McpAcceptModes.Existing))
         {
             throw new McpCaptureException($"mode must be {McpAcceptModes.New}, {McpAcceptModes.Replace} or {McpAcceptModes.Existing}.");

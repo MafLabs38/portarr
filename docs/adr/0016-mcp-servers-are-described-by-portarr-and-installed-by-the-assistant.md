@@ -15,6 +15,8 @@ An operator uses several AI assistants on several machines and keeps re-describi
 3. **Secrets are references.** A value is the name of a variable (`env:`) and, with a `secretStore`, a key in the operator's vault (`secret:`). Portarr never holds or reads a value; the plan gives the command that reads it on the workstation, in its own shell (D-117).
 4. **The health is the server's, not the machine's.** A check type `mcp` (`initialize`; a refusal asking for credentials is healthy), run by its own monitor, with the state persisted (last healthy, down since). A local (stdio) server is not monitored (D-114).
 
+5. **The renderers and the secret-store provisioners live in Portarr.Core.** They are text generators: they never call a tool, hold no credential and need no network, which is what D-36's connector libraries exist to isolate. Adding a client is one class and one line in the list (D-113). If one day a renderer needs to talk to its tool, it moves to a provider library then.
+
 ## Consequences
 
 - One renderer per client with golden files: a client whose format changes shows as a diff, and the nine supported clients are the only code that knows their formats.

@@ -143,6 +143,8 @@ export interface McpCaptureGroup {
   sightings: McpCaptureSighting[];
   differences: string[];
   proposal: { id: string; name: string; scope: string; variables: McpProposedVariable[]; yaml: string };
+  /** What was reviewed: sent back with the decision, which is refused if the server was handed over again meanwhile. */
+  version: string;
 }
 
 export type McpAcceptMode = 'new' | 'replace' | 'existing';
@@ -155,6 +157,7 @@ export interface McpAcceptRequest {
   name?: string;
   variables?: Record<string, string>;
   addToWorkstations: boolean;
+  version: string;
 }
 
 export interface McpAcceptResult {

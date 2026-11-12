@@ -367,12 +367,12 @@ mcpServers:
 - **Health** (remote servers only): every 5 minutes (`check.interval`, 10 seconds to 24 hours), Portarr sends one MCP `initialize` request without credentials. A valid answer, even an error answer, is **healthy**; a 401 or 403 is **healthy, asks for credentials** (the server is there and enforcing); a timeout, a refused connection, a name that does not resolve, an invalid certificate, a 5xx or anything that is not MCP is **down**. The pages say since when it is up or down and when it was last seen healthy, and keep that across restarts. A local (`stdio`) server, or one with `check: false`, is **not checked**: it is a process on the machine that uses it. A down server is also listed in the Overview's "needs attention" (MCP tool `get_overview`) for roles that hold `mcp.use`.
 - **Installation.** `GET /api/v1/mcp/servers/{id}?os=windows|linux|macos` (and the MCP tools `list_mcp_servers` and `get_mcp_server`) give, for each client, the command and the file entry that install the server; the page shows them with a copy button. The clients and what was checked about each are in [connectors/mcp-clients.md](connectors/mcp-clients.md).
 - **A package run through `npx` or `uvx` without a version** is flagged on the server's page: it changes under you.
-- **Only a person edits these definitions**: the catalog file, or later the UI with a browser session. The API, the MCP write tools and the chat cannot create, change or remove them (D-112), and `get_catalog_item` does not return them.
+- **Only a person edits these definitions**: the catalog file, or the Captured tab of the MCP page with a browser session that holds `catalog.write`. The API, the MCP write tools and the chat cannot create, change or remove them (D-112), and `get_catalog_item` does not return them.
 - A server that is **not checked** is shown as "Not monitored": it is not a fault.
 
 ### Workstations
 
-The machines you work from with an assistant (V9): a laptop, a training PC, the dev VM. Only the name matters; production machines are not workstations unless you declare them. Portarr never reaches a workstation (D-110): an assistant running on it asks for its **plan** (`/mcp-servers/workstations/{id}`, `GET /api/v1/mcp/workstations/{id}`, the MCP tools `list_workstations` and `get_workstation_plan`), shows you each step and applies it with your approval.
+The machines you work from with an assistant: a laptop, a training PC, the dev VM. Only the name matters; production machines are not workstations unless you declare them. Portarr never reaches a workstation (D-110): an assistant running on it asks for its **plan** (`/mcp-servers/workstations/{id}`, `GET /api/v1/mcp/workstations/{id}`, the MCP tools `list_workstations` and `get_workstation_plan`), shows you each step and applies it with your approval.
 
 ```yaml
 workstations:

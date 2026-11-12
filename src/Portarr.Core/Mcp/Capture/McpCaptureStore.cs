@@ -87,14 +87,18 @@ public sealed class McpCaptureStore : IMcpCaptureStore
                 cancellationToken: cancellationToken));
         }
 
-        // A hand-over left with no server (all replaced) is dropped; the oldest ones beyond the cap go too, with their servers.
+        // A hand-over left with no server (all replaced) is dropped; the oldest decided ones beyond the cap go too, with their servers. A hand-over that still waits is never dropped.
         await connection.ExecuteAsync(new CommandDefinition(
             """DELETE FROM "McpCaptures" WHERE "Id" NOT IN (SELECT DISTINCT "CaptureId" FROM "McpCaptureServers")""",
             transaction: transaction,
             cancellationToken: cancellationToken));
         await connection.ExecuteAsync(new CommandDefinition(
-            """DELETE FROM "McpCaptures" WHERE "Id" <= (SELECT MAX("Id") FROM "McpCaptures") - @keep""",
-            new { keep = KeepCaptures },
+            """
+            DELETE FROM "McpCaptures"
+            WHERE "Id" <= (SELECT MAX("Id") FROM "McpCaptures") - @keep
+              AND "Id" NOT IN (SELECT "CaptureId" FROM "McpCaptureServers" WHERE "Status" = @pending)
+            """,
+            new { keep = KeepCaptures, pending = Pending },
             transaction,
             cancellationToken: cancellationToken));
 

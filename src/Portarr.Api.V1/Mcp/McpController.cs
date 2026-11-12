@@ -55,9 +55,9 @@ public sealed class McpController : ControllerBase
         try
         {
             var renderings = McpClients.All
-                .Select(client => _servers.Render(view.Server, client.Id, client.Scopes.Contains(view.Server.Scope) ? view.Server.Scope : client.Scopes[0], os).ToResource())
+                .Select(client => _servers.Render(view.Server, client.Id, McpServerService.ScopeFor(view.Server, client), os).ToResource())
                 .ToList();
-            return new McpServerDetailResource(view.ToResource(), string.IsNullOrWhiteSpace(os) ? McpServerService.DefaultOs : os.Trim().ToLowerInvariant(), renderings);
+            return new McpServerDetailResource(view.ToResource(), McpServerService.NormalizeOs(os), renderings);
         }
         catch (ArgumentException exception)
         {

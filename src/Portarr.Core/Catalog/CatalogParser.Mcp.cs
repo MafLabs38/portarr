@@ -26,10 +26,11 @@ public static partial class CatalogParser
     internal static partial Regex McpVariableNamePattern();
 
     /// <summary>A header or variable whose value is a credential: it must name a variable, never hold the value.</summary>
-    [GeneratedRegex("authorization|cookie|key|token|secret|password|credential", RegexOptions.IgnoreCase)]
+    [GeneratedRegex("authorization|auth|cookie|key|token|secret|pass|pwd|credential|session", RegexOptions.IgnoreCase)]
     internal static partial Regex McpSensitiveNamePattern();
 
-    [GeneratedRegex(@"[\x00-\x1f\x7f]")]
+    /// <summary>Control characters, and the invisible ones that make a text read differently from what it is: C1 controls, zero-width and bidirectional marks.</summary>
+    [GeneratedRegex(@"[\x00-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]")]
     internal static partial Regex McpControlCharacterPattern();
 
     /// <summary>A command is a program, not a shell line: no operator, no substitution.</summary>

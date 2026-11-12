@@ -52,7 +52,7 @@ The four tabs answer four questions; the assistant asks them all, mixes them and
 
 The live window is described as now, lowest and highest point: the chart in words, not a metric store (D-30).
 
-Two more read tools, `list_mcp_servers` and `get_mcp_server`, describe the operator's own MCP servers and how to install them in an assistant ([mcp-servers.md](mcp-servers.md), D-110 to D-117). They need `mcp.use`, which the roles that configure the environment hold and the Observer does not, so the shared key of this page does not list them; `get_overview` adds a Down MCP server to its attention list for the same callers.
+Five more tools describe the operator's own MCP servers and how to install them in an assistant: `list_mcp_servers`, `get_mcp_server`, `list_workstations` and `get_workstation_plan` (read-only), and `submit_mcp_capture`, which hands over what a workstation has into an inbox a person reads and writes nothing to the catalog ([mcp-servers.md](mcp-servers.md), D-110 to D-117). They need `mcp.use`, which the roles that configure the environment hold and the Observer does not, so the shared key of this page does not list them; `get_overview` adds a Down MCP server to its attention list for the same callers.
 
 ### Knowledge base (D-69)
 
@@ -127,7 +127,7 @@ When the server is off, an info alert says how to turn it on.
 - [x] `/mcp` is not served unless `PORTARR__MCP__ENABLED=true`; startup fails when it is on without a key of 32+ characters
 - [x] Without the key, or with a wrong one: 401; with `X-Api-Key` or a bearer token: initialize, tools/list, tools/call and resources/read work
 - [x] More than 120 requests per minute from one client: 429, wrong keys included
-- [x] Seven tools, all read-only and closed-world, reusing the Core services and the API mappers; none acts
+- [x] Seven tools (at the first slice; the MCP tools of [mcp-servers.md](mcp-servers.md) come on top), all read-only and closed-world, reusing the Core services and the API mappers; none acts
 - [x] `get_overview` lists what needs attention across apps, infrastructure, data and maintenance, worst first, naming its subjects
 - [x] `get_app` tells where an app runs down to the machine and the hypervisor, and how to reach it
 - [x] The knowledge base nests VMs under their hypervisor and lists stacks, apps, URLs, data, jobs, repositories

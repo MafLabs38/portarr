@@ -61,6 +61,7 @@ export function useAcceptCapture() {
         name: body.name,
         variables: body.variables,
         addToWorkstations: body.addToWorkstations,
+        version: body.version,
       }),
   });
 }

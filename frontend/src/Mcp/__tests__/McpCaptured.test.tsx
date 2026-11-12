@@ -81,6 +81,7 @@ describe('MCP captured tab', () => {
         name: 'Search Tool',
         variables: { 'header:X-Api-Key': 'SEARCH_KEY' },
         addToWorkstations: true,
+        version: 'c0ffee0000000001',
       },
     });
     expect(await screen.findByText('Written to the catalog as search.')).toBeInTheDocument();
@@ -111,7 +112,7 @@ describe('MCP captured tab', () => {
     await user.click(await screen.findByRole('button', { name: "Keep the catalog's version" }));
 
     await waitFor(() => expect(bodies).toHaveLength(1));
-    expect(bodies[0]?.body).toEqual({ mode: 'existing', addToWorkstations: true });
+    expect(bodies[0]?.body).toEqual({ mode: 'existing', addToWorkstations: true, version: 'c0ffee0000000002' });
   });
 
   it('gives the yaml to paste when the catalog is read-only', async () => {

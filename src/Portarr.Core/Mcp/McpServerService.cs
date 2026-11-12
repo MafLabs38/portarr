@@ -92,6 +92,12 @@ public sealed class McpServerService : IMcpServerService
         return renderer.Remove(server, resolvedScope, resolvedOs);
     }
 
+    /// <summary>The operating system as the renderers expect it: trimmed, lower case, and the default when none is given.</summary>
+    public static string NormalizeOs(string? os) => string.IsNullOrWhiteSpace(os) ? DefaultOs : os.Trim().ToLowerInvariant();
+
+    /// <summary>The scope a client shows a server at: the server's own when the client holds it, else the client's first one.</summary>
+    public static string ScopeFor(McpServerDefinition server, IMcpClientRenderer client) => client.Scopes.Contains(server.Scope) ? server.Scope : client.Scopes[0];
+
     private static (IMcpClientRenderer Renderer, string Scope, string Os) Resolve(McpServerDefinition server, string client, string? scope, string? os)
     {
         var renderer = McpClients.Find(client?.Trim().ToLowerInvariant())
@@ -102,7 +108,7 @@ public sealed class McpServerService : IMcpServerService
             throw new ArgumentException($"Unknown scope '{scope}'. Scopes: {string.Join(", ", McpScopes.All)}.", nameof(scope));
         }
 
-        var resolvedOs = string.IsNullOrWhiteSpace(os) ? DefaultOs : os.Trim().ToLowerInvariant();
+        var resolvedOs = NormalizeOs(os);
         if (!McpOperatingSystems.All.Contains(resolvedOs))
         {
             throw new ArgumentException($"Unknown operating system '{os}'. Systems: {string.Join(", ", McpOperatingSystems.All)}.", nameof(os));
