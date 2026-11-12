@@ -28,12 +28,18 @@ public sealed class McpHealthMonitorFixture
     private readonly List<string> _asked = [];
     private HttpStatusCode _status = HttpStatusCode.OK;
     private string _body = Result;
+    private bool _probeBug;
 
     public McpHealthMonitorFixture()
     {
         var handler = new FakeHttpHandler((request, _) =>
         {
             _asked.Add(request.RequestUri!.AbsoluteUri);
+            if (_probeBug)
+            {
+                throw new InvalidOperationException("a bug of Portarr");
+            }
+
             return Task.FromResult(new HttpResponseMessage(_status) { Content = new StringContent(_body) });
         });
         var factory = Substitute.For<IHttpClientFactory>();
@@ -115,6 +121,20 @@ public sealed class McpHealthMonitorFixture
         health.State.Should().Be(McpHealthState.Healthy);
         health.Since.Should().Be(_clock.GetUtcNow());
         health.LastHealthyAt.Should().Be(_clock.GetUtcNow());
+    }
+
+    [Fact]
+    public async Task should_not_blame_the_server_when_the_probe_itself_fails()
+    {
+        var monitor = Monitor;
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+        var before = monitor.Current["memory"];
+
+        _probeBug = true;
+        _clock.Advance(TimeSpan.FromMinutes(5));
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+
+        monitor.Current["memory"].Should().Be(before, "what the operator reads is the last real check, not a bug of Portarr (D-104)");
     }
 
     [Fact]

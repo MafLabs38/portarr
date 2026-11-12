@@ -166,14 +166,26 @@ One new permission, **`mcp.use`**: see the MCP page, the definitions, the health
 - **Captured**: the inbox described above; empty until a capture arrives.
 - The empty state explains the sections. All strings go through `translate()` (English source, D-26). Demo mode ships simulated servers and workstations.
 
+### The API
+
+All under `/api/v1/mcp`, all needing `mcp.use`:
+
+| Endpoint | Returns |
+|---|---|
+| `GET servers`, `GET servers/{id}?os=` | The servers with their health; one server with its rendering for every client |
+| `GET clients` | The supported clients, their scopes and formats |
+| `GET workstations`, `GET workstations/{id}?os=` | The workstations; one plan (install, remove, variables, vault keys) |
+| `GET captures` | The inbox, grouped by server, compared with the catalog |
+| `POST captures/{key}/accept`, `POST captures/{key}/dismiss` | A person's decision: also needs `catalog.write` and a browser session (D-112); accept carries the `version` of the card that was read |
+
 ### Portarr's MCP tools
 
 | Tool | Access | Returns |
 |---|---|---|
 | `list_mcp_servers` | `mcp.use` | Servers: transport, scope, state and last healthy, wanted on |
-| `get_mcp_server` `server, client, scope?, os?` | `mcp.use` | The rendering |
+| `get_mcp_server` `server, client, scope?, os?, action?` (install or remove) | `mcp.use` | The rendering |
 | `list_workstations` | `mcp.use` | Workstations, clients, wanted servers |
-| `get_workstation_plan` `workstation` | `mcp.use` | What to install, what to remove, the vault keys needed |
+| `get_workstation_plan` `workstation, os?` | `mcp.use` | What to install, what to remove, the vault keys needed |
 | `submit_mcp_capture` | `mcp.use`, writes the inbox only | The capture's id and what will be reviewed |
 
 The server instructions (V5) gain: the catalog describes, you install; show the operator exactly what you write and wait; never send a secret value. The built-in chat (V6) uses these tools like any other client, with the permissions of its user; `submit_mcp_capture` is for an assistant running on a workstation.
@@ -189,16 +201,16 @@ One vertical, four steps, developed in the sandbox and delivered in one pull req
 
 ## Acceptance criteria
 
-- [ ] A catalog with the sections loads; each validation error names the field; a literal secret is refused without echoing it
-- [ ] For each supported client, the rendering of an `http` and a `stdio` server matches its golden file and contains no secret value
-- [ ] A healthy fixture server, a 401 one, a dead one and a non-MCP one give the four states; the last healthy time survives a restart on SQLite and PostgreSQL; nothing probes a workstation
-- [ ] `mcp.use` is held by Admin and Operator and by neither Observer nor Guest; role × endpoint and role × tool matrices
-- [ ] The API, the MCP write tools and the chat cannot touch `mcpServers`, `workstations` or `secretStore`; the item endpoint leaves them out
-- [ ] An assistant connected to the sandbox obtains the exact command to add a server at user scope for its client, and a workstation's plan with what to install and what to remove
-- [ ] A Down server appears in `get_overview` with the time since, for a caller with `mcp.use` only
-- [ ] (Step 3) A capture with a secret value is refused, field named; accepting a capture needs `catalog.write` and a browser session; the catalog audit shows the user
-- [ ] (Step 4) The plan lists the vault keys per workstation and the provisioning command per operating system; no secret value appears anywhere
-- [ ] Servers, Workstations and Captured tabs, empty states, demo data, strings through `translate()`; one Playwright journey; the Assistant page unchanged
+- [x] A catalog with the sections loads; each validation error names the field; a literal secret is refused without echoing it
+- [x] For each supported client, the rendering of an `http` and a `stdio` server matches its golden file and contains no secret value
+- [x] A healthy fixture server, a 401 one, a dead one and a non-MCP one give the four states; the last healthy time survives a restart on SQLite and PostgreSQL; nothing probes a workstation
+- [x] `mcp.use` is held by Admin and Operator and by neither Observer nor Guest; role × endpoint and role × tool matrices
+- [x] The API, the MCP write tools and the chat cannot touch `mcpServers`, `workstations` or `secretStore`; the item endpoint leaves them out
+- [ ] (the maintainer, on the preview) An assistant connected to the sandbox obtains the exact command to add a server at user scope for its client, and a workstation's plan with what to install and what to remove
+- [x] A Down server appears in `get_overview` with the time since, for a caller with `mcp.use` only
+- [x] (Step 3) A capture with a secret value is refused, field named; accepting a capture needs `catalog.write` and a browser session; the catalog audit shows the user
+- [x] (Step 4) The plan lists the vault keys per workstation and the provisioning command per operating system; no secret value appears anywhere
+- [x] Servers, Workstations and Captured tabs, empty states, demo data, strings through `translate()`; one Playwright journey; the Assistant page unchanged
 
 ## Definition of Done
 

@@ -99,6 +99,8 @@ public sealed class CatalogSecretStoreParserFixture
     [InlineData("kind: vault, address: \"https://vault.homelab.example/ui\", prefix: kv/mcp", "address must be")]
     [InlineData("kind: vault, address: \"https://vault.homelab.example?x=1\", prefix: kv/mcp", "address must be")]
     [InlineData("kind: vault, address: vault.homelab.example, prefix: kv/mcp", "address must be")]
+    [InlineData("kind: vault, address: \"https://vault.homelab.example'x\", prefix: kv/mcp", "address must be")]
+    [InlineData("kind: vault, address: \"https://vault.homelab.example\\u2019x\", prefix: kv/mcp", "address must be")]
     [InlineData("kind: vault, address: \"http://10.0.0.5:8200\", prefix: kv/mcp", "allowInsecure")]
     [InlineData("kind: vault, address: \"https://vault.homelab.example\"", "prefix must be the path")]
     [InlineData("kind: vault, address: \"https://vault.homelab.example\", prefix: /kv/mcp/", "prefix must be the path")]

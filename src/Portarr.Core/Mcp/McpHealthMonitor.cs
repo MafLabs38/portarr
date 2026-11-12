@@ -88,6 +88,12 @@ public sealed partial class McpHealthMonitor : BackgroundService, IMcpHealth
         await Parallel.ForEachAsync(due, options, async (server, token) =>
         {
             var result = await ProbeAsync(server, token);
+            if (result.Error == CheckErrors.CheckFailed)
+            {
+                // D-104: a check that Portarr could not run says nothing about the server. What the operator reads stays as it was.
+                return;
+            }
+
             var health = Next(server.Id, _current.GetValueOrDefault(server.Id), result);
             lock (_lock)
             {

@@ -473,7 +473,8 @@ public static partial class CatalogParser
                 || address.UserInfo.Length > 0
                 || address.Query.Length > 0
                 || address.Fragment.Length > 0
-                || address.AbsolutePath.Trim('/').Length > 0)
+                || address.AbsolutePath.Trim('/').Length > 0
+                || address.OriginalString.Any(c => !(char.IsAsciiLetterOrDigit(c) || c is '.' or '-' or ':' or '/' or '[' or ']')))
             {
                 _errors.Add($"{owner}: address must be the address of the store (https://vault.homelab.example), without credentials, path, query or fragment.");
                 return null;

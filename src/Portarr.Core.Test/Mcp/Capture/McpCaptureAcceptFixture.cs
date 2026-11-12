@@ -70,4 +70,17 @@ public sealed class McpCaptureAcceptFixture
 
         await act.Should().ThrowAsync<McpCaptureException>();
     }
+
+    [Fact]
+    public async Task should_refuse_a_hand_over_when_the_inbox_is_full()
+    {
+        var waiting = Enumerable.Range(0, McpCaptureService.MaxWaiting).Select(i => _row with { RowId = 100 + i, Workstation = $"machine-{i}" }).ToList();
+        _store.PendingAsync(Arg.Any<CancellationToken>()).Returns(waiting);
+        var server = new CapturedServer("another", "http", "https://another.homelab.example/mcp", null, [], [], []);
+
+        var act = () => _service.SubmitAsync(new CaptureRequest("dev-laptop", "claude-code", "user", [server]), "assistant", TestContext.Current.CancellationToken);
+
+        (await act.Should().ThrowAsync<McpCaptureException>()).Which.Message.Should().Contain("accept or dismiss");
+        await _store.DidNotReceive().SubmitAsync(Arg.Any<CaptureRequest>(), Arg.Any<string?>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+    }
 }

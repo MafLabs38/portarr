@@ -1,6 +1,6 @@
 # V5 — AI: MCP server and infrastructure knowledge
 
-> Status: **in progress** (sandbox, phase 1). Pulls forward plan entry V16 AI ("Maintainer priorities (2026-10-30)"); the plan entry V5 Overview keeps its row. Features: F-API-03 (MCP server, read-only). Decisions: D-68 to D-71; catalog write tools and environment knowledge: D-83 to D-86 (accepted plan, step 5). Resolves Q-32.
+> Status: **in progress** (sandbox, phase 1). Pulls forward plan entry V16 AI ("Maintainer priorities (2026-10-30)"); the plan entry V5 Overview keeps its row. Features: F-API-03 (MCP server, read-only, plus the capture inbox of [mcp-servers.md](mcp-servers.md)). Decisions: D-68 to D-71; catalog write tools and environment knowledge: D-83 to D-86 (accepted plan, step 5). Resolves Q-32.
 
 ## Need
 
@@ -25,7 +25,7 @@ The four tabs answer four questions; the assistant asks them all, mixes them and
 | In | Out (later) |
 |---|---|
 | An MCP server inside Portarr (official C# SDK), Streamable HTTP at `/mcp`, stateless | stdio transport, a separate binary; prompts; subscriptions and change notifications |
-| Seven read-only tools over the views the pages show (fleet, Infrastructure, Data, Maintenance) | Any tool that acts (start, stop, restart, open a PR): out of scope (D-31) |
+| Read-only tools over the views the pages show (fleet, Infrastructure, Data, Maintenance), eight at the first slice, and the five MCP tools of [mcp-servers.md](mcp-servers.md) on top | Any tool that acts (start, stop, restart, open a PR): out of scope (D-31) |
 | Two Markdown resources: the infrastructure knowledge base and the glossary, generated on each read | Issues, events and history (they come with the Overview and Notifications verticals of the plan); logs; long-term metrics (Prometheus, V8) |
 | Off by default; keyed (per-user API keys since V7, D-97; the shared key is deprecated) | OAuth for MCP clients (D-99, step 2) |
 | An **Assistant** page: server state, how to connect, knowledge preview | An assistant chat inside Portarr: [the chat vertical](V6-chat.md), through an optional agent runner; Portarr itself never calls an LLM |
@@ -72,7 +72,7 @@ Five more tools describe the operator's own MCP servers and how to install them 
 - **API key** in `X-Api-Key` or `Authorization: Bearer`; SHA-256 of both sides compared with `CryptographicOperations.FixedTimeEquals` (no content or length timing leak). Missing or wrong: **401** with `WWW-Authenticate: Bearer realm="portarr-mcp"`. The key is never returned (`/api/v1/assistant` only says whether one is set) and never logged.
 - **Rate limit**: 120 requests per minute per client address (forwarded only from trusted proxies), counted before authentication so wrong keys are throttled too; then **429**.
 - **No secrets in answers**: URLs lose credentials, query and fragment (`SafeUrl`); workload labels, environment variables, Docker and Kubernetes endpoints and token variable names are never part of a tool output; failures are reason codes; catalog errors are a count.
-- **Read-only**: every tool is annotated `readOnlyHint`, `idempotentHint`, `!destructiveHint`, `!openWorldHint`, and only reads memory: a call reaches no connector.
+- **Read-only**: every tool is annotated `readOnlyHint`, `idempotentHint`, `!destructiveHint`, `!openWorldHint`, and only reads memory: a call reaches no connector. **One exception**, `submit_mcp_capture` (D-116): it is not read-only and is available without the write-tools switch, but it needs `mcp.use` and writes only the capture inbox, never the catalog (accepting is a person's act, D-112).
 - **Off means absent**: `/mcp` and `/.well-known/*` are plain 404 (POST: 405), never the UI, so an MCP client probing for OAuth metadata gets a clean answer.
 - Exposure: the endpoint is behind the same sign-in model as the rest of Portarr: per-user keys, read-only or full, never beyond the owner's role (V7).
 
@@ -116,7 +116,7 @@ curl -s https://portarr.homelab.example/mcp -H "X-Api-Key: $KEY" -H 'Content-Typ
 
 Sidebar entry **Assistant** after Maintenance (route `/assistant`). Its own entry because the sidebar has no second level yet and it is a way of asking the four tabs' questions; it moves under Settings or System with C3.
 
-1. **MCP server** card: on/off, endpoint (`<origin>/mcp`), transport, authentication (header name, key set or not), access (read-only), the tools and resources with their descriptions.
+1. **MCP server** card: on/off, endpoint (`<origin>/mcp`), transport, authentication (header name, key set or not), access (read-only, plus the capture inbox), the tools and resources with their descriptions.
 2. **Connect an assistant** card: the Claude Code command and the Claude Desktop configuration with a copy button, the key as a placeholder; example questions.
 3. **Knowledge base**: the same Markdown the assistant reads, rendered by a small built-in renderer (headings, lists, tables, code, bold, http(s) links; no HTML is interpreted), one collapsible `<details>` per section, refreshed every minute.
 
@@ -127,7 +127,7 @@ When the server is off, an info alert says how to turn it on.
 - [x] `/mcp` is not served unless `PORTARR__MCP__ENABLED=true`; startup fails when it is on without a key of 32+ characters
 - [x] Without the key, or with a wrong one: 401; with `X-Api-Key` or a bearer token: initialize, tools/list, tools/call and resources/read work
 - [x] More than 120 requests per minute from one client: 429, wrong keys included
-- [x] Seven tools (at the first slice; the MCP tools of [mcp-servers.md](mcp-servers.md) come on top), all read-only and closed-world, reusing the Core services and the API mappers; none acts
+- [x] Eight tools (at the first slice; the MCP tools of [mcp-servers.md](mcp-servers.md) come on top), all read-only and closed-world, reusing the Core services and the API mappers; none acts
 - [x] `get_overview` lists what needs attention across apps, infrastructure, data and maintenance, worst first, naming its subjects
 - [x] `get_app` tells where an app runs down to the machine and the hypervisor, and how to reach it
 - [x] The knowledge base nests VMs under their hypervisor and lists stacks, apps, URLs, data, jobs, repositories

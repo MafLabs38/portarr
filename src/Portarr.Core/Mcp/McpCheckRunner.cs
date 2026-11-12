@@ -77,6 +77,11 @@ public sealed class McpCheckRunner : ICheckRunner
         {
             return new CheckResult(at, null, null, ReasonCode(exception, capture, at), capture.ExpiresAt);
         }
+        catch (IOException)
+        {
+            // The connection dropped while the answer was read: the server did not answer properly.
+            return new CheckResult(at, null, null, CheckErrors.ConnectionFailed, capture.ExpiresAt);
+        }
     }
 
     /// <summary>A JSON-RPC 2.0 message, bare or as the first event of a server-sent stream.</summary>

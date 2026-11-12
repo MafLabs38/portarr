@@ -31,6 +31,9 @@ public interface IMcpCaptureService
 public sealed partial class McpCaptureService : IMcpCaptureService
 {
     private const string Channel = "ui";
+    /// <summary>The servers that may wait in the inbox at once.</summary>
+    public const int MaxWaiting = 500;
+
     private const int Attempts = 3;
 
     private readonly ICatalogService _catalogService;
@@ -51,6 +54,14 @@ public sealed partial class McpCaptureService : IMcpCaptureService
         if (McpCaptureValidator.Validate(request) is { Count: > 0 } errors)
         {
             throw new McpCaptureException(errors);
+        }
+
+        // A hand-over that waits is never dropped, so the inbox has a size: past it, a person decides first.
+        var waiting = await _store.PendingAsync(cancellationToken);
+        var replaced = waiting.Count(r => r.Workstation == request.Workstation && r.Client == request.Client && r.Scope == request.Scope);
+        if (waiting.Count - replaced + request.Servers.Count > MaxWaiting)
+        {
+            throw new McpCaptureException($"The inbox already holds {MaxWaiting} servers waiting for a decision: accept or dismiss some before handing over more.");
         }
 
         return await _store.SubmitAsync(request, user, _timeProvider.GetUtcNow(), cancellationToken);
