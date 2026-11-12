@@ -26,7 +26,7 @@ public static partial class CatalogParser
     internal static partial Regex McpVariableNamePattern();
 
     /// <summary>A header or variable whose value is a credential: it must name a variable, never hold the value.</summary>
-    [GeneratedRegex("authorization|auth|cookie|key|token|secret|pass|pwd|credential|session", RegexOptions.IgnoreCase)]
+    [GeneratedRegex("authorization|auth|cookie|key|token|secret|pass|pwd|credential|session|sig", RegexOptions.IgnoreCase)]
     internal static partial Regex McpSensitiveNamePattern();
 
     /// <summary>Control characters, and the invisible ones that make a text read differently from what it is: C1 controls, zero-width and bidirectional marks.</summary>
@@ -275,7 +275,7 @@ public static partial class CatalogParser
                 _errors.Add($"{owner}: http.url is plain http; use https, or set http.allowInsecure: true for a server on a network you trust.");
             }
 
-            if (RejectSecret(owner, "http.url", document.Url))
+            if (RejectSecret(owner, "http.url", document.Url) || RejectCredentialInQuery(owner, url))
             {
                 return null;
             }
@@ -325,6 +325,22 @@ public static partial class CatalogParser
 
             var env = BuildMcpValues(owner, "stdio.env", document.Env, McpVariableNamePattern());
             return new McpStdioSettings(command, args, env);
+        }
+
+        /// <summary>
+        /// A query parameter named like a credential (<c>access_token</c>, <c>client_secret</c>, <c>key</c>…) is a secret in the catalog, and in every
+        /// answer and file that repeats the address: refused by its name, never echoing its value (D-111). A server that wants one takes it in a header.
+        /// </summary>
+        private bool RejectCredentialInQuery(string owner, Uri url)
+        {
+            var names = url.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries).Select(pair => Uri.UnescapeDataString(pair.Split('=')[0]));
+            if (names.FirstOrDefault(name => McpSensitiveNamePattern().IsMatch(name)) is not { } credential)
+            {
+                return false;
+            }
+
+            _errors.Add($"{owner}: http.url has a query parameter named '{Redact(credential)}' that looks like a credential: the catalog holds no secret, send it in a header ({{ env: NAME }}) if the server allows.");
+            return true;
         }
 
         private static bool GoesThroughCmd(string command) => command.Equals("cmd", StringComparison.OrdinalIgnoreCase) || command.Equals("cmd.exe", StringComparison.OrdinalIgnoreCase);

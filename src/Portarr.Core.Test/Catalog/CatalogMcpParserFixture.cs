@@ -132,6 +132,9 @@ public sealed class CatalogMcpParserFixture
     [InlineData("transport: websocket", "transport must be http or stdio")]
     [InlineData("transport: stdio\n    http: { url: \"https://a.homelab.example/mcp\" }\n    stdio: { command: npx }", "a stdio server declares stdio, not http")]
     [InlineData("transport: http", "http.url is required")]
+    [InlineData("transport: http\n    http: { url: \"https://a.homelab.example/mcp?access_token=abc123\" }", "query parameter named 'access_token'")]
+    [InlineData("transport: http\n    http: { url: \"https://a.homelab.example/mcp?page=2&client_secret=abc123\" }", "query parameter named 'client_secret'")]
+    [InlineData("transport: http\n    http: { url: \"https://a.homelab.example/mcp?sig=abc123\" }", "query parameter named 'sig'")]
     [InlineData("transport: http\n    stdio: { command: npx }\n    http: { url: \"https://a.homelab.example/mcp\" }", "an http server declares http, not stdio")]
     [InlineData("transport: stdio", "stdio.command is required")]
     [InlineData("transport: stdio\n    stdio: { command: \"npx -y pkg && rm -rf /\" }", "not a shell line")]
@@ -199,5 +202,15 @@ public sealed class CatalogMcpParserFixture
         edited.Text.Should().Contain("name: Blog 2");
         edited.Text.Should().EndWith("mcpServers:\n  # memory\n  - id: memory\n    transport: http\n    http: { url: \"https://memory.homelab.example/mcp\" }   # remote\n");
         TestCatalog.Parse(edited.Text).Catalog.McpServerList.Should().ContainSingle().Which.Id.Should().Be("memory");
+    }
+
+    [Fact]
+    public void should_accept_a_query_that_holds_no_credential_and_never_echo_the_value_of_one_that_does()
+    {
+        TestCatalog.Parse("mcpServers:\n  - { id: q, transport: http, http: { url: \"https://a.homelab.example/mcp?page=2&lang=en\" } }").IsValid.Should().BeTrue();
+
+        var errors = TestCatalog.Parse("mcpServers:\n  - { id: q, transport: http, http: { url: \"https://a.homelab.example/mcp?access_token=hunter2hunter2\" } }").Errors;
+
+        errors.Should().ContainSingle().Which.Should().NotContain("hunter2hunter2");
     }
 }

@@ -205,9 +205,9 @@ One vertical, three steps, developed in the sandbox and delivered in one pull re
 
 ## Acceptance criteria
 
-- [x] A catalog with the sections loads; each validation error names the field; a literal secret is refused without echoing it; a client or a store kind nobody registered is an unknown name
+- [x] A catalog with the sections loads; each validation error names the field; a literal secret, or a query parameter named like a credential, is refused without echoing it; a client or a store kind nobody registered is an unknown name
 - [x] For each supported client, the rendering of an `http` and a `stdio` server matches its golden file and contains no secret value; a quote character that would escape the quoting is never written inside a command
-- [x] A healthy fixture server, a 401 one, a dead one, a non-MCP one and a probe that failed give the five states; the last healthy time and the down-since survive a restart on SQLite and PostgreSQL; nothing probes a workstation
+- [x] A healthy fixture server, a 401 one, a dead one, a non-MCP one and a probe that failed give Healthy, Healthy asking for credentials, Down (twice) and Unknown; the last healthy time and the down-since survive a restart on SQLite and PostgreSQL; nothing probes a workstation
 - [x] `mcp.use` is held by Admin and Operator and by neither Observer nor Guest; role × endpoint and role × tool matrices
 - [x] The catalog edit API, the MCP tools and the chat cannot touch `mcpServers`, `workstations` or `secretStore`; the item endpoint leaves them out; the four MCP tools are read-only, and the catalog write tools refuse these sections
 - [x] Adding a client is a new class and its registration: no other file of Core changes (a test registers a stand-in client)
