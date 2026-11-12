@@ -118,22 +118,23 @@ public sealed class McpCheckRunner : ICheckRunner
         }
     }
 
-    /// <summary>A server-sent event ends with a blank line, written LF LF, CR LF CR LF or CR CR.</summary>
-    internal static bool EndsAnEvent(string text) =>
-        text.Contains("\n\n", StringComparison.Ordinal) || text.Contains("\r\n\r\n", StringComparison.Ordinal) || text.Contains("\r\r", StringComparison.Ordinal);
+    /// <summary>A server-sent event ends with a blank line, written LF LF, CR LF CR LF or CR CR. Only the newly read bytes, and the three before them, are looked at.</summary>
+    internal static bool EndsAnEvent(ReadOnlySpan<byte> text) =>
+        text.IndexOf("\n\n"u8) >= 0 || text.IndexOf("\r\n\r\n"u8) >= 0 || text.IndexOf("\r\r"u8) >= 0;
 
     private static async Task<string> ReadBodyAsync(HttpContent content, CancellationToken cancellationToken)
     {
         await using var stream = await content.ReadAsStreamAsync(cancellationToken);
         var buffer = new byte[HttpCheckRunner.MaxBodyBytes];
         var length = 0;
+        var isEventStream = content.Headers.ContentType?.MediaType == "text/event-stream";
         int read;
         while (length < buffer.Length && (read = await stream.ReadAsync(buffer.AsMemory(length), cancellationToken)) > 0)
         {
             length += read;
 
             // A server-sent stream may stay open after its first event: that event is all the probe needs.
-            if (content.Headers.ContentType?.MediaType == "text/event-stream" && EndsAnEvent(Encoding.UTF8.GetString(buffer, 0, length)))
+            if (isEventStream && EndsAnEvent(buffer.AsSpan(Math.Max(0, length - read - 3), Math.Min(length, read + 3))))
             {
                 break;
             }

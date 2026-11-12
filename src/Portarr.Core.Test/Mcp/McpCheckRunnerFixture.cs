@@ -1,3 +1,4 @@
+using System.Text;
 using System.Net;
 using Portarr.Core.Catalog;
 using Portarr.Core.Checks;
@@ -170,6 +171,6 @@ public sealed class McpCheckRunnerFixture : CoreTest<McpCheckRunner>
     [InlineData("data: {}\r\n", false)]
     public void should_know_where_a_server_sent_event_ends(string text, bool ends)
     {
-        McpCheckRunner.EndsAnEvent(text).Should().Be(ends);
+        McpCheckRunner.EndsAnEvent(Encoding.UTF8.GetBytes(text)).Should().Be(ends);
     }
 }
