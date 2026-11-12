@@ -17,6 +17,8 @@ using Portarr.Core.Icons;
 using Portarr.Core.Infrastructure;
 using Portarr.Core.Instrumentation;
 using Portarr.Core.Maintenance;
+using Portarr.Core.Mcp;
+using Portarr.Core.Mcp.Capture;
 using Portarr.Core.Portal;
 using Portarr.Core.Status;
 using Portarr.Core.SystemInfo;
@@ -67,11 +69,27 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IMaintenanceMonitor>(provider => provider.GetRequiredService<MaintenanceMonitor>());
         services.AddHostedService(provider => provider.GetRequiredService<MaintenanceMonitor>());
         services.AddSingleton<IMaintenanceService, MaintenanceService>();
-        services.AddSingleton<IAttentionService, AttentionService>();
+        services.AddSingleton<AttentionService>();
+        services.AddSingleton<IAttentionService>(provider => new McpAttentionService(
+            provider.GetRequiredService<AttentionService>(),
+            provider.GetRequiredService<ICatalogService>(),
+            provider.GetRequiredService<IMcpHealth>(),
+            provider.GetRequiredService<TimeProvider>()));
 
         services.AddSingleton<ICheckStore, CheckStore>();
         services.AddSingleton<ICheckRunner, HttpCheckRunner>();
         services.AddHostedService<CheckScheduler>();
+
+        // The health of the operator's MCP servers (V9, D-114): the server is checked, never the workstation.
+        services.AddSingleton<IMcpHealthStore, McpHealthStore>();
+        services.AddSingleton<McpCheckRunner>();
+        services.AddSingleton<McpHealthMonitor>();
+        services.AddSingleton<IMcpHealth>(provider => provider.GetRequiredService<McpHealthMonitor>());
+        services.AddHostedService(provider => provider.GetRequiredService<McpHealthMonitor>());
+        services.AddSingleton<IMcpServerService, McpServerService>();
+        services.AddSingleton<IMcpWorkstationService, McpWorkstationService>();
+        services.AddSingleton<IMcpCaptureStore, McpCaptureStore>();
+        services.AddSingleton<IMcpCaptureService, McpCaptureService>();
 
         // Timeouts are per check (catalog), not per client.
         services.AddHttpClient(HttpCheckRunner.HttpClientName, client => client.Timeout = Timeout.InfiniteTimeSpan)

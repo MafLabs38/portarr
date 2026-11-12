@@ -36,6 +36,7 @@ export {
   HardDrive as LOCAL_COPY,
   LogOut as LOG_OUT,
   Wrench as MAINTENANCE,
+  Plug as MCP,
   SquarePen as NEW_CHAT,
   Cpu as NODE,
   ShieldOff as NOT_COVERED,

@@ -127,9 +127,12 @@ public static partial class CatalogParser
             var links = BuildLinks(document.Links ?? [], environments);
             var providers = BuildProviders(document.Providers ?? [], environmentsById, appIds);
             var portal = BuildPortal(document.Portal);
+            var secretStore = BuildSecretStore(document.SecretStore);
+            var mcpServers = BuildMcpServers(document.McpServers ?? [], appIds, secretStore, document.SecretStore is not null);
+            var workstations = BuildWorkstations(document.Workstations ?? [], environmentsById, mcpServers);
 
             return _errors.Count == 0
-                ? new CatalogParseResult(new Catalog(environments, stacks, apps, data, sources, links, providers, portal), [])
+                ? new CatalogParseResult(new Catalog(environments, stacks, apps, data, sources, links, providers, portal, mcpServers, workstations, secretStore), [])
                 : new CatalogParseResult(Catalog.Empty, _errors);
         }
 

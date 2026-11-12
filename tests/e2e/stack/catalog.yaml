@@ -45,3 +45,41 @@ data:
     targets:
       local: { manual: true }
       offsite: {}
+
+# MCP servers and workstations (V9): the stub of the tools container answers `initialize` like an MCP server; nothing listens
+# on port 9, so the second one is Down. The two assistants of the workstations are the ones the plan renders for.
+mcpServers:
+  - id: memory
+    name: Memory
+    transport: http
+    http:
+      url: 'http://tools:8080/mcp'
+      allowInsecure: true
+      headers:
+        X-Api-Key: { env: MEMORY_MCP_KEY }
+    notes: Long-term memory.
+  - id: search
+    name: Search
+    transport: http
+    http: { url: 'http://localhost:9/mcp', allowInsecure: true }
+  - id: github
+    name: GitHub
+    transport: stdio
+    stdio:
+      command: npx
+      args: ['-y', '@example/github-mcp@1.4.2']
+      env: { GITHUB_TOKEN: { env: GITHUB_TOKEN } }
+
+workstations:
+  - id: dev-laptop
+    name: Dev laptop
+    os: windows
+    clients: [claude-code, cursor]
+    mcp:
+      - memory
+      - { server: github, clients: [claude-code] }
+  - id: dev-vm
+    name: Dev VM
+    os: linux
+    clients: [claude-code]
+    mcp: [memory]

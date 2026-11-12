@@ -22,6 +22,12 @@ public static class Permissions
     public const string DataView = "data.view";
     public const string MaintenanceView = "maintenance.view";
 
+    /// <summary>
+    /// The MCP page and tools (V9, D-115): the operator's MCP servers, their health, the plan of a workstation and the capture inbox.
+    /// Deliberately not a <c>.view</c> permission: the Observer, who looks at the infrastructure, has no use for the configuration of the operator's assistants.
+    /// </summary>
+    public const string McpUse = "mcp.use";
+
     /// <summary>The Assistant page: the MCP server's state and the knowledge base.</summary>
     public const string AssistantView = "assistant.view";
 
@@ -45,6 +51,7 @@ public static class Permissions
         new(InfrastructureView, "Infrastructure"),
         new(DataView, "Data"),
         new(MaintenanceView, "Maintenance"),
+        new(McpUse, "MCP"),
         new(AssistantView, "Assistant"),
         new(ChatUse, "Assistant"),
         new(CatalogWrite, "Catalog"),

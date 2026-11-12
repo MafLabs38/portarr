@@ -14,7 +14,10 @@ public sealed record Catalog(
     IReadOnlyList<ICodeSource>? Sources = null,
     IReadOnlyList<CatalogLink>? Links = null,
     IReadOnlyList<CatalogProvider>? Providers = null,
-    CatalogPortal? Portal = null)
+    CatalogPortal? Portal = null,
+    IReadOnlyList<McpServerDefinition>? McpServers = null,
+    IReadOnlyList<WorkstationDefinition>? Workstations = null,
+    McpSecretStore? SecretStore = null)
 {
     public static Catalog Empty { get; } = new([], [], []);
 
@@ -28,6 +31,12 @@ public sealed record Catalog(
 
     /// <summary>External providers and accounts (D-84).</summary>
     public IReadOnlyList<CatalogProvider> ExternalProviders => Providers ?? [];
+
+    /// <summary>The MCP servers the operator uses (V9, D-111).</summary>
+    public IReadOnlyList<McpServerDefinition> McpServerList => McpServers ?? [];
+
+    /// <summary>The machines the operator works from with an assistant (V9, D-111).</summary>
+    public IReadOnlyList<WorkstationDefinition> WorkstationList => Workstations ?? [];
 }
 
 /// <summary>

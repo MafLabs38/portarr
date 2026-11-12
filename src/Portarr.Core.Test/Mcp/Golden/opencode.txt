@@ -1,0 +1,223 @@
+### install memory | user | linux
+supported: yes
+requires: MEMORY_MCP_KEY
+[command]
+  Add the server with OpenCode, at user scope.
+    opencode mcp add memory --url https://memory.homelab.example/mcp --header 'Accept=application/json' --header 'X-Api-Key={env:MEMORY_MCP_KEY}' --global
+[file] ~/.config/opencode/opencode.json
+  Merge this into ~/.config/opencode/opencode.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcp": {
+        "servers": {
+          "memory": {
+            "type": "remote",
+            "url": "https://memory.homelab.example/mcp",
+            "headers": {
+              "Accept": "application/json",
+              "X-Api-Key": "{env:MEMORY_MCP_KEY}"
+            }
+          }
+        }
+      }
+    }
+note: The file entry uses the current shape (mcp.servers). If your OpenCode is older, put the entry directly under mcp; the command above writes the right shape for the version you run.
+
+### install github | user | linux
+supported: yes
+requires: GITHUB_TOKEN
+[command]
+  Add the server with OpenCode, at user scope.
+    opencode mcp add github --env 'GITHUB_TOKEN={env:GITHUB_TOKEN}' --env 'LOG_LEVEL=info' --global -- npx -y @example/github-mcp@1.4.2
+[file] ~/.config/opencode/opencode.json
+  Merge this into ~/.config/opencode/opencode.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcp": {
+        "servers": {
+          "github": {
+            "type": "local",
+            "command": [
+              "npx",
+              "-y",
+              "@example/github-mcp@1.4.2"
+            ],
+            "environment": {
+              "GITHUB_TOKEN": "{env:GITHUB_TOKEN}",
+              "LOG_LEVEL": "info"
+            }
+          }
+        }
+      }
+    }
+note: The file entry uses the current shape (mcp.servers). If your OpenCode is older, put the entry directly under mcp; the command above writes the right shape for the version you run.
+
+### install memory | project | linux
+supported: yes
+requires: MEMORY_MCP_KEY
+[command]
+  Add the server with OpenCode, at project scope.
+    opencode mcp add memory --url https://memory.homelab.example/mcp --header 'Accept=application/json' --header 'X-Api-Key={env:MEMORY_MCP_KEY}'
+[file] opencode.json
+  Merge this into opencode.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcp": {
+        "servers": {
+          "memory": {
+            "type": "remote",
+            "url": "https://memory.homelab.example/mcp",
+            "headers": {
+              "Accept": "application/json",
+              "X-Api-Key": "{env:MEMORY_MCP_KEY}"
+            }
+          }
+        }
+      }
+    }
+note: The file entry uses the current shape (mcp.servers). If your OpenCode is older, put the entry directly under mcp; the command above writes the right shape for the version you run.
+
+### install github | project | linux
+supported: yes
+requires: GITHUB_TOKEN
+[command]
+  Add the server with OpenCode, at project scope.
+    opencode mcp add github --env 'GITHUB_TOKEN={env:GITHUB_TOKEN}' --env 'LOG_LEVEL=info' -- npx -y @example/github-mcp@1.4.2
+[file] opencode.json
+  Merge this into opencode.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcp": {
+        "servers": {
+          "github": {
+            "type": "local",
+            "command": [
+              "npx",
+              "-y",
+              "@example/github-mcp@1.4.2"
+            ],
+            "environment": {
+              "GITHUB_TOKEN": "{env:GITHUB_TOKEN}",
+              "LOG_LEVEL": "info"
+            }
+          }
+        }
+      }
+    }
+note: The file entry uses the current shape (mcp.servers). If your OpenCode is older, put the entry directly under mcp; the command above writes the right shape for the version you run.
+
+### install memory | user | windows
+supported: yes
+requires: MEMORY_MCP_KEY
+[command]
+  Add the server with OpenCode, at user scope.
+    opencode mcp add memory --url https://memory.homelab.example/mcp --header 'Accept=application/json' --header 'X-Api-Key={env:MEMORY_MCP_KEY}' --global
+[file] %USERPROFILE%\.config\opencode\opencode.json
+  Merge this into %USERPROFILE%\.config\opencode\opencode.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcp": {
+        "servers": {
+          "memory": {
+            "type": "remote",
+            "url": "https://memory.homelab.example/mcp",
+            "headers": {
+              "Accept": "application/json",
+              "X-Api-Key": "{env:MEMORY_MCP_KEY}"
+            }
+          }
+        }
+      }
+    }
+note: The file entry uses the current shape (mcp.servers). If your OpenCode is older, put the entry directly under mcp; the command above writes the right shape for the version you run.
+
+### install memory | user | macos
+supported: yes
+requires: MEMORY_MCP_KEY
+[command]
+  Add the server with OpenCode, at user scope.
+    opencode mcp add memory --url https://memory.homelab.example/mcp --header 'Accept=application/json' --header 'X-Api-Key={env:MEMORY_MCP_KEY}' --global
+[file] ~/.config/opencode/opencode.json
+  Merge this into ~/.config/opencode/opencode.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcp": {
+        "servers": {
+          "memory": {
+            "type": "remote",
+            "url": "https://memory.homelab.example/mcp",
+            "headers": {
+              "Accept": "application/json",
+              "X-Api-Key": "{env:MEMORY_MCP_KEY}"
+            }
+          }
+        }
+      }
+    }
+note: The file entry uses the current shape (mcp.servers). If your OpenCode is older, put the entry directly under mcp; the command above writes the right shape for the version you run.
+
+### install github | user | windows
+supported: yes
+requires: GITHUB_TOKEN
+[command]
+  Add the server with OpenCode, at user scope.
+    opencode mcp add github --env 'GITHUB_TOKEN={env:GITHUB_TOKEN}' --env 'LOG_LEVEL=info' --global -- npx -y @example/github-mcp@1.4.2
+[file] %USERPROFILE%\.config\opencode\opencode.json
+  Merge this into %USERPROFILE%\.config\opencode\opencode.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcp": {
+        "servers": {
+          "github": {
+            "type": "local",
+            "command": [
+              "npx",
+              "-y",
+              "@example/github-mcp@1.4.2"
+            ],
+            "environment": {
+              "GITHUB_TOKEN": "{env:GITHUB_TOKEN}",
+              "LOG_LEVEL": "info"
+            }
+          }
+        }
+      }
+    }
+note: The file entry uses the current shape (mcp.servers). If your OpenCode is older, put the entry directly under mcp; the command above writes the right shape for the version you run.
+note: On native Windows, if the client cannot start npx, declare the command as cmd with the arguments /c npx … (not verified for every client).
+
+### install github | user | macos
+supported: yes
+requires: GITHUB_TOKEN
+[command]
+  Add the server with OpenCode, at user scope.
+    opencode mcp add github --env 'GITHUB_TOKEN={env:GITHUB_TOKEN}' --env 'LOG_LEVEL=info' --global -- npx -y @example/github-mcp@1.4.2
+[file] ~/.config/opencode/opencode.json
+  Merge this into ~/.config/opencode/opencode.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcp": {
+        "servers": {
+          "github": {
+            "type": "local",
+            "command": [
+              "npx",
+              "-y",
+              "@example/github-mcp@1.4.2"
+            ],
+            "environment": {
+              "GITHUB_TOKEN": "{env:GITHUB_TOKEN}",
+              "LOG_LEVEL": "info"
+            }
+          }
+        }
+      }
+    }
+note: The file entry uses the current shape (mcp.servers). If your OpenCode is older, put the entry directly under mcp; the command above writes the right shape for the version you run.
+
+### remove memory | user | linux
+supported: yes
+[remove] ~/.config/opencode/opencode.json
+  If present, delete the entry "memory" under mcp > servers from ~/.config/opencode/opencode.json; touch nothing else.
+    the entry "memory" under mcp > servers
+note: The file entry uses the current shape (mcp.servers). If your OpenCode is older, put the entry directly under mcp; the command above writes the right shape for the version you run.
+
+### remove github | user | linux
+supported: yes
+[remove] ~/.config/opencode/opencode.json
+  If present, delete the entry "github" under mcp > servers from ~/.config/opencode/opencode.json; touch nothing else.
+    the entry "github" under mcp > servers
+note: The file entry uses the current shape (mcp.servers). If your OpenCode is older, put the entry directly under mcp; the command above writes the right shape for the version you run.
+

@@ -336,6 +336,100 @@ providers:                               # external providers and accounts you u
 - A machine name can be one of `machines`, or a node of `kubernetes.nodeHosts`; a link end that is a machine of several environments must be written `environment/machine`.
 - **No secrets**: a value that looks like one (a private key or a certificate, SSH key material, a well-known token format, `password=…`, credentials in a URL, a long random string) is a catalog error that names the field, never the value. Name the key file or the environment variable instead.
 
+## MCP servers
+
+The MCP servers you use with your AI assistants ([verticals/mcp-servers.md](verticals/mcp-servers.md), D-110 to D-117). Portarr checks the remote ones, remembers when each was last seen healthy, and tells any assistant how to install each in its own client, on its own machine. Seen at `/mcp-servers`, for the roles that hold `mcp.use` (Admin and Operator).
+
+```yaml
+mcpServers:
+  - id: memory                        # lowercase letters, digits and dashes
+    name: Memory
+    app: memory                       # optional: an app of the catalog
+    transport: http                   # http (remote) or stdio (a local process)
+    http:
+      url: https://memory.homelab.example/mcp
+      # allowInsecure: true           # a plain http:// address, for a network you trust (as D-103)
+      headers:
+        X-Api-Key: { env: MEMORY_MCP_KEY }     # the NAME of a variable on the workstation, never the value
+        Accept: application/json               # a harmless literal is fine
+    scope: user                       # where a client installs it by default: user, project or local
+    check: { interval: 5m, timeout: 10s }      # optional; check: false turns the check off
+    notes: Long-term memory.
+  - id: github
+    transport: stdio
+    stdio:
+      command: npx
+      args: ["-y", "@example/github-mcp@1.4.2"]    # pin a version
+      env: { GITHUB_TOKEN: { env: GITHUB_TOKEN } }
+```
+
+- **No secrets.** A header or variable is a harmless text, or `{ env: NAME }`: the name of a variable on the workstation, read by the client when it starts. Portarr never reads that variable. A name that suggests a credential (authorization, key, token, secret, password, cookie) accepts only `{ env: NAME }`, and a literal that looks like a secret is refused like in the knowledge above, naming the field and never the value.
+- **Health** (remote servers only): every 5 minutes (`check.interval`, 10 seconds to 24 hours), Portarr sends one MCP `initialize` request without credentials. A valid answer, even an error answer, is **healthy**; a 401 or 403 is **healthy, asks for credentials** (the server is there and enforcing); a timeout, a refused connection, a name that does not resolve, an invalid certificate, a 5xx or anything that is not MCP is **down**. The pages say since when it is up or down and when it was last seen healthy, and keep that across restarts. A local (`stdio`) server, or one with `check: false`, is **not checked**: it is a process on the machine that uses it. A down server is also listed in the Overview's "needs attention" (MCP tool `get_overview`) for roles that hold `mcp.use`.
+- **Installation.** `GET /api/v1/mcp/servers/{id}?os=windows|linux|macos` (and the MCP tools `list_mcp_servers` and `get_mcp_server`) give, for each client, the command and the file entry that install the server; the page shows them with a copy button. The clients and what was checked about each are in [connectors/mcp-clients.md](connectors/mcp-clients.md).
+- **A package run through `npx` or `uvx` without a version** is flagged on the server's page: it changes under you.
+- **Only a person edits these definitions**: the catalog file, or later the UI with a browser session. The API, the MCP write tools and the chat cannot create, change or remove them (D-112), and `get_catalog_item` does not return them.
+- A server that is **not checked** is shown as "Not monitored": it is not a fault.
+
+### Workstations
+
+The machines you work from with an assistant (V9): a laptop, a training PC, the dev VM. Only the name matters; production machines are not workstations unless you declare them. Portarr never reaches a workstation (D-110): an assistant running on it asks for its **plan** (`/mcp-servers/workstations/{id}`, `GET /api/v1/mcp/workstations/{id}`, the MCP tools `list_workstations` and `get_workstation_plan`), shows you each step and applies it with your approval.
+
+```yaml
+workstations:
+  - id: dev-laptop
+    name: Dev laptop
+    os: windows                       # windows, linux or macos: paths and commands differ
+    environment: server-1             # optional: this machine is also this environment (a dev VM)
+    clients: [claude-code, cursor]    # the assistants installed there (connectors/mcp-clients.md)
+    mcp:                              # the servers wanted here
+      - memory                        # every client of the machine, at the server's own scope
+      - { server: github, clients: [claude-code], scope: user }
+    notes: The machine I work on.
+```
+
+- The **plan** has three parts: what to **install** (each wanted server in each of its clients), what to **remove if present** (each server of the catalog that is not wanted in a client of this machine; a client that cannot hold the server at its scope has nothing to remove), and the **variables** the machine must provide.
+- **Nothing is tracked about whether a plan was applied**, nor whether the machine is on: the matrix on the Workstations tab says what is *wanted*, not what is installed (D-114). To remove a server from a machine, take it out of its `mcp` list.
+- Validation: `os` and at least one client are required, every client, server and environment must exist, a server is listed once, and `scope` is one of user, project, local.
+- Like the servers, workstations are edited by a person only (D-112).
+
+### Capturing what a machine already has
+
+You do not have to type the servers. On a workstation, ask your assistant: *"capture my MCP configuration into Portarr"*. It reads the client's configuration and calls the MCP tool `submit_mcp_capture` with, for each server, its name, address or command and arguments, and the **names** of its headers and variables. It never sends a secret value: a key, a token or a password is refused and the whole capture with it, naming the field and never the value; for a value written in the file, the assistant sends the name of the variable that should hold it.
+
+The capture lands in an **inbox** (the **Captured** tab of the MCP page), never in the catalog. Each server there is compared with the catalog, by identity: a remote server by its address (host in lower case, no trailing slash), a local server run through `npx` or `uvx` by its package without the version, any other program by itself and its arguments. So the same server seen on three machines under three names is one line, and:
+
+- **New**: the catalog has nothing like it. *Add to the catalog…* asks for its id and name, and for the variable that holds each value the assistant did not send; the proposal is shown, and the YAML to paste when the catalog is read-only.
+- **Already in the catalog as X**: *Add to the wanted lists* adds it to the workstations it was seen on.
+- **Differs from X**: what differs is listed (`header X-Api-Key: variable A → B`, `args: … → …`). *Update X…* replaces the definition, keeping its notes, scope, check and app; *Add as a new server…* keeps both; *Keep the catalog's version* only updates the wanted lists. A value the assistant redacted is never a difference.
+- *Dismiss* removes it from the inbox and writes nothing.
+
+Accepting is a **person's** act (D-112): a browser session whose role holds `catalog.write`, never an API key, an MCP tool or the chat. It writes the catalog through the same editor as the rest (version, backup, audit with the user and the channel `ui`), and, unless unticked, adds the server to the wanted list of each workstation of the catalog it was seen on (and the client to the machine's `clients` when it was missing). A workstation that is not in the catalog is left alone and said so. When the catalog is read-only (`PORTARR__CATALOG__WRITABLE` off, as in a GitOps deployment), nothing is written: the page gives the YAML to paste into the file, and the server stays in the inbox. A newer capture of the same workstation, client and scope replaces the servers still waiting from the previous one; the inbox keeps the trail of what was decided (the last 200 hand-overs).
+
+### Secrets
+
+Portarr holds **no secret** and reads none (D-117). The secrets of your MCP servers live in **your vault**, and the vault's own access control decides which machine reads which key.
+
+```yaml
+secretStore:
+  kind: vault                         # vault (HashiCorp Vault) or azure-key-vault
+  address: https://vault.homelab.example     # the store's address, without path or credentials
+  prefix: kv/mcp                      # vault: the path under which the MCP secrets live; azure-key-vault: put before the key (mcp-)
+  # allowInsecure: true               # a plain http:// store, for a network you trust
+
+mcpServers:
+  - id: memory
+    transport: http
+    http:
+      url: https://memory.homelab.example/mcp
+      headers:
+        X-Api-Key: { env: MEMORY_MCP_KEY, secret: memory }   # the variable the client reads, and the key of the secret in the store
+```
+
+- `secret:` is the **key** of the secret under the store's prefix (`memory`: `kv/mcp/memory` in Vault, `mcp-memory` in an Azure Key Vault), never its value; it needs `env:` (the variable that receives it) and a `secretStore`. Without a `secretStore`, only `{ env: NAME }` exists and you provision the variables as you like.
+- For each client, the rendering then also gives a **provisioning command** that the workstation runs in its own shell: it reads the secret from the store into the variable the client reads (`export MEMORY_MCP_KEY="$(vault kv get -field=value kv/mcp/memory)"`; in PowerShell, `$env:MEMORY_MCP_KEY = (vault kv get …)`; Azure: `az keyvault secret show … --query value -o tsv`). The value is resolved by the shell when it starts: it never passes through Portarr, an assistant or its provider. Details and the vault side in [connectors/mcp-secret-stores.md](connectors/mcp-secret-stores.md).
+- A workstation's plan lists the **keys it must be able to read**: you grant them in the vault (a policy, a role assignment), as for any machine. Portarr does not check them.
+- `secretStore` is edited by a person only, like the servers (D-112).
+
 ## Editing through the API
 
 The catalog file stays the source of truth (D-44); Portarr can edit it for you, or for an assistant, instead of you editing YAML (D-83 to D-86). Off by default:

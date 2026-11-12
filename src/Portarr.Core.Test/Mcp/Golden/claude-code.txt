@@ -1,0 +1,254 @@
+### install memory | user | linux
+supported: yes
+requires: MEMORY_MCP_KEY
+[command]
+  Add the server with Claude Code, at user scope.
+    claude mcp add --transport http --scope user memory https://memory.homelab.example/mcp --header 'Accept: application/json' --header 'X-Api-Key: ${MEMORY_MCP_KEY}'
+[file] ~/.claude.json
+  Merge this into ~/.claude.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "memory": {
+          "type": "http",
+          "url": "https://memory.homelab.example/mcp",
+          "headers": {
+            "Accept": "application/json",
+            "X-Api-Key": "${MEMORY_MCP_KEY}"
+          }
+        }
+      }
+    }
+
+### install github | user | linux
+supported: yes
+requires: GITHUB_TOKEN
+[command]
+  Add the server with Claude Code, at user scope.
+    claude mcp add --transport stdio --scope user --env 'GITHUB_TOKEN=${GITHUB_TOKEN}' --env 'LOG_LEVEL=info' github -- npx -y @example/github-mcp@1.4.2
+[file] ~/.claude.json
+  Merge this into ~/.claude.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "github": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "@example/github-mcp@1.4.2"
+          ],
+          "env": {
+            "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+            "LOG_LEVEL": "info"
+          }
+        }
+      }
+    }
+
+### install memory | project | linux
+supported: yes
+requires: MEMORY_MCP_KEY
+[command]
+  Add the server with Claude Code, at project scope.
+    claude mcp add --transport http --scope project memory https://memory.homelab.example/mcp --header 'Accept: application/json' --header 'X-Api-Key: ${MEMORY_MCP_KEY}'
+[file] .mcp.json
+  Merge this into .mcp.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "memory": {
+          "type": "http",
+          "url": "https://memory.homelab.example/mcp",
+          "headers": {
+            "Accept": "application/json",
+            "X-Api-Key": "${MEMORY_MCP_KEY}"
+          }
+        }
+      }
+    }
+note: A project server asks the user to approve it the first time Claude Code starts in that project.
+
+### install github | project | linux
+supported: yes
+requires: GITHUB_TOKEN
+[command]
+  Add the server with Claude Code, at project scope.
+    claude mcp add --transport stdio --scope project --env 'GITHUB_TOKEN=${GITHUB_TOKEN}' --env 'LOG_LEVEL=info' github -- npx -y @example/github-mcp@1.4.2
+[file] .mcp.json
+  Merge this into .mcp.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "github": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "@example/github-mcp@1.4.2"
+          ],
+          "env": {
+            "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+            "LOG_LEVEL": "info"
+          }
+        }
+      }
+    }
+note: A project server asks the user to approve it the first time Claude Code starts in that project.
+
+### install memory | local | linux
+supported: yes
+requires: MEMORY_MCP_KEY
+[command]
+  Add the server with Claude Code, at local scope.
+    claude mcp add --transport http --scope local memory https://memory.homelab.example/mcp --header 'Accept: application/json' --header 'X-Api-Key: ${MEMORY_MCP_KEY}'
+[file] ~/.claude.json
+  Merge this into ~/.claude.json; create the file if it does not exist and keep every other entry.
+    {
+      "projects": {
+        "<absolute path of the project>": {
+          "mcpServers": {
+            "memory": {
+              "type": "http",
+              "url": "https://memory.homelab.example/mcp",
+              "headers": {
+                "Accept": "application/json",
+                "X-Api-Key": "${MEMORY_MCP_KEY}"
+              }
+            }
+          }
+        }
+      }
+    }
+
+### install github | local | linux
+supported: yes
+requires: GITHUB_TOKEN
+[command]
+  Add the server with Claude Code, at local scope.
+    claude mcp add --transport stdio --scope local --env 'GITHUB_TOKEN=${GITHUB_TOKEN}' --env 'LOG_LEVEL=info' github -- npx -y @example/github-mcp@1.4.2
+[file] ~/.claude.json
+  Merge this into ~/.claude.json; create the file if it does not exist and keep every other entry.
+    {
+      "projects": {
+        "<absolute path of the project>": {
+          "mcpServers": {
+            "github": {
+              "command": "npx",
+              "args": [
+                "-y",
+                "@example/github-mcp@1.4.2"
+              ],
+              "env": {
+                "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+                "LOG_LEVEL": "info"
+              }
+            }
+          }
+        }
+      }
+    }
+
+### install memory | user | windows
+supported: yes
+requires: MEMORY_MCP_KEY
+[command]
+  Add the server with Claude Code, at user scope.
+    claude mcp add --transport http --scope user memory https://memory.homelab.example/mcp --header 'Accept: application/json' --header 'X-Api-Key: ${MEMORY_MCP_KEY}'
+[file] %USERPROFILE%\.claude.json
+  Merge this into %USERPROFILE%\.claude.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "memory": {
+          "type": "http",
+          "url": "https://memory.homelab.example/mcp",
+          "headers": {
+            "Accept": "application/json",
+            "X-Api-Key": "${MEMORY_MCP_KEY}"
+          }
+        }
+      }
+    }
+
+### install memory | user | macos
+supported: yes
+requires: MEMORY_MCP_KEY
+[command]
+  Add the server with Claude Code, at user scope.
+    claude mcp add --transport http --scope user memory https://memory.homelab.example/mcp --header 'Accept: application/json' --header 'X-Api-Key: ${MEMORY_MCP_KEY}'
+[file] ~/.claude.json
+  Merge this into ~/.claude.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "memory": {
+          "type": "http",
+          "url": "https://memory.homelab.example/mcp",
+          "headers": {
+            "Accept": "application/json",
+            "X-Api-Key": "${MEMORY_MCP_KEY}"
+          }
+        }
+      }
+    }
+
+### install github | user | windows
+supported: yes
+requires: GITHUB_TOKEN
+[command]
+  Add the server with Claude Code, at user scope.
+    claude mcp add --transport stdio --scope user --env 'GITHUB_TOKEN=${GITHUB_TOKEN}' --env 'LOG_LEVEL=info' github -- npx -y @example/github-mcp@1.4.2
+[file] %USERPROFILE%\.claude.json
+  Merge this into %USERPROFILE%\.claude.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "github": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "@example/github-mcp@1.4.2"
+          ],
+          "env": {
+            "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+            "LOG_LEVEL": "info"
+          }
+        }
+      }
+    }
+note: On native Windows, if the client cannot start npx, declare the command as cmd with the arguments /c npx … (not verified for every client).
+
+### install github | user | macos
+supported: yes
+requires: GITHUB_TOKEN
+[command]
+  Add the server with Claude Code, at user scope.
+    claude mcp add --transport stdio --scope user --env 'GITHUB_TOKEN=${GITHUB_TOKEN}' --env 'LOG_LEVEL=info' github -- npx -y @example/github-mcp@1.4.2
+[file] ~/.claude.json
+  Merge this into ~/.claude.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "github": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "@example/github-mcp@1.4.2"
+          ],
+          "env": {
+            "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+            "LOG_LEVEL": "info"
+          }
+        }
+      }
+    }
+
+### remove memory | user | linux
+supported: yes
+[remove]
+  If present, remove the server from Claude Code, at user scope.
+    claude mcp remove --scope user memory
+[remove] ~/.claude.json
+  If present, delete the entry "memory" under mcpServers from ~/.claude.json; touch nothing else.
+    the entry "memory" under mcpServers
+
+### remove github | user | linux
+supported: yes
+[remove]
+  If present, remove the server from Claude Code, at user scope.
+    claude mcp remove --scope user github
+[remove] ~/.claude.json
+  If present, delete the entry "github" under mcpServers from ~/.claude.json; touch nothing else.
+    the entry "github" under mcpServers
+

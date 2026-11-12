@@ -1,0 +1,171 @@
+### install memory | user | linux
+supported: yes
+requires: MEMORY_MCP_KEY
+[file] ~/.config/Claude/claude_desktop_config.json
+  Merge this into ~/.config/Claude/claude_desktop_config.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "memory": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "mcp-remote",
+            "https://memory.homelab.example/mcp",
+            "--header",
+            "Accept:application/json",
+            "--header",
+            "X-Api-Key:${MEMORY_MCP_KEY}"
+          ],
+          "env": {
+            "MEMORY_MCP_KEY": "<value of MEMORY_MCP_KEY>"
+          }
+        }
+      }
+    }
+note: Claude Desktop reads no variable inside its file: write the value of each <value of …> placeholder yourself, and keep that file private.
+note: A remote server is reached through the mcp-remote bridge (Node.js required); Claude Desktop can also add it as a custom connector in Settings > Connectors.
+note: Quit Claude Desktop completely and start it again after editing the file.
+
+### install github | user | linux
+supported: yes
+requires: GITHUB_TOKEN
+[file] ~/.config/Claude/claude_desktop_config.json
+  Merge this into ~/.config/Claude/claude_desktop_config.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "github": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "@example/github-mcp@1.4.2"
+          ],
+          "env": {
+            "GITHUB_TOKEN": "<value of GITHUB_TOKEN>",
+            "LOG_LEVEL": "info"
+          }
+        }
+      }
+    }
+note: Claude Desktop reads no variable inside its file: write the value of each <value of …> placeholder yourself, and keep that file private.
+note: Quit Claude Desktop completely and start it again after editing the file.
+
+### install memory | user | windows
+supported: yes
+requires: MEMORY_MCP_KEY
+[file] %APPDATA%\Claude\claude_desktop_config.json
+  Merge this into %APPDATA%\Claude\claude_desktop_config.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "memory": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "mcp-remote",
+            "https://memory.homelab.example/mcp",
+            "--header",
+            "Accept:application/json",
+            "--header",
+            "X-Api-Key:${MEMORY_MCP_KEY}"
+          ],
+          "env": {
+            "MEMORY_MCP_KEY": "<value of MEMORY_MCP_KEY>"
+          }
+        }
+      }
+    }
+note: Claude Desktop reads no variable inside its file: write the value of each <value of …> placeholder yourself, and keep that file private.
+note: A remote server is reached through the mcp-remote bridge (Node.js required); Claude Desktop can also add it as a custom connector in Settings > Connectors.
+note: Quit Claude Desktop completely and start it again after editing the file.
+
+### install memory | user | macos
+supported: yes
+requires: MEMORY_MCP_KEY
+[file] ~/Library/Application Support/Claude/claude_desktop_config.json
+  Merge this into ~/Library/Application Support/Claude/claude_desktop_config.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "memory": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "mcp-remote",
+            "https://memory.homelab.example/mcp",
+            "--header",
+            "Accept:application/json",
+            "--header",
+            "X-Api-Key:${MEMORY_MCP_KEY}"
+          ],
+          "env": {
+            "MEMORY_MCP_KEY": "<value of MEMORY_MCP_KEY>"
+          }
+        }
+      }
+    }
+note: Claude Desktop reads no variable inside its file: write the value of each <value of …> placeholder yourself, and keep that file private.
+note: A remote server is reached through the mcp-remote bridge (Node.js required); Claude Desktop can also add it as a custom connector in Settings > Connectors.
+note: Quit Claude Desktop completely and start it again after editing the file.
+
+### install github | user | windows
+supported: yes
+requires: GITHUB_TOKEN
+[file] %APPDATA%\Claude\claude_desktop_config.json
+  Merge this into %APPDATA%\Claude\claude_desktop_config.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "github": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "@example/github-mcp@1.4.2"
+          ],
+          "env": {
+            "GITHUB_TOKEN": "<value of GITHUB_TOKEN>",
+            "LOG_LEVEL": "info"
+          }
+        }
+      }
+    }
+note: Claude Desktop reads no variable inside its file: write the value of each <value of …> placeholder yourself, and keep that file private.
+note: Quit Claude Desktop completely and start it again after editing the file.
+note: On native Windows, if the client cannot start npx, declare the command as cmd with the arguments /c npx … (not verified for every client).
+
+### install github | user | macos
+supported: yes
+requires: GITHUB_TOKEN
+[file] ~/Library/Application Support/Claude/claude_desktop_config.json
+  Merge this into ~/Library/Application Support/Claude/claude_desktop_config.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "github": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "@example/github-mcp@1.4.2"
+          ],
+          "env": {
+            "GITHUB_TOKEN": "<value of GITHUB_TOKEN>",
+            "LOG_LEVEL": "info"
+          }
+        }
+      }
+    }
+note: Claude Desktop reads no variable inside its file: write the value of each <value of …> placeholder yourself, and keep that file private.
+note: Quit Claude Desktop completely and start it again after editing the file.
+
+### remove memory | user | linux
+supported: yes
+[remove] ~/.config/Claude/claude_desktop_config.json
+  If present, delete the entry "memory" under mcpServers from ~/.config/Claude/claude_desktop_config.json; touch nothing else.
+    the entry "memory" under mcpServers
+note: Claude Desktop reads no variable inside its file: write the value of each <value of …> placeholder yourself, and keep that file private.
+note: A remote server is reached through the mcp-remote bridge (Node.js required); Claude Desktop can also add it as a custom connector in Settings > Connectors.
+note: Quit Claude Desktop completely and start it again after editing the file.
+
+### remove github | user | linux
+supported: yes
+[remove] ~/.config/Claude/claude_desktop_config.json
+  If present, delete the entry "github" under mcpServers from ~/.config/Claude/claude_desktop_config.json; touch nothing else.
+    the entry "github" under mcpServers
+note: Claude Desktop reads no variable inside its file: write the value of each <value of …> placeholder yourself, and keep that file private.
+note: Quit Claude Desktop completely and start it again after editing the file.
+

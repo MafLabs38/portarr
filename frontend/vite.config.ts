@@ -19,6 +19,7 @@ const aliases = [
   'Helpers',
   'Infrastructure',
   'Maintenance',
+  'Mcp',
   'Settings',
   'Styles',
   'System',
@@ -44,7 +45,8 @@ export default defineConfig({
     // /openapi and /docs: the OpenAPI document and its interactive reference (F-API-01), served by the backend.
     proxy: {
       '/api': process.env.PORTARR_API ?? 'http://localhost:8484',
-      '/mcp': process.env.PORTARR_API ?? 'http://localhost:8484',
+      // A regular expression: a plain '/mcp' would also catch the page /mcp-servers (V9) and answer its reload with a 404.
+      '^/mcp(/|$)': process.env.PORTARR_API ?? 'http://localhost:8484',
       '/openapi': process.env.PORTARR_API ?? 'http://localhost:8484',
       '/docs': process.env.PORTARR_API ?? 'http://localhost:8484',
     },

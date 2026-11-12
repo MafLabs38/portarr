@@ -52,6 +52,8 @@ The four tabs answer four questions; the assistant asks them all, mixes them and
 
 The live window is described as now, lowest and highest point: the chart in words, not a metric store (D-30).
 
+Two more read tools, `list_mcp_servers` and `get_mcp_server`, describe the operator's own MCP servers and how to install them in an assistant ([mcp-servers.md](mcp-servers.md), D-110 to D-117). They need `mcp.use`, which the roles that configure the environment hold and the Observer does not, so the shared key of this page does not list them; `get_overview` adds a Down MCP server to its attention list for the same callers.
+
 ### Knowledge base (D-69)
 
 `portarr://knowledge/infrastructure` (`text/markdown`), built on each read:

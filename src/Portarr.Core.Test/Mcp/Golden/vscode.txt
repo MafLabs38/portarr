@@ -1,0 +1,201 @@
+### install memory | user | linux
+supported: yes
+requires: MEMORY_MCP_KEY
+[command]
+  Add the server to the user profile with the code command.
+    code --add-mcp '{"name":"memory","type":"http","url":"https://memory.homelab.example/mcp","headers":{"Accept":"application/json","X-Api-Key":"${env:MEMORY_MCP_KEY}"}}'
+[file] ~/.config/Code/User/mcp.json
+  Merge this into ~/.config/Code/User/mcp.json; create the file if it does not exist and keep every other entry.
+    {
+      "servers": {
+        "memory": {
+          "type": "http",
+          "url": "https://memory.homelab.example/mcp",
+          "headers": {
+            "Accept": "application/json",
+            "X-Api-Key": "${env:MEMORY_MCP_KEY}"
+          }
+        }
+      }
+    }
+note: The path of the user file is the usual one: "MCP: Open User Configuration" in VS Code opens the right file. VS Code asks to trust a server the first time it starts.
+
+### install github | user | linux
+supported: yes
+requires: GITHUB_TOKEN
+[command]
+  Add the server to the user profile with the code command.
+    code --add-mcp '{"name":"github","type":"stdio","command":"npx","args":["-y","@example/github-mcp@1.4.2"],"env":{"GITHUB_TOKEN":"${env:GITHUB_TOKEN}","LOG_LEVEL":"info"}}'
+[file] ~/.config/Code/User/mcp.json
+  Merge this into ~/.config/Code/User/mcp.json; create the file if it does not exist and keep every other entry.
+    {
+      "servers": {
+        "github": {
+          "type": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "@example/github-mcp@1.4.2"
+          ],
+          "env": {
+            "GITHUB_TOKEN": "${env:GITHUB_TOKEN}",
+            "LOG_LEVEL": "info"
+          }
+        }
+      }
+    }
+note: The path of the user file is the usual one: "MCP: Open User Configuration" in VS Code opens the right file. VS Code asks to trust a server the first time it starts.
+
+### install memory | project | linux
+supported: yes
+requires: MEMORY_MCP_KEY
+[file] .vscode/mcp.json
+  Merge this into .vscode/mcp.json; create the file if it does not exist and keep every other entry.
+    {
+      "servers": {
+        "memory": {
+          "type": "http",
+          "url": "https://memory.homelab.example/mcp",
+          "headers": {
+            "Accept": "application/json",
+            "X-Api-Key": "${env:MEMORY_MCP_KEY}"
+          }
+        }
+      }
+    }
+note: The path of the user file is the usual one: "MCP: Open User Configuration" in VS Code opens the right file. VS Code asks to trust a server the first time it starts.
+
+### install github | project | linux
+supported: yes
+requires: GITHUB_TOKEN
+[file] .vscode/mcp.json
+  Merge this into .vscode/mcp.json; create the file if it does not exist and keep every other entry.
+    {
+      "servers": {
+        "github": {
+          "type": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "@example/github-mcp@1.4.2"
+          ],
+          "env": {
+            "GITHUB_TOKEN": "${env:GITHUB_TOKEN}",
+            "LOG_LEVEL": "info"
+          }
+        }
+      }
+    }
+note: The path of the user file is the usual one: "MCP: Open User Configuration" in VS Code opens the right file. VS Code asks to trust a server the first time it starts.
+
+### install memory | user | windows
+supported: yes
+requires: MEMORY_MCP_KEY
+[command]
+  Add the server to the user profile with the code command.
+    code --add-mcp '{"name":"memory","type":"http","url":"https://memory.homelab.example/mcp","headers":{"Accept":"application/json","X-Api-Key":"${env:MEMORY_MCP_KEY}"}}'
+[file] %APPDATA%\Code\User\mcp.json
+  Merge this into %APPDATA%\Code\User\mcp.json; create the file if it does not exist and keep every other entry.
+    {
+      "servers": {
+        "memory": {
+          "type": "http",
+          "url": "https://memory.homelab.example/mcp",
+          "headers": {
+            "Accept": "application/json",
+            "X-Api-Key": "${env:MEMORY_MCP_KEY}"
+          }
+        }
+      }
+    }
+note: The path of the user file is the usual one: "MCP: Open User Configuration" in VS Code opens the right file. VS Code asks to trust a server the first time it starts.
+
+### install memory | user | macos
+supported: yes
+requires: MEMORY_MCP_KEY
+[command]
+  Add the server to the user profile with the code command.
+    code --add-mcp '{"name":"memory","type":"http","url":"https://memory.homelab.example/mcp","headers":{"Accept":"application/json","X-Api-Key":"${env:MEMORY_MCP_KEY}"}}'
+[file] ~/Library/Application Support/Code/User/mcp.json
+  Merge this into ~/Library/Application Support/Code/User/mcp.json; create the file if it does not exist and keep every other entry.
+    {
+      "servers": {
+        "memory": {
+          "type": "http",
+          "url": "https://memory.homelab.example/mcp",
+          "headers": {
+            "Accept": "application/json",
+            "X-Api-Key": "${env:MEMORY_MCP_KEY}"
+          }
+        }
+      }
+    }
+note: The path of the user file is the usual one: "MCP: Open User Configuration" in VS Code opens the right file. VS Code asks to trust a server the first time it starts.
+
+### install github | user | windows
+supported: yes
+requires: GITHUB_TOKEN
+[command]
+  Add the server to the user profile with the code command.
+    code --add-mcp '{"name":"github","type":"stdio","command":"npx","args":["-y","@example/github-mcp@1.4.2"],"env":{"GITHUB_TOKEN":"${env:GITHUB_TOKEN}","LOG_LEVEL":"info"}}'
+[file] %APPDATA%\Code\User\mcp.json
+  Merge this into %APPDATA%\Code\User\mcp.json; create the file if it does not exist and keep every other entry.
+    {
+      "servers": {
+        "github": {
+          "type": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "@example/github-mcp@1.4.2"
+          ],
+          "env": {
+            "GITHUB_TOKEN": "${env:GITHUB_TOKEN}",
+            "LOG_LEVEL": "info"
+          }
+        }
+      }
+    }
+note: The path of the user file is the usual one: "MCP: Open User Configuration" in VS Code opens the right file. VS Code asks to trust a server the first time it starts.
+note: On native Windows, if the client cannot start npx, declare the command as cmd with the arguments /c npx … (not verified for every client).
+
+### install github | user | macos
+supported: yes
+requires: GITHUB_TOKEN
+[command]
+  Add the server to the user profile with the code command.
+    code --add-mcp '{"name":"github","type":"stdio","command":"npx","args":["-y","@example/github-mcp@1.4.2"],"env":{"GITHUB_TOKEN":"${env:GITHUB_TOKEN}","LOG_LEVEL":"info"}}'
+[file] ~/Library/Application Support/Code/User/mcp.json
+  Merge this into ~/Library/Application Support/Code/User/mcp.json; create the file if it does not exist and keep every other entry.
+    {
+      "servers": {
+        "github": {
+          "type": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "@example/github-mcp@1.4.2"
+          ],
+          "env": {
+            "GITHUB_TOKEN": "${env:GITHUB_TOKEN}",
+            "LOG_LEVEL": "info"
+          }
+        }
+      }
+    }
+note: The path of the user file is the usual one: "MCP: Open User Configuration" in VS Code opens the right file. VS Code asks to trust a server the first time it starts.
+
+### remove memory | user | linux
+supported: yes
+[remove] ~/.config/Code/User/mcp.json
+  If present, delete the entry "memory" under servers from ~/.config/Code/User/mcp.json; touch nothing else.
+    the entry "memory" under servers
+note: The path of the user file is the usual one: "MCP: Open User Configuration" in VS Code opens the right file. VS Code asks to trust a server the first time it starts.
+
+### remove github | user | linux
+supported: yes
+[remove] ~/.config/Code/User/mcp.json
+  If present, delete the entry "github" under servers from ~/.config/Code/User/mcp.json; touch nothing else.
+    the entry "github" under servers
+note: The path of the user file is the usual one: "MCP: Open User Configuration" in VS Code opens the right file. VS Code asks to trust a server the first time it starts.
+

@@ -1,0 +1,14 @@
+.intro {
+  max-width: 70ch;
+  margin: 0 0 14px;
+  color: var(--inkMuted);
+  font-weight: 700;
+}
+
+.list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

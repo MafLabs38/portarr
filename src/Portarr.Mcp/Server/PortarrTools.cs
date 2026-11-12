@@ -1,8 +1,12 @@
 using System.ComponentModel;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Portarr.Core.Accounts;
 using Portarr.Core.Catalog;
+using Portarr.Core.Mcp;
+using Portarr.Http.Authentication;
 using Portarr.Mcp.Digest;
 using Portarr.Mcp.Knowledge;
 
@@ -18,11 +22,13 @@ public sealed class PortarrTools
 {
     private readonly FleetDigest _digest;
     private readonly ICatalogService _catalogService;
+    private readonly IHttpContextAccessor _httpContext;
 
-    public PortarrTools(FleetDigest digest, ICatalogService catalogService)
+    public PortarrTools(FleetDigest digest, ICatalogService catalogService, IHttpContextAccessor httpContext)
     {
         _digest = digest;
         _catalogService = catalogService;
+        _httpContext = httpContext;
     }
 
     [RequiresPermissions(Permissions.AppsView, Permissions.InfrastructureView, Permissions.DataView, Permissions.MaintenanceView)]
@@ -30,7 +36,21 @@ public sealed class PortarrTools
     [Description("Start here. What needs attention across apps, infrastructure, data and maintenance, worst first (danger, warning, info), with app counts, environments and their connection, the busiest machines and data and maintenance counts.")]
     public Overview GetOverview()
     {
-        return _digest.GetOverview();
+        return ForCaller(_digest.GetOverview(), _httpContext.HttpContext?.User);
+    }
+
+    /// <summary>
+    /// A dead MCP server is for those who may see the operator's MCP servers (V9, D-115): the Observer, who may read the four
+    /// pages the overview mirrors, does not see that finding.
+    /// </summary>
+    internal static Overview ForCaller(Overview overview, ClaimsPrincipal? user)
+    {
+        if (user?.HasPermission(Permissions.McpUse) == true)
+        {
+            return overview;
+        }
+
+        return overview with { NeedsAttention = overview.NeedsAttention.Where(f => f.Area != McpAttentionService.Area).ToList() };
     }
 
     [RequiresPermissions(Permissions.AppsView)]

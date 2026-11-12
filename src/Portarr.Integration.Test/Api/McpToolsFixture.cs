@@ -97,6 +97,9 @@ public sealed class McpToolsFixture : IClassFixture<McpToolsHosts>
 
         readOnly.Should().Contain(["get_overview", "list_apps", "get_app", "get_infrastructure", "find_workload", "get_data_coverage", "get_maintenance", "get_environment_knowledge"]);
         readOnly.Should().NotContain(["upsert_app", "remove_app", "set_portal", "set_notes"]);
+
+        // The shared key is a view-only principal: the operator's MCP servers need mcp.use (D-115), which only a user's role grants.
+        readOnly.Should().NotContain(["list_mcp_servers", "get_mcp_server"]);
         writable.Should().Contain(["get_catalog_item", "get_portal", "upsert_app", "remove_app", "upsert_stack", "set_portal", "set_notes"]);
     }
 

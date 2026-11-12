@@ -9,6 +9,14 @@ import type CatalogStatus from 'typings/CatalogStatus';
 import type DataReport from 'typings/Data';
 import type { InfrastructureEnvironment } from 'typings/Infrastructure';
 import type MaintenanceReport from 'typings/Maintenance';
+import type {
+  McpCaptureGroup,
+  McpRendering,
+  McpServer,
+  McpServerDetail,
+  McpWorkstation,
+  McpWorkstationPlan,
+} from 'typings/Mcp';
 import type Portal from 'typings/Portal';
 import type Stack from 'typings/Stack';
 import type SystemStatus from 'typings/SystemStatus';
@@ -40,6 +48,7 @@ export const allPermissions = [
   'infrastructure.view',
   'data.view',
   'maintenance.view',
+  'mcp.use',
   'assistant.view',
   'chat.use',
   'catalog.write',
@@ -746,6 +755,277 @@ export const knowledge: Knowledge = {
   ].join('\n'),
 };
 
+const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+
+/** The operator's MCP servers (V9): one up, one down for twelve days, one local process that is not checked. */
+export const mcpServers: McpServer[] = [
+  {
+    id: 'memory',
+    name: 'Memory',
+    transport: 'http',
+    scope: 'user',
+    url: 'https://memory.homelab.example/mcp',
+    command: null,
+    arguments: [],
+    values: [{ kind: 'header', name: 'X-Api-Key', literal: null, variable: 'MEMORY_MCP_KEY', secret: 'memory' }],
+    app: null,
+    checkInterval: '00:05:00',
+    status: 'healthy',
+    health: {
+      state: 'Healthy',
+      since: minutesAgo(3 * 24 * 60),
+      lastHealthyAt: minutesAgo(2),
+      lastCheckedAt: minutesAgo(2),
+      error: null,
+      statusCode: 200,
+    },
+    unpinnedPackage: false,
+    notes: 'Long-term memory.',
+  },
+  {
+    id: 'search',
+    name: 'Search',
+    transport: 'http',
+    scope: 'user',
+    url: 'https://search.homelab.example/mcp',
+    command: null,
+    arguments: [],
+    values: [],
+    app: null,
+    checkInterval: '00:05:00',
+    status: 'down',
+    health: {
+      state: 'Down',
+      since: minutesAgo(12 * 24 * 60),
+      lastHealthyAt: minutesAgo(12 * 24 * 60 + 5),
+      lastCheckedAt: minutesAgo(1),
+      error: 'timeout',
+      statusCode: null,
+    },
+    unpinnedPackage: false,
+    notes: null,
+  },
+  {
+    id: 'github',
+    name: 'GitHub',
+    transport: 'stdio',
+    scope: 'project',
+    url: null,
+    command: 'npx',
+    arguments: ['-y', '@example/github-mcp'],
+    values: [{ kind: 'env', name: 'GITHUB_TOKEN', literal: null, variable: 'GITHUB_TOKEN', secret: null }],
+    app: null,
+    checkInterval: null,
+    status: 'not-checked',
+    health: null,
+    unpinnedPackage: true,
+    notes: null,
+  },
+];
+
+export function mcpDetail(id: string, os: string): McpServerDetail | undefined {
+  const server = mcpServers.find((s) => s.id === id);
+  if (!server) {
+    return undefined;
+  }
+  const claudeFile = os === 'windows' ? String.raw`%USERPROFILE%\.claude.json` : '~/.claude.json';
+  return {
+    server,
+    os,
+    renderings: [
+      {
+        server: server.id,
+        client: 'claude-code',
+        clientName: 'Claude Code',
+        scope: server.scope,
+        supported: true,
+        requiresEnv: server.values.flatMap((v) => (v.variable ? [v.variable] : [])),
+        requiresSecrets: server.values.flatMap((v) => (v.secret ? [`kv/mcp/${v.secret}`] : [])),
+        operations: [
+          {
+            kind: 'command',
+            description: 'Add the server with Claude Code, at user scope.',
+            text: `claude mcp add --transport http --scope user ${server.id} ${server.url ?? ''}`,
+            path: null,
+          },
+          {
+            kind: 'file',
+            description: `Merge this into ${claudeFile}; keep every other entry.`,
+            text: `{ "mcpServers": { "${server.id}": {} } }`,
+            path: '~/.claude.json',
+          },
+          ...server.values
+            .filter((v) => v.secret)
+            .map((v) => ({
+              kind: 'provision' as const,
+              description:
+                'In your shell profile: read the secrets from the vault into the variables the client reads.',
+              text: `export ${v.variable}="$(vault kv get -field=value kv/mcp/${v.secret})"`,
+              path: null,
+            })),
+        ],
+        notes: [],
+      },
+      {
+        server: server.id,
+        client: 'zed',
+        clientName: 'Zed',
+        scope: 'project',
+        supported: false,
+        requiresEnv: [],
+        requiresSecrets: [],
+        operations: [],
+        notes: ["Zed has no 'project' scope; it holds servers at: user."],
+      },
+    ],
+  };
+}
+
+/** The machines the operator works from (V9): a Linux dev VM and a Windows PC that wants fewer servers. */
+export const mcpWorkstations: McpWorkstation[] = [
+  {
+    id: 'wacken',
+    name: 'wacken',
+    os: 'linux',
+    environment: null,
+    clients: ['claude-code'],
+    wanted: [
+      { server: 'memory', clients: ['claude-code'], scope: null },
+      { server: 'github', clients: ['claude-code'], scope: null },
+    ],
+    notes: 'The dev VM.',
+  },
+  {
+    id: 'quimper',
+    name: 'quimper',
+    os: 'windows',
+    environment: null,
+    clients: ['claude-code', 'cursor'],
+    wanted: [{ server: 'memory', clients: ['claude-code', 'cursor'], scope: null }],
+    notes: null,
+  },
+];
+
+const planOf = (server: string, client: string, kind: 'command' | 'remove'): McpRendering => ({
+  server,
+  client,
+  clientName: client === 'cursor' ? 'Cursor' : 'Claude Code',
+  scope: 'user',
+  supported: true,
+  requiresEnv: kind === 'command' && server === 'memory' ? ['MEMORY_MCP_KEY'] : [],
+  requiresSecrets: kind === 'command' && server === 'memory' ? ['kv/mcp/memory'] : [],
+  operations: [
+    {
+      kind,
+      description: kind === 'command' ? `Add ${server} to ${client}.` : `If present, remove ${server} from ${client}.`,
+      text: kind === 'command' ? `claude mcp add --scope user ${server}` : `claude mcp remove --scope user ${server}`,
+      path: null,
+    },
+  ],
+  notes: [],
+});
+
+export function mcpWorkstationPlan(id: string, os?: string): McpWorkstationPlan | undefined {
+  const workstation = mcpWorkstations.find((w) => w.id === id);
+  if (!workstation) {
+    return undefined;
+  }
+  const install = workstation.wanted.flatMap((w) => w.clients.map((c) => planOf(w.server, c, 'command')));
+  const remove = mcpServers
+    .flatMap((s) => workstation.clients.map((c) => ({ server: s.id, client: c })))
+    .filter(({ server, client }) => !workstation.wanted.some((w) => w.server === server && w.clients.includes(client)))
+    .map(({ server, client }) => planOf(server, client, 'remove'));
+  return {
+    workstation,
+    os: os ?? workstation.os,
+    install,
+    remove,
+    requiresEnv: [...new Set(install.flatMap((r) => r.requiresEnv))],
+    requiresSecrets: [...new Set(install.flatMap((r) => r.requiresSecrets))],
+  };
+}
+
+/** What the assistants handed over (V9, D-116): a server the catalog does not have, and one it has but described differently. */
+export const mcpCaptureGroups: McpCaptureGroup[] = [
+  {
+    key: 'aaaaaaaaaaaa',
+    state: 'new',
+    matchId: null,
+    matchName: null,
+    server: {
+      name: 'Search Tool',
+      transport: 'http',
+      url: 'https://search.homelab.example/mcp',
+      command: null,
+      args: [],
+      headers: [{ name: 'X-Api-Key', variable: null, literal: null }],
+      env: [],
+    },
+    sightings: [
+      {
+        rowId: 1,
+        workstation: 'quimper',
+        workstationKnown: true,
+        client: 'claude-code',
+        scope: 'user',
+        name: 'Search Tool',
+        receivedAt: minutesAgo(5),
+      },
+      {
+        rowId: 2,
+        workstation: 'laptop',
+        workstationKnown: false,
+        client: 'cursor',
+        scope: 'user',
+        name: 'search',
+        receivedAt: minutesAgo(30),
+      },
+    ],
+    differences: [],
+    proposal: {
+      id: 'search-tool',
+      name: 'Search Tool',
+      scope: 'user',
+      variables: [{ kind: 'header', name: 'X-Api-Key', variable: 'SEARCH_TOOL_X_API_KEY', fromCapture: false }],
+      yaml: 'mcpServers:\n  - id: search-tool\n    transport: http',
+    },
+  },
+  {
+    key: 'bbbbbbbbbbbb',
+    state: 'differs',
+    matchId: 'memory',
+    matchName: 'memory',
+    server: {
+      name: 'memory',
+      transport: 'http',
+      url: 'https://memory.homelab.example/mcp',
+      command: null,
+      args: [],
+      headers: [{ name: 'X-Api-Key', variable: 'OTHER_KEY', literal: null }],
+      env: [],
+    },
+    sightings: [
+      {
+        rowId: 3,
+        workstation: 'wacken',
+        workstationKnown: true,
+        client: 'claude-code',
+        scope: 'user',
+        name: 'memory',
+        receivedAt: minutesAgo(2),
+      },
+    ],
+    differences: ['header X-Api-Key: variable MEMORY_MCP_KEY → OTHER_KEY'],
+    proposal: {
+      id: 'memory',
+      name: 'memory',
+      scope: 'user',
+      variables: [{ kind: 'header', name: 'X-Api-Key', variable: 'OTHER_KEY', fromCapture: true }],
+      yaml: 'mcpServers:\n  - id: memory',
+    },
+  },
+];
+
 export function resetMockState() {
   logLevel = 'Information';
 }
@@ -768,6 +1048,29 @@ export const handlers = [
   http.get('/api/v1/infrastructure', () => HttpResponse.json(infrastructure)),
   http.get('/api/v1/data', () => HttpResponse.json(dataReport)),
   http.get('/api/v1/maintenance', () => HttpResponse.json(maintenanceReport)),
+  http.get('/api/v1/mcp/servers', () => HttpResponse.json(mcpServers)),
+  http.get('/api/v1/mcp/servers/:id', ({ params, request }) => {
+    const detail = mcpDetail(String(params.id), new URL(request.url).searchParams.get('os') ?? 'linux');
+    return detail ? HttpResponse.json(detail) : HttpResponse.json({ title: 'No such MCP server' }, { status: 404 });
+  }),
+  http.get('/api/v1/mcp/captures', () => HttpResponse.json(mcpCaptureGroups)),
+  http.post('/api/v1/mcp/captures/:key/accept', ({ params }) =>
+    HttpResponse.json({
+      written: true,
+      readOnly: false,
+      serverId: String(params.key) === 'aaaaaaaaaaaa' ? 'search' : 'memory',
+      workstationsUpdated: ['quimper'],
+      skipped: [],
+      errors: [],
+      yaml: null,
+    }),
+  ),
+  http.post('/api/v1/mcp/captures/:key/dismiss', () => HttpResponse.json({ dismissed: 1 })),
+  http.get('/api/v1/mcp/workstations', () => HttpResponse.json(mcpWorkstations)),
+  http.get('/api/v1/mcp/workstations/:id', ({ params, request }) => {
+    const plan = mcpWorkstationPlan(String(params.id), new URL(request.url).searchParams.get('os') ?? undefined);
+    return plan ? HttpResponse.json(plan) : HttpResponse.json({ title: 'No such workstation' }, { status: 404 });
+  }),
   http.post('/api/v1/maintenance/refresh', () =>
     HttpResponse.json({ ...maintenanceReport.refresh, refreshing: true }, { status: 202 }),
   ),
