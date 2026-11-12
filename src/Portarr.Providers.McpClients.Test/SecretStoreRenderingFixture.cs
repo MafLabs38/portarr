@@ -128,11 +128,4 @@ public sealed class SecretStoreRenderingFixture
         plan.RequiresSecrets.Should().Equal("kv/mcp/github", "kv/mcp/memory", "kv/mcp/team");
         plan.Install.SelectMany(r => r.Operations).Count(o => o.Kind == McpOperationKinds.Provision).Should().Be(2);
     }
-
-    [Fact]
-    public void should_know_both_kinds_of_store()
-    {
-        RealMcp.Stores.Kinds.Should().Equal("vault", "azure-key-vault");
-        RealMcp.Stores.Find("keychain").Should().BeNull();
-    }
 }

@@ -19,6 +19,7 @@ public abstract partial class JsonConfigRenderer : McpClientRendererBase
     protected abstract string FilePath(McpRenderContext context);
 
     /// <summary>How the client reads a variable inside the file, or null when it has no syntax (the operator then writes the value).</summary>
+    /// <summary>The client's syntax for reading the variable <paramref name="variable"/>, or null when the client has none (then <see cref="ReadsVariables"/> is false). It must not depend on the name.</summary>
     protected abstract string? Reference(string variable);
 
     protected virtual string HttpUrlKey => "url";
@@ -120,13 +121,14 @@ public abstract partial class JsonConfigRenderer : McpClientRendererBase
 
     private string Text(McpValue value) => value.IsEnv ? Ref(value.EnvName!) : value.Literal!;
 
+    /// <summary>An argument that is exactly <c>@name</c>, which PowerShell reads as a splat.</summary>
+    [GeneratedRegex(@"^@\w+\z")]
+    private static partial Regex PowerShellSplat();
+
     /// <summary>
     /// A command-line argument: as is when it is plain, between single quotes otherwise, null when it holds a quote. A comma is not plain: in PowerShell's
     /// argument mode it is the array operator, so <c>a,b</c> would reach the program as two arguments, a percent sign is read by <c>cmd.exe</c> (so <c>--%</c>, which stops the parsing of PowerShell, is refused on Windows) and <c>@name</c> is a splat.
     /// </summary>
-    [GeneratedRegex(@"^@\w+\z")]
-    private static partial Regex PowerShellSplat();
-
     protected static string? Arg(McpRenderContext context, string text)
     {
         return text.Length > 0 && !PowerShellSplat().IsMatch(text) && text.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '@' or '+' or '=' or ':' or '.' or '/' or '-')

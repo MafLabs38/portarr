@@ -163,9 +163,9 @@ Portarr holds no secret and hands none out. The secrets live in the operator's v
 
 ### Permissions (D-115)
 
-A workstation's assistant connects with an API key of a user who holds `mcp.use` (Admin or Operator). A read-only key does not carry it (it keeps only the `*.view` permissions of its owner), so it sees none of the four MCP tools: create a full key for the account that will install.
+A workstation's assistant connects with an API key of a user who holds `mcp.use` (Admin or Operator). **A read-only key is enough**: it keeps `mcp.use` (everything it opens only reads) with the `*.view` permissions, and nothing that writes, so a machine can hold a key that cannot change the catalog. Create a read-only key on the account that will install, not a full one.
 
-One new permission, **`mcp.use`**: see the MCP page, the definitions, the health and the plans, and call the MCP tools. It is **not** a `.view` permission, so the Observer (every page, read only) and the Guest do not get it: someone who looks at the infrastructure is a consumer and has no use for the configuration of the operator's assistants. Admin and Operator hold it.
+One new permission, **`mcp.use`**: see the MCP page, the definitions, the health and the plans, and call the MCP tools. It is the one permission besides the `.view` ones that a read-only API key keeps, because all it opens only reads. It is **not** a `.view` permission, so the Observer (every page, read only) and the Guest do not get it: someone who looks at the infrastructure is a consumer and has no use for the configuration of the operator's assistants. Admin and Operator hold it.
 
 ### The UI
 

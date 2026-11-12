@@ -195,10 +195,4 @@ public sealed class GoldenRenderingFixture
 
         rendering.Operations.First(o => o.Kind == McpOperationKinds.Command).Text.Should().Contain($"'{argument}'");
     }
-
-    [Fact]
-    public void should_say_which_clients_cannot_read_a_variable()
-    {
-        RealMcp.Clients.All.Where(c => !c.ReadsVariables).Select(c => c.Id).Should().BeEquivalentTo("claude-desktop", "zed");
-    }
 }

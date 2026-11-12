@@ -90,10 +90,13 @@ public abstract class McpClientRendererContract
                       args: ["-y", "{{literal}}"]
                 """).Catalog.McpServerList[0];
 
-            var operations = Renderer.Install(new McpRenderContext(server, Renderer.Scopes[0], os)).Operations;
+            foreach (var scope in Renderer.Scopes)
+            {
+                var operations = Renderer.Install(new McpRenderContext(server, scope, os)).Operations;
 
-            operations.Should().NotBeEmpty("a text with a quote is left out of the command, but the operator keeps the file entry");
-            operations.Where(o => o.Kind == McpOperationKinds.Command).Should().OnlyContain(o => !o.Text.Contains(literal, StringComparison.Ordinal));
+                operations.Should().NotBeEmpty("a text with a quote is left out of the command, but the operator keeps the file entry");
+                operations.Where(o => o.Kind == McpOperationKinds.Command).Should().OnlyContain(o => !o.Text.Contains(literal, StringComparison.Ordinal));
+            }
         }
     }
 
@@ -122,10 +125,13 @@ public abstract class McpClientRendererContract
 
         foreach (var server in servers)
         {
-            var operations = Renderer.Install(new McpRenderContext(server, Renderer.Scopes[0], McpOperatingSystems.Windows)).Operations;
+            foreach (var scope in Renderer.Scopes)
+            {
+                var operations = Renderer.Install(new McpRenderContext(server, scope, McpOperatingSystems.Windows)).Operations;
 
-            operations.Should().NotBeEmpty("the operator keeps the file entry");
-            operations.Where(o => o.Kind == McpOperationKinds.Command).Should().OnlyContain(o => !o.Text.Contains(risky, StringComparison.Ordinal), $"{server.Id}: cmd.exe would read '{special}'");
+                operations.Should().NotBeEmpty("the operator keeps the file entry");
+                operations.Where(o => o.Kind == McpOperationKinds.Command).Should().OnlyContain(o => !o.Text.Contains(risky, StringComparison.Ordinal), $"{server.Id} at {scope}: cmd.exe would read '{special}'");
+            }
         }
     }
 }

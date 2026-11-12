@@ -49,7 +49,7 @@ Login is required. Every page and every endpoint belongs to a permission; a role
 | `settings.manage` | Changing the log level |
 | `users.manage` | Users, roles, activity |
 | `secrets.view` | Reserved: nothing uses it yet; Admin only |
-| `mcp.use` | The MCP page: the operator's MCP servers, their health, workstation plans; the MCP tools about them (all read-only). Admin and Operator only; a read-only API key does not carry it (D-115) |
+| `mcp.use` | The MCP page: the operator's MCP servers, their health, workstation plans; the MCP tools about them (all read-only). Admin and Operator only; a read-only API key keeps it, with the `*.view` permissions, since all it opens only reads (D-115) |
 
 | Role | Permissions |
 |---|---|
@@ -58,7 +58,7 @@ Login is required. Every page and every endpoint belongs to a permission; a role
 | Observer | `apps.view`, `infrastructure.view`, `data.view`, `maintenance.view`, `assistant.view`, `system.view` |
 | Guest | `apps.view` |
 
-The built-in sets live in code and cannot be edited; **Duplicate** starts a custom role from one. A read-only API key keeps only the `*.view` permissions of its owner.
+The built-in sets live in code and cannot be edited; **Duplicate** starts a custom role from one. A read-only API key keeps only the `*.view` permissions of its owner, and `mcp.use` (which only reads).
 
 ### Authorization and CSRF (D-94)
 

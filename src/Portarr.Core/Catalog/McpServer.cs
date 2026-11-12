@@ -55,14 +55,16 @@ public sealed record McpServerDefinition(
                 return false;
             }
 
-            var package = args.FirstOrDefault(a => !a.StartsWith('-'));
+            var from = args.ToList().IndexOf("--from");
+            var package = from >= 0 && from + 1 < args.Count ? args[from + 1] : args.FirstOrDefault(a => !a.StartsWith('-'));
             if (package is null)
             {
                 return false;
             }
 
+            // npm pins with name@version, Python with name==version.
             var at = package.LastIndexOf('@');
-            return at <= 0 || package.EndsWith("@latest", StringComparison.Ordinal);
+            return !package.Contains("==", StringComparison.Ordinal) && (at <= 0 || package.EndsWith("@latest", StringComparison.Ordinal));
         }
     }
 
