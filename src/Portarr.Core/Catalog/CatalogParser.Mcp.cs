@@ -41,10 +41,6 @@ public static partial class CatalogParser
     [GeneratedRegex(@"[-_](file|path|dir|folder|url|uri|endpoint|name|method|type|mode|env|var|location)\z", RegexOptions.IgnoreCase)]
     private static partial Regex McpNotACredentialPattern();
 
-    /// <summary>A reference to a variable, which is how a value is meant to be given: <c>${API_KEY}</c>, <c>$API_KEY</c>, <c>{env:API_KEY}</c>.</summary>
-    [GeneratedRegex(@"\$\{?[A-Za-z_]|\{env:", RegexOptions.IgnoreCase)]
-    private static partial Regex McpVariableReferencePattern();
-
     /// <summary>The name part of a <c>Name: value</c> or <c>Name=value</c> argument: a header or a variable name, with an optional flag dash.</summary>
     [GeneratedRegex(@"^-{0,2}[A-Za-z][A-Za-z0-9_-]*\z")]
     private static partial Regex McpArgumentNamePattern();
@@ -56,10 +52,6 @@ public static partial class CatalogParser
     /// <summary>A command is a program, not a shell line: no operator, no substitution.</summary>
     [GeneratedRegex(@"[;&|<>`$]")]
     internal static partial Regex McpShellCharacterPattern();
-
-
-
-
 
     private sealed partial class Builder
     {
@@ -366,15 +358,15 @@ public static partial class CatalogParser
 
         /// <summary>
         /// An argument that holds a value after a flag named like a credential (<c>--token</c> then the token), or that reads <c>Name: value</c> or
-        /// <c>Name=value</c> with such a name (<c>Authorization: Bearer …</c>). The name must be a credential word as a whole (<c>--token</c>,
-        /// <c>--api-key</c>, not <c>--author</c> or <c>--hotkey</c>), a file or a path is no credential (<c>--token-file</c>), and a reference to a
-        /// variable is how a value is meant to be given. Best effort, like the scanner it completes (D-84): the sure way to keep a secret out of the
-        /// catalog is that a definition never holds one, and these are the shapes people write.
+        /// <c>Name=value</c> with such a name (<c>Authorization: Bearer …</c>). A credential never goes through an argument, in clear or as a
+        /// reference to a variable (a reference means something else to each client): it goes through <c>stdio.env</c>, which every client is rendered.
+        /// The name must be a credential word as a whole (<c>--token</c>, <c>--api-key</c>, not <c>--author</c> or <c>--hotkey</c>) and a file or a
+        /// path is no credential (<c>--token-file</c>). Best effort, like the scanner it completes (D-84).
         /// </summary>
         private static bool CarriesCredential(string argument, string? previous)
         {
             if (previous is not null && previous.StartsWith('-') && !previous.Contains('=', StringComparison.Ordinal) && !argument.StartsWith('-')
-                && IsCredentialName(previous) && !McpServerDefinition.IsOnlyAVariableReference(argument))
+                && IsCredentialName(previous))
             {
                 return true;
             }
@@ -394,7 +386,7 @@ public static partial class CatalogParser
 
             if (McpArgumentNamePattern().IsMatch(name) && IsCredentialName(name))
             {
-                return !McpServerDefinition.IsOnlyAVariableReference(value);
+                return true;
             }
 
             // --header=Authorization: Bearer … or --env=API_KEY=…: a flag that wraps a name and its value.

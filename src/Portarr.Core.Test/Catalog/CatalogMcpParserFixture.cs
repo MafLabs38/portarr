@@ -228,9 +228,6 @@ public sealed class CatalogMcpParserFixture
     [Theory]
     [InlineData("[\"--token-file\", \"/run/secrets/token\"]")]
     [InlineData("[\"--token-file=/run/secrets/token\"]")]
-    [InlineData("[\"--api-key\", \"${API_KEY}\"]")]
-    [InlineData("[\"--header\", \"Authorization:${AUTH_HEADER}\"]")]
-    [InlineData("[\"--header\", \"Authorization: Bearer ${TOKEN}\"]")]
     [InlineData("[\"--env=MODE=fast\"]")]
     [InlineData("[\"--header=Accept: application/json\"]")]
     [InlineData("[\"--author\", \"me\"]")]
@@ -238,7 +235,7 @@ public sealed class CatalogMcpParserFixture
     [InlineData("[\"--hotkey\", \"f1\"]")]
     [InlineData("[\"--session-dir\", \"./s\"]")]
     [InlineData("[\"--auth-method\", \"oauth\"]")]
-    public void should_not_take_for_a_credential_what_only_contains_the_word_or_is_given_as_a_reference(string args)
+    public void should_not_take_for_a_credential_what_only_contains_the_word_or_names_a_place(string args)
     {
         TestCatalog.Parse($"mcpServers:\n  - {{ id: p, transport: stdio, stdio: {{ command: npx, args: {args} }} }}").IsValid.Should().BeTrue(string.Join("; ", TestCatalog.Parse($"mcpServers:\n  - {{ id: p, transport: stdio, stdio: {{ command: npx, args: {args} }} }}").Errors));
     }
@@ -251,11 +248,13 @@ public sealed class CatalogMcpParserFixture
     [InlineData("[\"--password\", \"Pa$$w0rd!\"]")]
     [InlineData("[\"--client-secret\", \"s3cr$tValue\"]")]
     [InlineData("[\"--header\", \"Authorization: Bearer abc${X}\"]")]
+    [InlineData("[\"--api-key\", \"${API_KEY}\"]")]
+    [InlineData("[\"--header\", \"Authorization:${AUTH_HEADER}\"]")]
     [InlineData("[\"--key\", \"abc123\"]")]
     [InlineData("[\"--api-key\", \"abc123\"]")]
     [InlineData("[\"--client-secret\", \"abc123\"]")]
     [InlineData("[\"--header\", \"X-Api-Key: abc123\"]")]
-    public void should_still_take_for_a_credential_a_value_after_a_credential_flag_or_name(string args)
+    public void should_take_for_a_credential_a_value_after_a_credential_flag_or_name_even_as_a_reference(string args)
     {
         TestCatalog.Parse($"mcpServers:\n  - {{ id: p, transport: stdio, stdio: {{ command: npx, args: {args} }} }}").Errors.Should().Contain(e => e.Contains("looks like a credential", StringComparison.Ordinal));
     }

@@ -77,6 +77,7 @@ workstations:                         # the machines you work from; a name is en
     name: Dev laptop
     os: windows                       # windows, linux or macos (commands differ, npx on Windows)
     clients: [claude-code, cursor]
+    notes: The machine I work on.     # optional, Markdown, like the other notes
     mcp:                              # what is wanted here
       - memory                        # shorthand: every client of the workstation, the server's scope
       - { server: github, clients: [claude-code], scope: user }
@@ -163,7 +164,7 @@ Portarr holds no secret and hands none out. The secrets live in the operator's v
 
 ### Permissions (D-115)
 
-A workstation's assistant connects with an API key of a user who holds `mcp.use` (Admin or Operator). **A read-only key is enough**: it keeps `mcp.use` (everything it opens only reads) with the `*.view` permissions, and nothing that writes, so a machine can hold a key that cannot change the catalog. Create a read-only key on the account that will install, not a full one.
+A workstation's assistant connects with an API key of a user who holds `mcp.use` (Admin or Operator). **A read-only key is enough**: it keeps `mcp.use` (everything it opens only reads) with the `*.view` permissions, and nothing that writes, so a machine can hold a key that cannot change the catalog. Create a read-only key on the account that will install, not a full one. **When this ships, every read-only key that already exists gains `mcp.use`** (it is computed from the owner's role at each request): revoke a key you do not want to read the MCP configuration.
 
 One new permission, **`mcp.use`**: see the MCP page, the definitions, the health and the plans, and call the MCP tools. It is the one permission besides the `.view` ones that a read-only API key keeps, because all it opens only reads. It is **not** a `.view` permission, so the Observer (every page, read only) and the Guest do not get it: someone who looks at the infrastructure is a consumer and has no use for the configuration of the operator's assistants. Admin and Operator hold it.
 
