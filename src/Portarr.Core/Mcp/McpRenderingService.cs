@@ -61,7 +61,7 @@ public sealed class McpRenderingService : IMcpRenderingService
 
     private McpRendering Compose(McpServerDefinition server, string client, string? scope, string? os, bool removal)
     {
-        var renderer = _clients.Find(client?.Trim().ToLowerInvariant())
+        var renderer = _clients.Find(client.Trim().ToLowerInvariant())
             ?? throw new ArgumentException($"Unknown client '{client}'. Clients: {string.Join(", ", _clients.Ids)}.", nameof(client));
         var resolvedScope = string.IsNullOrWhiteSpace(scope) ? DefaultScope(server, renderer) : scope.Trim().ToLowerInvariant();
         if (!McpScopes.All.Contains(resolvedScope))

@@ -26,12 +26,16 @@ public static partial class CatalogParser
     internal static partial Regex McpVariableNamePattern();
 
     /// <summary>A header or variable whose value is a credential: it must name a variable, never hold the value.</summary>
-    [GeneratedRegex("authorization|auth|cookie|key|token|secret|pass|pwd|credential|session|sig", RegexOptions.IgnoreCase)]
+    [GeneratedRegex("authorization|auth|cookie|key|token|secret|pass|pwd|credential|session|signature", RegexOptions.IgnoreCase)]
     internal static partial Regex McpSensitiveNamePattern();
 
     /// <summary>Control characters, and the invisible ones that make a text read differently from what it is: C1 controls, zero-width and bidirectional marks.</summary>
     [GeneratedRegex(@"[\x00-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]")]
     internal static partial Regex McpControlCharacterPattern();
+
+    /// <summary>The name part of a <c>Name: value</c> or <c>Name=value</c> argument: a header or a variable name, with an optional flag dash.</summary>
+    [GeneratedRegex(@"^-{0,2}[A-Za-z][A-Za-z0-9_-]*\z")]
+    private static partial Regex McpArgumentNamePattern();
 
     /// <summary>What cmd.exe reads in the arguments of a command that goes through it.</summary>
     [GeneratedRegex("[\"&|<>^%!]")]
@@ -309,9 +313,14 @@ public static partial class CatalogParser
             foreach (var (argument, index) in arguments.Select((a, i) => (a, i)))
             {
                 var key = $"stdio.args[{index}]";
+                var previous = index > 0 ? arguments[index - 1] : null;
                 if (argument is null || argument.Length > MaxMcpTextLength || McpControlCharacterPattern().IsMatch(argument))
                 {
                     _errors.Add($"{owner}: {key} must be a text of at most {MaxMcpTextLength} characters.");
+                }
+                else if (CarriesCredential(argument, previous))
+                {
+                    _errors.Add($"{owner}: {key} looks like a credential (a value after a credential flag, or a credential name followed by its value): the catalog holds no secret, pass it in the environment ({{ env: NAME }}) and let the program read it.");
                 }
                 else if (GoesThroughCmd(command) && McpCmdCharacterPattern().IsMatch(argument))
                 {
@@ -334,13 +343,29 @@ public static partial class CatalogParser
         private bool RejectCredentialInQuery(string owner, Uri url)
         {
             var names = url.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries).Select(pair => Uri.UnescapeDataString(pair.Split('=')[0]));
-            if (names.FirstOrDefault(name => McpSensitiveNamePattern().IsMatch(name)) is not { } credential)
+            if (names.FirstOrDefault(name => McpSensitiveNamePattern().IsMatch(name) || name.Equals("sig", StringComparison.OrdinalIgnoreCase)) is not { } credential)
             {
                 return false;
             }
 
             _errors.Add($"{owner}: http.url has a query parameter named '{Redact(credential)}' that looks like a credential: the catalog holds no secret, send it in a header ({{ env: NAME }}) if the server allows.");
             return true;
+        }
+
+        /// <summary>
+        /// An argument that holds a value after a flag named like a credential (<c>--token</c> then the token), or that reads <c>Name: value</c> or
+        /// <c>Name=value</c> with such a name (<c>Authorization: Bearer …</c>). Best effort, like the secret scanner it completes (D-84): the sure way
+        /// to keep a secret out of the catalog is that a definition never holds one, and these are the shapes people write.
+        /// </summary>
+        private static bool CarriesCredential(string argument, string? previous)
+        {
+            if (previous is not null && previous.StartsWith('-') && !previous.Contains('=', StringComparison.Ordinal) && !argument.StartsWith('-') && McpSensitiveNamePattern().IsMatch(previous))
+            {
+                return true;
+            }
+
+            var separator = argument.IndexOfAny([':', '=']);
+            return separator > 0 && separator < argument.Length - 1 && McpArgumentNamePattern().IsMatch(argument[..separator]) && McpSensitiveNamePattern().IsMatch(argument[..separator]);
         }
 
         private static bool GoesThroughCmd(string command) => command.Equals("cmd", StringComparison.OrdinalIgnoreCase) || command.Equals("cmd.exe", StringComparison.OrdinalIgnoreCase);

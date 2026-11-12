@@ -146,6 +146,9 @@ public sealed class CatalogMcpParserFixture
     [InlineData("transport: stdio\n    stdio: { command: npx, env: { TOKEN: { env: \"GOOD_NAME\\n\" } } }", "environment variable")]
     [InlineData("transport: stdio\n    stdio: { command: npx, env: { LEVEL: {} } }", "needs a value")]
     [InlineData("transport: stdio\n    stdio: { command: cmd, args: [\"/c\", \"npx\", \"--opt=a&calc\"] }", "is read by cmd.exe")]
+    [InlineData("transport: stdio\n    stdio: { command: npx, args: [\"-y\", \"mcp-remote@1.0.0\", \"https://a.homelab.example\", \"--header\", \"Authorization: Bearer 0123456789abcdef0123456789abcdef\"] }", "looks like a credential")]
+    [InlineData("transport: stdio\n    stdio: { command: npx, args: [\"-y\", \"pkg@1.0.0\", \"--token\", \"abc123\"] }", "looks like a credential")]
+    [InlineData("transport: stdio\n    stdio: { command: npx, args: [\"-y\", \"pkg@1.0.0\", \"X-Api-Key=abc123\"] }", "looks like a credential")]
     [InlineData("transport: stdio\n    stdio: { command: CMD.EXE, args: [\"/c\", \"npx\", \"%PATH%\"] }", "is read by cmd.exe")]
     public void should_refuse_an_invalid_server(string body, string expected)
     {
@@ -212,5 +215,13 @@ public sealed class CatalogMcpParserFixture
         var errors = TestCatalog.Parse("mcpServers:\n  - { id: q, transport: http, http: { url: \"https://a.homelab.example/mcp?access_token=hunter2hunter2\" } }").Errors;
 
         errors.Should().ContainSingle().Which.Should().NotContain("hunter2hunter2");
+    }
+
+    [Fact]
+    public void should_accept_the_arguments_of_a_program_that_are_not_credentials()
+    {
+        const string yaml = "mcpServers:\n  - { id: p, transport: stdio, stdio: { command: npx, args: [\"-y\", \"pkg@1.0.0\", \"--cdp-endpoint\", \"http://127.0.0.1:9222\", \"--allow=/srv/a,/srv/b\", \"--header\", \"Accept: application/json\"] } }";
+
+        TestCatalog.Parse(yaml).IsValid.Should().BeTrue();
     }
 }
