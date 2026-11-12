@@ -57,26 +57,31 @@ def check_entry(entry, fetch_comment, approvers, repository, pr_number):
         return problems
     if len(fields.get("Reason", "")) < 12:
         problems.append(f"{name}: a finding that is not fixed needs its Reason")
-    if entry["level"] not in GRAVE:
-        return problems
-    url = fields.get("Approved", "")
+    if entry["level"] in GRAVE:
+        problems += approval_problems(entry, fetch_comment, approvers, repository, pr_number)
+    return problems
+
+
+def approval_problems(entry, fetch_comment, approvers, repository, pr_number):
+    """The problems of the maintainer's approval a blocker, critical, high or major finding that is not fixed must cite."""
+    name = entry["id"]
+    url = entry["fields"].get("Approved", "")
     match = COMMENT_URL.match(url)
     if not match:
-        problems.append(f"{name}: {entry['level']} and not fixed: it needs 'Approved' with the link of the maintainer's comment")
-    elif f"{match[1]}/{match[2]}".lower() != repository.lower():
-        problems.append(f"{name}: the approval is a comment of another repository")
-    else:
-        found = fetch_comment(match[1], match[2], match[3])
-        if found is None:
-            problems.append(f"{name}: the approving comment cannot be read")
-        else:
-            author, on, text = found
-            if author.lower() not in approvers:
-                problems.append(f"{name}: the comment is by '{author}', who is not an approver")
-            if not re.search(rf"(?m)^[ \t]*OK to (?:decline|defer) {re.escape(name)}(?![\w-])", text):
-                problems.append(f"{name}: the approving comment must say 'OK to decline {name}' (or 'OK to defer {name}'): any other comment is no approval of it")
-            if str(on) != str(pr_number):
-                problems.append(f"{name}: the approving comment is on #{on}, not on this pull request (#{pr_number})")
+        return [f"{name}: {entry['level']} and not fixed: it needs 'Approved' with the link of the maintainer's comment"]
+    if f"{match[1]}/{match[2]}".lower() != repository.lower():
+        return [f"{name}: the approval is a comment of another repository"]
+    found = fetch_comment(match[1], match[2], match[3])
+    if found is None:
+        return [f"{name}: the approving comment cannot be read"]
+    problems = []
+    author, on, text = found
+    if author.lower() not in approvers:
+        problems.append(f"{name}: the comment is by '{author}', who is not an approver")
+    if not re.search(rf"(?m)^[ \t]*OK to (?:decline|defer) {re.escape(name)}(?![\w-])", text):
+        problems.append(f"{name}: the approving comment must say 'OK to decline {name}' (or 'OK to defer {name}'): any other comment is no approval of it")
+    if str(on) != str(pr_number):
+        problems.append(f"{name}: the approving comment is on #{on}, not on this pull request (#{pr_number})")
     return problems
 
 
