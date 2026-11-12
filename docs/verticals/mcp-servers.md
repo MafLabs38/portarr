@@ -52,7 +52,7 @@ mcpServers:
       headers:
         X-Api-Key: { env: MEMORY_MCP_KEY, secret: memory }   # the variable, and the vault key behind it
     scope: user                       # default scope: user, project or local
-    check: { interval: 5m }           # optional; the default is 5 minutes; check: false disables it
+    check: { interval: 5m, timeout: 10s }  # optional; interval 10 seconds to 24 hours (default 5 minutes), timeout of one probe; check: false disables it
     notes: Long-term memory.          # Markdown, same limits and secret check as D-84
   - id: github
     name: GitHub
@@ -117,6 +117,7 @@ One renderer per client behind one contract (rule 8). Given a server, a scope an
 | A valid MCP `initialize` answer, a JSON-RPC error answer included (a server is there) | **Healthy** |
 | 401 or 403 | **Healthy, authentication required**: the server is there and enforcing; nothing more can be said without a credential |
 | Timeout, refused, DNS, TLS, 5xx, anything that is not MCP | **Down**, with the reason code of the checks |
+| Portarr itself failed to run the check (a bug, not the server) | **Unknown**: what was known stays under it (state, since, last healthy), it is not blamed and is not listed as down (D-104); nothing is saved until a check that ran says something |
 | A `stdio` server, or `check: false` | **Not checked** |
 
 - The check history stays in memory like every check (D-51), but the figures that matter survive a restart in one small table: **last healthy**, **last checked**, **current state** and **since when**. The UI says "Healthy, seen 2 minutes ago" or "Down for 12 days, last healthy on 2026-10-30". A server that is Down is listed in the Overview's "needs attention" (finding `mcp-server-down`, with the time since) for callers who hold `mcp.use`: the point is to notice a dead server. No threshold and no notification: Portarr shows the duration and the operator judges (D-30).
@@ -156,6 +157,8 @@ Portarr holds no secret and hands none out. The secrets live in the operator's v
 
 ### Permissions (D-115)
 
+A workstation's assistant connects with an API key of a user who holds `mcp.use` (Admin or Operator). A read-only key does not carry it (it keeps only the `*.view` permissions of its owner), so it sees none of the five MCP tools: create a full key for the account that will capture and install.
+
 One new permission, **`mcp.use`**: see the MCP page, the definitions, the health, the plans and the inbox, call the MCP tools, and submit a capture. It is **not** a `.view` permission, so the Observer (every page, read only) and the Guest do not get it: someone who looks at the infrastructure is a consumer and has no use for the configuration of the operator's assistants. Admin and Operator hold it. Accepting a capture or editing a definition also needs `catalog.write`.
 
 ### The UI
@@ -164,7 +167,7 @@ One new permission, **`mcp.use`**: see the MCP page, the definitions, the health
 - **Servers**: one row per server (icon, name, transport, state with "seen 2 min ago" or "down for 12 days", how many workstations want it). A detail page shows the definition, a block per client with the rendered operations and a copy button, and the wanted-on list.
 - **Workstations**: a matrix, workstations in rows and servers in columns, a cell is *wanted* or empty. A click opens the workstation, its plan and the vault keys it needs.
 - **Captured**: the inbox described above; empty until a capture arrives.
-- The empty state explains the sections. All strings go through `translate()` (English source, D-26). Demo mode ships simulated servers and workstations.
+- The empty state explains the sections. All strings go through `translate()` (English source, D-26). Demo mode does not exist yet (C7): until the catalog declares servers the page shows its empty state.
 
 ### The API
 
@@ -210,8 +213,8 @@ One vertical, four steps, developed in the sandbox and delivered in one pull req
 - [x] A Down server appears in `get_overview` with the time since, for a caller with `mcp.use` only
 - [x] (Step 3) A capture with a secret value is refused, field named; accepting a capture needs `catalog.write` and a browser session; the catalog audit shows the user
 - [x] (Step 4) The plan lists the vault keys per workstation and the provisioning command per operating system; no secret value appears anywhere
-- [x] Servers, Workstations and Captured tabs, empty states, demo data, strings through `translate()`; one Playwright journey; the Assistant page unchanged
+- [x] Servers, Workstations and Captured tabs, empty states, strings through `translate()`; one Playwright journey; the Assistant page unchanged
 
 ## Definition of Done
 
-[IMPLEMENTATION_PLAN.md §1.1](../IMPLEMENTATION_PLAN.md) applies to each of the four steps: unit, integration (SQLite and PostgreSQL), E2E, UI checklist, demo data, documentation (`docs/connectors/mcp-clients.md`: one section per client with the version checked), strings through `translate()`, no personal values, dogfooding on the maintainer's workstations in the preview, and the maintainer's acceptance.
+[IMPLEMENTATION_PLAN.md §1.1](../IMPLEMENTATION_PLAN.md) applies to each of the four steps: unit, integration (SQLite and PostgreSQL), E2E, UI checklist, demo data (waits for C7), documentation (`docs/connectors/mcp-clients.md`: one section per client with the version checked), strings through `translate()`, no personal values, dogfooding on the maintainer's workstations in the preview, and the maintainer's acceptance.

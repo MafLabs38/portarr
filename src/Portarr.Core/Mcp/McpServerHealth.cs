@@ -14,7 +14,7 @@ public enum McpHealthState
     AuthenticationRequired,
     Down,
 
-    /// <summary>Portarr could not run the check (D-104): nothing is known about the server, and it is not blamed.</summary>
+    /// <summary>Portarr could not run the check and has no earlier result (D-104): nothing is known about the server, and it is not blamed.</summary>
     Unknown,
 }
 
@@ -29,7 +29,8 @@ public sealed record McpServerHealth(
     DateTimeOffset? LastHealthyAt,
     DateTimeOffset LastCheckedAt,
     string? Error,
-    int? StatusCode)
+    int? StatusCode,
+    bool CheckFailed = false)
 {
     public bool IsUp => State is McpHealthState.Healthy or McpHealthState.AuthenticationRequired;
 }

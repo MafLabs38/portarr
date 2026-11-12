@@ -34,7 +34,7 @@ public sealed class McpAttentionService : IAttentionService
         var health = _health.Current;
         var down = _catalogService.Current.Catalog.McpServerList
             .Select(server => (Server: server, Health: health.GetValueOrDefault(server.Id)))
-            .Where(x => x.Health is { State: McpHealthState.Down })
+            .Where(x => x.Health is { State: McpHealthState.Down, CheckFailed: false })
             .OrderBy(x => x.Health!.Since)
             .Select(x => $"{x.Server.Name} (down for {Duration(now - x.Health!.Since)})")
             .ToList();

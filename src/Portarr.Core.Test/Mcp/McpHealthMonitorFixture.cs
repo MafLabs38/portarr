@@ -124,7 +124,7 @@ public sealed class McpHealthMonitorFixture
     }
 
     [Fact]
-    public async Task should_say_unknown_and_not_down_when_the_probe_itself_fails()
+    public async Task should_say_unknown_on_top_of_the_last_real_state_when_the_probe_itself_fails()
     {
         var monitor = Monitor;
         await monitor.RunDueAsync(TestContext.Current.CancellationToken);
@@ -134,28 +134,47 @@ public sealed class McpHealthMonitorFixture
         await monitor.RunDueAsync(TestContext.Current.CancellationToken);
 
         var health = monitor.Current["memory"];
-        health.State.Should().Be(McpHealthState.Unknown, "a bug of Portarr is not a dead server (D-104)");
-        health.Error.Should().Be("check-failed");
-        health.LastHealthyAt.Should().Be(Start, "what was known about the server is kept");
-        health.IsUp.Should().BeFalse();
+        health.CheckFailed.Should().BeTrue("a bug of Portarr is not a dead server (D-104)");
+        health.State.Should().Be(McpHealthState.Healthy, "what was known is kept under the Unknown");
+        health.Since.Should().Be(Start);
+        health.LastHealthyAt.Should().Be(Start);
+        health.LastCheckedAt.Should().Be(_clock.GetUtcNow());
+        new McpServerView(TestCatalog.Parse(Memory).Catalog.McpServerList[0], health).Status.Should().Be(McpServerView.UnknownStatus);
+        await _store.Received(1).SaveAsync(Arg.Any<McpServerHealth>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task should_start_a_new_period_when_a_real_check_follows_an_unknown_one()
+    public async Task should_not_lose_down_since_when_an_unknown_check_comes_between_two_down_ones()
     {
         var monitor = Monitor;
-        _probeBug = true;
-        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
-        _probeBug = false;
         _status = HttpStatusCode.BadGateway;
         _body = "Bad gateway";
-        _clock.Advance(TimeSpan.FromMinutes(5));
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+        var downSince = _clock.GetUtcNow();
 
+        _probeBug = true;
+        _clock.Advance(TimeSpan.FromMinutes(5));
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+        _probeBug = false;
+        _clock.Advance(TimeSpan.FromMinutes(5));
         await monitor.RunDueAsync(TestContext.Current.CancellationToken);
 
         var health = monitor.Current["memory"];
         health.State.Should().Be(McpHealthState.Down);
-        health.Since.Should().Be(_clock.GetUtcNow());
+        health.CheckFailed.Should().BeFalse();
+        health.Since.Should().Be(downSince);
+    }
+
+    [Fact]
+    public async Task should_say_unknown_for_a_server_whose_first_check_could_not_run()
+    {
+        var monitor = Monitor;
+        _probeBug = true;
+
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+
+        monitor.Current["memory"].State.Should().Be(McpHealthState.Unknown);
+        await _store.DidNotReceive().SaveAsync(Arg.Any<McpServerHealth>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

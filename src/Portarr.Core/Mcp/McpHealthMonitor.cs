@@ -94,7 +94,10 @@ public sealed partial class McpHealthMonitor : BackgroundService, IMcpHealth
                 _current = new Dictionary<string, McpServerHealth>(_current, StringComparer.Ordinal) { [server.Id] = health };
             }
 
-            await SaveAsync(health, token);
+            if (!health.CheckFailed)
+            {
+                await SaveAsync(health, token);
+            }
         });
     }
 
@@ -107,10 +110,11 @@ public sealed partial class McpHealthMonitor : BackgroundService, IMcpHealth
     {
         if (result.Error == CheckErrors.CheckFailed)
         {
-            // D-104: a check that Portarr could not run says nothing about the server: Unknown, never Down. The last real state is not lost:
-            // the time of the last healthy check stays, and it counts from the first check that was not Unknown.
-            var unknownSince = previous?.State == McpHealthState.Unknown ? previous.Since : result.At;
-            return new McpServerHealth(serverId, McpHealthState.Unknown, unknownSince, previous?.LastHealthyAt, result.At, result.Error, null);
+            // D-104: a check that Portarr could not run says nothing about the server: what was known stays (the state, since when, the last healthy
+            // time) and is shown as Unknown on top of it, until a check that ran says something.
+            return previous is null
+                ? new McpServerHealth(serverId, McpHealthState.Unknown, result.At, null, result.At, result.Error, null, CheckFailed: true)
+                : previous with { LastCheckedAt = result.At, CheckFailed = true };
         }
 
         var up = result.Up;

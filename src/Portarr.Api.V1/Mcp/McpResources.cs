@@ -6,7 +6,7 @@ namespace Portarr.Api.V1.Mcp;
 
 /// <summary>
 /// An MCP server of the catalog and its health. No secret: a header or variable is a literal or the name of a variable on the
-/// workstation. <c>Status</c> is healthy, authentication-required, down, waiting (no result yet) or not-checked (a local process, or check: false).
+/// workstation. <c>Status</c> is healthy, authentication-required, down, unknown (Portarr could not run the check, D-104), waiting (no result yet) or not-checked (a local process, or check: false).
 /// </summary>
 public sealed record McpServerResource(
     string Id,

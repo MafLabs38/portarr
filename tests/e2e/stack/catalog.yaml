@@ -46,7 +46,7 @@ data:
       local: { manual: true }
       offsite: {}
 
-# MCP servers and workstations (V9): the stub of the tools container answers `initialize` like an MCP server; nothing listens
+# MCP servers and workstations: the stub of the tools container answers `initialize` like an MCP server; nothing listens
 # on port 9, so the second one is Down. The two assistants of the workstations are the ones the plan renders for.
 mcpServers:
   - id: memory

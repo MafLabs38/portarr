@@ -26,6 +26,11 @@ public sealed record McpServerView(McpServerDefinition Server, McpServerHealth? 
                 return NotCheckedStatus;
             }
 
+            if (Health is { CheckFailed: true })
+            {
+                return UnknownStatus;
+            }
+
             return Health?.State switch
             {
                 McpHealthState.Healthy => HealthyStatus,

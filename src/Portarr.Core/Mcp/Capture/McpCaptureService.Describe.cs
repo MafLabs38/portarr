@@ -139,7 +139,6 @@ public sealed partial class McpCaptureService
         return name.Length == 0 || char.IsAsciiDigit(name[0]) ? "_" + name : name;
     }
 
-    /// <summary>An id from a name: lower case, letters and digits, dashes between; made unique among the ids of the catalog.</summary>
     /// <summary>
     /// What the operator reviewed, as a token: the hand-overs of the group, which never change once stored. A machine that hands the server over again
     /// adds a row, so the token changes and an acceptance of the old card is refused (D-112: a proposal never takes effect by itself).
@@ -147,6 +146,7 @@ public sealed partial class McpCaptureService
     internal static string VersionOf(IEnumerable<McpCaptureRow> rows) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join(',', rows.Select(r => r.RowId))))).ToLowerInvariant()[..16];
 
+    /// <summary>An id from a name: lower case, letters and digits, dashes between; made unique among the ids of the catalog.</summary>
     internal static string Slug(string name, IEnumerable<string> taken)
     {
         var slug = NotAlphanumeric().Replace(name.ToLowerInvariant(), "-").Trim('-');

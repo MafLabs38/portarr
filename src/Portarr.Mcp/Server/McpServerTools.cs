@@ -104,7 +104,7 @@ public sealed class McpServerTools
 
     [RequiresPermissions(Permissions.McpUse)]
     [McpServerTool(Name = "list_mcp_servers", Title = "List MCP servers", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("The MCP servers the operator uses: remote or local, their default scope, and for a remote one whether it is up (status healthy, authentication-required, down, waiting) and since when it has been up or down, with the time it was last seen healthy. A local server or one with check: false is not-checked. Call get_mcp_server to install one.")]
+    [Description("The MCP servers the operator uses: remote or local, their default scope, and for a remote one whether it is up (status healthy, authentication-required, down, unknown, waiting) and since when it has been up or down, with the time it was last seen healthy. A local server or one with check: false is not-checked. Call get_mcp_server to install one.")]
     public IReadOnlyList<McpServerLine> ListMcpServers()
     {
         return _servers.List().Select(Line).ToList();
