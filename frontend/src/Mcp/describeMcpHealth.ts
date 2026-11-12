@@ -92,8 +92,17 @@ export default function describeMcpHealth(server: McpServer, now: number = Date.
         detail: reason ? `${reason} · ${seen}` : seen,
       };
     }
-    case 'unknown':
-      return { kind, icon, label: translate('McpUnknown'), detail: translate('McpReasonCheckFailed') };
+    case 'unknown': {
+      const reason = translate('McpReasonCheckFailed');
+      return {
+        kind,
+        icon,
+        label: translate('McpUnknown'),
+        detail: health?.lastHealthyAt
+          ? `${reason} · ${translate('McpLastHealthy', { age: formatAge(health.lastHealthyAt, now) })}`
+          : reason,
+      };
+    }
     case 'waiting':
       return { kind, icon, label: translate('McpWaiting'), detail: null };
     default:

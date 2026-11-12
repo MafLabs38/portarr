@@ -52,7 +52,7 @@ mcpServers:
       headers:
         X-Api-Key: { env: MEMORY_MCP_KEY, secret: memory }   # the variable, and the vault key behind it
     scope: user                       # default scope: user, project or local
-    check: { interval: 5m, timeout: 10s }  # optional; interval 10 seconds to 24 hours (default 5 minutes), timeout of one probe; check: false disables it
+    check: { interval: 5m, timeout: 10s }  # optional; interval 10 seconds to 24 hours (default 5 minutes), timeout 1 to 60 seconds and not longer than the interval; check: false disables it
     notes: Long-term memory.          # Markdown, same limits and secret check as D-84
   - id: github
     name: GitHub
@@ -132,7 +132,7 @@ One renderer per client behind one contract (rule 8). Given a server, a scope an
 The way a catalog fills itself:
 
 1. On a workstation, the operator says "capture my MCP configuration into Portarr". The assistant reads the client's configuration and calls `submit_mcp_capture { workstation, client, scope, servers: [...] }` with, for each server, its name, transport, URL or command and arguments, and the **names** of headers and variables. It is told never to send a value; the server also refuses any value the secret heuristic recognises, naming the field.
-2. The capture lands in an **inbox** (database), never in the catalog.
+2. The capture lands in an **inbox** (database), never in the catalog. A hand-over holds at most 50 servers, and the inbox at most 500 servers waiting for a decision: past that a hand-over is refused until some are accepted or dismissed. A server that waits is never dropped.
 3. In the **Captured** tab the operator sees each server compared with the catalog: *New*, *Same as `x`*, or *Differs from `x`* with the difference. Servers seen on several workstations under different names are grouped by an identity (the transport and the normalised URL, or the package without its version). The operator accepts as a new definition, merges into an existing one (the definition keeps one spelling for all), or dismisses.
 4. Accepting writes the catalog through the editor (versioned, audited with the user and the channel `ui`), and adds the server to the capturing workstation's wanted list when the operator leaves that box ticked.
 

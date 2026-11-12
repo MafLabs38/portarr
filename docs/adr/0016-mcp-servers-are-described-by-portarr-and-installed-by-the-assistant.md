@@ -2,7 +2,7 @@
 
 - **Status**: proposed
 - **Date**: 2026-11-12
-- **Spec**: D-110, D-112, D-117 (the vertical is [mcp-servers.md](../verticals/mcp-servers.md))
+- **Spec**: D-110 to D-117 (the vertical is [mcp-servers.md](../verticals/mcp-servers.md))
 
 ## Context
 

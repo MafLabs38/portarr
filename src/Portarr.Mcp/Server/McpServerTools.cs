@@ -5,6 +5,7 @@ using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Portarr.Core.Accounts;
 using Portarr.Core.Catalog;
+using Portarr.Core.Checks;
 using Portarr.Core.Mcp;
 using Portarr.Core.Mcp.Capture;
 using Portarr.Core.Mcp.Clients;
@@ -256,7 +257,7 @@ public sealed class McpServerTools
             Time(health?.Since),
             Time(health?.LastHealthyAt),
             Time(health?.LastCheckedAt),
-            health?.Error,
+            health is { CheckFailed: true } ? CheckErrors.CheckFailed : health?.Error,
             server.AppId,
             server.Notes);
     }

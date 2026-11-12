@@ -132,6 +132,10 @@ Third-party API responses are stored under `tests/fixtures/<provider>/` (anonymi
 
 ---
 
+### MCP servers and workstations
+
+The renderers are tested with **golden files**: `src/Portarr.Core.Test/Mcp/Golden/<client>.txt` holds, for one remote and one local server, what each client gets at each scope and system. A change of a shared rule shows as a small diff in each file; refresh them deliberately with `PORTARR_UPDATE_GOLDEN=1` and read the diff. `E2eStackCatalogFixture` parses the e2e stack's catalog so a typo there fails fast, and `tests/e2e/stack/wiremock/mappings/mcp-initialize.json` stands for a healthy MCP server in the stack.
+
 ## 5. Other automated checks
 
 | Check | Tool | When |

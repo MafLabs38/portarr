@@ -1,4 +1,5 @@
 using Portarr.Core.Catalog;
+using Portarr.Core.Checks;
 using Portarr.Core.Mcp;
 using Portarr.Core.Mcp.Clients;
 
@@ -117,9 +118,17 @@ internal static class McpResourceMapper
             server.AppId,
             server.CheckInterval is { } interval ? interval.ToString("c", global::System.Globalization.CultureInfo.InvariantCulture) : null,
             view.Status,
-            view.Health is { } h ? new McpHealthResource(h.State.ToString(), h.Since, h.LastHealthyAt, h.LastCheckedAt, h.Error, h.StatusCode) : null,
+            view.Health?.ToResource(),
             IsUnpinned(server),
             server.Notes);
+    }
+
+    /// <summary>The health as the pages and tools read it: a check Portarr could not run says so, and does not carry the error of the check before it (D-104).</summary>
+    public static McpHealthResource ToResource(this McpServerHealth health)
+    {
+        var error = health.CheckFailed ? CheckErrors.CheckFailed : health.Error;
+        var status = health.CheckFailed ? null : health.StatusCode;
+        return new McpHealthResource(health.State.ToString(), health.Since, health.LastHealthyAt, health.LastCheckedAt, error, status);
     }
 
     public static McpRenderingResource ToResource(this McpRendering rendering)
