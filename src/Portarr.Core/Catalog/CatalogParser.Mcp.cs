@@ -33,6 +33,18 @@ public static partial class CatalogParser
     [GeneratedRegex(@"[\x00-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]")]
     internal static partial Regex McpControlCharacterPattern();
 
+    /// <summary>A credential word as a whole in a flag or a header name: <c>--token</c>, <c>--api-key</c>, <c>Authorization</c>; not <c>--author</c> or <c>--hotkey</c>.</summary>
+    [GeneratedRegex(@"(^|[-_])(token|secret|password|passwd|pwd|key|apikey|credentials?|authorization|bearer)([-_]|\z)|(api|access|private|client)[-_]?(key|token|secret)", RegexOptions.IgnoreCase)]
+    private static partial Regex McpCredentialWordPattern();
+
+    /// <summary>A name that says it holds a place or a kind, not the secret: <c>--token-file</c>, <c>--key-path</c>, <c>--auth-method</c>.</summary>
+    [GeneratedRegex(@"[-_](file|path|dir|folder|url|uri|endpoint|name|method|type|mode|env|var|location)\z", RegexOptions.IgnoreCase)]
+    private static partial Regex McpNotACredentialPattern();
+
+    /// <summary>A reference to a variable, which is how a value is meant to be given: <c>${API_KEY}</c>, <c>$API_KEY</c>, <c>{env:API_KEY}</c>.</summary>
+    [GeneratedRegex(@"\$\{?[A-Za-z_]|\{env:", RegexOptions.IgnoreCase)]
+    private static partial Regex McpVariableReferencePattern();
+
     /// <summary>The name part of a <c>Name: value</c> or <c>Name=value</c> argument: a header or a variable name, with an optional flag dash.</summary>
     [GeneratedRegex(@"^-{0,2}[A-Za-z][A-Za-z0-9_-]*\z")]
     private static partial Regex McpArgumentNamePattern();
@@ -354,19 +366,31 @@ public static partial class CatalogParser
 
         /// <summary>
         /// An argument that holds a value after a flag named like a credential (<c>--token</c> then the token), or that reads <c>Name: value</c> or
-        /// <c>Name=value</c> with such a name (<c>Authorization: Bearer …</c>). Best effort, like the secret scanner it completes (D-84): the sure way
-        /// to keep a secret out of the catalog is that a definition never holds one, and these are the shapes people write.
+        /// <c>Name=value</c> with such a name (<c>Authorization: Bearer …</c>). The name must be a credential word as a whole (<c>--token</c>,
+        /// <c>--api-key</c>, not <c>--author</c> or <c>--hotkey</c>), a file or a path is no credential (<c>--token-file</c>), and a reference to a
+        /// variable is how a value is meant to be given. Best effort, like the scanner it completes (D-84): the sure way to keep a secret out of the
+        /// catalog is that a definition never holds one, and these are the shapes people write.
         /// </summary>
         private static bool CarriesCredential(string argument, string? previous)
         {
-            if (previous is not null && previous.StartsWith('-') && !previous.Contains('=', StringComparison.Ordinal) && !argument.StartsWith('-') && McpSensitiveNamePattern().IsMatch(previous))
+            if (previous is not null && previous.StartsWith('-') && !previous.Contains('=', StringComparison.Ordinal) && !argument.StartsWith('-')
+                && IsCredentialName(previous) && !McpVariableReferencePattern().IsMatch(argument))
             {
                 return true;
             }
 
             var separator = argument.IndexOfAny([':', '=']);
-            return separator > 0 && separator < argument.Length - 1 && McpArgumentNamePattern().IsMatch(argument[..separator]) && McpSensitiveNamePattern().IsMatch(argument[..separator]);
+            if (separator <= 0 || separator >= argument.Length - 1)
+            {
+                return false;
+            }
+
+            var name = argument[..separator];
+            var value = argument[(separator + 1)..].Trim();
+            return McpArgumentNamePattern().IsMatch(name) && IsCredentialName(name) && value.Length > 0 && !McpVariableReferencePattern().IsMatch(value);
         }
+
+        private static bool IsCredentialName(string name) => McpCredentialWordPattern().IsMatch(name) && !McpNotACredentialPattern().IsMatch(name);
 
         private static bool GoesThroughCmd(string command) => command.Equals("cmd", StringComparison.OrdinalIgnoreCase) || command.Equals("cmd.exe", StringComparison.OrdinalIgnoreCase);
 

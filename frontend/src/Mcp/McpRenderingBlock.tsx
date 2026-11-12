@@ -50,8 +50,8 @@ export default function McpRenderingBlock({ rendering, title }: Readonly<McpRend
         </p>
       ) : null}
 
-      {rendering.operations.map((operation) => (
-        <div className={styles.operation} key={`${operation.kind}-${operation.path ?? operation.text}`}>
+      {rendering.operations.map((operation, index) => (
+        <div className={styles.operation} key={`${index}-${operation.kind}`}>
           <p className={styles.description}>{operation.description}</p>
           <CopyBlock label={`${heading}: ${operation.description}`} text={operation.text} />
         </div>
