@@ -111,4 +111,12 @@ public sealed class McpWorkstationServiceFixture
         var act = () => _service.GetPlan(workstation, "amiga");
         act.Should().Throw<ArgumentException>().WithMessage("Unknown operating system 'amiga'*");
     }
+
+    [Fact]
+    public void should_refuse_an_unknown_system_even_for_a_workstation_that_wants_nothing()
+    {
+        var act = () => _service.GetPlan(_service.Find("gaming-pc")!.Workstation, "beos");
+
+        act.Should().Throw<ArgumentException>().WithMessage("Unknown operating system 'beos'*");
+    }
 }

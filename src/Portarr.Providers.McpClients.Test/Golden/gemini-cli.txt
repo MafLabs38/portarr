@@ -104,7 +104,7 @@ requires: MEMORY_MCP_KEY
       }
     }
 note: Avoid underscores in the server id: Gemini CLI splits tool names on the first one. A stdio server in an untrusted folder shows as disconnected until you run `gemini trust`.
-note: Run the commands in PowerShell: they are quoted with single quotes, which cmd.exe does not read as quoting.
+note: Run the commands in PowerShell: they are quoted with single quotes, which cmd.exe does not read as quoting. A value with a character cmd.exe reads is left out of the command: use the file entry.
 
 ### install memory | user | macos
 supported: yes

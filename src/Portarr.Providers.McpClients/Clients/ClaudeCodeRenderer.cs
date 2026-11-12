@@ -37,17 +37,17 @@ public sealed class ClaudeCodeRenderer : JsonConfigRenderer
         if (server.Http is { } http)
         {
             parts.Add(server.Id);
-            parts.Add(Arg(http.Url.OriginalString));
-            parts.AddRange(http.Headers.OrderBy(h => h.Key, StringComparer.Ordinal).Select(h => Flag("--header", h.Key, h.Value, ": ")));
+            parts.Add(Arg(context, http.Url.OriginalString));
+            parts.AddRange(http.Headers.OrderBy(h => h.Key, StringComparer.Ordinal).Select(h => Flag(context, "--header", h.Key, h.Value, ": ")));
         }
         else
         {
             var stdio = server.Stdio!;
-            parts.AddRange(stdio.Env.OrderBy(e => e.Key, StringComparer.Ordinal).Select(e => Flag("--env", e.Key, e.Value, "=")));
+            parts.AddRange(stdio.Env.OrderBy(e => e.Key, StringComparer.Ordinal).Select(e => Flag(context, "--env", e.Key, e.Value, "=")));
             parts.Add(server.Id);
             parts.Add("--");
-            parts.Add(Arg(stdio.Command));
-            parts.AddRange(stdio.Args.Select(Arg));
+            parts.Add(Arg(context, stdio.Command));
+            parts.AddRange(stdio.Args.Select(a => Arg(context, a)));
         }
 
         if (parts.Contains(null))

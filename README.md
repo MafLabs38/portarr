@@ -35,6 +35,7 @@ See the full [specification](docs/SPEC.md).
 | [SPEC.md](docs/SPEC.md) | Vision, decisions, domain model, providers, screens, features, roadmap |
 | [DESIGN.md](docs/DESIGN.md) | UI guidelines: *arr patterns and Portarr theme |
 | [TESTING.md](docs/TESTING.md) | Test strategy: unit, integration, end-to-end |
+| [mcp-servers.md](docs/verticals/mcp-servers.md) | MCP servers and workstations: defined in the catalog, replicated onto machines |
 | [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) | Core first, then vertical slices — one PR each |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
 | [SECURITY.md](SECURITY.md) | Security policy |
@@ -79,7 +80,7 @@ Settings come from `appsettings.json`, overridden by `PORTARR__*` environment va
 | `PORTARR__DATAFOLDER` | `/config` in the image, the user's local data folder otherwise | SQLite database and future backups |
 | `PORTARR__DATABASE__TYPE` | `Sqlite` | `Sqlite` or `Postgres` |
 | `PORTARR__DATABASE__CONNECTIONSTRING` | — | Required for PostgreSQL, e.g. `Host=db;Database=portarr;Username=portarr;Password=…` |
-| `PORTARR__CATALOGFILE` | `<data folder>/catalog.yaml` | The [catalog](docs/catalog.md) of environments, stacks and apps; your own icons go in `icons/` next to it |
+| `PORTARR__CATALOGFILE` | `<data folder>/catalog.yaml` | The [catalog](docs/catalog.md) of environments, stacks, apps, data, knowledge, and the [MCP servers and workstations](docs/verticals/mcp-servers.md); your own icons go in `icons/` next to it |
 | `PORTARR__LOGSOFALLWORKLOADS` | `false` | Serve live logs and usage of containers no app declares |
 | `PORTARR__IMAGEUPDATES` | `true` | Ask the registries about the images that run (Maintenance). `false` for an air-gapped homelab, where every lookup would only fail |
 | `PORTARR__AGENT__URL` | — (chat off) | The optional [agent runner](docs/companions.md#agent-runner) (`portarr-agent`) behind the built-in chat, e.g. `http://portarr-agent:8488`. Without it the chat icon is hidden |

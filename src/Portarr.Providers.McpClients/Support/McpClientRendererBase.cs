@@ -16,6 +16,9 @@ public abstract class McpClientRendererBase : IMcpClientRenderer
     /// <summary>The characters that end a single-quoted string: the ASCII one, and the typographic ones PowerShell also reads as quotes (U+2018 to U+201B).</summary>
     private static readonly char[] SingleQuotes = ['\'', '\u2018', '\u2019', '\u201A', '\u201B'];
 
+    /// <summary>What <c>cmd.exe</c> reads inside a command line, quotes or not: a text holding one is never written into a Windows command.</summary>
+    private static readonly char[] CmdCharacters = ['"', '&', '|', '<', '>', '^', '%', '!', '\r', '\n'];
+
     private static readonly JsonSerializerOptions Indented = new() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
     public abstract string Id { get; }
@@ -47,7 +50,7 @@ public abstract class McpClientRendererBase : IMcpClientRenderer
         var notes = Notes(context).ToList();
         if (context.Windows && operations.Exists(o => o.Kind == McpOperationKinds.Command))
         {
-            notes.Add("Run the commands in PowerShell: they are quoted with single quotes, which cmd.exe does not read as quoting.");
+            notes.Add("Run the commands in PowerShell: they are quoted with single quotes, which cmd.exe does not read as quoting. A value with a character cmd.exe reads is left out of the command: use the file entry.");
         }
 
         return new McpClientOperations(operations, notes);
@@ -85,6 +88,18 @@ public abstract class McpClientRendererBase : IMcpClientRenderer
         return result;
     }
 
-    /// <summary>A text between single quotes for a POSIX shell or PowerShell, or null when it holds a quote (the operator then uses the file).</summary>
-    protected static string? Quote(string text) => text.IndexOfAny(SingleQuotes) >= 0 ? null : $"'{text}'";
+    /// <summary>
+    /// A text between single quotes for a POSIX shell or PowerShell, or null when it cannot be (the operator then uses the file): when it holds a quote
+    /// and, on Windows, when it holds a character <c>cmd.exe</c> reads. PowerShell hands a new command line to a batch shim (<c>code.cmd</c>, the
+    /// <c>.cmd</c> shims of the npm CLIs), and <c>cmd.exe</c> reads <c>&amp; | &lt; &gt; ^ % !</c> and double quotes whatever the quotes around them.
+    /// </summary>
+    protected static string? Quote(McpRenderContext context, string text)
+    {
+        if (text.IndexOfAny(SingleQuotes) >= 0 || (context.Windows && text.IndexOfAny(CmdCharacters) >= 0))
+        {
+            return null;
+        }
+
+        return $"'{text}'";
+    }
 }

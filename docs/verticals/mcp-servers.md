@@ -103,21 +103,22 @@ secretStore:                          # optional, see "Secrets"
 One renderer per client behind one contract, `IMcpClientRenderer` (rule 8). Given a server, a scope and an operating system it returns **operations**. Each renderer is written from the client's documentation and records the version it was checked against ([connectors/mcp-clients.md](../connectors/mcp-clients.md)).
 
 ```jsonc
-// get_mcp_server { server: "memory", client: "claude-code", scope: "user" } — illustrative shape
+// get_mcp_server { server: "memory", client: "claude-code", scope: "user" }: the shape of the answer, abridged
 {
-  "server": "memory", "client": "claude-code", "scope": "user",
-  "requires": { "env": ["MEMORY_MCP_KEY"], "secrets": ["kv/mcp/memory"] },
-  "operations": [   // kinds: command, file, provision; a removal plan uses kind "remove"
-    { "kind": "command", "text": "claude mcp add --scope user --transport http memory https://… --header \"X-Api-Key: ${MEMORY_MCP_KEY}\"" },
-    { "kind": "file", "path": "<client file>", "merge": { "mcpServers": { "memory": { "…": "…" } } } },
-    { "kind": "provision", "text": "export MEMORY_MCP_KEY=\"$(vault kv get -field=value kv/mcp/memory)\"" }
+  "server": "memory", "client": "claude-code", "scope": "user", "os": "linux", "action": "install", "supported": true,
+  "requiresEnv": ["MEMORY_MCP_KEY"], "requiresSecrets": ["kv/mcp/memory"],
+  "operations": [   // kinds: command, file, provision; a removal uses kind "remove"
+    { "kind": "command", "description": "Add the server with Claude Code, at user scope.", "text": "claude mcp add --transport http --scope user memory https://… --header 'X-Api-Key: ${MEMORY_MCP_KEY}'" },
+    { "kind": "file", "description": "Merge this into ~/.claude.json…", "path": "~/.claude.json", "text": "{ \"mcpServers\": { \"memory\": { … } } }" },
+    { "kind": "provision", "description": "In your shell profile: read the secrets from the vault…", "text": "export MEMORY_MCP_KEY=\"$(vault kv get -field=value kv/mcp/memory)\"" }
   ],
+  "notes": [],
   "instructions": "Show the operator exactly what you will run or write, wait for their approval, change nothing else in the file."
 }
 ```
 
 - A rendering contains no secret value, only the client's syntax for "read this variable". A client without one gets a placeholder and a sentence saying so.
-- **Structure.** Two narrow contracts, each an adapter: `IMcpClientRenderer` (one AI client: its scopes and the operations and notes that are specific to it) and `IMcpSecretStoreProvisioner` (one kind of vault: the provisioning command, and the checks of its prefix and keys). Neither knows the other, nor how a server is chosen, defaulted or validated. **Portarr.Core composes**: a rendering service looks the client up, checks the scope and the operating system, adds what is generic (the variables a workstation must provide, the provisioning operation of the catalog's secret store, the PowerShell and `npx` notes) and returns one rendering. Registries, filled by dependency injection, hold the adapters, and a small vocabulary interface tells the catalog parser which client ids and store kinds exist: **no list is written in Core**. The adapters are in their own library, `Portarr.Providers.McpClients`, which registers them like a connector does (D-36), so another library can add a client without touching it.
+- **Structure.** Two narrow contracts, each an adapter: `IMcpClientRenderer` (one AI client: its scopes and the operations and notes that are specific to it) and `IMcpSecretStoreProvisioner` (one kind of vault: the provisioning command, and the checks of its prefix and keys). Neither knows the other, nor how a server is chosen, defaulted or validated. **Portarr.Core composes**: a rendering service looks the client up, checks the scope and the operating system, adds what is generic (the variables a workstation must provide, the provisioning operation of the catalog's secret store, the `npx` note and the unpinned-package warning) and returns one rendering. The note on how a command is quoted is the adapter's. Registries, filled by dependency injection, hold the adapters, and a small vocabulary interface tells the catalog parser which client ids and store kinds exist: **no list is written in Core**. The adapters are in their own library, `Portarr.Providers.McpClients`, which registers them like a connector does (D-36), so another library can add a client without touching it.
 - Each renderer has golden-file tests, so a client whose format changes shows as a diff of its file, and adding one never touches the others.
 
 ### Health of the servers (D-114)
@@ -134,11 +135,11 @@ One renderer per client behind one contract, `IMcpClientRenderer` (rule 8). Give
 | A remote server whose first check has not run yet (just started, or just added) | **Waiting** |
 | A `stdio` server, or `check: false` | **Not monitored** (not a fault) |
 
-- The check history stays in memory like every check (D-51), but the figures that matter survive a restart in one small table: **last healthy**, **last checked**, **current state** and **since when**. The UI says "Healthy, seen 2 minutes ago" or "Down for 12 days, last healthy on 2026-10-30". A server that is Down is listed in the Overview's "needs attention" (finding `mcp-server-down`, with the time since) for callers who hold `mcp.use` (the overview tool adds it; no other consumer of the attention list ever sees it): the point is to notice a dead server. No threshold and no notification: Portarr shows the duration and the operator judges (D-30).
+- The check history stays in memory like every check (D-51), but the figures that matter survive a restart in one small table: **last healthy**, **last checked**, **current state** and **since when**. The UI says "Healthy, seen 2 minutes ago" or "Down for 12 days, last healthy on 2026-10-30". A server that is Down is listed in the Overview's "needs attention" (a warning, area `mcp`, finding `mcp-server-down`, each server named with the time since, such as "Memory (down for 12 d)") for callers who hold `mcp.use` (the overview tool adds it; no other consumer of the attention list ever sees it): the point is to notice a dead server. No threshold and no notification: Portarr shows the duration and the operator judges (D-30).
 
 ### Workstations and the plan
 
-- Workstations are declared by name; `mcp` lists what is wanted. `get_workstation_plan` returns, for a workstation: to **install**, the rendering of every wanted server for each of its clients; to **remove**, the removal operation of every server of the catalog that is not wanted there ("if present": the operator removes a server from a workstation by taking it out of the wanted list); and the secret keys the workstation must be able to read. A removal looks at the scope the client would hold the server at by default; an entry a person put at another scope is not found, since Portarr tracks no installed state (D-110). Servers the catalog does not know are left alone. Every operation is shown to the operator and approved before it runs.
+- Workstations are declared by name; `mcp` lists what is wanted. `get_workstation_plan` returns, for a workstation: to **install**, the rendering of every wanted server for each of its clients; to **remove**, the removal operation of every server of the catalog that is not wanted there ("if present": the operator removes a server from a workstation by taking it out of the wanted list); and the secret keys the workstation must be able to read. A `project` or `local` scope names a file in the project the assistant is working in, so the plan gives a relative path or asks for the project's path. A removal looks at the scope the client would hold the server at by default; an entry a person put at another scope is not found, since Portarr tracks no installed state (D-110). Servers the catalog does not know are left alone. Every operation is shown to the operator and approved before it runs.
 - The workstation page and the Workstations tab show **what the catalog wants where**: a matrix of workstations and servers. Nothing in them says what a machine actually has.
 - There is **no installed state**. Whether the plan was applied is not tracked; the assistant that applied it is the witness.
 
@@ -180,7 +181,7 @@ All under `/api/v1/mcp`, all needing `mcp.use`, all read-only:
 | Endpoint | Returns |
 |---|---|
 | `GET servers`, `GET servers/{id}?os=` | The servers with their health; one server with its rendering for every client |
-| `GET clients` | The supported clients, their scopes and formats |
+| `GET clients` | The supported clients (id, name) and the scopes each holds |
 | `GET workstations`, `GET workstations/{id}?os=` | The workstations; one plan (install, remove, variables, vault keys) |
 
 ### Portarr's MCP tools

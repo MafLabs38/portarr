@@ -65,6 +65,11 @@ public sealed class McpWorkstationService : IMcpWorkstationService
     public McpWorkstationPlan GetPlan(WorkstationDefinition workstation, string? os = null)
     {
         var system = string.IsNullOrWhiteSpace(os) ? workstation.Os : os.Trim().ToLowerInvariant();
+        if (!McpOperatingSystems.All.Contains(system))
+        {
+            throw new ArgumentException($"Unknown operating system '{os}'. Systems: {string.Join(", ", McpOperatingSystems.All)}.", nameof(os));
+        }
+
         var servers = _servers.List().Select(s => s.Server).ToList();
 
         var install = new List<McpRendering>();

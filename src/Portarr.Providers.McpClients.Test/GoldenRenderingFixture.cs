@@ -161,4 +161,38 @@ public sealed class GoldenRenderingFixture
         rendering.Install(servers[0], "claude-code", McpScopes.User, McpOperatingSystems.Linux).Notes.Should().NotContain(n => n.Contains("PowerShell", StringComparison.Ordinal));
         rendering.Install(servers[0], "cursor", McpScopes.User, McpOperatingSystems.Windows).Notes.Should().NotContain(n => n.Contains("PowerShell", StringComparison.Ordinal), "Cursor is given a file entry, no command");
     }
+
+    [Fact]
+    public void should_keep_an_ampersand_in_a_command_on_linux_where_single_quotes_protect_it_and_drop_it_on_windows()
+    {
+        var catalog = RealMcp.Parse("""
+            mcpServers:
+              - id: query
+                transport: http
+                http: { url: "https://q.homelab.example/mcp?a=1&b=2" }
+            """).Catalog;
+        var rendering = RealMcp.Rendering(catalog);
+        var server = catalog.McpServerList.Single();
+
+        rendering.Install(server, "claude-code", McpScopes.User, McpOperatingSystems.Linux).Operations.Should().Contain(o => o.Kind == McpOperationKinds.Command && o.Text.Contains("'https://q.homelab.example/mcp?a=1&b=2'", StringComparison.Ordinal));
+        var windows = rendering.Install(server, "claude-code", McpScopes.User, McpOperatingSystems.Windows).Operations;
+        windows.Should().NotContain(o => o.Kind == McpOperationKinds.Command);
+        windows.Should().Contain(o => o.Kind == McpOperationKinds.File);
+    }
+
+    [Fact]
+    public void should_quote_an_argument_that_powershell_reads_as_a_splat()
+    {
+        const string argument = "@args";
+        var catalog = RealMcp.Parse($$"""
+            mcpServers:
+              - id: odd
+                transport: stdio
+                stdio: { command: npx, args: ["-y", "@example/pkg@1.0.0", "{{argument}}"] }
+            """).Catalog;
+
+        var rendering = RealMcp.Rendering(catalog).Install(catalog.McpServerList.Single(), "claude-code", McpScopes.User, McpOperatingSystems.Windows);
+
+        rendering.Operations.First(o => o.Kind == McpOperationKinds.Command).Text.Should().Contain($"'{argument}'");
+    }
 }

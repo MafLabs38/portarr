@@ -79,6 +79,7 @@ public sealed partial class McpHealthMonitor : BackgroundService, IMcpHealth
 
         // A new address starts a new life: it runs now.
         var due = servers.Where(s => !_nextRuns.TryGetValue(s.Id, out var next) || next.Url != s.Http!.Url || next.Next <= now).ToList();
+        var moved = servers.Where(s => _nextRuns.TryGetValue(s.Id, out var known) && known.Url != s.Http!.Url).Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
         // Scheduled before the probe on purpose: a probe that is slow or cancelled must not be started again by the next tick. Memory only, so a restart probes everything.
         foreach (var server in due)
         {
@@ -89,7 +90,8 @@ public sealed partial class McpHealthMonitor : BackgroundService, IMcpHealth
         await Parallel.ForEachAsync(due, options, async (server, token) =>
         {
             var result = await ProbeAsync(server, token);
-            var health = Next(server.Id, _current.GetValueOrDefault(server.Id), result);
+            // A server whose address changed since the last check is another server: what was known of the old address says nothing of the new one.
+            var health = Next(server.Id, moved.Contains(server.Id) ? null : _current.GetValueOrDefault(server.Id), result);
             lock (_lock)
             {
                 _current = new Dictionary<string, McpServerHealth>(_current, StringComparer.Ordinal) { [server.Id] = health };

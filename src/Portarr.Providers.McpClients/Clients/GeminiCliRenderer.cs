@@ -33,9 +33,9 @@ public sealed class GeminiCliRenderer : JsonConfigRenderer
         }
 
         var parts = new List<string?> { "gemini mcp add", $"--scope {context.Scope}", "--transport http" };
-        parts.AddRange(http.Headers.OrderBy(h => h.Key, StringComparer.Ordinal).Select(h => Flag("--header", h.Key, h.Value, ": ")));
+        parts.AddRange(http.Headers.OrderBy(h => h.Key, StringComparer.Ordinal).Select(h => Flag(context, "--header", h.Key, h.Value, ": ")));
         parts.Add(context.Server.Id);
-        parts.Add(Arg(http.Url.OriginalString));
+        parts.Add(Arg(context, http.Url.OriginalString));
         if (!parts.Contains(null))
         {
             yield return new McpOperation(McpOperationKinds.Command, $"Add the server with Gemini CLI, at {context.Scope} scope.", string.Join(' ', parts), null);

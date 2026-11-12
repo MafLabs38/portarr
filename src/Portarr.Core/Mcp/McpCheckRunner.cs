@@ -162,7 +162,7 @@ public sealed class McpCheckRunner : ICheckRunner
             request.Headers.ConnectionClose = true;
             using var _ = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         }
-        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException)
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or IOException)
         {
             // Best effort: the server drops an idle session by itself.
         }

@@ -55,12 +55,12 @@ public sealed class OpenCodeRenderer : JsonConfigRenderer
         var parts = new List<string?> { "opencode mcp add", server.Id };
         if (server.Http is { } http)
         {
-            parts.Add($"--url {Arg(http.Url.OriginalString)}");
-            parts.AddRange(http.Headers.OrderBy(h => h.Key, StringComparer.Ordinal).Select(h => Flag("--header", h.Key, h.Value, "=")));
+            parts.Add(Arg(context, http.Url.OriginalString) is { } url ? $"--url {url}" : null);
+            parts.AddRange(http.Headers.OrderBy(h => h.Key, StringComparer.Ordinal).Select(h => Flag(context, "--header", h.Key, h.Value, "=")));
         }
         else
         {
-            parts.AddRange(server.Stdio!.Env.OrderBy(e => e.Key, StringComparer.Ordinal).Select(e => Flag("--env", e.Key, e.Value, "=")));
+            parts.AddRange(server.Stdio!.Env.OrderBy(e => e.Key, StringComparer.Ordinal).Select(e => Flag(context, "--env", e.Key, e.Value, "=")));
         }
 
         if (context.Scope == McpScopes.User)
@@ -71,8 +71,8 @@ public sealed class OpenCodeRenderer : JsonConfigRenderer
         if (server.Stdio is { } local)
         {
             parts.Add("--");
-            parts.Add(Arg(local.Command));
-            parts.AddRange(local.Args.Select(Arg));
+            parts.Add(Arg(context, local.Command));
+            parts.AddRange(local.Args.Select(a => Arg(context, a)));
         }
 
         if (!parts.Contains(null))

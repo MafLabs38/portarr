@@ -54,7 +54,7 @@ public sealed class VsCodeRenderer : JsonConfigRenderer
             ordered[key] = value;
         }
 
-        if (Quote(ordered.ToJsonString()) is { } quoted)
+        if (Quote(context, ordered.ToJsonString()) is { } quoted)
         {
             yield return new McpOperation(McpOperationKinds.Command, "Add the server to the user profile with the code command.", $"code --add-mcp {quoted}", null);
         }

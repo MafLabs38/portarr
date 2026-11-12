@@ -91,9 +91,6 @@ note: The path of the user file is the usual one: "MCP: Open User Configuration"
 ### install memory | user | windows
 supported: yes
 requires: MEMORY_MCP_KEY
-[command]
-  Add the server to the user profile with the code command.
-    code --add-mcp '{"name":"memory","type":"http","url":"https://memory.homelab.example/mcp","headers":{"Accept":"application/json","X-Api-Key":"${env:MEMORY_MCP_KEY}"}}'
 [file] %APPDATA%\Code\User\mcp.json
   Merge this into %APPDATA%\Code\User\mcp.json; create the file if it does not exist and keep every other entry.
     {
@@ -109,7 +106,6 @@ requires: MEMORY_MCP_KEY
       }
     }
 note: The path of the user file is the usual one: "MCP: Open User Configuration" in VS Code opens the right file. VS Code asks to trust a server the first time it starts.
-note: Run the commands in PowerShell: they are quoted with single quotes, which cmd.exe does not read as quoting.
 
 ### install memory | user | macos
 supported: yes
@@ -136,9 +132,6 @@ note: The path of the user file is the usual one: "MCP: Open User Configuration"
 ### install github | user | windows
 supported: yes
 requires: GITHUB_TOKEN
-[command]
-  Add the server to the user profile with the code command.
-    code --add-mcp '{"name":"github","type":"stdio","command":"npx","args":["-y","@example/github-mcp@1.4.2"],"env":{"GITHUB_TOKEN":"${env:GITHUB_TOKEN}","LOG_LEVEL":"info"}}'
 [file] %APPDATA%\Code\User\mcp.json
   Merge this into %APPDATA%\Code\User\mcp.json; create the file if it does not exist and keep every other entry.
     {
@@ -158,7 +151,6 @@ requires: GITHUB_TOKEN
       }
     }
 note: The path of the user file is the usual one: "MCP: Open User Configuration" in VS Code opens the right file. VS Code asks to trust a server the first time it starts.
-note: Run the commands in PowerShell: they are quoted with single quotes, which cmd.exe does not read as quoting.
 note: On native Windows, if the client cannot start npx, declare the command as cmd with the arguments /c npx … (not verified for every client).
 
 ### install github | user | macos

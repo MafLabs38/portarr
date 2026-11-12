@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Portarr.Core.Catalog;
 using Portarr.Core.Mcp.Clients;
 
@@ -9,7 +10,7 @@ namespace Portarr.Providers.McpClients;
 /// (the root key, the name of the address field, a <c>type</c>, the syntax that reads a variable, the file) are the members a
 /// renderer overrides; a command the client provides is added on top.
 /// </summary>
-public abstract class JsonConfigRenderer : McpClientRendererBase
+public abstract partial class JsonConfigRenderer : McpClientRendererBase
 {
     /// <summary>The path of the object that holds the servers: <c>mcpServers</c>, or <c>mcp</c> then <c>servers</c>.</summary>
     protected abstract IReadOnlyList<string> RootPath(McpRenderContext context);
@@ -109,22 +110,25 @@ public abstract class JsonConfigRenderer : McpClientRendererBase
     }
 
     /// <summary>A flag with a <c>name&lt;separator&gt;value</c> argument between single quotes, the value being the variable's syntax when it is one; null when the text holds a quote.</summary>
-    protected string? Flag(string flag, string name, McpValue value, string separator)
+    protected string? Flag(McpRenderContext context, string flag, string name, McpValue value, string separator)
     {
         var text = $"{name}{separator}{Text(value)}";
-        return Quote(text) is { } quoted ? $"{flag} {quoted}" : null;
+        return Quote(context, text) is { } quoted ? $"{flag} {quoted}" : null;
     }
 
     private string Text(McpValue value) => value.IsEnv ? Ref(value.EnvName!) : value.Literal!;
 
     /// <summary>
     /// A command-line argument: as is when it is plain, between single quotes otherwise, null when it holds a quote. A comma is not plain: in PowerShell's
-    /// argument mode it is the array operator, so <c>a,b</c> would reach the program as two arguments.
+    /// argument mode it is the array operator, so <c>a,b</c> would reach the program as two arguments, a percent sign is read by <c>cmd.exe</c> (so <c>--%</c>, which stops the parsing of PowerShell, is refused on Windows) and <c>@name</c> is a splat.
     /// </summary>
-    protected static string? Arg(string text)
+    [GeneratedRegex(@"^@\w+\z")]
+    private static partial Regex PowerShellSplat();
+
+    protected static string? Arg(McpRenderContext context, string text)
     {
-        return text.Length > 0 && text.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '@' or '%' or '+' or '=' or ':' or '.' or '/' or '-')
+        return text.Length > 0 && !PowerShellSplat().IsMatch(text) && text.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '@' or '+' or '=' or ':' or '.' or '/' or '-')
             ? text
-            : Quote(text);
+            : Quote(context, text);
     }
 }

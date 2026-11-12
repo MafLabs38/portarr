@@ -206,6 +206,26 @@ public sealed class McpHealthMonitorFixture
     }
 
     [Fact]
+    public async Task should_not_carry_what_was_known_of_an_old_address_over_to_the_new_one()
+    {
+        _status = HttpStatusCode.BadGateway;
+        _body = "Bad gateway";
+        var monitor = Monitor;
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+        _clock.Advance(TimeSpan.FromDays(12));
+
+        _status = HttpStatusCode.OK;
+        _body = Result;
+        Given(Memory.Replace("memory.homelab.example", "memory2.homelab.example", StringComparison.Ordinal));
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+
+        var health = monitor.Current["memory"];
+        health.State.Should().Be(McpHealthState.Healthy);
+        health.Since.Should().Be(_clock.GetUtcNow(), "the new address has been up since its first check, not down for twelve days");
+        health.LastHealthyAt.Should().Be(_clock.GetUtcNow());
+    }
+
+    [Fact]
     public async Task should_forget_a_server_the_catalog_no_longer_declares()
     {
         var monitor = Monitor;

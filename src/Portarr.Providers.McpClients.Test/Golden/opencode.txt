@@ -125,7 +125,7 @@ requires: MEMORY_MCP_KEY
       }
     }
 note: The file entry uses the current shape (mcp.servers). If your OpenCode is older, put the entry directly under mcp; the command above writes the right shape for the version you run.
-note: Run the commands in PowerShell: they are quoted with single quotes, which cmd.exe does not read as quoting.
+note: Run the commands in PowerShell: they are quoted with single quotes, which cmd.exe does not read as quoting. A value with a character cmd.exe reads is left out of the command: use the file entry.
 
 ### install memory | user | macos
 supported: yes
@@ -178,7 +178,7 @@ requires: GITHUB_TOKEN
       }
     }
 note: The file entry uses the current shape (mcp.servers). If your OpenCode is older, put the entry directly under mcp; the command above writes the right shape for the version you run.
-note: Run the commands in PowerShell: they are quoted with single quotes, which cmd.exe does not read as quoting.
+note: Run the commands in PowerShell: they are quoted with single quotes, which cmd.exe does not read as quoting. A value with a character cmd.exe reads is left out of the command: use the file entry.
 note: On native Windows, if the client cannot start npx, declare the command as cmd with the arguments /c npx … (not verified for every client).
 
 ### install github | user | macos

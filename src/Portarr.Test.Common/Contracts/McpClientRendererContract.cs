@@ -96,4 +96,36 @@ public abstract class McpClientRendererContract
             operations.Where(o => o.Kind == McpOperationKinds.Command).Should().OnlyContain(o => !o.Text.Contains(literal, StringComparison.Ordinal));
         }
     }
+
+    [Theory]
+    [InlineData("&")]
+    [InlineData("|")]
+    [InlineData("<")]
+    [InlineData(">")]
+    [InlineData("^")]
+    [InlineData("%X%")]
+    [InlineData("!")]
+    [InlineData("\"")]
+    public void should_leave_out_of_a_windows_command_a_text_that_cmd_exe_reads(string special)
+    {
+        // PowerShell hands a new command line to a batch shim, and cmd.exe reads these whatever the quotes around them.
+        var risky = $"a{special}b";
+        var servers = TestCatalog.Parse($$"""
+            mcpServers:
+              - id: remote
+                transport: http
+                http: { url: "https://remote.homelab.example/mcp", headers: { X-Team: '{{risky}}' } }
+              - id: local
+                transport: stdio
+                stdio: { command: npx, args: ["-y", "@example/pkg@1.0.0", '--opt={{risky}}'] }
+            """).Catalog.McpServerList;
+
+        foreach (var server in servers)
+        {
+            var operations = Renderer.Install(new McpRenderContext(server, Renderer.Scopes[0], McpOperatingSystems.Windows)).Operations;
+
+            operations.Should().NotBeEmpty("the operator keeps the file entry");
+            operations.Where(o => o.Kind == McpOperationKinds.Command).Should().OnlyContain(o => !o.Text.Contains(risky, StringComparison.Ordinal), $"{server.Id}: cmd.exe would read '{special}'");
+        }
+    }
 }
