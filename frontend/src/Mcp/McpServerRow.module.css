@@ -58,7 +58,7 @@
   font-weight: 700;
 }
 
-@media (width <= 760px) {
+@media (width <= 768px) {
   .row {
     grid-template-columns: minmax(0, 1fr);
   }

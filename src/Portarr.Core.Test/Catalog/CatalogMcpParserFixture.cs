@@ -231,6 +231,8 @@ public sealed class CatalogMcpParserFixture
     [InlineData("[\"--api-key\", \"${API_KEY}\"]")]
     [InlineData("[\"--header\", \"Authorization:${AUTH_HEADER}\"]")]
     [InlineData("[\"--header\", \"Authorization: Bearer ${TOKEN}\"]")]
+    [InlineData("[\"--env=MODE=fast\"]")]
+    [InlineData("[\"--header=Accept: application/json\"]")]
     [InlineData("[\"--author\", \"me\"]")]
     [InlineData("[\"--bypass-cache\", \"true\"]")]
     [InlineData("[\"--hotkey\", \"f1\"]")]
@@ -242,6 +244,13 @@ public sealed class CatalogMcpParserFixture
     }
 
     [Theory]
+    [InlineData("[\"--header=Authorization: Bearer abc123\"]")]
+    [InlineData("[\"--env=API_KEY=abc123\"]")]
+    [InlineData("[\"-H=X-Api-Key: abc123\"]")]
+    [InlineData("[\"--header\", \"Authorization : Bearer abc123\"]")]
+    [InlineData("[\"--password\", \"Pa$$w0rd!\"]")]
+    [InlineData("[\"--client-secret\", \"s3cr$tValue\"]")]
+    [InlineData("[\"--header\", \"Authorization: Bearer abc${X}\"]")]
     [InlineData("[\"--key\", \"abc123\"]")]
     [InlineData("[\"--api-key\", \"abc123\"]")]
     [InlineData("[\"--client-secret\", \"abc123\"]")]

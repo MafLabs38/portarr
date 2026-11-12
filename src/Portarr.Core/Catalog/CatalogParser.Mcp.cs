@@ -374,7 +374,7 @@ public static partial class CatalogParser
         private static bool CarriesCredential(string argument, string? previous)
         {
             if (previous is not null && previous.StartsWith('-') && !previous.Contains('=', StringComparison.Ordinal) && !argument.StartsWith('-')
-                && IsCredentialName(previous) && !McpVariableReferencePattern().IsMatch(argument))
+                && IsCredentialName(previous) && !McpServerDefinition.IsOnlyAVariableReference(argument))
             {
                 return true;
             }
@@ -385,9 +385,20 @@ public static partial class CatalogParser
                 return false;
             }
 
-            var name = argument[..separator];
+            var name = argument[..separator].Trim();
             var value = argument[(separator + 1)..].Trim();
-            return McpArgumentNamePattern().IsMatch(name) && IsCredentialName(name) && value.Length > 0 && !McpVariableReferencePattern().IsMatch(value);
+            if (value.Length == 0)
+            {
+                return false;
+            }
+
+            if (McpArgumentNamePattern().IsMatch(name) && IsCredentialName(name))
+            {
+                return !McpServerDefinition.IsOnlyAVariableReference(value);
+            }
+
+            // --header=Authorization: Bearer … or --env=API_KEY=…: a flag that wraps a name and its value.
+            return name.StartsWith('-') && argument[separator] == '=' && CarriesCredential(value, null);
         }
 
         private static bool IsCredentialName(string name) => McpCredentialWordPattern().IsMatch(name) && !McpNotACredentialPattern().IsMatch(name);

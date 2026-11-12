@@ -111,6 +111,11 @@ public sealed class McpRenderingService : IMcpRenderingService
     /// <summary>What holds for every client, whatever its adapter says.</summary>
     private static void AddGenericNotes(McpRenderContext context, List<string> notes, bool removal)
     {
+        if (!removal && context.Server.ArgumentsReferenceVariables)
+        {
+            notes.Add("An argument holds a reference to a variable ($NAME): Portarr and the clients expand nothing there, the program does, from its environment. Give the variable to the program through its environment, and check that it expands references.");
+        }
+
         if (!removal && context.Server.RunsAnUnpinnedPackage)
         {
             notes.Add("This server runs a package without a pinned version: it changes under you. Pin a version in the catalog (such as @1.4.2) before installing it.");

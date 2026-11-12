@@ -23,6 +23,22 @@ public sealed partial record McpServerDefinition(
 {
     public bool IsHttp => Transport == McpTransports.Http;
 
+    /// <summary>A reference to a variable inside an argument: <c>${NAME}</c>, <c>$NAME</c>, <c>{env:NAME}</c>.</summary>
+    [GeneratedRegex(@"\$\{[A-Za-z_]\w*\}|\$[A-Za-z_]\w*|\{env:[A-Za-z_]\w*\}")]
+    private static partial Regex VariableReference();
+
+    /// <summary>A value that is nothing but a reference to a variable, optionally after a scheme word (<c>Bearer ${TOKEN}</c>): how a value is meant to be given.</summary>
+    [GeneratedRegex(@"^((Bearer|Basic|Token)\s+)?(\$\{[A-Za-z_]\w*\}|\$[A-Za-z_]\w*|\{env:[A-Za-z_]\w*\})\z", RegexOptions.IgnoreCase)]
+    private static partial Regex OnlyAVariableReference();
+
+    internal static bool IsOnlyAVariableReference(string value) => OnlyAVariableReference().IsMatch(value.Trim());
+
+    /// <summary>
+    /// An argument of the program holds a reference to a variable. Portarr expands nothing: it is for the program to expand it from its environment
+    /// (give the variable through <c>stdio.env</c>), and not every program does.
+    /// </summary>
+    public bool ArgumentsReferenceVariables => Stdio?.Args.Any(a => VariableReference().IsMatch(a)) == true;
+
     /// <summary>An exact version: <c>1.4.2</c>, <c>v2</c>, <c>1.0.0-beta.1</c>; not a tag or a range.</summary>
     [GeneratedRegex(@"^v?\d+(\.\d+){0,2}([-+][0-9A-Za-z.-]+)?\z")]
     private static partial Regex ExactVersion();

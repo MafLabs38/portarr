@@ -185,4 +185,15 @@ public sealed class McpRenderingServiceFixture
         rendering.Operations.First().Text.Should().Be("continue add memory --scope user (linux)");
         clients.Ids.Should().HaveCount(10);
     }
+
+    [Fact]
+    public void should_warn_that_an_argument_with_a_variable_reference_is_expanded_by_the_program_only()
+    {
+        const string yaml = "mcpServers:\n  - { id: bridge, transport: stdio, stdio: { command: npx, args: [\"-y\", \"mcp-remote@1.0.0\", \"https://x.homelab.example\", \"--header\", \"Authorization:${AUTH}\"], env: { AUTH: { env: AUTH_VALUE } } } }";
+
+        var rendering = Service(yaml).Install(Server(yaml, "bridge"), "cursor");
+
+        rendering.Notes.Should().Contain(n => n.Contains("the program does", StringComparison.Ordinal));
+        Service(Servers).Install(Server(Servers, "github"), "cursor").Notes.Should().NotContain(n => n.Contains("the program does", StringComparison.Ordinal));
+    }
 }
