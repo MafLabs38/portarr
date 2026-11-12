@@ -110,7 +110,7 @@ One renderer per client behind one contract (rule 8). Given a server, a scope an
 ### Health of the servers (D-114)
 
 - Only **remote servers**, only **the server**: Portarr never asks whether a workstation is on, and a laptop switched off every evening is not an event.
-- A new check type `mcp`, run by its own monitor (`McpHealthMonitor`, with the tick and the concurrency of the check scheduler, D-50): the state is richer than up or down (healthy, asking for credentials, down) and is persisted (last healthy, since), which the check results are not. One `initialize` request per interval (default 5 minutes; `check.interval` accepts 10 seconds to 24 hours), without credentials.
+- A new check type `mcp`, run by its own monitor (`McpHealthMonitor`: its own tick and a concurrency of four, in the spirit of the check scheduler, D-50): the state is richer than up or down (healthy, asking for credentials, down) and is persisted (last healthy, since), which the check results are not. One `initialize` request per interval (default 5 minutes; `check.interval` accepts 10 seconds to 24 hours), without credentials.
 
 | Answer | State |
 |---|---|
@@ -118,7 +118,7 @@ One renderer per client behind one contract (rule 8). Given a server, a scope an
 | 401 or 403 | **Healthy, authentication required**: the server is there and enforcing; nothing more can be said without a credential |
 | Timeout, refused, DNS, TLS, 5xx, anything that is not MCP | **Down**, with the reason code of the checks |
 | Portarr itself failed to run the check (a bug, not the server) | **Unknown**: what was known stays under it (state, since, last healthy), it is not blamed and is not listed as down (D-104); nothing is saved until a check that ran says something |
-| A `stdio` server, or `check: false` | **Not checked** |
+| A `stdio` server, or `check: false` | **Not monitored** (not a fault) |
 
 - The check history stays in memory like every check (D-51), but the figures that matter survive a restart in one small table: **last healthy**, **last checked**, **current state** and **since when**. The UI says "Healthy, seen 2 minutes ago" or "Down for 12 days, last healthy on 2026-10-30". A server that is Down is listed in the Overview's "needs attention" (finding `mcp-server-down`, with the time since) for callers who hold `mcp.use`: the point is to notice a dead server. No threshold and no notification: Portarr shows the duration and the operator judges (D-30).
 

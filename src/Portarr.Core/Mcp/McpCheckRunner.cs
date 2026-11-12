@@ -118,6 +118,10 @@ public sealed class McpCheckRunner : ICheckRunner
         }
     }
 
+    /// <summary>A server-sent event ends with a blank line, written LF LF, CR LF CR LF or CR CR.</summary>
+    internal static bool EndsAnEvent(string text) =>
+        text.Contains("\n\n", StringComparison.Ordinal) || text.Contains("\r\n\r\n", StringComparison.Ordinal) || text.Contains("\r\r", StringComparison.Ordinal);
+
     private static async Task<string> ReadBodyAsync(HttpContent content, CancellationToken cancellationToken)
     {
         await using var stream = await content.ReadAsStreamAsync(cancellationToken);
@@ -129,7 +133,7 @@ public sealed class McpCheckRunner : ICheckRunner
             length += read;
 
             // A server-sent stream may stay open after its first event: that event is all the probe needs.
-            if (content.Headers.ContentType?.MediaType == "text/event-stream" && Encoding.UTF8.GetString(buffer, 0, length).Contains("\n\n", StringComparison.Ordinal))
+            if (content.Headers.ContentType?.MediaType == "text/event-stream" && EndsAnEvent(Encoding.UTF8.GetString(buffer, 0, length)))
             {
                 break;
             }

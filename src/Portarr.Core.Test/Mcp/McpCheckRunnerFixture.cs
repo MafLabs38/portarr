@@ -161,4 +161,15 @@ public sealed class McpCheckRunnerFixture : CoreTest<McpCheckRunner>
     {
         Mocker.Get<IHttpClientFactory>().CreateClient(HttpCheckRunner.HttpClientName).Returns(_ => new HttpClient(handler));
     }
+
+    [Theory]
+    [InlineData("data: {}\n\n", true)]
+    [InlineData("data: {}\r\n\r\n", true)]
+    [InlineData("data: {}\r\r", true)]
+    [InlineData("data: {}\n", false)]
+    [InlineData("data: {}\r\n", false)]
+    public void should_know_where_a_server_sent_event_ends(string text, bool ends)
+    {
+        McpCheckRunner.EndsAnEvent(text).Should().Be(ends);
+    }
 }

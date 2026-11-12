@@ -19,6 +19,9 @@ public sealed class McpCaptureAcceptFixture
             os: linux
             clients: [claude-code]
             mcp: [memory]
+          - id: desk
+            os: linux
+            clients: [claude-code]
         """;
 
     private static readonly DateTimeOffset Now = new(2026, 11, 12, 9, 0, 0, TimeSpan.Zero);
@@ -68,7 +71,8 @@ public sealed class McpCaptureAcceptFixture
     {
         var act = () => _service.AcceptAsync(Key, new AcceptRequest(McpAcceptModes.Existing, null, null, null, false), "person", null, TestContext.Current.CancellationToken);
 
-        await act.Should().ThrowAsync<McpCaptureException>();
+        (await act.Should().ThrowAsync<McpCaptureException>()).Which.Message.Should().Contain("handed over again");
+        await _editor.DidNotReceive().EditAsPersonAsync(Arg.Any<CatalogEdit>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -82,5 +86,22 @@ public sealed class McpCaptureAcceptFixture
 
         (await act.Should().ThrowAsync<McpCaptureException>()).Which.Message.Should().Contain("accept or dismiss");
         await _store.DidNotReceive().SubmitAsync(Arg.Any<CaptureRequest>(), Arg.Any<string?>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task should_update_the_workstations_that_can_be_updated_and_report_the_one_that_cannot()
+    {
+        var second = _row with { RowId = 2, CaptureId = 2, Workstation = "desk" };
+        _store.PendingAsync(Arg.Any<CancellationToken>()).Returns([_row, second]);
+        _editor.EditAsPersonAsync(Arg.Any<CatalogEdit>(), Arg.Any<CancellationToken>())
+            .Returns(call => call.Arg<CatalogEdit>().Id == "dev-laptop"
+                ? new CatalogEditResult(CatalogEditStatus.Applied, "v2", ["workstations"], [])
+                : new CatalogEditResult(CatalogEditStatus.Conflict, "v1", [], []));
+
+        var result = await _service.AcceptAsync(Key, new AcceptRequest(McpAcceptModes.Existing, null, null, null, true, McpCaptureService.VersionOf([_row, second])), "person", null, TestContext.Current.CancellationToken);
+
+        result.WorkstationsUpdated.Should().Equal("dev-laptop");
+        result.Errors.Should().ContainSingle().Which.Should().StartWith("desk:");
+        await _store.DidNotReceive().ResolveAsync(Arg.Any<IReadOnlyCollection<int>>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
     }
 }
