@@ -142,6 +142,8 @@ public sealed class CatalogMcpParserFixture
     [InlineData("transport: stdio\n    stdio: { command: npx, env: { TOKEN: { env: not-a-name } } }", "environment variable")]
     [InlineData("transport: stdio\n    stdio: { command: npx, env: { TOKEN: { env: \"GOOD_NAME\\n\" } } }", "environment variable")]
     [InlineData("transport: stdio\n    stdio: { command: npx, env: { LEVEL: {} } }", "needs a value")]
+    [InlineData("transport: stdio\n    stdio: { command: cmd, args: [\"/c\", \"npx\", \"--opt=a&calc\"] }", "is read by cmd.exe")]
+    [InlineData("transport: stdio\n    stdio: { command: CMD.EXE, args: [\"/c\", \"npx\", \"%PATH%\"] }", "is read by cmd.exe")]
     public void should_refuse_an_invalid_server(string body, string expected)
     {
         var errors = Errors($"mcpServers:\n  - id: memory\n    {body}");

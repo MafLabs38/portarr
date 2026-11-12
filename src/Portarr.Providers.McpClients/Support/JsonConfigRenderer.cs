@@ -18,7 +18,6 @@ public abstract partial class JsonConfigRenderer : McpClientRendererBase
     /// <summary>The file that holds the servers at this scope, as the operating system writes it.</summary>
     protected abstract string FilePath(McpRenderContext context);
 
-    /// <summary>How the client reads a variable inside the file, or null when it has no syntax (the operator then writes the value).</summary>
     /// <summary>The client's syntax for reading the variable <paramref name="variable"/>, or null when the client has none (then <see cref="ReadsVariables"/> is false). It must not depend on the name.</summary>
     protected abstract string? Reference(string variable);
 

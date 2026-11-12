@@ -31,6 +31,23 @@ public sealed class McpPermissionsFixture
         writes.Should().OnlyContain(m => m.GetCustomAttribute<RequiresPermissionsAttribute>()!.Permissions.Contains(Permissions.CatalogWrite));
     }
 
+    /// <summary>
+    /// A read-only API key keeps <c>mcp.use</c> because everything it opens only reads (D-115). The permission is flagged read-only, but a flag
+    /// guards nothing by itself: this is what keeps the promise true on the tools; the controllers have their own test.
+    /// </summary>
+    [Fact]
+    public void should_only_ask_for_mcp_use_on_tools_that_read()
+    {
+        var tools = McpAssembly.GetTypes()
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static))
+            .Where(m => m.GetCustomAttribute<McpServerToolAttribute>() is not null)
+            .Where(m => m.GetCustomAttribute<RequiresPermissionsAttribute>()!.Permissions.Contains(Permissions.McpUse))
+            .ToList();
+
+        tools.Should().NotBeEmpty();
+        tools.Should().OnlyContain(m => m.GetCustomAttribute<McpServerToolAttribute>()!.ReadOnly, "a read-only API key reaches every tool that asks for mcp.use");
+    }
+
     [Fact]
     public void should_deny_what_declares_nothing()
     {

@@ -33,6 +33,10 @@ public static partial class CatalogParser
     [GeneratedRegex(@"[\x00-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]")]
     internal static partial Regex McpControlCharacterPattern();
 
+    /// <summary>What cmd.exe reads in the arguments of a command that goes through it.</summary>
+    [GeneratedRegex("[\"&|<>^%!]")]
+    internal static partial Regex McpCmdCharacterPattern();
+
     /// <summary>A command is a program, not a shell line: no operator, no substitution.</summary>
     [GeneratedRegex(@"[;&|<>`$]")]
     internal static partial Regex McpShellCharacterPattern();
@@ -309,6 +313,10 @@ public static partial class CatalogParser
                 {
                     _errors.Add($"{owner}: {key} must be a text of at most {MaxMcpTextLength} characters.");
                 }
+                else if (GoesThroughCmd(command) && McpCmdCharacterPattern().IsMatch(argument))
+                {
+                    _errors.Add($"{owner}: {key} is read by cmd.exe, which reads \" & | < > ^ % ! in an argument: leave them out, or run the program without cmd.");
+                }
                 else if (!RejectSecret(owner, key, argument))
                 {
                     args.Add(argument);
@@ -318,6 +326,8 @@ public static partial class CatalogParser
             var env = BuildMcpValues(owner, "stdio.env", document.Env, McpVariableNamePattern());
             return new McpStdioSettings(command, args, env);
         }
+
+        private static bool GoesThroughCmd(string command) => command.Equals("cmd", StringComparison.OrdinalIgnoreCase) || command.Equals("cmd.exe", StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
         /// Headers or environment of a server. A value is a text that is not a secret, or <c>{ env: NAME }</c>; a name that

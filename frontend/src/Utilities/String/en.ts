@@ -633,7 +633,7 @@ const en: Record<string, string> = {
   ApiKeyShownOnce: 'It is shown this once: only its hash is kept.',
   ApiKeys: 'API keys',
   ApiKeysHelpText:
-    'A key lets a script or an assistant call Portarr as you, without a password. A read-only key sees what your role may view; a full key does what your role may do. Send it as X-Api-Key or Authorization: Bearer. A key never goes beyond your role.',
+    'A key lets a script or an assistant call Portarr as you, without a password. A read-only key sees what your role may view, plus the MCP servers and workstations (which only read); a full key does what your role may do. Send it as X-Api-Key or Authorization: Bearer. A key never goes beyond your role.',
   AvatarFile: 'Avatar image',
   AvatarHelpText: 'A PNG, WebP or JPEG of 1 MiB at most.',
   AvatarInvalid: 'That is not a PNG, WebP or JPEG image of 1 MiB at most.',
@@ -676,7 +676,7 @@ const en: Record<string, string> = {
   KeyExpires: 'Expires',
   KeyScopeFull: 'Full: everything my role may do',
   KeyScopeFullShort: 'Full',
-  KeyScopeRead: 'Read only: what my role may view',
+  KeyScopeRead: 'Read only: what my role may view, and the MCP servers',
   KeyScopeReadShort: 'Read only',
   LastSignIn: 'Last sign-in',
   LastUsed: 'Last used',

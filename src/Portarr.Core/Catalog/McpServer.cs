@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace Portarr.Core.Catalog;
 
 /// <summary>
@@ -7,7 +9,7 @@ namespace Portarr.Core.Catalog;
 /// <c>AppId</c> links the server to an app of the catalog. <c>CheckInterval</c> is null when the server is not checked
 /// (a local process, or <c>check: false</c>, D-114).
 /// </summary>
-public sealed record McpServerDefinition(
+public sealed partial record McpServerDefinition(
     string Id,
     string Name,
     string Transport,
@@ -20,6 +22,10 @@ public sealed record McpServerDefinition(
     string? Notes = null)
 {
     public bool IsHttp => Transport == McpTransports.Http;
+
+    /// <summary>An exact version: <c>1.4.2</c>, <c>v2</c>, <c>1.0.0-beta.1</c>; not a tag or a range.</summary>
+    [GeneratedRegex(@"^v?\d+(\.\d+){0,2}([-+][0-9A-Za-z.-]+)?\z")]
+    private static partial Regex ExactVersion();
 
     /// <summary>Every header and environment value of the server, whichever its transport.</summary>
     public IEnumerable<McpValue> Values => (Http?.Headers.Values ?? []).Concat(Stdio?.Env.Values ?? []);
@@ -62,9 +68,14 @@ public sealed record McpServerDefinition(
                 return false;
             }
 
-            // npm pins with name@version, Python with name==version.
+            // npm pins with name@version, Python with name==version; a tag (@next, @latest) or a range (@^1, @1.x) floats.
+            if (package.Contains("==", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
             var at = package.LastIndexOf('@');
-            return !package.Contains("==", StringComparison.Ordinal) && (at <= 0 || package.EndsWith("@latest", StringComparison.Ordinal));
+            return at <= 0 || !ExactVersion().IsMatch(package[(at + 1)..]);
         }
     }
 
