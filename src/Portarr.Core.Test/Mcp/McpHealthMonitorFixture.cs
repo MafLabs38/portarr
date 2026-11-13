@@ -238,6 +238,27 @@ public sealed class McpHealthMonitorFixture
         await _store.Received(1).RetainAsync(Arg.Is<IReadOnlyCollection<string>>(ids => ids.Count == 0), Arg.Any<CancellationToken>());
     }
 
+    [Theory]
+    [InlineData(false, 0)]
+    [InlineData(true, 1)]
+    public async Task should_never_prune_the_history_against_a_catalog_that_is_missing_or_refused(bool fileExists, int errors)
+    {
+        var monitor = Monitor;
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+        var broken = new CatalogState(Core.Catalog.Catalog.Empty, "catalog.yaml", fileExists, Enumerable.Repeat("a key a release removed", errors).ToList(), fileExists ? null : (DateTimeOffset?)null);
+        _catalog.Current.Returns(broken);
+
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+
+        await _store.DidNotReceive().RetainAsync(Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>());
+        monitor.Current.Should().ContainKey("memory", "the history of a server survives the restart that fixes the catalog");
+
+        Given("apps:\n  - { id: blog, name: Blog }");
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+
+        await _store.Received(1).RetainAsync(Arg.Is<IReadOnlyCollection<string>>(ids => ids.Count == 0), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task should_start_from_what_the_database_remembers()
     {
@@ -304,7 +325,7 @@ public sealed class McpHealthMonitorFixture
         up.LastHealthyAt.Should().Be(Start.AddHours(2));
     }
 
-    private static CatalogState State(string yaml) => new(TestCatalog.Parse(yaml).Catalog, "catalog.yaml", true, [], null);
+    private static CatalogState State(string yaml) => new(TestCatalog.Parse(yaml).Catalog, "catalog.yaml", true, [], Start);
 
     private void Given(string yaml) => _catalog.Current.Returns(State(yaml));
 }

@@ -62,12 +62,16 @@ public sealed partial class McpHealthMonitor : BackgroundService, IMcpHealth
     public async Task RunDueAsync(CancellationToken cancellationToken = default)
     {
         var now = _timeProvider.GetUtcNow();
-        var servers = _catalogService.Current.Catalog.McpServerList
+        var state = _catalogService.Current;
+        var servers = state.Catalog.McpServerList
             .Where(s => s is { IsHttp: true, Http: not null, CheckInterval: not null })
             .ToList();
 
         var ids = servers.Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
-        if (Forget(ids))
+        // The history is only pruned against a catalog that is authoritative: one that was read and is valid. A file that is missing, unreadable or refused
+        // (a typo, a key a release removed) leaves Portarr with no servers to compare with, and "down for twelve days" must survive the restart that fixes it (D-114).
+        var authoritative = state is { FileExists: true, LoadedAt: not null, Errors.Count: 0 };
+        if (authoritative && Forget(ids))
         {
             await RetainStoredAsync(ids, cancellationToken);
         }
