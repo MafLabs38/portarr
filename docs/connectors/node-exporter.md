@@ -19,8 +19,6 @@ A Kubernetes node is read at `http://<InternalIP>:<port>/metrics`, or through th
 
 ## Behind a proxy that asks for a token
 
-`hostMetrics.tokenEnv` names the environment variable that holds a bearer token, sent to the machine's own `nodeExporter` URL only (never to a node's exporter reached through Kubernetes). The variable must start with `PORTARR_READER_` ([the reader](reader.md), D-102). An empty variable shows the machine as `token-missing`. A machine with a [reader](reader.md) declares `reader:` instead, which sets this and the Docker connection.
-
 ## Formulas
 
 `node_cpu_seconds_total` is cumulative (seconds since boot per cpu and mode: user, nice, system, idle, iowait, irq, softirq, steal; guest time is already inside user). A load exists only between two reads, *a* then *b*:

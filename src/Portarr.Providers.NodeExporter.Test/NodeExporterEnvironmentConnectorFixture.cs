@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Configuration;
 using NSubstitute;
 using Portarr.Core.Catalog;
 using Portarr.Test.Common;
@@ -6,7 +5,7 @@ using Portarr.Test.Common.Contracts;
 
 namespace Portarr.Providers.NodeExporter.Test;
 
-/// <summary>The <c>hostMetrics:</c> section of an environment, and the <c>reader:</c> shortcut that stands for it (D-72, D-102, D-105).</summary>
+/// <summary>The <c>hostMetrics:</c> section of an environment (D-72, D-105).</summary>
 public sealed class NodeExporterEnvironmentConnectorFixture : EnvironmentConnectorContract
 {
     protected override IEnvironmentConnector Connector { get; } = new NodeExporterEnvironmentConnector();
@@ -16,13 +15,14 @@ public sealed class NodeExporterEnvironmentConnectorFixture : EnvironmentConnect
 
     protected override IReadOnlyList<IEnvironmentConnector> Companions { get; } = [new StubEnvironmentConnector("docker", isRuntime: true)];
 
-    protected override string ValidSection => "{ nodeExporter: \"http://10.0.0.10:9100/metrics\", tokenEnv: PORTARR_READER_SERVER_1 }";
+    protected override string ValidSection => "{ nodeExporter: \"http://10.0.0.10:9100/metrics\" }";
 
     protected override string? SectionWithCredentialsInUrl => "{ nodeExporter: \"http://user:pass@10.0.0.10:9100/metrics\" }";
 
-    protected override string? SectionWithLiteralSecret => "{ nodeExporter: \"http://10.0.0.10:9100/metrics\", tokenEnv: \"ghp_a literal secret\" }";
+    // The section carries no secret variable.
+    protected override string? SectionWithLiteralSecret => null;
 
-    protected override string? SectionWithSecretOutsideNamespace => "{ nodeExporter: \"http://attacker.example:9100/metrics\", tokenEnv: GITHUB_TOKEN }";
+    protected override string? SectionWithSecretOutsideNamespace => null;
 
     private static CatalogParseResult Parse(string yaml) => CatalogParser.Parse(yaml, [new NodeExporterEnvironmentConnector(), new StubEnvironmentConnector("docker", isRuntime: true), new StubEnvironmentConnector("cloudflare", isRuntime: true, singleMachine: false), new StandInKubernetesConnector()]);
 
@@ -58,18 +58,6 @@ public sealed class NodeExporterEnvironmentConnectorFixture : EnvironmentConnect
     }
 
     [Theory]
-    [InlineData("GITHUB_TOKEN")]
-    [InlineData("CLOUDFLARE_API_TOKEN")]
-    [InlineData("PORTARR_READER_")]
-    [InlineData("portarr_reader_lower")]
-    public void should_refuse_to_send_any_other_variable_of_the_process_to_a_url(string variable)
-    {
-        var result = Parse($"environments:\n  - {{ id: server-1, docker: {{ url: \"http://10.0.0.10:2375\" }}, hostMetrics: {{ nodeExporter: \"http://attacker.example:9100/metrics\", tokenEnv: {variable} }} }}\n");
-
-        result.Errors.Should().ContainSingle().Which.Should().Contain("hostMetrics.tokenEnv").And.Contain("PORTARR_READER_");
-    }
-
-    [Theory]
     [InlineData("5s", 5)]
     [InlineData("1m", 60)]
     [InlineData("30", 30)]
@@ -99,17 +87,8 @@ public sealed class NodeExporterEnvironmentConnectorFixture : EnvironmentConnect
         var environment = NodeExporterEnvironments.With(new HostMetricsEndpoint(new Uri("http://10.0.0.10:9100/metrics"), Interval: TimeSpan.FromSeconds(10)));
 
         var factory = Substitute.For<IHttpClientFactory>();
-        var source = new NodeExporterHostMetricsSource(factory, new ConfigurationBuilder().Build());
+        var source = new NodeExporterHostMetricsSource(factory);
 
         source.TargetsOf(environment, null).Should().ContainSingle().Which.Interval.Should().Be(TimeSpan.FromSeconds(10));
-    }
-
-    [Fact]
-    public void should_read_a_reader_as_the_agent_it_stands_for()
-    {
-        var parsed = Parse("environments:\n  - { id: server-1, reader: { url: \"https://proxy.homelab.example/reader-1\", tokenEnv: PORTARR_READER_PROXY } }\n");
-
-        parsed.Errors.Should().BeEmpty();
-        parsed.Catalog.Environments.Single().HostMetrics().Should().Be(new HostMetricsEndpoint(new Uri("https://proxy.homelab.example/reader-1/v1/host"), "PORTARR_READER_PROXY"));
     }
 }

@@ -34,7 +34,7 @@ environments:
 
 ## Behind a proxy that asks for a token
 
-`docker.url` may carry a base path (a reverse proxy serving the API under `/docker/`), and `docker.tokenEnv` names the environment variable that holds a bearer token to send with every request. The variable must start with `PORTARR_READER_`: a catalog can be edited through the API, and only that namespace is ever sent to a catalog URL ([the reader](reader.md), D-102). When the variable is empty the machine is shown as `token-missing` instead of being read anonymously. For a machine with a [reader](reader.md), declare `reader:` instead: it sets both.
+`docker.url` may carry a base path (a reverse proxy serving the API under `/docker/`).
 
 ## Local Docker
 

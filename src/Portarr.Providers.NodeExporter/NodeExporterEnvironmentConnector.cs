@@ -3,29 +3,24 @@ using Portarr.Core.Catalog;
 namespace Portarr.Providers.NodeExporter;
 
 /// <summary>
-/// The node_exporter of a single machine (D-72): its <c>/metrics</c> URL, read every second. <c>TokenVariable</c> names the
-/// environment variable holding a bearer token when something in front of it asks for one (the Portarr reader does, D-100).
-/// <c>Interval</c> reads it less often than every second (D-107).
+/// The node_exporter of a single machine (D-72): its <c>/metrics</c> URL, read every second. <c>Interval</c> reads it less
+/// often than every second (D-107).
 /// </summary>
-public sealed record HostMetricsEndpoint(Uri NodeExporter, string? TokenVariable = null, TimeSpan? Interval = null);
+public sealed record HostMetricsEndpoint(Uri NodeExporter, TimeSpan? Interval = null);
 
-/// <summary>The <c>hostMetrics:</c> section of an environment, which the <c>reader:</c> shortcut also stands for (D-102).</summary>
+/// <summary>The <c>hostMetrics:</c> section of an environment (D-72).</summary>
 internal sealed class HostMetricsDocument
 {
     /// <summary>node_exporter's metrics URL, e.g. http://10.0.0.10:9100/metrics.</summary>
     public string? NodeExporter { get; set; }
 
-    /// <summary>The environment variable holding a bearer token, when something in front of node_exporter asks for one.</summary>
-    public string? TokenEnv { get; set; }
-
-    /// <summary>How often the agent is read when not every second: <c>5s</c>, <c>1m</c> (1 second to 5 minutes).</summary>
+    /// <summary>How often node_exporter is read when not every second: <c>5s</c>, <c>1m</c> (1 second to 5 minutes).</summary>
     public string? Interval { get; set; }
 }
 
 /// <summary>
 /// <c>hostMetrics:</c> names the node_exporter of a Docker host (D-72, D-105): an auxiliary section, for an environment that is one
-/// machine with a runtime. A cluster declares its nodes' exporters in its own section. A token variable is sent to the address
-/// the catalog names, so it must be in the reader's namespace (D-102).
+/// machine with a runtime. A cluster declares its nodes' exporters in its own section.
 /// </summary>
 public sealed class NodeExporterEnvironmentConnector : IEnvironmentConnector
 {
@@ -52,12 +47,6 @@ public sealed class NodeExporterEnvironmentConnector : IEnvironmentConnector
             return null;
         }
 
-        if (CatalogValues.ReaderTokenError("hostMetrics.tokenEnv", document.TokenEnv, out var variable) is { } error)
-        {
-            context.Error(error);
-            return null;
-        }
-
         TimeSpan? interval = null;
         if (document.Interval is not null && (interval = CatalogValues.ParseDuration(document.Interval, HostMetricsIntervals.Min, HostMetricsIntervals.Max)) is null)
         {
@@ -65,7 +54,7 @@ public sealed class NodeExporterEnvironmentConnector : IEnvironmentConnector
             return null;
         }
 
-        return new EnvironmentConnectorResult(new HostMetricsEndpoint(url, variable, interval));
+        return new EnvironmentConnectorResult(new HostMetricsEndpoint(url, interval));
     }
 }
 

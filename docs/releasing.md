@@ -38,7 +38,6 @@ A run on `main` that finds nothing worth releasing (only `chore`, `docs`…) pub
 | Image | Content |
 |---|---|
 | `ghcr.io/<owner>/portarr` | the application |
-| `ghcr.io/<owner>/portarr-reader` | the optional read-only host reader |
 | `ghcr.io/<owner>/portarr-agent` | the chat's agent runner |
 
 Tags: `X.Y.Z`, `latest`, the branch (`develop`, `main`) and `sha-<commit>`.
