@@ -5,7 +5,7 @@ import translate from 'Utilities/String/translate';
 
 import LiveIndicator from './LiveIndicator';
 import styles from './MachineCard.module.css';
-import { machineMeta } from './machineCardView';
+import { machineMeta, machineSystem } from './machineCardView';
 
 interface MachineHeaderProps {
   environment: InfrastructureEnvironment;
@@ -51,6 +51,7 @@ export default function MachineHeader({
   isHypervisor,
 }: Readonly<MachineHeaderProps>) {
   const meta = machineMeta(machine);
+  const system = machineSystem(machine);
 
   return (
     <>
@@ -65,6 +66,7 @@ export default function MachineHeader({
         </span>
       </header>
       <span className={styles.meta}>{machine.kind === 'kubernetes-node' ? `${environment.name} · ${meta}` : meta}</span>
+      {system ? <span className={styles.meta}>{system}</span> : null}
       {environment.error ? (
         <p className={styles.error}>
           {translate('MetricsUnavailable', { reason: translate(`Reason_${environment.error}`) })}

@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Configuration;
 using Portarr.Core.Catalog;
 using Portarr.Test.Common.Contracts;
 
@@ -9,7 +8,7 @@ namespace Portarr.Providers.Docker.Test;
 public sealed class DockerWorkloadSourceContractFixture : WorkloadSourceContract, IClassFixture<DockerHost>, IDisposable
 {
     private readonly DockerHost _host;
-    private readonly DockerHttpClientFactory _clients = new(new ConfigurationBuilder().Build());
+    private readonly DockerHttpClientFactory _clients = new();
 
     public DockerWorkloadSourceContractFixture(DockerHost host)
     {
@@ -29,7 +28,7 @@ public sealed class DockerWorkloadSourceContractFixture : WorkloadSourceContract
 public sealed class DockerInfrastructureSourceContractFixture : InfrastructureSourceContract, IClassFixture<DockerHost>, IDisposable
 {
     private readonly DockerHost _host;
-    private readonly DockerHttpClientFactory _clients = new(new ConfigurationBuilder().Build());
+    private readonly DockerHttpClientFactory _clients = new();
 
     public DockerInfrastructureSourceContractFixture(DockerHost host)
     {

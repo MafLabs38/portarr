@@ -30,6 +30,17 @@ public sealed class AccountRulesFixture
         ApiKeyService.Scoped(new HashSet<string> { Permissions.AppsView }, ApiKeyService.FullScope).Should().NotContain(Permissions.UsersManage);
     }
 
+    [Fact]
+    public void should_let_a_read_key_keep_the_mcp_permission_which_only_reads_and_nothing_that_writes()
+    {
+        var operatorRights = new HashSet<string> { Permissions.AppsView, Permissions.McpUse, Permissions.CatalogWrite, Permissions.ChatUse };
+
+        ApiKeyService.Scoped(operatorRights, ApiKeyService.ReadScope).Should().BeEquivalentTo([Permissions.AppsView, Permissions.McpUse]);
+        ApiKeyService.Scoped(new HashSet<string> { Permissions.AppsView }, ApiKeyService.ReadScope).Should().NotContain(Permissions.McpUse, "a key never gets what its owner does not hold");
+        Permissions.View.Should().NotContain(Permissions.McpUse, "the Observer and the shared key of the assistant page stay without it (D-115)");
+        Permissions.ReadOnlyKey.Should().Contain(Permissions.McpUse).And.OnlyContain(key => key == Permissions.McpUse || Permissions.View.Contains(key));
+    }
+
     [Theory]
     [InlineData("admin", true)]
     [InlineData("a.b-c_d", true)]

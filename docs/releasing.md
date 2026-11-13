@@ -28,7 +28,7 @@ The images are built with the version `X.Y.Z.<n>`, where `<n>` is the number of 
    of the Terraform repository; every other pull request is squash-merged. If `develop` and `main` have diverged (a release squash-merged by mistake),
    a plain `develop` → `main` pull request can conflict: merge `develop` into a branch cut from `main`, resolve, and open the release pull request from
    that branch (`release/X.Y.Z`).
-4. The pipeline runs on `main`: tests, scans, end-to-end smoke test, then `release` (tag and notes) and `image` (the three images under the new version).
+4. The pipeline runs on `main`: tests, scans, end-to-end smoke test, then `release` (tag and notes) and `image` (the two images under the new version).
 5. A deployment that follows the version tags picks the new version up on its own ([deployment.md](deployment.md#following-the-releases)).
 
 A run on `main` that finds nothing worth releasing (only `chore`, `docs`…) publishes no version: the `main` and commit images are built, and nothing is deployed.
@@ -38,10 +38,21 @@ A run on `main` that finds nothing worth releasing (only `chore`, `docs`…) pub
 | Image | Content |
 |---|---|
 | `ghcr.io/<owner>/portarr` | the application |
-| `ghcr.io/<owner>/portarr-reader` | the optional read-only host reader |
 | `ghcr.io/<owner>/portarr-agent` | the chat's agent runner |
 
 Tags: `X.Y.Z`, `latest`, the branch (`develop`, `main`) and `sha-<commit>`.
+
+The `portarr-reader` image of earlier releases (ADR 0017) is no longer published; its published tags stay on the registry.
+
+## Upgrading from a release that used the reader
+
+The reader (`portarr-reader`, `reader:` in the catalog) was documented in 0.1.0 and 0.1.1 and is **removed** (D-117). A catalog that still declares it is refused (the strict parser names the key), and on a fresh start the portal comes up empty until the catalog is fixed. Before upgrading, replace in each environment:
+
+- `reader: { url, tokenEnv }` by `docker: { url }` (a read-only [socket proxy](connectors/docker.md)) and `hostMetrics: { nodeExporter }` ([node_exporter](connectors/node-exporter.md)), and run those two tools in place of the reader;
+- remove `tokenEnv` from `docker:` and `hostMetrics:` (a bearer token is no longer sent), and the `PORTARR_READER_*` variables.
+
+A catalog that never used the reader needs nothing.
+
 
 ## The seed tag
 

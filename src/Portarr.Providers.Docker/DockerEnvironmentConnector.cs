@@ -3,24 +3,18 @@ using Portarr.Core.Catalog;
 namespace Portarr.Providers.Docker;
 
 /// <summary>
-/// Docker Engine API endpoint: <c>unix:///var/run/docker.sock</c> or <c>http://host:2375</c> (socket proxy). <c>TokenVariable</c>
-/// names the environment variable holding a bearer token when something in front of Docker asks for one (the Portarr reader
-/// does, D-100): never the token itself.
+/// Docker Engine API endpoint: <c>unix:///var/run/docker.sock</c> or <c>http://host:2375</c> (socket proxy).
 /// </summary>
-public sealed record DockerEndpoint(Uri Url, string? TokenVariable = null);
+public sealed record DockerEndpoint(Uri Url);
 
-/// <summary>The <c>docker:</c> section of an environment, which the <c>reader:</c> shortcut also stands for (D-102).</summary>
+/// <summary>The <c>docker:</c> section of an environment.</summary>
 internal sealed class DockerDocument
 {
     public string? Url { get; set; }
-
-    /// <summary>Name of the environment variable holding a bearer token (never the token itself).</summary>
-    public string? TokenEnv { get; set; }
 }
 
 /// <summary>
-/// <c>docker:</c> declares a Docker host, one machine whose containers are the workloads (D-105). A token variable is sent to the
-/// address the catalog names, so it must be in the reader's namespace (D-102).
+/// <c>docker:</c> declares a Docker host, one machine whose containers are the workloads (D-105).
 /// </summary>
 public sealed class DockerEnvironmentConnector : IEnvironmentConnector
 {
@@ -45,13 +39,7 @@ public sealed class DockerEnvironmentConnector : IEnvironmentConnector
             return null;
         }
 
-        if (CatalogValues.ReaderTokenError("docker.tokenEnv", document.TokenEnv, out var variable) is { } error)
-        {
-            context.Error(error);
-            return null;
-        }
-
-        return new EnvironmentConnectorResult(new DockerEndpoint(url, variable));
+        return new EnvironmentConnectorResult(new DockerEndpoint(url));
     }
 }
 

@@ -4,6 +4,8 @@ Lists the **pods** of every namespace as workloads and the **nodes** as machines
 
 ## Read-only ServiceAccount
 
+The ServiceAccount of the examples is named `portarr-reader` for historical reasons: it is **Portarr's own read-only account in your cluster**, unrelated to the Rust reader that ADR 0017 retired. Renaming it would only mean changing the name in your manifests.
+
 Portarr needs `get` and `list` on pods and nodes, and on the metrics of both. Two optional rules add data (V3 Data and backups): `list` on `apps/statefulsets` gives the size requested by StatefulSet claims, and, for the Data page's backup sources (D-81), `get, list` on `batch/cronjobs` and `batch/jobs` (a `cronjob:` source: last success, last failed attempt) and on `schedules`, `backups` and `snapshots` of the `k8up.io` group (a `k8up:` source). Without them, sizes are unknown and the copies those sources should prove are Unknown with the reason `http-403`. One more optional rule reads a node's node_exporter through the API server: `get` on `pods/proxy` in the exporter's namespace only (a `Role`, see [companions](../companions.md#in-kubernetes)); never the cluster-wide `nodes/proxy`. Nothing else: no secrets, no PersistentVolumeClaims, no writes, no `exec`.
 
 ```yaml
@@ -87,3 +89,7 @@ Pod names change on every rollout: match pods by `namespace` and `labels` (`app:
 | Usage of one pod | `GET /apis/metrics.k8s.io/v1beta1/namespaces/{ns}/pods/{name}` | Workload page, catalog pods only. |
 
 Pod logs are not served yet.
+
+## The system a node reports (D-118)
+
+The node list Portarr already reads carries each node's `status.nodeInfo`: the kubelet version (`v1.31.4+k3s1` on K3s), the operating system image (`Ubuntu 25.10`) and the kernel. Portarr shows them under the machine's name and reports them as platforms (`GET /api/v1/maintenance`, `platforms[]`, D-119): the K3s line, the newer versions that exist and when the line stops being supported. Nothing more is asked of the cluster.

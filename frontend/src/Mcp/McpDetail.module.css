@@ -1,0 +1,85 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.card {
+  padding: 14px 16px;
+  border: var(--borderWidth) solid var(--hairline);
+  border-radius: var(--radiusMedium);
+  background-color: var(--paperCard);
+  box-shadow: var(--shadowCard);
+}
+
+.cardTitle {
+  margin: 0 0 10px;
+  font-family: var(--displayFontFamily);
+  font-size: var(--fontSizeCardTitle);
+  font-weight: 600;
+}
+
+.back {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: var(--inkMuted);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.back:hover {
+  text-decoration: underline;
+}
+
+.chooser {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  font-weight: 800;
+}
+
+.select {
+  padding: 4px 8px;
+  border: var(--borderWidth) solid var(--hairline);
+  border-radius: var(--radiusSmall);
+  background-color: var(--paperCard);
+  color: var(--ink);
+  font: inherit;
+}
+
+.hint {
+  margin: 0 0 14px;
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+}
+
+.values {
+  white-space: pre-line;
+}
+
+.subTitle {
+  margin: 14px 0 4px;
+  font-family: var(--displayFontFamily);
+  font-size: var(--fontSizeBody);
+  font-weight: 800;
+}
+
+.wantedList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wantedList a {
+  color: var(--ink);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.wantedList a:hover {
+  text-decoration: underline;
+}

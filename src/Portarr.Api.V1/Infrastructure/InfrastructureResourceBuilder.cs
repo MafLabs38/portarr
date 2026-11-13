@@ -1,4 +1,5 @@
 using Portarr.Core.Infrastructure;
+using Portarr.Core.Infrastructure.Gpu;
 using Portarr.Core.Status;
 
 namespace Portarr.Api.V1.Infrastructure;
@@ -15,7 +16,8 @@ public static class InfrastructureResourceBuilder
         Core.Catalog.Catalog catalog,
         IReadOnlyDictionary<string, EnvironmentMetrics> metrics,
         IReadOnlyList<WorkloadView> fleetWorkloads,
-        IReadOnlyDictionary<HostMachineKey, HostMetricsView>? hosts = null)
+        IReadOnlyDictionary<HostMachineKey, HostMetricsView>? hosts = null,
+        IReadOnlyDictionary<string, GpuView>? gpus = null)
     {
         hosts ??= new Dictionary<HostMachineKey, HostMetricsView>();
         var names = catalog.Environments.ToDictionary(e => e.Id, e => e.Name, StringComparer.Ordinal);
@@ -43,7 +45,9 @@ public static class InfrastructureResourceBuilder
                     .ToList(),
                 names,
                 hosts.GetValueOrDefault(new HostMachineKey(environment.Id, machine.Machine.Id)),
-                hosts)).ToList();
+                hosts,
+                // The card of a Docker host belongs to its one machine.
+                machines.Count == 1 ? gpus?.GetValueOrDefault(environment.Id) : null)).ToList();
 
             var known = machines.Select(m => m.Machine.Id).ToHashSet(StringComparer.Ordinal);
             var unplaced = machines.Count == 0 ? [] : placed.Where(p => p.Machine is null || !known.Contains(p.Machine)).Select(p => p.View.Workload.Id).ToList();
@@ -67,7 +71,8 @@ public static class InfrastructureResourceBuilder
         IReadOnlyList<MachineWorkloadResource> workloads,
         Dictionary<string, string> names,
         HostMetricsView? agent,
-        IReadOnlyDictionary<HostMachineKey, HostMetricsView> hosts)
+        IReadOnlyDictionary<HostMachineKey, HostMetricsView> hosts,
+        GpuView? gpu)
     {
         var machine = view.Machine;
         return new MachineResource(
@@ -85,7 +90,14 @@ public static class InfrastructureResourceBuilder
             workloads,
             view.HostEnvironmentId is { } hypervisor ? new MachineHostResource(hypervisor, names.GetValueOrDefault(hypervisor, hypervisor)) : null,
             (view.Guests ?? []).Select(g => ToGuest(g, hosts.GetValueOrDefault(new HostMachineKey(g.EnvironmentId, g.MachineId)))).ToList(),
-            agent?.ToResource());
+            agent?.ToResource(),
+            ToSystem(MachineSystem.Merge(agent?.Latest?.System, machine.System)),
+            gpu?.ToResource());
+    }
+
+    private static MachineSystemResource? ToSystem(MachineSystem? system)
+    {
+        return system is null ? null : new MachineSystemResource(system.OsId, system.OsName, system.OsVersion, system.Kernel, system.KubeletVersion);
     }
 
     /// <summary>A VM with its own host agent reports its whole load and memory (D-72), not only its containers.</summary>

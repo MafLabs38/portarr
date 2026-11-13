@@ -34,6 +34,10 @@ export const knownReadTools = [
   'get_environment_knowledge',
   'get_catalog_item',
   'get_portal',
+  'list_mcp_servers',
+  'get_mcp_server',
+  'list_workstations',
+  'get_workstation_plan',
 ].map((tool) => `mcp__${serverName}__${tool}`);
 
 export const rejectedMessage = 'The operator rejected this change. Do not retry it; ask what they want instead.';

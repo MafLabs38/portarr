@@ -127,6 +127,8 @@ internal static class CatalogDeserializers
         return new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
             .WithTypeConverter(new CheckDocumentConverter())
-            .WithTypeConverter(new GitHubSourcesConverter());
+            .WithTypeConverter(new GitHubSourcesConverter())
+            .WithTypeConverter(new McpValueDocumentConverter())
+            .WithTypeConverter(new WantedDocumentConverter());
     }
 }

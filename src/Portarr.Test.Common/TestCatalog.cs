@@ -77,6 +77,6 @@ public static class TestCatalog
 
     public static CatalogParseResult Parse(string yaml, params IEnvironmentConnector[] more)
     {
-        return CatalogParser.Parse(yaml, [.. Connectors, .. more]);
+        return CatalogParser.Parse(yaml, [.. Connectors, .. more], null, Mcp.TestMcp.Vocabulary);
     }
 }

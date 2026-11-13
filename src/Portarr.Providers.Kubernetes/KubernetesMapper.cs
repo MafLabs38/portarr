@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Portarr.Core.Infrastructure;
+using Portarr.Core.Metrics;
 using Portarr.Core.Workloads;
 
 namespace Portarr.Providers.Kubernetes;
@@ -185,8 +186,23 @@ internal static partial class KubernetesMapper
             roles,
             ready is null ? null : ready == "True",
             metrics?.Timestamp,
-            node.Status?.Addresses?.FirstOrDefault(a => a.Type == "InternalIP")?.Address);
+            node.Status?.Addresses?.FirstOrDefault(a => a.Type == "InternalIP")?.Address,
+            ToSystem(node.Status?.NodeInfo));
     }
+
+    /// <summary>The system a node reports (D-118): the image text as the operating system name, the kernel and the kubelet version; null when it reports none.</summary>
+    internal static MachineSystem? ToSystem(NodeSystemInfo? info)
+    {
+        if (info is null)
+        {
+            return null;
+        }
+
+        var system = new MachineSystem(null, Blank(info.OsImage), null, Blank(info.KernelVersion), Blank(info.KubeletVersion));
+        return system.IsEmpty ? null : system;
+    }
+
+    private static string? Blank(string? text) => ReportedText.Clean(text);
 
     /// <summary>A metrics window ("20.064s", "1m0s") in time; null when it cannot be read.</summary>
     public static TimeSpan? ToWindow(string? window)

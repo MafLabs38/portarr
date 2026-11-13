@@ -14,8 +14,13 @@ An accepted ADR is never edited to change its decision: a new ADR supersedes it.
 | [0007](0007-text-level-catalog-editing.md) | Text-level catalog editing: comments kept, only changed nodes re-emitted | D-83 |
 | [0008](0008-headless-agent-cli-behind-an-adapter.md) | A headless agent CLI behind an adapter, not a terminal | D-87, D-88 |
 | [0009](0009-local-accounts-and-permission-based-roles.md) | Local accounts, cookie session and permission-based roles | D-92 to D-99 |
-| [0010](0010-optional-read-only-agent.md) | An optional, read-only Portarr agent as the simple way to connect a machine (superseded by 0011 for the name, the API and the connector) | D-100, D-101 |
-| [0011](0011-reader-speaking-the-existing-protocols.md) | The reader: a read-only component that speaks the protocols Portarr already reads | D-102 |
+| [0010](0010-optional-read-only-agent.md) | An optional, read-only Portarr agent as the simple way to connect a machine (superseded by 0011, then by 0017) | D-100, D-101 |
+| [0011](0011-reader-speaking-the-existing-protocols.md) | The reader: a read-only component that speaks the protocols Portarr already reads (superseded by 0017) | D-102 |
 | [0012](0012-kubernetes-reuses-the-node-exporter-parser.md) | The Kubernetes connector reuses the node_exporter parser | D-72 |
 | [0013](0013-connectors-own-their-environment-settings.md) | Connectors own their environment settings | D-105 |
 | [0014](0014-releases-with-semantic-release.md) | Releases are decided by semantic-release from main | D-109 |
+| [0015](0015-review-findings-are-answered-in-a-register-the-agents-read.md) | Review findings are answered in a register the agents read; a serious one not fixed is the maintainer's to accept | — |
+| [0016](0016-mcp-servers-are-defined-in-portarr-and-replicated-onto-machines.md) | MCP servers are defined in Portarr and replicated onto machines, never the other way | D-110 to D-116 |
+| [0017](0017-the-reader-is-retired.md) | The reader is retired: node_exporter is the host source | D-117 |
+| [0018](0018-platforms-are-reported-from-the-tools-portarr-reads-and-two-public-sources.md) | Platforms are reported from the tools Portarr reads and two public sources | D-118, D-119 |
+| [0019](0019-the-gpu-is-read-from-a-standard-exporter.md) | The GPU is read from a standard exporter | D-120 |

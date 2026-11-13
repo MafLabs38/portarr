@@ -6,13 +6,13 @@ Generic deployment examples live in [`deploy/companions/`](../deploy/companions/
 
 | Capability | Companion | Portarr reads |
 |---|---|---|
-| One container per machine: its containers and its host metrics | [The Portarr reader](connectors/reader.md) (`portarr-reader`, optional, shipped with Portarr; [compose example](../deploy/companions/reader/docker-compose.yml)) | `/v1/docker/` and `/v1/host`, every second |
 | Host metrics (CPU per core, I/O wait, memory, swap) | [node_exporter](#node_exporter) | `/metrics`, every second |
+| Graphics card of a Docker host (load, memory, encoder, decoder, temperature, power) | [NVIDIA GPU exporter](#nvidia-gpu-exporter) (`nvidia_gpu_exporter`, [compose example](../deploy/companions/gpu-exporter/docker-compose.yml)) | `/metrics`, every 5 seconds |
 | Backups of hosts and VMs | [Backrest](#backrest) | plans and their last backups (its API) |
 | Backups in Kubernetes | [K8up](#k8up) | `Schedule`, `Backup` and `Snapshot` resources |
 | Built-in chat (optional) | [Agent runner](#agent-runner) (`portarr-agent`) | — (it calls Portarr's MCP server) |
 
-The reader is the one component the product ships (D-100, amending D-38): it replaces the Docker socket proxy and node_exporter on a machine with a single container, and speaks the same two protocols, so everything below still applies to people who run those tools directly.
+The product ships no machine-side component (D-117): a machine is connected through the tools it runs, listed below.
 
 Companions are read and never changed by Portarr (D-31): GET only, except Backrest, whose API takes POST for the two read calls Portarr makes.
 
@@ -29,6 +29,7 @@ Without it, a Docker host's card only knows the **sum of its containers** (D-57)
 - the **memory ring**: used (total − available) split into containers or pods, VMs and the host's own apps, then reclaimable cache and free, parts that add up to the total;
 - **swap** (used of total, or "No swap");
 - the **load average** and the **CPU temperature** when a CPU sensor is exposed.
+- the **operating system and the kernel** (`node_os_info`, `node_uname_info`, D-118), shown under the machine's name and reported with their support dates in Maintenance → Platforms (D-119): they need the host's `/` mounted and `--path.rootfs`, as below.
 
 Formulas and details: [connectors/node-exporter.md](connectors/node-exporter.md).
 
@@ -116,6 +117,30 @@ Details: [catalog.md](catalog.md#host-metrics-node_exporter).
 2. On the Infrastructure page, the machine's card says "node_exporter every 1 s", its live indicator stays at 0–1 s and the per-core bars move every second.
 3. The figures match the host: `free -b` "used" equals the card's used memory; the load matches `top` (100 − id) over the same seconds.
 4. A card that says "node_exporter: …" names why it is not read (`connection refused or host down`, `access refused (missing permission)` for a node read through the API server without `pods/proxy` in the exporter's namespace…). It keeps its connector's values meanwhile.
+
+## NVIDIA GPU exporter
+
+### What it gives Portarr
+
+The load of the graphics card of a Docker host (D-120): the card's load, memory, video encoder and decoder (what a media server uses), temperature and power, its chart, and, next to it, the containers that have the card attached. Portarr does not measure the card's load per container. Details: [connectors/gpu-exporter.md](connectors/gpu-exporter.md).
+
+### On a Docker host with an NVIDIA card
+
+Run `utkuozdemir/nvidia_gpu_exporter` (the `-nvml` image) with the NVIDIA runtime, published on the host's LAN address only ([`deploy/companions/gpu-exporter/docker-compose.yml`](../deploy/companions/gpu-exporter/docker-compose.yml)). It needs the NVIDIA driver and the NVIDIA Container Toolkit on the host (the runtime a media server already uses). It has **no authentication**: allow only Portarr's host on port 9835, like node_exporter.
+
+### Catalog
+
+```yaml
+environments:
+  - id: server-1
+    docker: { url: "http://10.0.0.10:2375" }
+    nvidiaGpu: { exporter: "http://10.0.0.10:9835/metrics" }
+```
+
+### Verification
+
+1. `curl http://10.0.0.10:9835/metrics | grep nvidia_smi_gpu_info` shows the card.
+2. The machine's card on the Infrastructure page shows a GPU box under its memory; a card that cannot be read says why.
 
 ## Backrest
 

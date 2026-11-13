@@ -118,6 +118,12 @@ public sealed class MaintenanceToolsFixture : IClassFixture<MaintenanceScan>
     }
 
     [Fact]
+    public void should_carry_the_platforms_the_machines_run_even_when_there_are_none()
+    {
+        _scan.Report.GetProperty("platforms").ValueKind.Should().Be(JsonValueKind.Array);
+    }
+
+    [Fact]
     public void should_only_read_github_with_the_token_of_the_environment()
     {
         _scan.GitHub.Calls.Should().NotBeEmpty().And.OnlyContain(c => c.StartsWith("GET ", StringComparison.Ordinal), "Portarr never writes to GitHub");
