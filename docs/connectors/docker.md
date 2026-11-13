@@ -32,7 +32,7 @@ environments:
   - { id: server-1, name: Server 1, docker: { url: "http://server-1:2375" } }
 ```
 
-## Behind a proxy that asks for a token
+## Behind a reverse proxy
 
 `docker.url` may carry a base path (a reverse proxy serving the API under `/docker/`).
 
@@ -47,7 +47,7 @@ When Portarr runs on the Docker host itself, it can use `unix:///var/run/docker.
 | Containers, state, healthcheck, Compose project, mounts (bind mounts and named volumes: where their data lives, V3) | `GET /containers/json?all=true` | every 15 s |
 | CPU (cores) and memory (without page cache) | `GET /containers/{name}/stats?stream=false` | on demand, every 5 s on the container page |
 | Logs (stdout/stderr, timestamps) | `GET /containers/{name}/logs?follow=true` | live (server-sent events) |
-| The TTY flag of a container (to read its logs) and, on a host that declares a GPU exporter, whether it was created with the NVIDIA runtime or a GPU device request (D-120) | `GET /containers/{id}/json` | on demand; the GPU part once per container, at most 20 per pass |
+| The TTY flag of a container (to read its logs; a read-only socket proxy that allows the container list and logs allows this too) and, on a host that declares a GPU exporter, whether it was created with the NVIDIA runtime or a GPU device request (D-120) | `GET /containers/{id}/json` | on demand; the GPU part once per container, at most 20 per pass |
 
 ## Machine card (Infrastructure)
 

@@ -42,6 +42,15 @@ A run on `main` that finds nothing worth releasing (only `chore`, `docs`…) pub
 
 The `portarr-reader` image of earlier releases (ADR 0017) is no longer published; its published tags stay on the registry.
 
+## Upgrading from a release that used the reader
+
+The reader (`portarr-reader`, `reader:` in the catalog) was documented in 0.1.0 and 0.1.1 and is **removed** (D-117). A catalog that still declares it is refused (the strict parser names the key), and on a fresh start the portal comes up empty until the catalog is fixed. Before upgrading, replace in each environment:
+
+- `reader: { url, tokenEnv }` by `docker: { url }` (a read-only [socket proxy](connectors/docker.md)) and `hostMetrics: { nodeExporter }` ([node_exporter](connectors/node-exporter.md)), and run those two tools in place of the reader;
+- remove `tokenEnv` from `docker:` and `hostMetrics:` (a bearer token is no longer sent), and the `PORTARR_READER_*` variables.
+
+A catalog that never used the reader needs nothing.
+
 Tags: `X.Y.Z`, `latest`, the branch (`develop`, `main`) and `sha-<commit>`.
 
 ## The seed tag

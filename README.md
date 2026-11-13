@@ -91,7 +91,7 @@ Settings come from `appsettings.json`, overridden by `PORTARR__*` environment va
 | `PORTARR__AUTH__REQUIRESETUPCODE` | `true` | Ask for the one-time setup code on a fresh install |
 | `PORTARR__TRUSTEDPROXIES` | — (none) | Reverse proxies allowed to set `X-Forwarded-For` / `X-Forwarded-Proto`: comma-separated IPs or CIDR networks, e.g. `10.0.0.2,10.0.1.0/24`. Empty: these headers are ignored |
 
-Connectors: [Docker](docs/connectors/docker.md).
+Connectors: [Docker](docs/connectors/docker.md), [Kubernetes](docs/connectors/kubernetes.md), [node_exporter](docs/connectors/node-exporter.md), [NVIDIA GPU exporter](docs/connectors/gpu-exporter.md), [platform versions](docs/connectors/platforms.md).
 
 Prometheus: `GET /metrics` needs the `system.view` permission, so a scrape sends a per-user API key (create it in your profile, scope `read`; the user's role must hold `system.view`, as Observer, Operator and Admin do):
 

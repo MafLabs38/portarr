@@ -27,7 +27,7 @@ D-03 says Portarr integrates the tools it connects to and does not reimplement t
 
 - The repository goes back to one language. No more Cargo project, Rust checks, Rust Dependabot entries or second image.
 - The images already published as `portarr-reader` stay on the registry; nothing new is published.
-- Nobody has to migrate: no catalog in use declares `reader:`.
+- **This is a breaking change of a released product.** The reader and its catalog keys were documented in 0.1.0 and 0.1.1: a catalog that declares `reader:` (or `tokenEnv` on `docker:` or `hostMetrics:`) must be migrated before upgrading (`docs/releasing.md`, "Upgrading from a release that used the reader"). The maintainer's own catalogs never used it; the change is marked as breaking for the release notes.
 - What the reader would have offered for connecting a machine in one step (a single container, a token) is not available. A machine is connected through the tools it normally runs; the connector pages say what to install.
 - Per-container GPU load cannot be measured with a standard exporter. Portarr shows the load of the card and the containers that have it attached. A custom probe stays possible later if that figure is wanted, as a new decision.
 
