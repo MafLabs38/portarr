@@ -25,6 +25,7 @@ export {
   CircleX as DOWN,
   Pencil as EDIT,
   ExternalLink as EXTERNAL_LINK,
+  Gpu as GPU,
   HeartPulse as HEALTHCHECK,
   CircleCheck as HEALTHY,
   Globe as HTTP_CHECK,

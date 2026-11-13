@@ -194,6 +194,7 @@ On the Infrastructure page, the host's card then splits its memory into **Contai
 
 Docker sees only its containers and metrics-server only refreshes a node every ~15 s. A **node_exporter** on a machine gives Portarr the machine as its kernel sees it, every second: overall load, I/O wait, load per core, memory, swap and CPU temperature (D-72, [connectors/node-exporter.md](connectors/node-exporter.md); installation in [companions.md](companions.md#node_exporter)).
 
+- `gpu: { exporter: <URL> }` on a **Docker** environment: the `/metrics` URL of the NVIDIA GPU exporter of the machine's graphics card (`http` or `https`, no credentials in it): the card's load, memory, video encoder and decoder, temperature and power appear on the machine's card, with the containers that have the card attached (D-120, [the connector](connectors/gpu-exporter.md)).
 - `hostMetrics: { nodeExporter: <URL> }` on a **Docker** environment: the `/metrics` URL of the host's node_exporter (`http` or `https`, no credentials in it). `interval` (optional, `5s`, `1m`, from 1 second to 5 minutes, default every second) reads it less often, for a machine behind a slow link or a large fleet (D-107).
 - `kubernetes.nodeExporter:` on a Kubernetes environment, for every node:
   - `port` (default 9100): node_exporter's port at the node's InternalIP (a DaemonSet with `hostNetwork`).

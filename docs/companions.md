@@ -117,6 +117,30 @@ Details: [catalog.md](catalog.md#host-metrics-node_exporter).
 3. The figures match the host: `free -b` "used" equals the card's used memory; the load matches `top` (100 − id) over the same seconds.
 4. A card that says "node_exporter: …" names why it is not read (`connection refused or host down`, `access refused (missing permission)` for a node read through the API server without `pods/proxy` in the exporter's namespace…). It keeps its connector's values meanwhile.
 
+## NVIDIA GPU exporter
+
+### What it gives Portarr
+
+The load of the graphics card of a Docker host (D-120): the card's load, memory, video encoder and decoder (what a media server uses), temperature and power, its chart, and, next to it, the containers that have the card attached. Portarr does not measure the card's load per container. Details: [connectors/gpu-exporter.md](connectors/gpu-exporter.md).
+
+### On a Docker host with an NVIDIA card
+
+Run `utkuozdemir/nvidia_gpu_exporter` (the `-nvml` image) with the NVIDIA runtime, published on the host's LAN address only ([`deploy/companions/gpu-exporter/docker-compose.yml`](../deploy/companions/gpu-exporter/docker-compose.yml)). It needs the NVIDIA driver and the NVIDIA Container Toolkit on the host (the runtime a media server already uses). It has **no authentication**: allow only Portarr's host on port 9835, like node_exporter.
+
+### Catalog
+
+```yaml
+environments:
+  - id: server-1
+    docker: { url: "http://10.0.0.10:2375" }
+    gpu: { exporter: "http://10.0.0.10:9835/metrics" }
+```
+
+### Verification
+
+1. `curl http://10.0.0.10:9835/metrics | grep nvidia_smi_gpu_info` shows the card.
+2. The machine's card on the Infrastructure page shows a GPU box under its memory; a card that cannot be read says why.
+
 ## Backrest
 
 [Backrest](https://github.com/garethgeorge/backrest) is a web UI and scheduler for [restic](https://restic.net): encrypted, deduplicated, incremental snapshots of folders and database dumps to any restic target (a local folder, S3, Backblaze B2, SFTP…). Portarr targets **v1.14.x**.

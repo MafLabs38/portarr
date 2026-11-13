@@ -8,6 +8,7 @@ import translate from 'Utilities/String/translate';
 import ConsumerBars from './ConsumerBars';
 import { useConsumerSortStore } from './consumerSortStore';
 import ContainerGauges from './ContainerGauges';
+import GpuBox from './GpuBox';
 import GuestBars from './GuestBars';
 import HostGauges from './HostGauges';
 import styles from './MachineCard.module.css';
@@ -68,6 +69,8 @@ function MachineCard({ environment, machine, workloads, hostReads }: Readonly<Ma
       ) : (
         <ContainerGauges chart={chart} cpu={cpu} guests={guests} machine={machine} memory={memory} scope={scope} />
       )}
+
+      {machine.gpu ? <GpuBox environment={environment} gpu={machine.gpu} workloads={workloads} /> : null}
 
       {machine.guests.length > 0 ? (
         <GuestBars

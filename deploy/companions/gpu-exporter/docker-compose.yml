@@ -1,0 +1,16 @@
+# The NVIDIA GPU exporter on a Docker host with an NVIDIA card: Portarr's GPU source (docs/companions.md#nvidia-gpu-exporter).
+# It reads the driver through the NVIDIA container runtime (native NVML flavor, no nvidia-smi subprocess) and answers on port 9835
+# with the card's load, memory, video encoder and decoder, temperature and power. Read-only. It has no authentication:
+# publish it on the host's LAN address only and allow only Portarr's host (firewall).
+services:
+  nvidia-gpu-exporter:
+    image: utkuozdemir/nvidia_gpu_exporter:1.18.0-nvml   # pin a version (or a digest) in production; keep the -nvml flavor
+    container_name: nvidia-gpu-exporter
+    restart: unless-stopped
+    runtime: nvidia                     # the NVIDIA Container Toolkit hands the driver library to the container
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: utility   # only what is needed to read the card, not compute or video
+    ports:
+      - "10.0.0.10:9835:9835"           # the host's LAN address, never 0.0.0.0
+    mem_limit: 128m
