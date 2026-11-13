@@ -18,6 +18,9 @@ public sealed class GpuExporterSource : IGpuSource
     /// <summary>The largest answer read, in bytes once decompressed: a card's families are a few hundred lines, and a runaway answer is not the exporter.</summary>
     public const int MaxBytes = 1_000_000;
 
+    /// <summary>The cards read per exporter: an unauthenticated exporter must not be able to make Portarr keep an unbounded number of them.</summary>
+    public const int MaxCards = 16;
+
     private const string Prefix = "nvidia_smi_";
 
     private readonly IHttpClientFactory _httpClientFactory;
@@ -51,14 +54,20 @@ public sealed class GpuExporterSource : IGpuSource
             {
                 if (!cards.TryGetValue(uuid, out var card))
                 {
-                    cards[uuid] = card = new Card(uuid);
+                    // Cards past the limit are not kept at all while the scrape is read.
+                    if (cards.Count >= MaxCards * 4)
+                    {
+                        continue;
+                    }
+
+                    cards[uuid] = card = new Card(ReportedText.Clean(uuid) ?? uuid[..Math.Min(uuid.Length, ReportedText.MaxLength)]);
                 }
 
                 card.Add(sample);
             }
         }
 
-        return cards.Values.OrderBy(c => c.Index).ThenBy(c => c.Id, StringComparer.Ordinal).Select(c => c.ToReading()).ToList();
+        return cards.Values.OrderBy(c => c.Index).ThenBy(c => c.Id, StringComparer.Ordinal).Take(MaxCards).Select(c => c.ToReading()).ToList();
     }
 
     private static bool IsWanted(string name) => Families.Contains(name);
@@ -114,7 +123,7 @@ public sealed class GpuExporterSource : IGpuSource
                 Bytes("nvidia_smi_memory_total_bytes"),
                 Percent("nvidia_smi_utilization_encoder_ratio"),
                 Percent("nvidia_smi_utilization_decoder_ratio"),
-                _values.TryGetValue("nvidia_smi_encoder_stats_session_count", out var sessions) && sessions >= 0 ? (int)sessions : null,
+                _values.TryGetValue("nvidia_smi_encoder_stats_session_count", out var sessions) && sessions is >= 0 and <= int.MaxValue ? (int)sessions : null,
                 Number("nvidia_smi_temperature_gpu"),
                 Number("nvidia_smi_power_draw_watts"),
                 Number("nvidia_smi_power_limit_watts") ?? Number("nvidia_smi_enforced_power_limit_watts"));
@@ -125,8 +134,8 @@ public sealed class GpuExporterSource : IGpuSource
         /// <summary>A ratio of the exporter (0 to 1) as the percent it is shown as, kept in 0 to 100.</summary>
         private double? Percent(string family) => _values.TryGetValue(family, out var value) ? Math.Round(Math.Clamp(value * 100, 0, 100), 1) : null;
 
-        private long? Bytes(string family) => _values.TryGetValue(family, out var value) && value >= 0 ? (long)value : null;
+        private long? Bytes(string family) => _values.TryGetValue(family, out var value) && value is >= 0 and < 9e18 ? (long)value : null;
 
-        private static string? Blank(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+        private static string? Blank(string? text) => ReportedText.Clean(text);
     }
 }

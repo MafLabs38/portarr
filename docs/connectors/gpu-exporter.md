@@ -4,7 +4,7 @@ Reads the graphics card of a Docker host from an **NVIDIA GPU exporter** every 5
 
 ## What is read
 
-One `GET` of the `/metrics` URL, gzip accepted, 5 s timeout, no redirects, no credentials. The answer is streamed line by line; only these families are parsed (every other line is skipped unread, an answer over one million characters is refused). Each carries the card's `uuid`:
+One `GET` of the `/metrics` URL, gzip accepted, 5 s timeout, no redirects, no credentials. The answer is streamed line by line; only these families are parsed (every other line is skipped unread, an answer over one million bytes, once decompressed, is refused; at most 16 cards are kept, and a name is cut to 128 characters). Each carries the card's `uuid`:
 
 | Metric | Use |
 |---|---|

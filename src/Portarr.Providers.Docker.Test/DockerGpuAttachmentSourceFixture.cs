@@ -17,6 +17,8 @@ public sealed class DockerGpuAttachmentSourceFixture
 
     private readonly List<string> _asked = [];
     private readonly HashSet<string> _failing = [];
+    private readonly HashSet<string> _oversized = [];
+    private readonly List<HttpMethod> _methods = [];
 
     private DockerGpuAttachmentSource Source => new(_ => new HttpClient(new Handler(this)) { BaseAddress = new Uri("http://docker/") });
 
@@ -50,26 +52,37 @@ public sealed class DockerGpuAttachmentSourceFixture
     }
 
     [Fact]
-    public async Task should_read_a_container_that_could_not_be_inspected_again_on_the_next_pass()
+    public async Task should_skip_a_container_that_cannot_be_inspected_without_failing_the_others_and_read_it_again_next_pass()
     {
         var source = Source;
         _failing.Add("jellyfin");
 
-        var first = () => source.AttachedAsync(Environment, All, TestContext.Current.CancellationToken);
-        await first.Should().ThrowAsync<HttpRequestException>();
-        _failing.Clear();
+        var first = await source.AttachedAsync(Environment, All, TestContext.Current.CancellationToken);
 
+        first.Should().BeEquivalentTo(["whisper", "legacy"], "one failing inspection does not hide the others");
+        _failing.Clear();
         (await source.AttachedAsync(Environment, All, TestContext.Current.CancellationToken)).Should().Contain("jellyfin");
     }
 
     [Fact]
-    public async Task should_inspect_at_most_a_few_containers_per_pass_and_never_write()
+    public async Task should_skip_a_container_whose_inspect_answer_is_larger_than_the_cap()
+    {
+        _oversized.Add("jellyfin");
+
+        var attached = await Source.AttachedAsync(Environment, All, TestContext.Current.CancellationToken);
+
+        attached.Should().BeEquivalentTo(["whisper", "legacy"]);
+    }
+
+    [Fact]
+    public async Task should_inspect_at_most_a_few_containers_per_pass_with_a_get_only()
     {
         var many = Enumerable.Range(0, DockerGpuAttachmentSource.InspectionsPerPass + 5).Select(i => Container($"c{i:D2}")).ToList();
 
         await Source.AttachedAsync(Environment, many, TestContext.Current.CancellationToken);
 
         _asked.Should().HaveCount(DockerGpuAttachmentSource.InspectionsPerPass);
+        _methods.Should().OnlyContain(method => method == HttpMethod.Get, "Portarr never writes to Docker");
     }
 
     [Fact]
@@ -95,7 +108,7 @@ public sealed class DockerGpuAttachmentSourceFixture
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            request.Method.Should().Be(HttpMethod.Get);
+            owner._methods.Add(request.Method);
             var path = request.RequestUri!.AbsolutePath.TrimStart('/');
             owner._asked.Add(path);
             var id = path.Split('/')[1];
@@ -104,7 +117,7 @@ public sealed class DockerGpuAttachmentSourceFixture
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
             }
 
-            var body = Inspects.GetValueOrDefault(id, "{ \"Id\": \"x\", \"Config\": { \"Tty\": false } }");
+            var body = owner._oversized.Contains(id) ? new string(' ', 600 * 1024) + "{}" : Inspects.GetValueOrDefault(id, "{ \"Id\": \"x\", \"Config\": { \"Tty\": false } }");
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) });
         }
     }

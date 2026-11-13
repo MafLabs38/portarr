@@ -99,6 +99,45 @@ public sealed class GpuExporterSourceFixture
     }
 
     [Fact]
+    public async Task should_fall_back_to_the_enforced_power_limit_and_drop_a_negative_or_absurd_figure()
+    {
+        var text = """
+            nvidia_smi_gpu_info{index="x",name="Card",uuid="GPU-A"} 1
+            nvidia_smi_enforced_power_limit_watts{uuid="GPU-A"} 150
+            nvidia_smi_encoder_stats_session_count{uuid="GPU-A"} -1
+            nvidia_smi_memory_total_bytes{uuid="GPU-A"} 1e30
+            """;
+
+        var card = (await Parse(text)).Single();
+
+        (card.PowerLimitWatts, card.EncoderSessions, card.MemoryTotalBytes).Should().Be((150.0, (int?)null, (long?)null));
+    }
+
+    [Fact]
+    public async Task should_list_a_card_without_its_info_line_under_a_generic_name_and_last()
+    {
+        var text = """
+            nvidia_smi_utilization_gpu_ratio{uuid="GPU-NOINFO"} 0.2
+            nvidia_smi_gpu_info{index="0",name="Known",uuid="GPU-A"} 1
+            """;
+
+        var cards = await Parse(text);
+
+        cards.Select(c => c.Name).Should().Equal("Known", "GPU");
+    }
+
+    [Fact]
+    public async Task should_keep_a_bounded_number_of_cards_and_a_bounded_name()
+    {
+        var lines = Enumerable.Range(0, 200).Select(i => $"nvidia_smi_gpu_info{{index=\"{i}\",name=\"{new string('N', 1000)}\",uuid=\"GPU-{i}\"}} 1");
+
+        var cards = await Parse(string.Join('\n', lines));
+
+        cards.Should().HaveCount(GpuExporterSource.MaxCards);
+        cards.Should().OnlyContain(c => c.Name.Length <= 128);
+    }
+
+    [Fact]
     public async Task should_ignore_a_sample_without_a_card_identifier()
     {
         (await Parse("nvidia_smi_utilization_gpu_ratio 0.5\nnvidia_smi_utilization_gpu_ratio{uuid=\"\"} 0.5")).Should().BeEmpty();

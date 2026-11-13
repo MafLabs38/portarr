@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Portarr.Core.Infrastructure;
+using Portarr.Core.Metrics;
 using Portarr.Core.Workloads;
 
 namespace Portarr.Providers.Kubernetes;
@@ -201,7 +202,7 @@ internal static partial class KubernetesMapper
         return system.IsEmpty ? null : system;
     }
 
-    private static string? Blank(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
+    private static string? Blank(string? text) => ReportedText.Clean(text);
 
     /// <summary>A metrics window ("20.064s", "1m0s") in time; null when it cannot be read.</summary>
     public static TimeSpan? ToWindow(string? window)

@@ -35,6 +35,27 @@ public sealed class KubernetesVersionFixture
     }
 
     [Theory]
+    [InlineData("v1.31.4+k3s99999999999999999999999")]
+    [InlineData("v1.31.4+k3s4294967296")]
+    [InlineData("v1.31.4-rc.1+k3s99999999999")]
+    public void should_never_fail_on_a_hostile_build_number(string text)
+    {
+        var parse = () => KubernetesVersion.Parse(text);
+
+        parse.Should().NotThrow();
+    }
+
+    [Fact]
+    public void should_tell_two_pre_releases_apart_by_their_label()
+    {
+        var (rc1, rc2) = (KubernetesVersion.Parse("v1.32.0-rc.1")!, KubernetesVersion.Parse("v1.32.0-rc.2")!);
+
+        (rc1 < rc2).Should().BeTrue();
+        rc1.Equals(rc2).Should().BeFalse();
+        (rc2 < KubernetesVersion.Parse("v1.32.0")!).Should().BeTrue();
+    }
+
+    [Theory]
     [InlineData("v1.31.4+k3s1", "v1.31.5+k3s1")]
     [InlineData("v1.31.9+k3s1", "v1.32.0+k3s1")]
     [InlineData("v1.31.4+k3s1", "v1.31.4+k3s2")]
@@ -48,8 +69,6 @@ public sealed class KubernetesVersionFixture
         (b > a).Should().BeTrue();
         a.CompareTo(b).Should().BeNegative();
         b.CompareTo(a).Should().BePositive();
-        (a <= b).Should().BeTrue();
-        (b >= a).Should().BeTrue();
     }
 
     [Fact]

@@ -102,7 +102,7 @@ public sealed record MaintenanceRefreshResource(
     DateTimeOffset? AvailableAt);
 
 /// <summary>
-/// A platform a machine runs (D-119): K3s or Kubernetes, or the operating system, with the version it reports, the newer versions that
+/// A platform a machine runs (D-119): <c>kind</c> is <c>os</c> for the operating system, else the distribution the kubelet names after its plus sign (<c>k3s</c>, <c>rke2r</c>…) or <c>kubernetes</c> for a plain one, with the version it reports, the newer versions that
 /// exist (<c>newestPatchOfMinor</c>: the newest of the same line; <c>nextMinor</c>: the next line, one at a time), the days its
 /// support stops and what that deserves (<c>level</c>: danger, warning or info; null when there is nothing to say). A date nobody
 /// announced is null, never an infinite support.

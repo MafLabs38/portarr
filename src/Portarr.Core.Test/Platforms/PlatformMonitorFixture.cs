@@ -29,7 +29,7 @@ public sealed class PlatformMonitorFixture
         Machines(new MachineSystem("ubuntu", "Ubuntu 25.10", "25.10", "6.17.0", "v1.32.0+k3s1"));
     }
 
-    private PlatformMonitor Monitor => new(_infrastructure, _hosts, [_k3s], [_lifecycle], Options.Create(new PortarrOptions()), _clock, NullLogger<PlatformMonitor>.Instance);
+    private PlatformMonitor CreateMonitor() => new(_infrastructure, _hosts, [_k3s], [_lifecycle], Options.Create(new PortarrOptions()), _clock, NullLogger<PlatformMonitor>.Instance);
 
     private void Machines(params MachineSystem[] systems)
     {
@@ -40,7 +40,7 @@ public sealed class PlatformMonitorFixture
     [Fact]
     public async Task should_read_only_what_the_machines_run_and_keep_it()
     {
-        var monitor = Monitor;
+        var monitor = CreateMonitor();
 
         await monitor.RunDueAsync(TestContext.Current.CancellationToken);
 
@@ -53,7 +53,7 @@ public sealed class PlatformMonitorFixture
     public async Task should_not_ask_for_the_k3s_lines_when_no_node_runs_k3s()
     {
         Machines(new MachineSystem("ubuntu", "Ubuntu 25.10", "25.10", null, "v1.32.0+rke2r1"));
-        var monitor = Monitor;
+        var monitor = CreateMonitor();
 
         await monitor.RunDueAsync(TestContext.Current.CancellationToken);
 
@@ -64,7 +64,7 @@ public sealed class PlatformMonitorFixture
     [Fact]
     public async Task should_read_again_after_six_hours_and_not_before()
     {
-        var monitor = Monitor;
+        var monitor = CreateMonitor();
         await monitor.RunDueAsync(TestContext.Current.CancellationToken);
 
         _clock.Advance(PlatformMonitor.Interval - TimeSpan.FromMinutes(1));
@@ -79,7 +79,7 @@ public sealed class PlatformMonitorFixture
     [Fact]
     public async Task should_keep_the_last_answer_when_a_source_fails_and_retry_within_the_hour()
     {
-        var monitor = Monitor;
+        var monitor = CreateMonitor();
         await monitor.RunDueAsync(TestContext.Current.CancellationToken);
         _k3s.ReadAsync(Arg.Any<CancellationToken>()).Returns<IReadOnlyList<ReleaseLine>>(_ => throw new HttpRequestException("down"));
 
@@ -96,7 +96,7 @@ public sealed class PlatformMonitorFixture
     public async Task should_not_ask_again_for_a_product_no_source_knows_until_the_interval_has_passed()
     {
         Machines(new MachineSystem("unraid-os", "Unraid OS 7.3", "7.3.4", null));
-        var monitor = Monitor;
+        var monitor = CreateMonitor();
 
         await monitor.RunDueAsync(TestContext.Current.CancellationToken);
         _clock.Advance(TimeSpan.FromMinutes(5));
@@ -111,7 +111,7 @@ public sealed class PlatformMonitorFixture
     {
         Machines(new MachineSystem("../../etc", "x", "1", null));
 
-        await Monitor.RunDueAsync(TestContext.Current.CancellationToken);
+        await CreateMonitor().RunDueAsync(TestContext.Current.CancellationToken);
 
         await _lifecycle.DidNotReceive().ReadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
@@ -119,7 +119,7 @@ public sealed class PlatformMonitorFixture
     [Fact]
     public async Task should_keep_the_cycles_it_has_and_retry_sooner_when_one_product_cannot_be_read()
     {
-        var monitor = Monitor;
+        var monitor = CreateMonitor();
         await monitor.RunDueAsync(TestContext.Current.CancellationToken);
         _lifecycle.ReadAsync("ubuntu", Arg.Any<CancellationToken>()).Returns<IReadOnlyList<SupportCycle>?>(_ => throw new HttpRequestException("down"));
 
@@ -133,6 +133,23 @@ public sealed class PlatformMonitorFixture
         await monitor.RunDueAsync(TestContext.Current.CancellationToken);
         await _lifecycle.Received(3).ReadAsync("ubuntu", Arg.Any<CancellationToken>());
         await _lifecycle.Received(2).ReadAsync("kubernetes", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task should_keep_the_old_answer_and_retry_sooner_when_one_source_fails_and_a_later_one_does_not_know_the_product()
+    {
+        var failing = Substitute.For<ISupportLifecycleSource>();
+        failing.ReadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<SupportCycle>?>(_ => throw new HttpRequestException("down"));
+        var silent = Substitute.For<ISupportLifecycleSource>();
+        silent.ReadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((IReadOnlyList<SupportCycle>?)null);
+        var monitor = new PlatformMonitor(_infrastructure, _hosts, [_k3s], [failing, silent], Options.Create(new PortarrOptions()), _clock, NullLogger<PlatformMonitor>.Instance);
+
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+        _clock.Advance(PlatformMonitor.RetryInterval);
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+
+        await failing.Received(4).ReadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        monitor.Current.Cycles.Should().BeEmpty();
     }
 
     [Fact]
@@ -150,7 +167,7 @@ public sealed class PlatformMonitorFixture
     [Fact]
     public async Task should_carry_the_display_name_of_the_platform_the_source_gives()
     {
-        var monitor = Monitor;
+        var monitor = CreateMonitor();
 
         await monitor.RunDueAsync(TestContext.Current.CancellationToken);
 
@@ -167,7 +184,7 @@ public sealed class PlatformMonitorFixture
             throw new OperationCanceledException(cancel.Token);
         });
 
-        var act = () => Monitor.RunDueAsync(cancel.Token);
+        var act = () => CreateMonitor().RunDueAsync(cancel.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
     }

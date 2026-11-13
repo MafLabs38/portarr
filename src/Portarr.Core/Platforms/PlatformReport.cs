@@ -110,9 +110,11 @@ public static partial class PlatformReport
             if (KubernetesVersion.Parse(system.KubeletVersion) is { } kubelet)
             {
                 products.Add(PlatformKinds.Kubernetes);
-                if (kubelet.Distribution is { } distribution && ProductPattern().IsMatch(distribution))
+                // The lines of the distribution the kubelet names, or of plain Kubernetes: the source that carries that name, if any, answers.
+                var platform = kubelet.Distribution ?? PlatformKinds.Kubernetes;
+                if (ProductPattern().IsMatch(platform))
                 {
-                    lines.Add(distribution);
+                    lines.Add(platform);
                 }
             }
 

@@ -130,7 +130,7 @@ internal static class NodeExporterParser
         /// <summary>A label of an info sample, without surrounding blanks; null when it is absent or empty.</summary>
         private static string? Text(Sample? sample, string label)
         {
-            return sample?.Label(label) is { } value && !string.IsNullOrWhiteSpace(value) ? value.Trim() : null;
+            return ReportedText.Clean(sample?.Label(label));
         }
 
         private void AddCpuTime(Sample sample)

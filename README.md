@@ -16,11 +16,11 @@ Portarr connects those dots.
 
 - **Launcher** — every app with its real icon, grouped by stack, `Ctrl+K` search, desktop apps included.
 - **Health** — HTTP/TCP/ping checks, native container health, heartbeats for jobs, stack viability rules.
-- **Infrastructure** — hypervisors → VMs → containers / pods, in one tree; inside *and* outside views of each VM.
+- **Infrastructure** — hypervisors → VMs → containers / pods, in one tree; inside *and* outside views of each VM; the operating system of each machine and the graphics card of a Docker host with the containers attached to it.
 - **Resources** — "who consumes what" explorer, capacity and over-allocation, disk-full forecasts.
 - **Logs** — live tail for containers and pods, history via Loki, probable cause of unexpected stops.
 - **Data** — databases, storage and **backup verification** (is the last backup recent, external, plausible?).
-- **Maintenance** — image updates, deployed vs declared vs released versions, end-of-life runtimes, Dependabot alerts.
+- **Maintenance** — image updates, deployed vs declared vs released versions, the platforms the machines run (K3s, operating systems) with their newer versions and end-of-support dates, Dependabot alerts.
 - **Security** — image CVEs (Trivy), dependency vulnerabilities, login events.
 - **MCP servers** — describe your MCP servers once, see which are down, and let any assistant install them on any workstation ([docs/verticals/mcp-servers.md](docs/verticals/mcp-servers.md)).
 - **Alerts** — e-mail, in-app and browser push notifications, periodic digest.

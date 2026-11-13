@@ -1,6 +1,6 @@
 namespace Portarr.Core.Platforms;
 
-/// <summary>The kinds of platform Portarr reports on (D-119).</summary>
+/// <summary>The kinds of platform Portarr reports on (D-119): <c>os</c>, <c>kubernetes</c> for a plain kubelet, and the name of a distribution (<c>k3s</c>…) for the others.</summary>
 public static class PlatformKinds
 {
     public const string K3s = "k3s";

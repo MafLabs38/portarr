@@ -43,7 +43,7 @@ public sealed partial class PlatformMonitor : BackgroundService, IPlatformKnowle
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<PlatformMonitor> _logger;
 
-    // Only touched by RunDueAsync, which the loop never runs twice at the same time.
+    // Guarded by _gate: a pass runs alone.
     private readonly Dictionary<string, DateTimeOffset> _nextRuns = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly bool _enabled;

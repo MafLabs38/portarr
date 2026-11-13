@@ -190,9 +190,10 @@ public sealed class PlatformReportFixture
             Entry(new MachineSystem("../../etc", "x", "1", null)),
             Entry(new MachineSystem("debian", "Debian 13", "13", null, "v1.32.0+rke2r1")),
             Entry(new MachineSystem("unraid-os", "Unraid", "7", null)),
+            Entry(new MachineSystem(null, null, null, null, "v1.33.0")),
         ]);
 
-        lines.Should().BeEquivalentTo(["k3s", "rke2r"], "every distribution a node names is asked for; a source that carries the name answers");
+        lines.Should().BeEquivalentTo(["k3s", "rke2r", "kubernetes"], "every distribution a node names is asked for; a source that carries the name answers");
         products.Should().BeEquivalentTo(["ubuntu", "kubernetes", "debian", "unraid-os"]);
     }
 

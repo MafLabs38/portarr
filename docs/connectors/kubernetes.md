@@ -4,6 +4,8 @@ Lists the **pods** of every namespace as workloads and the **nodes** as machines
 
 ## Read-only ServiceAccount
 
+The ServiceAccount of the examples is named `portarr-reader` for historical reasons: it is **Portarr's own read-only account in your cluster**, unrelated to the Rust reader that ADR 0017 retired. Renaming it would only mean changing the name in your manifests.
+
 Portarr needs `get` and `list` on pods and nodes, and on the metrics of both. Two optional rules add data (V3 Data and backups): `list` on `apps/statefulsets` gives the size requested by StatefulSet claims, and, for the Data page's backup sources (D-81), `get, list` on `batch/cronjobs` and `batch/jobs` (a `cronjob:` source: last success, last failed attempt) and on `schedules`, `backups` and `snapshots` of the `k8up.io` group (a `k8up:` source). Without them, sizes are unknown and the copies those sources should prove are Unknown with the reason `http-403`. One more optional rule reads a node's node_exporter through the API server: `get` on `pods/proxy` in the exporter's namespace only (a `Role`, see [companions](../companions.md#in-kubernetes)); never the cluster-wide `nodes/proxy`. Nothing else: no secrets, no PersistentVolumeClaims, no writes, no `exec`.
 
 ```yaml

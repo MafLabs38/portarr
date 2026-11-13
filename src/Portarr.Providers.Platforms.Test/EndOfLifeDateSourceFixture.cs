@@ -73,6 +73,17 @@ public sealed class EndOfLifeDateSourceFixture
     }
 
     [Fact]
+    public async Task should_refuse_an_answer_larger_than_the_cap()
+    {
+        var huge = "{ \"result\": { \"releases\": [" + string.Join(',', Enumerable.Repeat("""{ "name": "26.04" }""", PlatformsHttp.MaxResponseBytes / 10)) + "] } }";
+        var source = new EndOfLifeDateSource(new StubHttp(_ => StubHttp.Json(huge)));
+
+        var act = () => source.ReadAsync("ubuntu", TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<InvalidDataException>();
+    }
+
+    [Fact]
     public async Task should_refuse_an_answer_without_releases()
     {
         var source = new EndOfLifeDateSource(new StubHttp(_ => StubHttp.Json("""{ "result": { "name": "x" } }""")));

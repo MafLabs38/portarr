@@ -139,15 +139,13 @@ export interface MaintenanceRefresh {
   availableAt: string | null;
 }
 
-/** What a machine runs (D-119): K3s or Kubernetes, or its operating system. */
-export type PlatformKind = 'k3s' | 'kubernetes' | 'os';
-
 export interface Platform {
   environmentId: string;
   environmentName: string;
   machineId: string;
   machine: string;
-  kind: PlatformKind;
+  /** `os`, `kubernetes` (a plain kubelet), or the distribution the kubelet names (`k3s`, `rke2r`…). */
+  kind: string;
   name: string;
   version: string;
   /** The newest version of the same line, when it is newer than the one that runs. */
