@@ -18,6 +18,7 @@ using Portarr.Core.Infrastructure;
 using Portarr.Core.Instrumentation;
 using Portarr.Core.Maintenance;
 using Portarr.Core.Mcp;
+using Portarr.Core.Platforms;
 using Portarr.Core.Mcp.Clients;
 using Portarr.Core.Mcp.Secrets;
 using Portarr.Core.Portal;
@@ -80,6 +81,12 @@ public static class CoreServiceCollectionExtensions
         // The health of the operator's MCP servers (D-114): the server is checked, never the workstation.
         services.AddSingleton<IMcpHealthStore, McpHealthStore>();
         services.AddSingleton<McpCheckRunner>();
+        // The platforms the machines run, their newer versions and their support dates (D-119).
+        services.AddSingleton<PlatformMonitor>();
+        services.AddSingleton<IPlatformKnowledge>(provider => provider.GetRequiredService<PlatformMonitor>());
+        services.AddHostedService(provider => provider.GetRequiredService<PlatformMonitor>());
+        services.AddSingleton<IPlatformService, PlatformService>();
+
         services.AddSingleton<McpHealthMonitor>();
         services.AddSingleton<IMcpHealth>(provider => provider.GetRequiredService<McpHealthMonitor>());
         services.AddHostedService(provider => provider.GetRequiredService<McpHealthMonitor>());

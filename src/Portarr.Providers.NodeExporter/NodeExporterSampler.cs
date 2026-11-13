@@ -75,7 +75,8 @@ public sealed class NodeExporterSampler
                 Bytes("SwapTotal"),
                 Bytes("SwapFree")),
             current.Load1 is { } load && double.IsFinite(load) ? Math.Round(load, 2) : null,
-            current.CpuTemperatureCelsius is { } celsius ? Math.Round(celsius, 1) : null);
+            current.CpuTemperatureCelsius is { } celsius ? Math.Round(celsius, 1) : null,
+            current.System);
     }
 
     /// <summary>Whether no counter moved between two scrapes (the same cores, each with the same times).</summary>

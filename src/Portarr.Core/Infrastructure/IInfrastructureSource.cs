@@ -58,7 +58,8 @@ public sealed record MachineSample(
     IReadOnlyList<string>? Roles = null,
     bool? Ready = null,
     DateTimeOffset? MeasuredAt = null,
-    string? Address = null);
+    string? Address = null,
+    MachineSystem? System = null);
 
 /// <summary>Usage of one workload (by its id); <c>CpuCores</c> is null until two samples give a delta.</summary>
 public sealed record WorkloadUsageSample(string WorkloadId, double? CpuCores, long MemoryBytes);

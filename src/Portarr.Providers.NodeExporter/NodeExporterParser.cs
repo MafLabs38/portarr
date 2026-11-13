@@ -1,4 +1,5 @@
 using System.Globalization;
+using Portarr.Core.Infrastructure;
 
 namespace Portarr.Providers.NodeExporter;
 
@@ -10,12 +11,13 @@ internal sealed record NodeExporterCounters(
     IReadOnlyDictionary<string, CpuTimes> Cpus,
     IReadOnlyDictionary<string, double> Memory,
     double? Load1,
-    double? CpuTemperatureCelsius);
+    double? CpuTemperatureCelsius,
+    MachineSystem? System = null);
 
 /// <summary>
 /// Reads the Prometheus text exposition format (version 0.0.4) line by line, keeping only the families the
 /// dashboard needs: <c>node_cpu_seconds_total</c> per cpu and mode, <c>node_memory_*_bytes</c> of
-/// <see cref="MemoryFields"/>, <c>node_load1</c> and the CPU sensors of <c>node_hwmon_temp_celsius</c>. Every other
+/// <see cref="MemoryFields"/>, <c>node_load1</c>, the CPU sensors of <c>node_hwmon_temp_celsius</c> and the labels of <c>node_os_info</c> and <c>node_uname_info</c> (the system, D-118). Every other
 /// line is skipped without being parsed; a malformed line is skipped too (one bad sample must not hide the host).
 /// Stops with <see cref="InvalidDataException"/> past a size cap (a runaway answer is not node_exporter).
 /// </summary>
@@ -25,6 +27,8 @@ internal static class NodeExporterParser
     public const string MemoryPrefix = "node_memory_";
     public const string Load1Family = "node_load1";
     public const string TemperatureFamily = "node_hwmon_temp_celsius";
+    public const string OsInfoFamily = "node_os_info";
+    public const string UnameFamily = "node_uname_info";
 
     /// <summary>The /proc/meminfo fields read, as node_exporter names them (node_memory_&lt;field&gt;_bytes).</summary>
     public static readonly IReadOnlySet<string> MemoryFields = new HashSet<string>(StringComparer.Ordinal)
@@ -64,6 +68,8 @@ internal static class NodeExporterParser
         private readonly Dictionary<string, double> _memory = new(StringComparer.Ordinal);
         private double? _load1;
         private double? _temperature;
+        private Sample? _osInfo;
+        private Sample? _uname;
 
         public void Add(Sample sample)
         {
@@ -77,6 +83,12 @@ internal static class NodeExporterParser
                     break;
                 case TemperatureFamily:
                     AddTemperature(sample);
+                    break;
+                case OsInfoFamily:
+                    _osInfo = sample;
+                    break;
+                case UnameFamily:
+                    _uname = sample;
                     break;
                 default:
                     if (MemoryField(sample.Name) is { } field)
@@ -94,7 +106,25 @@ internal static class NodeExporterParser
                 _cpus.ToDictionary(c => c.Key, c => new CpuTimes(c.Value.Idle, c.Value.Iowait, c.Value.Total), StringComparer.Ordinal),
                 _memory,
                 _load1,
-                _temperature);
+                _temperature,
+                ToSystem());
+        }
+
+        /// <summary>The system the two info families describe; null when neither is there or they say nothing.</summary>
+        private MachineSystem? ToSystem()
+        {
+            var system = new MachineSystem(
+                Text(_osInfo, "id"),
+                Text(_osInfo, "pretty_name") ?? Text(_osInfo, "name"),
+                Text(_osInfo, "version_id") ?? Text(_osInfo, "version"),
+                Text(_uname, "release"));
+            return system.IsEmpty ? null : system;
+        }
+
+        /// <summary>A label of an info sample, without surrounding blanks; null when it is absent or empty.</summary>
+        private static string? Text(Sample? sample, string label)
+        {
+            return sample?.Label(label) is { } value && !string.IsNullOrWhiteSpace(value) ? value.Trim() : null;
         }
 
         private void AddCpuTime(Sample sample)
@@ -183,7 +213,7 @@ internal static class NodeExporterParser
 
     private static bool IsWanted(string name)
     {
-        return name is CpuFamily or Load1Family or TemperatureFamily || name.StartsWith(MemoryPrefix, StringComparison.Ordinal);
+        return name is CpuFamily or Load1Family or TemperatureFamily or OsInfoFamily or UnameFamily || name.StartsWith(MemoryPrefix, StringComparison.Ordinal);
     }
 
     /// <summary>From the opening brace to just after the closing one.</summary>

@@ -1,9 +1,11 @@
 using System.Net;
 
-namespace Portarr.Providers.Registries.Test;
+using Portarr.Core.Net;
+
+namespace Portarr.Core.Test.Net;
 
 /// <summary>Where Portarr may connect to read a registry: not itself, not a link-local metadata service; a LAN registry is fine (15-20).</summary>
-public sealed class RegistryAddressPolicyFixture
+public sealed class OutboundAddressPolicyFixture
 {
     [Theory]
     [InlineData("127.0.0.1")]
@@ -20,7 +22,7 @@ public sealed class RegistryAddressPolicyFixture
     [InlineData("::ffff:169.254.169.254")]
     public void should_refuse_loopback_link_local_unspecified_and_multicast_addresses(string address)
     {
-        RegistryAddressPolicy.IsAllowed(IPAddress.Parse(address)).Should().BeFalse();
+        OutboundAddressPolicy.IsAllowed(IPAddress.Parse(address)).Should().BeFalse();
     }
 
     [Theory]
@@ -32,13 +34,13 @@ public sealed class RegistryAddressPolicyFixture
     [InlineData("::ffff:10.0.0.10")]
     public void should_allow_a_lan_registry_and_public_addresses(string address)
     {
-        RegistryAddressPolicy.IsAllowed(IPAddress.Parse(address)).Should().BeTrue();
+        OutboundAddressPolicy.IsAllowed(IPAddress.Parse(address)).Should().BeTrue();
     }
 
     [Fact]
     public async Task should_refuse_to_connect_to_an_address_literal_that_is_loopback()
     {
-        using var client = new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, ConnectCallback = RegistryAddressPolicy.ConnectAsync });
+        using var client = new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, ConnectCallback = OutboundAddressPolicy.ConnectAsync });
 
         var request = () => client.GetAsync("https://127.0.0.1:9/v2/", TestContext.Current.CancellationToken);
 

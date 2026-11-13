@@ -14,6 +14,7 @@ using Portarr.Providers.GitHub;
 using Portarr.Providers.Kubernetes;
 using Portarr.Providers.McpClients;
 using Portarr.Providers.NodeExporter;
+using Portarr.Providers.Platforms;
 using Portarr.Providers.Registries;
 
 // The content root is the binary's folder, whatever the working directory (like the *arr apps).
@@ -35,6 +36,7 @@ builder.Services.AddBackrestProvider();
 builder.Services.AddNodeExporterProvider();
 builder.Services.AddGitHubProvider();
 builder.Services.AddRegistriesProvider();
+builder.Services.AddPlatformsProvider();
 builder.Services.AddMcpClientsProvider();
 builder.Services
     .AddPortarrHttp()

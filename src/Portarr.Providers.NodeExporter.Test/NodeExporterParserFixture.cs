@@ -1,3 +1,5 @@
+using Portarr.Core.Infrastructure;
+
 namespace Portarr.Providers.NodeExporter.Test;
 
 public sealed class NodeExporterParserFixture
@@ -25,6 +27,36 @@ public sealed class NodeExporterParserFixture
         node_hwmon_temp_celsius{chip="nvme_nvme0",sensor="temp1"} 70
         node_filesystem_avail_bytes{mountpoint="/"} 1
         """;
+
+    private const string UnraidInfo = """
+        # HELP node_os_info A metric with a constant '1' value labeled by build_id, id, id_like, image_id, image_version, name, pretty_name, variant, variant_id, version, version_codename, version_id from /etc/os-release.
+        # TYPE node_os_info gauge
+        node_os_info{build_id="",id="unraid-os",id_like="slackware",image_id="",image_version="",name="Unraid OS",pretty_name="Unraid OS 7.3 x86_64",variant="",variant_id="",version="7.3.4 2026-10-22",version_codename="stable",version_id="7.3.4"} 1
+        # TYPE node_uname_info gauge
+        node_uname_info{domainname="(none)",machine="x86_64",nodename="server-1",release="6.18.58-Unraid",sysname="Linux",version="#2 SMP PREEMPT_DYNAMIC Wed Oct 21 15:43:26 PDT 2026"} 1
+        """;
+
+    [Fact]
+    public async Task should_read_the_system_from_the_os_and_uname_info_families()
+    {
+        var counters = await ParseAsync(UnraidInfo);
+
+        counters.System.Should().Be(new MachineSystem("unraid-os", "Unraid OS 7.3 x86_64", "7.3.4", "6.18.58-Unraid"));
+    }
+
+    [Fact]
+    public async Task should_fall_back_to_the_plain_name_and_version_and_ignore_empty_labels()
+    {
+        var counters = await ParseAsync("""node_os_info{id="",name="Debian GNU/Linux",pretty_name="",version="13 (trixie)",version_id=""} 1""");
+
+        counters.System.Should().Be(new MachineSystem(null, "Debian GNU/Linux", "13 (trixie)", null));
+    }
+
+    [Fact]
+    public async Task should_report_no_system_when_neither_info_family_is_exposed()
+    {
+        (await ParseAsync(Scrape)).System.Should().BeNull();
+    }
 
     [Fact]
     public async Task should_keep_only_the_families_the_dashboard_needs()

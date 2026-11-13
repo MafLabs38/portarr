@@ -1,18 +1,17 @@
 using System.Net;
-using System.Net.Http;
 using System.Net.Sockets;
 
-namespace Portarr.Providers.Registries;
+namespace Portarr.Core.Net;
 
 /// <summary>
-/// Where Portarr may connect to read a registry (15-20). The registry host comes from the name of a running image, so
-/// whoever can start a container could name any host: a loopback or link-local address (the cloud metadata service,
+/// Where Portarr may connect when it reads a service on the Internet (15-20). The host can come from data an operator does not
+/// control (the name of a running image's registry, a redirect), so a request could name any host: a loopback or link-local address (the cloud metadata service,
 /// Portarr's own listener), or an address literal, must not become an HTTPS request from Portarr. The check is made on
 /// the address actually connected to, after the name is resolved, so a name that resolves there is refused too, and it
 /// covers the token realm and every redirect, which go through the same handler. A private registry on a LAN address
 /// (RFC 1918) stays allowed: local registries are legitimate in a homelab.
 /// </summary>
-public static class RegistryAddressPolicy
+public static class OutboundAddressPolicy
 {
     /// <summary>Whether an address may be connected to: not loopback, link-local, unspecified or multicast (IPv4-mapped IPv6 is unmapped first).</summary>
     public static bool IsAllowed(IPAddress address)
@@ -44,7 +43,7 @@ public static class RegistryAddressPolicy
         var addresses = (await Dns.GetHostAddressesAsync(context.DnsEndPoint.Host, cancellationToken)).Where(IsAllowed).ToList();
         if (addresses.Count == 0)
         {
-            throw new HttpRequestException($"The registry host '{context.DnsEndPoint.Host}' resolves to no address Portarr may connect to.");
+            throw new HttpRequestException($"The host '{context.DnsEndPoint.Host}' resolves to no address Portarr may connect to.");
         }
 
         Exception? last = null;
@@ -63,6 +62,6 @@ public static class RegistryAddressPolicy
             }
         }
 
-        throw new HttpRequestException($"The registry host '{context.DnsEndPoint.Host}' did not answer.", last);
+        throw new HttpRequestException($"The host '{context.DnsEndPoint.Host}' did not answer.", last);
     }
 }
