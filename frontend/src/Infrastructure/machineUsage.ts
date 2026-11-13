@@ -1,6 +1,8 @@
 import type { HostMetrics, InfrastructureEnvironment, Machine } from 'typings/Infrastructure';
 import type Workload from 'typings/Workload';
 
+import type { ConsumerSort } from './consumerSortStore';
+
 /** A running workload with what it consumes on its machine. */
 export interface Consumer {
   workload: Workload;
@@ -24,10 +26,10 @@ export function percent(fraction: number): string {
 }
 
 /**
- * The running workloads of a machine, heaviest CPU first (then memory). Stopped ones consume nothing and are
- * not shown on this dashboard; neither are workloads without a sample yet.
+ * The running workloads of a machine, heaviest first: by CPU then memory, or by memory then CPU when the operator ranks by
+ * memory. Stopped ones consume nothing and are not shown on this dashboard; neither are workloads without a sample yet.
  */
-export function consumers(machine: Machine, workloads: Map<string, Workload>): Consumer[] {
+export function consumers(machine: Machine, workloads: Map<string, Workload>, sort: ConsumerSort = 'cpu'): Consumer[] {
   return machine.workloads
     .map((usage) => ({ usage, workload: workloads.get(usage.id) }))
     .filter(
@@ -35,7 +37,11 @@ export function consumers(machine: Machine, workloads: Map<string, Workload>): C
         entry.workload?.state === 'running' && (entry.usage.cpuCores !== null || entry.usage.memoryBytes !== null),
     )
     .map(({ usage, workload }) => ({ workload, cpuCores: usage.cpuCores ?? 0, memoryBytes: usage.memoryBytes ?? 0 }))
-    .sort((a, b) => b.cpuCores - a.cpuCores || b.memoryBytes - a.memoryBytes);
+    .sort((a, b) =>
+      sort === 'memory'
+        ? b.memoryBytes - a.memoryBytes || b.cpuCores - a.cpuCores
+        : b.cpuCores - a.cpuCores || b.memoryBytes - a.memoryBytes,
+    );
 }
 
 /**
@@ -130,8 +136,10 @@ export function mergeHost(
 
 /** A part of a host's memory ring; the parts sum to the machine's total. */
 export interface HostMemoryPart {
-  key: 'system' | 'guests' | 'guestsSystem' | 'consumers' | 'reclaimable' | 'free';
+  key: 'system' | 'guests' | 'guestsSystem' | 'consumers' | 'free';
   bytes: number;
+  /** On the free part: how much of it is cache the kernel gives back on demand (already counted in `bytes`). */
+  cacheBytes?: number;
 }
 
 /**
@@ -139,7 +147,8 @@ export interface HostMemoryPart {
  * available) holds first the containers or pods (their measured usage), then, on a hypervisor, the VMs'
  * allocation (as the guests report it, D-59) and the rest, the host's own apps and kernel. A VM only takes
  * the host memory it has touched: when the allocations exceed what is left of used, the two cannot be told
- * apart and are one part, "VMs and system". Then the <b>reclaimable cache</b> (available − free) and <b>free</b>.
+ * apart and are one part, "VMs and system". Then <b>free</b>: what is free plus the reclaimable cache (available − free), because
+ * the kernel gives the cache back on demand: it is memory a program can have, so it is free for the operator too.
  */
 export function hostMemoryParts(host: HostMetrics, guestBytes: number | null, consumerBytes: number): HostMemoryPart[] {
   const used = host.memoryUsedBytes ?? 0;
@@ -148,8 +157,11 @@ export function hostMemoryParts(host: HostMetrics, guestBytes: number | null, co
   return [
     ...ownMemoryParts(rest, guestBytes),
     { key: 'consumers', bytes: consumers },
-    { key: 'reclaimable', bytes: host.memoryReclaimableBytes ?? 0 },
-    { key: 'free', bytes: host.memoryFreeBytes ?? 0 },
+    {
+      key: 'free',
+      bytes: (host.memoryFreeBytes ?? 0) + (host.memoryReclaimableBytes ?? 0),
+      cacheBytes: host.memoryReclaimableBytes ?? 0,
+    },
   ];
 }
 

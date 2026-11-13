@@ -41,6 +41,7 @@ export {
   Cpu as NODE,
   ShieldOff as NOT_COVERED,
   Unplug as NOT_SET_UP,
+  Bell as NOTICES,
   CloudUpload as OFFSITE_COPY,
   Pause as PAUSE,
   CirclePause as PAUSED,

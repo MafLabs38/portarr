@@ -1,5 +1,41 @@
+.headingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.sort {
+  display: inline-flex;
+  overflow: hidden;
+  border: var(--borderWidth) solid var(--hairlineStrong);
+  border-radius: var(--radiusPill);
+}
+
+.sortOption,
+.sortSelected {
+  padding: 1px 10px;
+  border: 0;
+  background: none;
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.sortOption:hover,
+.sortOption:focus-visible {
+  background-color: var(--paperSunken);
+}
+
+.sortSelected {
+  background-color: var(--paperSunken);
+  color: var(--ink);
+}
+
 .heading {
-  margin: 0 0 4px;
+  margin: 0;
   color: var(--inkMuted);
   font-size: var(--fontSizeMeta);
   font-weight: 800;
