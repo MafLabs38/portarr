@@ -18,8 +18,14 @@ public sealed class GpuExporterSource : IGpuSource
     /// <summary>The largest answer read, in bytes once decompressed: a card's families are a few hundred lines, and a runaway answer is not the exporter.</summary>
     public const int MaxBytes = 1_000_000;
 
+    /// <summary>The time a whole read may take, answer included.</summary>
+    public static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(5);
+
     /// <summary>The cards read per exporter: an unauthenticated exporter must not be able to make Portarr keep an unbounded number of them.</summary>
     public const int MaxCards = 16;
+
+    /// <summary>Distinct card identifiers followed while a scrape is read: a few times the cards kept, so bare identifiers cannot make the scrape grow without bound.</summary>
+    private const int MaxCardsTracked = MaxCards * 4;
 
     private const string Prefix = "nvidia_smi_";
 
@@ -35,13 +41,16 @@ public sealed class GpuExporterSource : IGpuSource
     public async Task<IReadOnlyList<GpuReading>> ReadAsync(CatalogEnvironment environment, CancellationToken cancellationToken)
     {
         var endpoint = environment.Gpu() ?? throw new InvalidOperationException("The environment declares no GPU exporter.");
+        // The client's own timeout stops at the response headers: this one covers the whole read, body included, so an exporter that trickles its answer cannot hold the pass.
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(ReadTimeout);
         using var request = new HttpRequestMessage(HttpMethod.Get, endpoint.Exporter);
-        using var response = await _httpClientFactory.CreateClient(HttpClientName).SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        using var response = await _httpClientFactory.CreateClient(HttpClientName).SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
         response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
         // The cap counts the bytes read after any decompression, so a line that never ends cannot fill the memory before it is counted.
         using var reader = new StreamReader(new CappedStream(stream, MaxBytes));
-        return await ParseAsync(reader, cancellationToken);
+        return await ParseAsync(reader, timeout.Token);
     }
 
     /// <summary>The cards of a scrape, in the order of their <c>index</c>; none when the exporter shows none.</summary>
@@ -55,7 +64,7 @@ public sealed class GpuExporterSource : IGpuSource
                 if (!cards.TryGetValue(uuid, out var card))
                 {
                     // Cards past the limit are not kept at all while the scrape is read.
-                    if (cards.Count >= MaxCards * 4)
+                    if (cards.Count >= MaxCardsTracked)
                     {
                         continue;
                     }

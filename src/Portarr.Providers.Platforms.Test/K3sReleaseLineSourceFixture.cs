@@ -51,7 +51,7 @@ public sealed class K3sReleaseLineSourceFixture
 
         await new K3sReleaseLineSource(http).ReadAsync(TestContext.Current.CancellationToken);
 
-        http.Requests.Should().Equal(K3sReleaseLineSource.ChannelsUrl);
+        http.Requests.Should().Equal(new Uri("https://update.k3s.io/v1-release/channels"));
     }
 
     [Theory]

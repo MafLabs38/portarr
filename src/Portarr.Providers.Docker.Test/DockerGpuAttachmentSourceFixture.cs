@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.Extensions.Time.Testing;
 using Portarr.Core.Workloads;
 
 namespace Portarr.Providers.Docker.Test;
@@ -19,9 +20,12 @@ public sealed class DockerGpuAttachmentSourceFixture
     private readonly Lock _lock = new();
     private readonly HashSet<string> _failing = [];
     private readonly HashSet<string> _oversized = [];
+    private readonly HashSet<string> _slow = [];
     private readonly List<HttpMethod> _methods = [];
 
-    private DockerGpuAttachmentSource Source => new(_ => new HttpClient(new Handler(this)) { BaseAddress = new Uri("http://docker/") });
+    private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 11, 13, 9, 0, 0, TimeSpan.Zero));
+
+    private DockerGpuAttachmentSource Source => new(_ => new HttpClient(new Handler(this)) { BaseAddress = new Uri("http://docker/") }, _clock);
 
     private static Workload Container(string id) => new("server-1", id, id, "example/x:1", WorkloadState.Running, WorkloadHealth.None, "Up", DateTimeOffset.UnixEpoch, null, new Dictionary<string, string>());
 
@@ -53,16 +57,49 @@ public sealed class DockerGpuAttachmentSourceFixture
     }
 
     [Fact]
-    public async Task should_skip_a_container_that_cannot_be_inspected_without_failing_the_others_and_read_it_again_next_pass()
+    public async Task should_skip_a_container_that_cannot_be_inspected_without_failing_the_others_and_leave_it_alone_for_a_minute()
     {
         var source = Source;
         _failing.Add("jellyfin");
 
         var first = await source.AttachedAsync(Environment, All, TestContext.Current.CancellationToken);
+        _failing.Clear();
+        _asked.Clear();
+        var soon = await source.AttachedAsync(Environment, All, TestContext.Current.CancellationToken);
+        _clock.Advance(DockerGpuAttachmentSource.RetryAfter);
+        var later = await source.AttachedAsync(Environment, All, TestContext.Current.CancellationToken);
 
         first.Should().BeEquivalentTo(["whisper", "legacy"], "one failing inspection does not hide the others");
-        _failing.Clear();
-        (await source.AttachedAsync(Environment, All, TestContext.Current.CancellationToken)).Should().Contain("jellyfin");
+        soon.Should().BeEquivalentTo(["whisper", "legacy"], "the failed container is not asked again at once");
+        later.Should().Contain("jellyfin");
+        _asked.Should().Equal("containers/jellyfin/json");
+    }
+
+    [Fact]
+    public async Task should_not_let_containers_that_keep_failing_starve_the_others()
+    {
+        var many = Enumerable.Range(0, DockerGpuAttachmentSource.InspectionsPerPass + 5).Select(i => Container($"c{i:D2}")).ToList();
+        foreach (var container in many.Take(DockerGpuAttachmentSource.InspectionsPerPass))
+        {
+            _failing.Add(container.Id);
+        }
+
+        var source = Source;
+        await source.AttachedAsync(Environment, many, TestContext.Current.CancellationToken);
+        _asked.Clear();
+        await source.AttachedAsync(Environment, many, TestContext.Current.CancellationToken);
+
+        _asked.Should().HaveCount(5, "the twenty that failed wait a minute: the next pass reaches the five that were never asked");
+    }
+
+    [Fact]
+    public async Task should_skip_a_container_whose_answer_is_cut_by_the_timeout_while_the_body_is_read()
+    {
+        _slow.Add("jellyfin");
+
+        var attached = await Source.AttachedAsync(Environment, All, TestContext.Current.CancellationToken);
+
+        attached.Should().BeEquivalentTo(["whisper", "legacy"]);
     }
 
     [Fact]
@@ -119,6 +156,11 @@ public sealed class DockerGpuAttachmentSourceFixture
             if (owner._failing.Contains(id))
             {
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
+            }
+
+            if (owner._slow.Contains(id))
+            {
+                throw new OperationCanceledException("the timeout fired while the body was read");
             }
 
             var body = owner._oversized.Contains(id) ? new string(' ', 600 * 1024) + "{}" : Inspects.GetValueOrDefault(id, "{ \"Id\": \"x\", \"Config\": { \"Tty\": false } }");

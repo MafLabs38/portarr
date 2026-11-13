@@ -44,16 +44,18 @@ public sealed class EndOfLifeDateSource : ISupportLifecycleSource
         }
 
         var site = Products.GetValueOrDefault(product, product);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(PlatformsHttp.ReadTimeout);
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(BaseUrl, site + Path.AltDirectorySeparatorChar));
-        using var response = await _httpClientFactory.CreateClient(PlatformsHttp.ClientName).SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        using var response = await _httpClientFactory.CreateClient(PlatformsHttp.ClientName).SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             return null;
         }
 
         response.EnsureSuccessStatusCode();
-        await using var stream = PlatformsHttp.Capped(await response.Content.ReadAsStreamAsync(cancellationToken));
-        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        await using var stream = PlatformsHttp.Capped(await response.Content.ReadAsStreamAsync(timeout.Token));
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: timeout.Token);
 
         if (!document.RootElement.TryGetProperty("result", out var result) || !result.TryGetProperty("releases", out var releases) || releases.ValueKind != JsonValueKind.Array)
         {

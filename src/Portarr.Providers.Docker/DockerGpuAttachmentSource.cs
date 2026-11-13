@@ -22,6 +22,9 @@ public sealed class DockerGpuAttachmentSource : IGpuAttachmentSource
     /// <summary>The largest inspect answer read: it holds the whole container configuration, labels included.</summary>
     private const int MaxInspectBytes = 512 * 1024;
 
+    /// <summary>How long a container that could not be inspected is left alone.</summary>
+    public static readonly TimeSpan RetryAfter = TimeSpan.FromMinutes(1);
+
     /// <summary>The time one inspection may take, answer included.</summary>
     private static readonly TimeSpan InspectTimeout = TimeSpan.FromSeconds(5);
 
@@ -29,15 +32,19 @@ public sealed class DockerGpuAttachmentSource : IGpuAttachmentSource
 
     private readonly Func<DockerEndpoint, HttpClient> _client;
     private readonly ConcurrentDictionary<(string EnvironmentId, string WorkloadId), bool> _known = new();
+    private readonly ConcurrentDictionary<(string EnvironmentId, string WorkloadId), DateTimeOffset> _retryAt = new();
 
-    public DockerGpuAttachmentSource(DockerHttpClientFactory clients)
-        : this(clients.Get)
+    private readonly TimeProvider _timeProvider;
+
+    public DockerGpuAttachmentSource(DockerHttpClientFactory clients, TimeProvider timeProvider)
+        : this(clients.Get, timeProvider)
     {
     }
 
-    internal DockerGpuAttachmentSource(Func<DockerEndpoint, HttpClient> client)
+    internal DockerGpuAttachmentSource(Func<DockerEndpoint, HttpClient> client, TimeProvider timeProvider)
     {
         _client = client;
+        _timeProvider = timeProvider;
     }
 
     public bool Supports(CatalogEnvironment environment) => environment.Docker() is not null;
@@ -48,13 +55,16 @@ public sealed class DockerGpuAttachmentSource : IGpuAttachmentSource
         var ids = workloads.Select(w => w.Id).ToHashSet(StringComparer.Ordinal);
 
         // A container that is gone is forgotten: its id never comes back.
-        foreach (var key in _known.Keys.Where(k => k.EnvironmentId == environment.Id && !ids.Contains(k.WorkloadId)))
+        foreach (var key in _known.Keys.Concat(_retryAt.Keys).Where(k => k.EnvironmentId == environment.Id && !ids.Contains(k.WorkloadId)).ToList())
         {
             _known.TryRemove(key, out _);
+            _retryAt.TryRemove(key, out _);
         }
 
         var client = _client(endpoint);
-        var unknown = ids.Where(id => !_known.ContainsKey((environment.Id, id))).Order(StringComparer.Ordinal).Take(InspectionsPerPass).ToList();
+        // A container that failed is not asked again before RetryAfter: containers that keep failing must not starve the others of the passes.
+        var now = _timeProvider.GetUtcNow();
+        var unknown = ids.Where(id => !_known.ContainsKey((environment.Id, id)) && _retryAt.GetValueOrDefault((environment.Id, id)) <= now).Order(StringComparer.Ordinal).Take(InspectionsPerPass).ToList();
 
         // A few at a time, each on its own: a container that cannot be inspected right now is read again next pass and never fails the others.
         await Parallel.ForEachAsync(unknown, new ParallelOptions { MaxDegreeOfParallelism = Concurrency, CancellationToken = cancellationToken }, async (id, token) =>
@@ -62,10 +72,12 @@ public sealed class DockerGpuAttachmentSource : IGpuAttachmentSource
             try
             {
                 _known[(environment.Id, id)] = await HasGpuAsync(client, id, token);
+                _retryAt.TryRemove((environment.Id, id), out _);
             }
             catch (Exception exception) when (!cancellationToken.IsCancellationRequested && (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException or InvalidDataException))
             {
-                // Not cached: the next pass asks again.
+                // Not cached: asked again after RetryAfter.
+                _retryAt[(environment.Id, id)] = _timeProvider.GetUtcNow() + RetryAfter;
             }
         });
 

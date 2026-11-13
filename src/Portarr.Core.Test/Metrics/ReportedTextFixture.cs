@@ -12,6 +12,8 @@ public sealed class ReportedTextFixture
     [InlineData("\u0007\u001b[31m", "[31m")]
     [InlineData("  Ubuntu 25.10  ", "Ubuntu 25.10")]
     [InlineData("Ubuntu\n25.10", "Ubuntu25.10")]
+    [InlineData("Ubuntu\u202E01.52\u200B", "Ubuntu01.52")]
+    [InlineData("a\uE000b", "ab")]
     public void should_trim_and_strip_control_characters(string? text, string? expected)
     {
         ReportedText.Clean(text).Should().Be(expected);

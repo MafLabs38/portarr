@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Portarr.Core.Metrics;
 
 /// <summary>
@@ -10,6 +12,12 @@ public static class ReportedText
     /// <summary>The longest reported text kept: far more than any operating system, kernel or card name needs.</summary>
     public const int MaxLength = 128;
 
+    /// <summary>Control characters and the invisible ones that can reorder or hide text (format characters such as a right-to-left override, separators, private use, lone surrogates) are dropped.</summary>
+    private static bool IsPlain(char c)
+    {
+        return !char.IsControl(c) && CharUnicodeInfo.GetUnicodeCategory(c) is not (UnicodeCategory.Format or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator or UnicodeCategory.PrivateUse or UnicodeCategory.Surrogate or UnicodeCategory.OtherNotAssigned);
+    }
+
     /// <summary>The text cleaned, or null when nothing is left.</summary>
     public static string? Clean(string? text)
     {
@@ -18,7 +26,7 @@ public static class ReportedText
             return null;
         }
 
-        var cleaned = new string(text.Where(c => !char.IsControl(c)).Take(MaxLength).ToArray()).Trim();
+        var cleaned = new string(text.Where(IsPlain).Take(MaxLength).ToArray()).Trim();
         return cleaned.Length == 0 ? null : cleaned;
     }
 }

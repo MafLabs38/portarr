@@ -20,7 +20,7 @@ public sealed partial class K3sReleaseLineSource : IReleaseLineSource
         _httpClientFactory = httpClientFactory;
     }
 
-    public string Platform => PlatformKinds.K3s;
+    public string Platform => "k3s";
 
     public string DisplayName => "K3s";
 
@@ -29,11 +29,13 @@ public sealed partial class K3sReleaseLineSource : IReleaseLineSource
 
     public async Task<IReadOnlyList<ReleaseLine>> ReadAsync(CancellationToken cancellationToken)
     {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(PlatformsHttp.ReadTimeout);
         using var request = new HttpRequestMessage(HttpMethod.Get, ChannelsUrl);
-        using var response = await _httpClientFactory.CreateClient(PlatformsHttp.ClientName).SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        using var response = await _httpClientFactory.CreateClient(PlatformsHttp.ClientName).SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
         response.EnsureSuccessStatusCode();
-        await using var stream = PlatformsHttp.Capped(await response.Content.ReadAsStreamAsync(cancellationToken));
-        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        await using var stream = PlatformsHttp.Capped(await response.Content.ReadAsStreamAsync(timeout.Token));
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: timeout.Token);
 
         if (!document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
         {

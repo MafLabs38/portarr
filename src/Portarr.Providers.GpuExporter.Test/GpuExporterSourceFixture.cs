@@ -137,6 +137,15 @@ public sealed class GpuExporterSourceFixture
         cards.Should().OnlyContain(c => c.Name.Length <= 128);
     }
 
+    [Theory]
+    [InlineData("<html><body>502 Bad Gateway</body></html>")]
+    [InlineData("\0\0\u0001binary\u0002")]
+    [InlineData("nvidia_smi_utilization_gpu_ratio{uuid=\"GPU-A\"} not-a-number\nnvidia_smi_gpu_info{")]
+    public async Task should_read_nothing_from_a_body_that_is_not_the_exporters(string body)
+    {
+        (await Parse(body)).Should().BeEmpty();
+    }
+
     [Fact]
     public async Task should_ignore_a_sample_without_a_card_identifier()
     {
