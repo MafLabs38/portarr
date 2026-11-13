@@ -97,6 +97,9 @@ public sealed class McpToolsFixture : IClassFixture<McpToolsHosts>
 
         readOnly.Should().Contain(["get_overview", "list_apps", "get_app", "get_infrastructure", "find_workload", "get_data_coverage", "get_maintenance", "get_environment_knowledge"]);
         readOnly.Should().NotContain(["upsert_app", "remove_app", "set_portal", "set_notes"]);
+
+        // The shared key is a view-only principal: the operator's MCP servers need mcp.use (D-115), which only a user's role grants.
+        readOnly.Should().NotContain(["list_mcp_servers", "get_mcp_server"]);
         writable.Should().Contain(["get_catalog_item", "get_portal", "upsert_app", "remove_app", "upsert_stack", "set_portal", "set_notes"]);
     }
 
@@ -114,8 +117,9 @@ public sealed class McpToolsFixture : IClassFixture<McpToolsHosts>
     {
         var text = await CallAsync(ReadOnly, tool, arguments);
 
-        // The fleet is read in the background: until its first reading is in, a tool answers with what it has. Wait for it, at most 10 s.
-        for (var attempt = 0; attempt < 50 && !text.Contains(expected, StringComparison.Ordinal); attempt++)
+        // The fleet is read in the background: until its first reading is in, a tool answers with what it has. Wait for it, at most 30 s (the first sampling of an
+        // unreachable environment can take longer than ten on a loaded runner, and this test failed on that alone).
+        for (var attempt = 0; attempt < 150 && !text.Contains(expected, StringComparison.Ordinal); attempt++)
         {
             await Task.Delay(TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken);
             text = await CallAsync(ReadOnly, tool, arguments);

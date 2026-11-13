@@ -235,8 +235,15 @@ public sealed class CatalogParserConnectorFixture
         register.Should().Throw<InvalidOperationException>().Which.Message.Should().Contain("'alpha' is owned by two connectors");
     }
 
+    [Fact]
+    public void should_refuse_the_reader_key_of_the_retired_reader_and_name_it()
+    {
+        var result = TestCatalog.Parse("environments:\n  - { id: server-1, reader: { url: \"http://10.0.0.10:8485\", tokenEnv: PORTARR_READER_SERVER_1 } }\n");
+
+        result.Errors.Should().NotBeEmpty().And.Contain(error => error.Contains("reader", StringComparison.Ordinal));
+    }
+
     [Theory]
-    [InlineData("reader")]
     [InlineData("id")]
     [InlineData("notes")]
     public void should_not_let_a_connector_take_a_key_core_still_reads(string section)

@@ -7,6 +7,7 @@ import translate from 'Utilities/String/translate';
 
 import chatItems from './chatItems';
 import ChatMessages from './ChatMessages';
+import ChatNotices, { type ChatNotice } from './ChatNotices';
 import styles from './ChatPanel.module.css';
 import { maxPanelWidth, minPanelWidth, useChatStore } from './chatStore';
 import ConversationList from './ConversationList';
@@ -24,15 +25,32 @@ import {
 
 const keyboardStep = 32;
 
-/**
- * The built-in chat (D-90), like an IDE's chat panel: a resizable side panel with the conversation history, the
- * messages with their tool calls and permission cards, and the prompt. Behind it, the portarr-agent runner whose
- * only tool is Portarr's MCP server (D-87, D-88). Full screen on phones.
- */
 /** The agent's MCP tools change the catalog only when the MCP server, its write tools and a writable catalog are all on. */
 const chatCanWrite = (status: ChatStatus) =>
   status.mcpEnabled === true && status.mcpWriteTools === true && status.catalogWritable === true;
 
+/** What the operator may want to know about the chat, in the order of how much it matters. */
+function noticesOf(status: ChatStatus, current: { name: string; available: boolean } | undefined): ChatNotice[] {
+  const notices: ChatNotice[] = [];
+  if (!status.reachable) {
+    notices.push({ id: 'unreachable', kind: 'warning', text: translate('ChatUnreachable') });
+  }
+  if (current && !current.available) {
+    notices.push({ id: 'credentials', kind: 'warning', text: translate('ChatNoCredentials', { agent: current.name }) });
+  }
+  if (status.reachable && status.mcpEnabled !== undefined && !chatCanWrite(status)) {
+    notices.push({ id: 'read-only', kind: 'info', text: translate('ChatReadOnlyHint') });
+  }
+  return notices;
+}
+
+/**
+ * The built-in chat (D-90), like an IDE's chat panel: a resizable side panel with the conversation history, the
+ * messages with their tool calls and permission cards, and the prompt. Behind it, the portarr-agent runner whose
+ * only tool is Portarr's MCP server (D-87, D-88). Full screen on phones. What the operator may want to know about the
+ * chat (the runner does not answer, no credentials, a read-only catalog) is behind a bell of the header, never an alert
+ * in the middle of the conversation.
+ */
 export default function ChatPanel() {
   const status = useChatStatus();
   const { open, width, conversationId, agent, model, setOpen, setWidth, setConversation, setAgent, setModel } =
@@ -60,6 +78,7 @@ export default function ChatPanel() {
   const conversation = conversations.data?.find((summary) => summary.id === conversationId);
   const running = stream.state === 'running' || send.isPending || create.isPending;
   const failure = send.error ?? create.error ?? answer.error ?? cancel.error;
+  const notices = noticesOf(status.data, current);
 
   const onSend = async (text: string) => {
     if (!current || !currentModel) {
@@ -117,6 +136,7 @@ export default function ChatPanel() {
       />
       <header className={styles.bar}>
         <h2 className={styles.title}>{conversation?.title || translate('NewChat')}</h2>
+        <ChatNotices notices={notices} />
         <button
           aria-expanded={historyOpen}
           aria-label={translate('ChatHistory')}
@@ -173,14 +193,11 @@ export default function ChatPanel() {
         />
       ) : null}
 
-      <p className={styles.scope}>{translate('ChatScope')}</p>
-      {status.data.reachable ? null : <Alert kind="warning">{translate('ChatUnreachable')}</Alert>}
-      {current && !current.available ? (
-        <Alert kind="warning">{translate('ChatNoCredentials', { agent: current.name })}</Alert>
-      ) : null}
-      {status.data.reachable && status.data.mcpEnabled !== undefined && !chatCanWrite(status.data) ? (
-        <Alert kind="info">{translate('ChatReadOnlyHint')}</Alert>
-      ) : null}
+      <p className={styles.scope}>
+        {translate(
+          status.data.mcpEnabled === undefined || chatCanWrite(status.data) ? 'ChatScope' : 'ChatScopeReadOnly',
+        )}
+      </p>
       {failure ? <Alert kind="danger">{translate('ChatRequestFailed', { status: failure.status })}</Alert> : null}
 
       <ChatMessages

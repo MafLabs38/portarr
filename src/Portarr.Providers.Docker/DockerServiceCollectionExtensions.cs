@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Portarr.Core.Catalog;
 using Portarr.Core.Infrastructure;
+using Portarr.Core.Infrastructure.Gpu;
 using Portarr.Core.Workloads;
 
 namespace Portarr.Providers.Docker;
@@ -13,6 +14,7 @@ public static class DockerServiceCollectionExtensions
         services.AddSingleton<IWorkloadSource, DockerWorkloadSource>();
         services.AddSingleton<IInfrastructureSource, DockerInfrastructureSource>();
         services.AddSingleton<IEnvironmentConnector, DockerEnvironmentConnector>();
+        services.AddSingleton<IGpuAttachmentSource, DockerGpuAttachmentSource>();
 
         return services;
     }

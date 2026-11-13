@@ -26,7 +26,57 @@ describe('InfrastructureIndex', () => {
     expect(within(machine).getByText('25 %')).toBeInTheDocument();
     expect(within(machine).getAllByText(/Containers/).length).toBeGreaterThan(0);
     expect(within(machine).getByText('Docker host · 8 cores · 16.0 GB')).toBeInTheDocument();
+    expect(within(machine).getByText('Ubuntu 25.10 · kernel 6.17.0-41-generic')).toBeInTheDocument();
     expect(within(machine).getByText(/every 3 s/)).toBeInTheDocument();
+  });
+
+  it('shows the graphics card with its loads, memory, encoder, temperature and power, and the workloads it is attached to', async () => {
+    renderWithProviders(<InfrastructureIndex />);
+
+    const machine = await screen.findByRole('article', { name: 'Server 1' });
+    const gpu = within(machine).getByRole('region', { name: 'GPU' });
+    expect(within(gpu).getByText('NVIDIA GeForce RTX 2070')).toBeInTheDocument();
+    expect(within(gpu).getByText('driver 615.78.08')).toBeInTheDocument();
+    expect(within(gpu).getByRole('progressbar', { name: 'Load of NVIDIA GeForce RTX 2070' })).toHaveAttribute(
+      'aria-valuetext',
+      '42 %',
+    );
+    expect(within(gpu).getByRole('progressbar', { name: 'Encoder of NVIDIA GeForce RTX 2070' })).toHaveAttribute(
+      'aria-valuetext',
+      '17 %',
+    );
+    expect(within(gpu).getByText('2.0 GB of 8.0 GB')).toBeInTheDocument();
+    expect(within(gpu).getByText('41 °C')).toBeInTheDocument();
+    expect(within(gpu).getByText('50 W of 225 W')).toBeInTheDocument();
+    expect(within(gpu).getByText('2 encoder sessions')).toBeInTheDocument();
+    expect(
+      within(gpu).getByRole('img', { name: /Load of NVIDIA GeForce RTX 2070 over the last 10 minutes/ }),
+    ).toBeInTheDocument();
+    expect(within(gpu).getByText('Attached to:')).toBeInTheDocument();
+  });
+
+  it('says why the card cannot be read and keeps showing its last values', async () => {
+    const withError = structuredClone(infrastructure) as InfrastructureEnvironment[];
+    const machine = withError[0]?.machines[0] as Machine;
+    machine.gpu = { ...(machine.gpu as NonNullable<Machine['gpu']>), error: 'unreachable' };
+    server.use(http.get('/api/v1/infrastructure', () => HttpResponse.json(withError)));
+    renderWithProviders(<InfrastructureIndex />);
+
+    const gpu = within(await screen.findByRole('article', { name: 'Server 1' })).getByRole('region', { name: 'GPU' });
+
+    expect(within(gpu).getByText(/GPU exporter: /)).toBeInTheDocument();
+    expect(within(gpu).getByText('NVIDIA GeForce RTX 2070')).toBeInTheDocument();
+  });
+
+  it('has no graphics card box for a machine that declares none', async () => {
+    const withoutCard = structuredClone(infrastructure) as InfrastructureEnvironment[];
+    (withoutCard[0]?.machines[0] as Machine).gpu = null;
+    server.use(http.get('/api/v1/infrastructure', () => HttpResponse.json(withoutCard)));
+    renderWithProviders(<InfrastructureIndex />);
+
+    const machine = await screen.findByRole('article', { name: 'Server 1' });
+
+    expect(within(machine).queryByRole('region', { name: 'GPU' })).not.toBeInTheDocument();
   });
 
   it('shows the age of the last sample, live or stale', async () => {
@@ -52,7 +102,11 @@ describe('InfrastructureIndex', () => {
     renderWithProviders(<InfrastructureIndex />);
 
     const machine = await screen.findByRole('article', { name: 'Server 1' });
-    const sonarr = await within(machine).findByRole('link', { name: /sonarr/ });
+    // The consumer's row, not the link that names the workload under the graphics card.
+    await within(machine).findAllByRole('link', { name: /sonarr/ });
+    const sonarr = within(machine)
+      .getAllByRole('link', { name: /sonarr/ })
+      .find((link) => link.textContent?.includes('vCPU')) as HTMLElement;
     expect(sonarr).toHaveAttribute('href', '/workloads/server-1/sonarr');
     expect(within(sonarr).getByText('14 % · 1.10 vCPU')).toBeInTheDocument();
     expect(within(sonarr).getByText('1.0 GB · 6 %')).toBeInTheDocument();

@@ -265,15 +265,16 @@ public sealed class FleetDigest
 
     private static DateTimeOffset? Newest(DataAssetResource asset) => new[] { asset.Local?.LastSuccessAt, asset.Offsite?.LastSuccessAt }.Max();
 
-    /// <param name="section">all, code (repositories) or images.</param>
+    /// <param name="section">all, code (repositories), images or platforms.</param>
     public MaintenanceDigest GetMaintenance(string section)
     {
         var catalog = _catalogService.Current.Catalog;
         var report = _maintenanceService.GetReport();
         var resource = report.ToResource(catalog);
         var names = catalog.Apps.ToDictionary(a => a.Id, a => a.Name, StringComparer.Ordinal);
-        var code = section is not "images";
-        var images = section is not "code";
+        var code = section is "all" or "code";
+        var images = section is "all" or "images";
+        var platforms = section is "all" or "platforms";
 
         var repositories = code
             ? resource.Repositories.Where(NeedsAttention).Select(r => RepositoryLineOf(r, names)).ToList()
@@ -282,13 +283,18 @@ public sealed class FleetDigest
             ? resource.Images.Where(i => i.Status is not "up-to-date").Select(ImageLineOf).ToList()
             : [];
 
+        var platformLines = platforms
+            ? resource.Platforms.Select(p => new PlatformLine(p.EnvironmentName, p.Machine, p.Kind, p.Name, p.Version, p.NewestPatchOfMinor, p.NextMinor, p.SupportedUntil?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), p.EndOfLife?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), p.Level, p.Lookup)).ToList()
+            : [];
+
         return new MaintenanceDigest(
             ToCounts(report.Summary),
             resource.Attention.Select(a => new AttentionLine(a.Kind, a.Level, a.Count, Cap(a.Subjects.Select(s => s.Label)))).ToList(),
             repositories.Take(MaxItems).ToList(),
             imageLines.Take(MaxItems).ToList(),
             resource.CodeSource.Error,
-            repositories.Count > MaxItems || imageLines.Count > MaxItems);
+            repositories.Count > MaxItems || imageLines.Count > MaxItems || platformLines.Count > MaxItems,
+            platformLines.Take(MaxItems).ToList());
     }
 
     public static IReadOnlyList<string> Cap(IEnumerable<string> subjects)

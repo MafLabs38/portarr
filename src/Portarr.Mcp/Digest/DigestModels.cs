@@ -205,4 +205,23 @@ public sealed record MaintenanceDigest(
     IReadOnlyList<RepositoryLine> Repositories,
     IReadOnlyList<ImageLine> Images,
     string? CodeSourceError,
-    bool Truncated);
+    bool Truncated,
+    IReadOnlyList<PlatformLine> Platforms);
+
+/// <summary>
+/// A platform a machine runs: its kind (k3s, kubernetes, os), the version it reports, the newer versions that exist, and when its support stops.
+/// <c>Level</c> is danger (end of life reached), warning (within 90 days of it) or info (a newer version exists); null when there is nothing to say.
+/// <c>Lookup</c> says why a date may be missing: ok, pending (not read yet), not-listed (no source lists it), failed (the lookup failed) or disabled.
+/// </summary>
+public sealed record PlatformLine(
+    string Environment,
+    string Machine,
+    string Kind,
+    string Name,
+    string Version,
+    string? NewestPatchOfMinor,
+    string? NextMinor,
+    string? SupportedUntil,
+    string? EndOfLife,
+    string? Level,
+    string Lookup);

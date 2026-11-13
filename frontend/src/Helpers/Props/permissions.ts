@@ -4,6 +4,7 @@ export const APPS_VIEW = 'apps.view';
 export const INFRASTRUCTURE_VIEW = 'infrastructure.view';
 export const DATA_VIEW = 'data.view';
 export const MAINTENANCE_VIEW = 'maintenance.view';
+export const MCP_USE = 'mcp.use';
 export const ASSISTANT_VIEW = 'assistant.view';
 export const CHAT_USE = 'chat.use';
 export const CATALOG_WRITE = 'catalog.write';
@@ -20,6 +21,7 @@ export type Permission =
   | typeof INFRASTRUCTURE_VIEW
   | typeof DATA_VIEW
   | typeof MAINTENANCE_VIEW
+  | typeof MCP_USE
   | typeof ASSISTANT_VIEW
   | typeof CHAT_USE
   | typeof CATALOG_WRITE

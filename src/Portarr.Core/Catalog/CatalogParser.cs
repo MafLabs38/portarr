@@ -33,9 +33,9 @@ public static partial class CatalogParser
 
     /// <summary>
     /// As above, with the secret variable names the operator allows outside each connector's namespace
-    /// (<c>Catalog:SecretVariables</c>).
+    /// (<c>Catalog:SecretVariables</c>) and the names the MCP adapters registered (<paramref name="mcp"/>; none by default).
     /// </summary>
-    public static CatalogParseResult Parse(string yaml, IEnumerable<IEnvironmentConnector> connectors, IReadOnlySet<string>? allowedSecretVariables)
+    public static CatalogParseResult Parse(string yaml, IEnumerable<IEnvironmentConnector> connectors, IReadOnlySet<string>? allowedSecretVariables, IMcpVocabulary? mcp = null)
     {
         var registered = EnvironmentConnectorRegistry.Validate(connectors);
         var (full, plain) = CatalogDeserializers.For(registered.Select(c => c.Section).ToHashSet(StringComparer.Ordinal));
@@ -49,7 +49,7 @@ public static partial class CatalogParser
             return new CatalogParseResult(Catalog.Empty, [$"Invalid YAML at line {exception.Start.Line}: {Innermost(exception).Message}"]);
         }
 
-        return new Builder(registered, plain, allowedSecretVariables ?? new HashSet<string>()).Build(document ?? new CatalogDocument());
+        return new Builder(registered, plain, allowedSecretVariables ?? new HashSet<string>(), mcp ?? McpVocabulary.None).Build(document ?? new CatalogDocument());
     }
 
     private static Exception Innermost(Exception exception)
@@ -70,14 +70,6 @@ public static partial class CatalogParser
 
     private const string HttpScheme = "http";
     private const string HttpsScheme = "https";
-
-    /// <summary>Where the reader serves the Docker API and the host metrics (<c>route()</c> in <c>reader/src/server.rs</c>), under its base URL.</summary>
-    private const string ReaderDockerPath = "v1/docker/";
-
-    private const string ReaderHostPath = "v1/host";
-
-    /// <summary>The host agent section of an environment, which the <c>reader:</c> shortcut also stands for.</summary>
-    private const string HostMetricsSectionName = "hostMetrics";
 
     /// <summary><c>60</c> (seconds), <c>30s</c>, <c>5m</c>, <c>1h</c>.</summary>
 
@@ -104,12 +96,14 @@ public static partial class CatalogParser
         private readonly IReadOnlyList<IEnvironmentConnector> _connectors;
         private readonly IDeserializer _plain;
         private readonly IReadOnlySet<string> _allowedSecretVariables;
+        private readonly IMcpVocabulary _mcp;
 
-        public Builder(IReadOnlyList<IEnvironmentConnector> connectors, IDeserializer plain, IReadOnlySet<string> allowedSecretVariables)
+        public Builder(IReadOnlyList<IEnvironmentConnector> connectors, IDeserializer plain, IReadOnlySet<string> allowedSecretVariables, IMcpVocabulary mcp)
         {
             _connectors = connectors;
             _plain = plain;
             _allowedSecretVariables = allowedSecretVariables;
+            _mcp = mcp;
         }
 
         public CatalogParseResult Build(CatalogDocument document)
@@ -127,9 +121,12 @@ public static partial class CatalogParser
             var links = BuildLinks(document.Links ?? [], environments);
             var providers = BuildProviders(document.Providers ?? [], environmentsById, appIds);
             var portal = BuildPortal(document.Portal);
+            var secretStore = BuildSecretStore(document.SecretStore);
+            var mcpServers = BuildMcpServers(document.McpServers ?? [], appIds, secretStore, document.SecretStore is not null);
+            var workstations = BuildWorkstations(document.Workstations ?? [], environmentsById, mcpServers);
 
             return _errors.Count == 0
-                ? new CatalogParseResult(new Catalog(environments, stacks, apps, data, sources, links, providers, portal), [])
+                ? new CatalogParseResult(new Catalog(environments, stacks, apps, data, sources, links, providers, portal, mcpServers, workstations, secretStore), [])
                 : new CatalogParseResult(Catalog.Empty, _errors);
         }
 
@@ -150,17 +147,7 @@ public static partial class CatalogParser
                     continue;
                 }
 
-                var reader = BuildReader(id, document);
-                if (document.Reader is not null && reader is null)
-                {
-                    continue;
-                }
-
-                // The reader is catalog syntax: it is read as the docker section it stands for (D-102, D-105).
-                var sections = reader is null
-                    ? document.Sections
-                    : new Dictionary<string, IReadOnlyList<ParsingEvent>>(document.Sections) { [RuntimeNames.Docker] = reader.Value.Docker, [HostMetricsSectionName] = reader.Value.HostMetrics };
-                var connectors = BuildConnectors(id, document, sections);
+                var connectors = BuildConnectors(id, document, document.Sections);
 
                 if (connectors.Runtimes.Count > 1)
                 {
@@ -330,72 +317,6 @@ public static partial class CatalogParser
             }
 
             return true;
-        }
-
-        private (IReadOnlyList<ParsingEvent> Docker, IReadOnlyList<ParsingEvent> HostMetrics)? BuildReader(string environmentId, EnvironmentDocument document)
-        {
-            if (document.Reader is null)
-            {
-                return null;
-            }
-
-            if (document.Sections.ContainsKey(RuntimeNames.Docker) || document.Sections.ContainsKey(HostMetricsSectionName))
-            {
-                _errors.Add($"Environment '{environmentId}': reader replaces docker and hostMetrics; declare the reader, or docker and hostMetrics, not both.");
-                return null;
-            }
-
-            if (document.Runtime is not null and not RuntimeNames.Docker)
-            {
-                _errors.Add($"Environment '{environmentId}': a {document.Runtime} environment cannot declare a reader (it reads Docker hosts).");
-                return null;
-            }
-
-            var reader = document.Reader;
-            if (!Uri.TryCreate(reader.Url, UriKind.Absolute, out var url) || url.Scheme is not (HttpScheme or HttpsScheme) || url.UserInfo.Length > 0 || url.Query.Length > 0 || url.Fragment.Length > 0)
-            {
-                _errors.Add($"Environment '{environmentId}': reader.url must be the reader's address (e.g. http://10.0.0.10:8485, or https://proxy.homelab.example/reader-1 behind a reverse proxy), without credentials, query or fragment.");
-                return null;
-            }
-
-            var variable = reader.TokenEnv?.Trim();
-            if (string.IsNullOrEmpty(variable) || !CatalogValues.IsReaderTokenVariable(variable))
-            {
-                _errors.Add($"Environment '{environmentId}': reader.tokenEnv must be the name of the environment variable holding the reader's token, starting with {CatalogValues.ReaderTokenPrefix} (e.g. {CatalogValues.ReaderTokenPrefix}SERVER_1), never the token itself.");
-                return null;
-            }
-
-            // A trailing slash makes the reader's own path a base: the routes are resolved under it, whatever it is.
-            var baseUrl = url.AbsolutePath.EndsWith('/') ? url : new Uri(url.GetLeftPart(UriPartial.Path) + Path.AltDirectorySeparatorChar);
-            return (DockerSection(new Uri(baseUrl, ReaderDockerPath), variable), HostMetricsSection(new Uri(baseUrl, ReaderHostPath), variable));
-        }
-
-        /// <summary>The <c>hostMetrics:</c> section a reader stands for: <c>{ nodeExporter, tokenEnv }</c>, as the events of a flow mapping.</summary>
-        private static ParsingEvent[] HostMetricsSection(Uri url, string variable)
-        {
-            return
-            [
-                new MappingStart(AnchorName.Empty, TagName.Empty, true, MappingStyle.Flow),
-                new Scalar("nodeExporter"),
-                new Scalar(url.ToString()),
-                new Scalar("tokenEnv"),
-                new Scalar(variable),
-                new MappingEnd(),
-            ];
-        }
-
-        /// <summary>The <c>docker:</c> section a reader stands for: <c>{ url, tokenEnv }</c>, as the events of a flow mapping.</summary>
-        private static ParsingEvent[] DockerSection(Uri url, string variable)
-        {
-            return
-            [
-                new MappingStart(AnchorName.Empty, TagName.Empty, true, MappingStyle.Flow),
-                new Scalar("url"),
-                new Scalar(url.ToString()),
-                new Scalar("tokenEnv"),
-                new Scalar(variable),
-                new MappingEnd(),
-            ];
         }
 
         /// <summary>

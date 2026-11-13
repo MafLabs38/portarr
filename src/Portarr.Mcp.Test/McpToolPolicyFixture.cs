@@ -15,7 +15,7 @@ public sealed partial class McpToolPolicyFixture
     private static readonly string[] ReadPrefixes = ["get_", "list_", "find_"];
 
     private static IEnumerable<(string Name, bool ReadOnly)> Tools() =>
-        new[] { typeof(PortarrTools), typeof(CatalogTools) }
+        new[] { typeof(PortarrTools), typeof(CatalogTools), typeof(McpServerTools) }
             .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance))
             .Select(method => method.GetCustomAttribute<McpServerToolAttribute>())
             .OfType<McpServerToolAttribute>()

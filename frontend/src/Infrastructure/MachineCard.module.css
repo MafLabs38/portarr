@@ -175,7 +175,6 @@
 .legendContainers::before,
 .legendGuests::before,
 .legendSystem::before,
-.legendReclaimable::before,
 .legendIowait::before,
 .legendFree::before {
   display: inline-block;
@@ -201,10 +200,6 @@
 
 .legendSystem::before {
   background-color: var(--infoColor);
-}
-
-.legendReclaimable::before {
-  background-color: var(--hairlineStrong);
 }
 
 .legendIowait::before {

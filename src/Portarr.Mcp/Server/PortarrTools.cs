@@ -1,8 +1,12 @@
 using System.ComponentModel;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Portarr.Core.Accounts;
 using Portarr.Core.Catalog;
+using Portarr.Core.Mcp;
+using Portarr.Http.Authentication;
 using Portarr.Mcp.Digest;
 using Portarr.Mcp.Knowledge;
 
@@ -18,11 +22,15 @@ public sealed class PortarrTools
 {
     private readonly FleetDigest _digest;
     private readonly ICatalogService _catalogService;
+    private readonly IHttpContextAccessor _httpContext;
+    private readonly IMcpAttentionSource _mcpAttention;
 
-    public PortarrTools(FleetDigest digest, ICatalogService catalogService)
+    public PortarrTools(FleetDigest digest, ICatalogService catalogService, IHttpContextAccessor httpContext, IMcpAttentionSource mcpAttention)
     {
         _digest = digest;
         _catalogService = catalogService;
+        _httpContext = httpContext;
+        _mcpAttention = mcpAttention;
     }
 
     [RequiresPermissions(Permissions.AppsView, Permissions.InfrastructureView, Permissions.DataView, Permissions.MaintenanceView)]
@@ -30,8 +38,26 @@ public sealed class PortarrTools
     [Description("Start here. What needs attention across apps, infrastructure, data and maintenance, worst first (danger, warning, info), with app counts, environments and their connection, the busiest machines and data and maintenance counts.")]
     public Overview GetOverview()
     {
-        return _digest.GetOverview();
+        return WithMcpFinding(_digest.GetOverview(), _httpContext.HttpContext?.User);
     }
+
+    /// <summary>
+    /// A dead MCP server is for those who may see the operator's MCP servers (D-115): the Observer, who may read the four pages the overview
+    /// mirrors, does not see that finding. It is added here, for the callers who hold <c>mcp.use</c>, and is in no other consumer of the attention list.
+    /// </summary>
+    private Overview WithMcpFinding(Overview overview, ClaimsPrincipal? user)
+    {
+        if (user?.HasPermission(Permissions.McpUse) != true || _mcpAttention.GetDownFinding() is not { } down)
+        {
+            return overview;
+        }
+
+        var finding = new Finding(down.Area, down.Level.ToString().ToLowerInvariant(), down.Kind, down.Count, down.Subjects);
+        return overview with { NeedsAttention = overview.NeedsAttention.Append(finding).OrderBy(f => LevelRank(f.Level)).ToList() };
+    }
+
+    /// <summary>Worst first: danger, warning, info. The sort is stable, so the findings of one level keep their order.</summary>
+    private static int LevelRank(string level) => level switch { "danger" => 0, "warning" => 1, "info" => 2, _ => 3 };
 
     [RequiresPermissions(Permissions.AppsView)]
     [McpServerTool(Name = "list_apps", Title = "List apps", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
@@ -92,12 +118,12 @@ public sealed class PortarrTools
 
     [RequiresPermissions(Permissions.MaintenanceView)]
     [McpServerTool(Name = "get_maintenance", Title = "Maintenance", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("What is vulnerable, outdated or late: the attention list, repositories with alerts, scanning off, CI failing or Dependabot pull requests waiting, and running images that are not up to date.")]
-    public MaintenanceDigest GetMaintenance([Description("all, code (repositories) or images.")] string section = "all")
+    [Description("What is vulnerable, outdated or late: the attention list, repositories with alerts, scanning off, CI failing or Dependabot pull requests waiting, running images that are not up to date, and the platforms the machines run (K3s or Kubernetes, the operating system) with the newer versions that exist and when their support stops.")]
+    public MaintenanceDigest GetMaintenance([Description("all, code (repositories), images or platforms.")] string section = "all")
     {
-        if (section is not ("all" or "code" or "images"))
+        if (section is not ("all" or "code" or "images" or "platforms"))
         {
-            throw new McpException("section must be all, code or images.");
+            throw new McpException("section must be all, code, images or platforms.");
         }
 
         return _digest.GetMaintenance(section);

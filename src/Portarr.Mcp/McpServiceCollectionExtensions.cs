@@ -1,10 +1,12 @@
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -40,6 +42,9 @@ public static class McpServiceCollectionExtensions
         learn the whole map at once, portarr://knowledge/glossary for the meaning of statuses and codes, and
         get_environment_knowledge for access, links and providers.
         Portarr never acts on the infrastructure: suggest what the operator could do.
+        The operator's MCP servers are described too: list_mcp_servers, then get_mcp_server to install one for your own
+        client on this machine, or list_workstations and get_workstation_plan to bring a whole machine in line. Portarr
+        describes, you install: show exactly what you will write and wait for approval.
         """;
 
     /// <summary>Added to the instructions when the catalog write tools are on (D-86).</summary>
@@ -76,8 +81,6 @@ public static class McpServiceCollectionExtensions
         services.AddHttpContextAccessor();
         services.AddSingleton<CatalogTools>();
 
-        // Small answers: null fields are left out.
-        var json = new JsonSerializerOptions(McpJsonUtilities.DefaultOptions) { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
         services.AddMcpServer(options =>
             {
                 options.ServerInfo = new Implementation { Name = "portarr", Title = BuildInfo.AppName, Version = BuildInfo.Version };
@@ -85,12 +88,14 @@ public static class McpServiceCollectionExtensions
             })
             .WithHttpTransport(options => options.Stateless = true)
             .WithRequestFilters(McpAccess.Configure)
-            .WithTools<PortarrTools>(json)
             .WithResources<KnowledgeResources>();
 
         // The catalog write tools (D-86) exist only when asked for: an assistant cannot even see them otherwise.
         // Added once the options are bound (not while registering), so every configuration source counts.
-        services.AddSingleton<IConfigureOptions<McpServerOptions>>(provider => new CatalogToolsSetup(provider, json));
+        services.AddSingleton<IConfigureOptions<McpServerOptions>>(provider => new CatalogToolsSetup(provider));
+
+        // The read tools are created here, not with WithTools, to give them the schema options below.
+        services.AddSingleton<IConfigureOptions<McpServerOptions>>(provider => new ReadToolsSetup(provider));
 
         // The endpoint is for API clients: a key (a user's, the chat runner's token, or the deprecated environment key) and
         // never a browser cookie. What each tool needs is checked per tool, against the permissions of the key's owner.
@@ -127,16 +132,41 @@ public static class McpServiceCollectionExtensions
         return app;
     }
 
+    /// <summary>The read tools, each built on a fresh instance with the request's services.</summary>
+    private sealed class ReadToolsSetup : IConfigureOptions<McpServerOptions>
+    {
+        private readonly IServiceProvider _provider;
+
+        public ReadToolsSetup(IServiceProvider provider)
+        {
+            _provider = provider;
+        }
+
+        public void Configure(McpServerOptions options)
+        {
+            options.ToolCollection ??= new McpServerPrimitiveCollection<McpServerTool>();
+            foreach (var type in new[] { typeof(PortarrTools), typeof(McpServerTools) })
+            {
+                foreach (var method in type.GetMethods().Where(m => m.GetCustomAttribute<McpServerToolAttribute>() is not null))
+                {
+                    var toolType = type;
+                    options.ToolCollection.Add(McpServerTool.Create(
+                        method,
+                        context => ActivatorUtilities.CreateInstance(context.Services ?? _provider, toolType),
+                        ToolOptions(_provider)));
+                }
+            }
+        }
+    }
+
     /// <summary>The write tools and their instructions, when <see cref="McpOptions.WriteTools"/> is on.</summary>
     private sealed class CatalogToolsSetup : IConfigureOptions<McpServerOptions>
     {
         private readonly IServiceProvider _provider;
-        private readonly JsonSerializerOptions _json;
 
-        public CatalogToolsSetup(IServiceProvider provider, JsonSerializerOptions json)
+        public CatalogToolsSetup(IServiceProvider provider)
         {
             _provider = provider;
-            _json = json;
         }
 
         public void Configure(McpServerOptions options)
@@ -151,10 +181,55 @@ public static class McpServiceCollectionExtensions
             var target = _provider.GetRequiredService<CatalogTools>();
             foreach (var method in typeof(CatalogTools).GetMethods().Where(m => m.GetCustomAttribute<McpServerToolAttribute>() is not null))
             {
-                options.ToolCollection.Add(McpServerTool.Create(method, target, new McpServerToolCreateOptions { Services = _provider, SerializerOptions = _json }));
+                options.ToolCollection.Add(McpServerTool.Create(method, target, ToolOptions(_provider)));
             }
         }
     }
+
+    /// <summary>Small answers: null fields are left out.</summary>
+    internal static JsonSerializerOptions ResponseJson { get; } =
+        new(McpJsonUtilities.DefaultOptions) { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
+
+    /// <summary>
+    /// How every tool is built, so the tests build them the same way. The answers leave out null fields, so the output
+    /// schema must not require them: a client that checks an answer against the schema would reject all of it.
+    /// </summary>
+    internal static McpServerToolCreateOptions ToolOptions(IServiceProvider? services) =>
+        new()
+        {
+            Services = services,
+            SerializerOptions = ResponseJson,
+            SchemaCreateOptions = new AIJsonSchemaCreateOptions { TransformSchemaNode = (_, node) => WithoutRequiredNullables(node) },
+        };
+
+    private static JsonNode WithoutRequiredNullables(JsonNode node)
+    {
+        if (node is JsonObject { } schema && schema["properties"] is JsonObject properties && schema["required"] is JsonArray required)
+        {
+            for (var i = required.Count - 1; i >= 0; i--)
+            {
+                if (required[i] is { } name && properties[name.GetValue<string>()] is JsonObject property && AllowsNull(property))
+                {
+                    required.RemoveAt(i);
+                }
+            }
+
+            if (required.Count == 0)
+            {
+                schema.Remove("required");
+            }
+        }
+
+        return node;
+    }
+
+    private static bool AllowsNull(JsonObject schema) =>
+        schema["type"] switch
+        {
+            JsonArray types => types.Any(t => t?.GetValue<string>() == "null"),
+            JsonValue value => value.GetValue<string>() == "null",
+            _ => schema["anyOf"] is JsonArray any && any.Any(a => a is JsonObject option && AllowsNull(option)),
+        };
 
     /// <summary>Whether a request targets the MCP endpoint (for the request log and the SPA fallback).</summary>
     public static bool IsMcpRequest(HttpContext context) => context.Request.Path.StartsWithSegments(Path, StringComparison.OrdinalIgnoreCase);

@@ -6,7 +6,9 @@ import type Workload from 'typings/Workload';
 import translate from 'Utilities/String/translate';
 
 import ConsumerBars from './ConsumerBars';
+import { useConsumerSortStore } from './consumerSortStore';
 import ContainerGauges from './ContainerGauges';
+import GpuBox from './GpuBox';
 import GuestBars from './GuestBars';
 import HostGauges from './HostGauges';
 import styles from './MachineCard.module.css';
@@ -32,6 +34,7 @@ interface MachineCardProps {
  * host's own processes are not measured (D-57).
  */
 function MachineCard({ environment, machine, workloads, hostReads }: Readonly<MachineCardProps>) {
+  const { sort, setSort } = useConsumerSortStore();
   const agent = mergeHost(machine.hostMetrics, hostReads, environment.windowSeconds);
   const host = agent?.sampledAt ? agent : null;
   const scope = translate(`UsageScope_${machine.scope}`);
@@ -67,6 +70,8 @@ function MachineCard({ environment, machine, workloads, hostReads }: Readonly<Ma
         <ContainerGauges chart={chart} cpu={cpu} guests={guests} machine={machine} memory={memory} scope={scope} />
       )}
 
+      {machine.gpu ? <GpuBox environment={environment} gpu={machine.gpu} workloads={workloads} /> : null}
+
       {machine.guests.length > 0 ? (
         <GuestBars
           cpuCapacity={machine.cpuCapacityCores}
@@ -76,9 +81,11 @@ function MachineCard({ environment, machine, workloads, hostReads }: Readonly<Ma
       ) : null}
 
       <ConsumerBars
-        consumers={consumers(machine, workloads)}
+        consumers={consumers(machine, workloads, sort)}
         cpuCapacity={machine.cpuCapacityCores}
         memoryCapacity={machine.memoryCapacityBytes}
+        onSortChange={setSort}
+        sort={sort}
       />
     </article>
   );

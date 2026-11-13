@@ -113,6 +113,16 @@ public sealed class NodeExporterSamplerFixture
         return await sampler.ReadAsync(key, stream, TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public void should_carry_the_system_the_exporter_reported_into_the_reading()
+    {
+        var system = new MachineSystem("ubuntu", "Ubuntu 25.10", "25.10", "6.17.0-41-generic");
+        var counters = new NodeExporterCounters(new Dictionary<string, CpuTimes> { ["0"] = new(100, 0, 200) }, Memory, 0.5, null, system);
+
+        NodeExporterSampler.ToReading(null, counters).System.Should().Be(system);
+        NodeExporterSampler.ToReading(null, Counters(("0", new CpuTimes(100, 0, 200)))).System.Should().BeNull();
+    }
+
     private static NodeExporterCounters Counters(params (string Cpu, CpuTimes Times)[] cpus)
     {
         return new NodeExporterCounters(cpus.ToDictionary(c => c.Cpu, c => c.Times), Memory, 0.5, null);

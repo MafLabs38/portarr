@@ -20,10 +20,18 @@ describe('PageSidebar', () => {
       'Infrastructure',
       'Data',
       'Maintenance',
+      'MCP',
       'Assistant',
       'System',
       'Settings',
     ]);
+  });
+
+  it('shows the MCP page to the roles that configure the environment (mcp.use) and not to those that only look at it', async () => {
+    as('Operator', ['apps.view', 'mcp.use']);
+    renderWithProviders(<PageSidebar />);
+
+    expect(await screen.findByRole('link', { name: 'MCP' })).toHaveAttribute('href', '/mcp-servers');
   });
 
   it.each([

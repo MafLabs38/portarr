@@ -3,7 +3,7 @@ using Portarr.Core.Catalog.Editing;
 
 namespace Portarr.Core.Test.Catalog;
 
-/// <summary>How hosts are reached (connector sections, runtime, reader, check) is never changed by an edit (17-1).</summary>
+/// <summary>How hosts are reached (connector sections, runtime, check) is never changed by an edit (17-1).</summary>
 public sealed class ProtectedSettingsFixture
 {
     private static readonly string[] Connectors = ["docker", "kubernetes", "cloudflare", "backrest", "hostMetrics"];
@@ -11,12 +11,12 @@ public sealed class ProtectedSettingsFixture
     private static IReadOnlyList<string> EnvironmentKeys => ProtectedSettings.KeysOf(CatalogSections.Environments, Connectors);
 
     private static JsonObject Environment() => JsonNode.Parse(
-        """{"id":"server-1","name":"Server 1","docker":{"url":"http://socket-proxy:2375","tokenEnv":"PORTARR_READER_TOKEN"},"notes":"old"}""")!.AsObject();
+        """{"id":"server-1","name":"Server 1","docker":{"url":"http://socket-proxy:2375"},"notes":"old"}""")!.AsObject();
 
     [Fact]
-    public void should_protect_the_runtime_the_reader_and_every_connector_section_of_an_environment_and_the_check_of_an_app()
+    public void should_protect_the_runtime_and_every_connector_section_of_an_environment_and_the_check_of_an_app()
     {
-        EnvironmentKeys.Should().BeEquivalentTo(["runtime", "reader", .. Connectors]);
+        EnvironmentKeys.Should().BeEquivalentTo(["runtime", .. Connectors]);
         ProtectedSettings.KeysOf(CatalogSections.Apps, Connectors).Should().BeEquivalentTo(["check"]);
         ProtectedSettings.KeysOf(CatalogSections.Stacks, Connectors).Should().BeEmpty();
         ProtectedSettings.KeysOf(CatalogSections.Providers, Connectors).Should().BeEmpty();
@@ -46,9 +46,9 @@ public sealed class ProtectedSettingsFixture
     }
 
     [Theory]
-    [InlineData("""{"id":"server-1","docker":{"url":"http://attacker.example:2375","tokenEnv":"PORTARR_READER_TOKEN"}}""", "docker")]
-    [InlineData("""{"id":"server-1","docker":{"url":"http://socket-proxy:2375","tokenEnv":"PORTARR_READER_TOKEN"},"kubernetes":{"server":"https://attacker.example"}}""", "kubernetes")]
-    [InlineData("""{"id":"server-1","runtime":"none","docker":{"url":"http://socket-proxy:2375","tokenEnv":"PORTARR_READER_TOKEN"}}""", "runtime")]
+    [InlineData("""{"id":"server-1","docker":{"url":"http://attacker.example:2375"}}""", "docker")]
+    [InlineData("""{"id":"server-1","docker":{"url":"http://socket-proxy:2375"},"kubernetes":{"server":"https://attacker.example"}}""", "kubernetes")]
+    [InlineData("""{"id":"server-1","runtime":"none","docker":{"url":"http://socket-proxy:2375"}}""", "runtime")]
     public void should_refuse_an_edit_that_sets_or_changes_one(string sent, string key)
     {
         var edit = () => ProtectedSettings.Apply(CatalogSections.Environments, "server-1", Environment(), JsonNode.Parse(sent)!.AsObject(), EnvironmentKeys);

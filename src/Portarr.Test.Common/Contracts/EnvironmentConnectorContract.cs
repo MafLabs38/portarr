@@ -31,7 +31,7 @@ public abstract class EnvironmentConnectorContract
     /// <summary>The section with a literal secret where a variable name is expected, or null (said on purpose) when it has no such key.</summary>
     protected abstract string? SectionWithLiteralSecret { get; }
 
-    /// <summary>The section with a secret variable outside the <c>PORTARR_READER_</c> namespace, or null (said on purpose) when it names none.</summary>
+    /// <summary>The section with a secret variable outside the connector's namespace, or null (said on purpose) when it names none.</summary>
     protected abstract string? SectionWithSecretOutsideNamespace { get; }
 
     /// <summary>

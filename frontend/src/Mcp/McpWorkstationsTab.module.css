@@ -1,0 +1,76 @@
+.intro {
+  max-width: 70ch;
+  margin: 0 0 14px;
+  color: var(--inkMuted);
+  font-weight: 700;
+}
+
+.scroller {
+  overflow-x: auto;
+  border: var(--borderWidth) solid var(--hairline);
+  border-radius: var(--radiusMedium);
+  background-color: var(--paperCard);
+  box-shadow: var(--shadowCard);
+}
+
+.matrix {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.matrix th,
+.matrix td {
+  padding: 10px 14px;
+  border-top: var(--borderWidth) solid var(--hairline);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.matrix thead th {
+  border-top: 0;
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+}
+
+.matrix tbody th {
+  text-align: left;
+}
+
+.matrix a {
+  color: var(--ink);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.matrix a:hover {
+  text-decoration: underline;
+}
+
+.os {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: var(--radiusPill);
+  background-color: var(--paperSunken);
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+}
+
+.wanted {
+  display: inline-flex;
+  color: var(--successColor);
+}
+
+.none {
+  color: var(--inkMuted);
+}
+
+.hidden {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

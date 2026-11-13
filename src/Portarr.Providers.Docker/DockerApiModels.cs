@@ -30,7 +30,17 @@ internal sealed record ContainerPort(
 
 internal sealed record ContainerInspect(
     [property: JsonPropertyName("Id")] string Id,
-    [property: JsonPropertyName("Config")] ContainerConfig Config);
+    [property: JsonPropertyName("Config")] ContainerConfig Config,
+    [property: JsonPropertyName("HostConfig")] ContainerHostConfig? HostConfig = null);
+
+/// <summary>How a container was created that matters to the GPU (D-120): its runtime and its device requests (<c>--gpus</c>).</summary>
+internal sealed record ContainerHostConfig(
+    [property: JsonPropertyName("Runtime")] string? Runtime,
+    [property: JsonPropertyName("DeviceRequests")] IReadOnlyList<DeviceRequest>? DeviceRequests);
+
+internal sealed record DeviceRequest(
+    [property: JsonPropertyName("Driver")] string? Driver,
+    [property: JsonPropertyName("Capabilities")] IReadOnlyList<IReadOnlyList<string>>? Capabilities);
 
 internal sealed record ContainerConfig([property: JsonPropertyName("Tty")] bool Tty);
 

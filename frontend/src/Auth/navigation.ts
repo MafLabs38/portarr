@@ -25,6 +25,8 @@ export const menuEntries: MenuEntry[] = [
   },
   { to: '/data', label: 'Data', icon: icons.DATA, permission: permissions.DATA_VIEW },
   { to: '/maintenance', label: 'Maintenance', icon: icons.MAINTENANCE, permission: permissions.MAINTENANCE_VIEW },
+  // The operator's MCP servers, their health and how to install them: configuration, not a view, hence its own permission.
+  { to: '/mcp-servers', label: 'MCP', icon: icons.MCP, permission: permissions.MCP_USE },
   // Its own entry while the sidebar has no second level (C3): the same questions, asked from an AI (V5).
   { to: '/assistant', label: 'Assistant', icon: icons.ASSISTANT, permission: permissions.ASSISTANT_VIEW },
   { to: '/system/status', label: 'System', icon: icons.SYSTEM, permission: permissions.SYSTEM_VIEW },

@@ -1,0 +1,137 @@
+using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
+using Portarr.Core.Catalog;
+using Portarr.Core.Mcp.Clients;
+
+namespace Portarr.Providers.McpClients;
+
+/// <summary>
+/// A client that keeps its servers in a JSON file: one entry per server under a root key. The differences between the clients
+/// (the root key, the name of the address field, a <c>type</c>, the syntax that reads a variable, the file) are the members a
+/// renderer overrides; a command the client provides is added on top.
+/// </summary>
+public abstract partial class JsonConfigRenderer : McpClientRendererBase
+{
+    /// <summary>The path of the object that holds the servers: <c>mcpServers</c>, or <c>mcp</c> then <c>servers</c>.</summary>
+    protected abstract IReadOnlyList<string> RootPath(McpRenderContext context);
+
+    /// <summary>The file that holds the servers at this scope, as the operating system writes it.</summary>
+    protected abstract string FilePath(McpRenderContext context);
+
+    /// <summary>The client's syntax for reading the variable <paramref name="variable"/>, or null when the client has none (then <see cref="ReadsVariables"/> is false). It must not depend on the name.</summary>
+    protected abstract string? Reference(string variable);
+
+    protected virtual string HttpUrlKey => "url";
+
+    protected virtual string? HttpType => null;
+
+    protected virtual string? StdioType => null;
+
+    protected virtual IEnumerable<McpOperation> InstallCommands(McpRenderContext context) => [];
+
+    protected virtual IEnumerable<McpOperation> RemoveCommands(McpRenderContext context) => [];
+
+    /// <summary>A variable inside the file, or a placeholder naming the value the operator must write.</summary>
+    protected string Ref(string variable) => Reference(variable) ?? $"<value of {variable}>";
+
+    protected override IEnumerable<McpOperation> InstallOperations(McpRenderContext context)
+    {
+        foreach (var command in InstallCommands(context))
+        {
+            yield return command;
+        }
+
+        var snippet = new JsonObject { [context.Server.Id] = Entry(context) };
+        foreach (var key in RootPath(context).Reverse())
+        {
+            snippet = new JsonObject { [key] = snippet };
+        }
+
+        yield return Merge(FilePath(context), Json(snippet), string.Empty);
+    }
+
+    protected override IEnumerable<McpOperation> RemoveOperations(McpRenderContext context)
+    {
+        foreach (var command in RemoveCommands(context))
+        {
+            yield return command;
+        }
+
+        yield return Delete(FilePath(context), $"the entry \"{context.Server.Id}\" under {string.Join(" > ", RootPath(context))}");
+    }
+
+    public override bool ReadsVariables => Reference("X") is not null;
+
+    protected override IEnumerable<string> Notes(McpRenderContext context)
+    {
+        if (context.RequiredVariables().Count > 0 && Reference("X") is null)
+        {
+            yield return $"{Name} reads no variable inside its file: write the value of each <value of …> placeholder yourself, and keep that file private.";
+        }
+    }
+
+    /// <summary>The entry of the server in the client's shape.</summary>
+    protected virtual JsonObject Entry(McpRenderContext context)
+    {
+        var server = context.Server;
+        var entry = new JsonObject();
+        if (server.Http is { } http)
+        {
+            if (HttpType is not null)
+            {
+                entry["type"] = HttpType;
+            }
+
+            entry[HttpUrlKey] = http.Url.OriginalString;
+            if (http.Headers.Count > 0)
+            {
+                entry["headers"] = Pairs(http.Headers, Ref);
+            }
+
+            return entry;
+        }
+
+        var stdio = server.Stdio!;
+        if (StdioType is not null)
+        {
+            entry["type"] = StdioType;
+        }
+
+        entry["command"] = stdio.Command;
+        if (stdio.Args.Count > 0)
+        {
+            entry["args"] = Strings(stdio.Args);
+        }
+
+        if (stdio.Env.Count > 0)
+        {
+            entry["env"] = Pairs(stdio.Env, Ref);
+        }
+
+        return entry;
+    }
+
+    /// <summary>A flag with a <c>name&lt;separator&gt;value</c> argument between single quotes, the value being the variable's syntax when it is one; null when the text holds a quote.</summary>
+    protected string? Flag(McpRenderContext context, string flag, string name, McpValue value, string separator)
+    {
+        var text = $"{name}{separator}{Text(value)}";
+        return Quote(context, text) is { } quoted ? $"{flag} {quoted}" : null;
+    }
+
+    private string Text(McpValue value) => value.IsEnv ? Ref(value.EnvName!) : value.Literal!;
+
+    /// <summary>An argument that is exactly <c>@name</c>, which PowerShell reads as a splat.</summary>
+    [GeneratedRegex(@"^@\w+\z")]
+    private static partial Regex PowerShellSplat();
+
+    /// <summary>
+    /// A command-line argument: as is when it is plain, between single quotes otherwise, null when it holds a quote. A comma is not plain: in PowerShell's
+    /// argument mode it is the array operator, so <c>a,b</c> would reach the program as two arguments, a percent sign is read by <c>cmd.exe</c> (so <c>--%</c>, which stops the parsing of PowerShell, is refused on Windows) and <c>@name</c> is a splat.
+    /// </summary>
+    protected static string? Arg(McpRenderContext context, string text)
+    {
+        return text.Length > 0 && !PowerShellSplat().IsMatch(text) && text.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '@' or '+' or '=' or ':' or '.' or '/' or '-')
+            ? text
+            : Quote(context, text);
+    }
+}

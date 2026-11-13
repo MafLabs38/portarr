@@ -1,6 +1,6 @@
 # 0011 — The reader: a read-only probe, written in Rust, that speaks the protocols Portarr already reads
 
-- **Status**: accepted
+- **Status**: superseded by [0017](0017-the-reader-is-retired.md)
 - **Date**: 2026-10-31
 - **Spec**: D-102 (amends D-100 and D-101)
 - **Supersedes**: [0010](0010-optional-read-only-agent.md), for the component's name, its API, its connector and its language

@@ -287,6 +287,42 @@ describe('chatItems', () => {
     useChatStore.setState({ open: true, conversationId: null, agent: null, model: null });
     renderWithProviders(<ChatPanel />);
 
-    expect(await screen.findByText(/can read the fleet but not change the catalog/)).toBeInTheDocument();
+    expect(await screen.findByText(/it reads the fleet\. No shell/)).toBeInTheDocument();
+    expect(screen.queryByText(/edits the catalog with your approval/)).not.toBeInTheDocument();
+    // The read-only limit is behind the bell, not in the middle of the panel.
+    expect(screen.queryByText(/The catalog is read-only/)).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Notices about the chat' }));
+    expect(screen.getByText(/The catalog is read-only/)).toBeInTheDocument();
+  });
+
+  it('keeps the notices behind a bell, closes them with Escape and has no bell when there is nothing to say', async () => {
+    const user = userEvent.setup();
+    const status = (reachable: boolean) =>
+      http.get('/api/v1/assistant/chat', () =>
+        HttpResponse.json({
+          enabled: true,
+          reachable,
+          agents: [],
+          mcpEnabled: true,
+          mcpWriteTools: true,
+          catalogWritable: true,
+        }),
+      );
+    server.use(status(false));
+    useChatStore.setState({ open: true, conversationId: null, agent: null, model: null });
+    const { unmount } = renderWithProviders(<ChatPanel />);
+
+    const bell = await screen.findByRole('button', { name: 'Notices about the chat' });
+    expect(screen.queryByText(/does not answer/)).not.toBeInTheDocument();
+    await user.click(bell);
+    expect(screen.getByText(/does not answer/)).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByText(/does not answer/)).not.toBeInTheDocument();
+    unmount();
+
+    server.use(status(true));
+    renderWithProviders(<ChatPanel />);
+    await screen.findByRole('button', { name: 'New chat' });
+    expect(screen.queryByRole('button', { name: 'Notices about the chat' })).not.toBeInTheDocument();
   });
 });

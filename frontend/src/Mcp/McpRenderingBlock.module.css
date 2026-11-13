@@ -1,0 +1,51 @@
+.block {
+  margin: 0 0 18px;
+}
+
+.heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0 0 4px;
+  font-family: var(--displayFontFamily);
+  font-size: var(--fontSizeCardTitle);
+  font-weight: 600;
+}
+
+.scope {
+  color: var(--inkMuted);
+  font-family: var(--bodyFontFamily);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+}
+
+.operation {
+  margin: 0 0 6px;
+}
+
+.description {
+  margin: 8px 0 0;
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+}
+
+.notes {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+}
+
+.requires {
+  margin: 0 0 4px;
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+}
+
+.requires code {
+  font-family: var(--monoSpaceFontFamily);
+}

@@ -1,5 +1,6 @@
 using Portarr.Core.Catalog;
 using Portarr.Core.Maintenance;
+using Portarr.Core.Platforms;
 
 namespace Portarr.Api.V1.Maintenance;
 
@@ -100,13 +101,36 @@ public sealed record MaintenanceRefreshResource(
     bool Refreshing,
     DateTimeOffset? AvailableAt);
 
+/// <summary>
+/// A platform a machine runs (D-119): <c>kind</c> is <c>os</c> for the operating system, else the distribution the kubelet names after its plus sign (<c>k3s</c>, <c>rke2r</c>…) or <c>kubernetes</c> for a plain one, with the version it reports, the newer versions that
+/// exist (<c>newestPatchOfMinor</c>: the newest of the same line; <c>nextMinor</c>: the next line, one at a time), the days its
+/// support stops and what that deserves (<c>level</c>: danger, warning or info; null when there is nothing to say), and where the lookup
+/// behind the dates stands (<c>lookup</c>: ok, pending, not-listed, failed or disabled). A date nobody
+/// announced is null, never an infinite support.
+/// </summary>
+public sealed record PlatformResource(
+    string EnvironmentId,
+    string EnvironmentName,
+    string MachineId,
+    string Machine,
+    string Kind,
+    string Name,
+    string Version,
+    string? NewestPatchOfMinor,
+    string? NextMinor,
+    DateOnly? SupportedUntil,
+    DateOnly? EndOfLife,
+    string? Level,
+    string Lookup);
+
 public sealed record MaintenanceResource(
     MaintenanceSummaryResource Summary,
     IReadOnlyList<AttentionItemResource> Attention,
     CodeSourceResource CodeSource,
     IReadOnlyList<RepositoryResource> Repositories,
     IReadOnlyList<DeployedImageResource> Images,
-    MaintenanceRefreshResource Refresh);
+    MaintenanceRefreshResource Refresh,
+    IReadOnlyList<PlatformResource> Platforms);
 
 public static class MaintenanceResourceMapper
 {
@@ -126,7 +150,26 @@ public static class MaintenanceResourceMapper
             new CodeSourceResource(report.CodeSourceConfigured, catalog.CodeSources.SelectMany(s => s.Logins).Distinct(StringComparer.OrdinalIgnoreCase).ToList(), report.Scan.At, report.Scan.Error, catalog.CodeSources.Select(s => new CodeSourceEntryResource(s.Kind, s.Logins)).ToList()),
             report.Repositories.Select(ToResource).ToList(),
             report.Images.Select(image => ToResource(image, environments)).ToList(),
-            ToResource(report.Refresh));
+            ToResource(report.Refresh),
+            report.Platforms.Select(platform => ToResource(platform, environments)).ToList());
+    }
+
+    private static PlatformResource ToResource(PlatformStatus platform, Dictionary<string, string> environments)
+    {
+        return new PlatformResource(
+            platform.EnvironmentId,
+            environments.GetValueOrDefault(platform.EnvironmentId, platform.EnvironmentId),
+            platform.MachineId,
+            platform.MachineName,
+            platform.Kind,
+            platform.Name,
+            platform.Version,
+            platform.NewestPatch,
+            platform.NextMinor,
+            platform.SupportedUntil,
+            platform.EndOfLife,
+            platform.Level?.ToString().ToLowerInvariant(),
+            platform.Lookup);
     }
 
     public static MaintenanceRefreshResource ToResource(this MaintenanceRefresh refresh)

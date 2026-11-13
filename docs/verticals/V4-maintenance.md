@@ -21,8 +21,8 @@ Two halves of one question, "what is vulnerable, outdated or late?":
 | GitHub connector (GET only, conditional requests): visibility, language, last push, default branch, open Dependabot alerts by severity, open code scanning alerts by severity (quality rules apart), open secret scanning alerts, latest release (or tag), open Dependabot pull requests, last CI run of the default branch | Alert details (package, fixed version) and Security → Vulnerabilities (E-07); closing or dismissing alerts (D-16); the repository's dependency list and library versions (F-UPD-07 proper, SBOM) |
 | Links between repositories and catalog apps: `repository:` on an app, an image's OCI source label, a GHCR or Docker Hub image named like a scanned repository | Declared versions read from the IaC and drift (F-UPD-04 "declared", Q-27); the IaC file to change (F-UPD-02) |
 | Registry connector (anonymous, GET and HEAD only): Docker Hub, GHCR, lscr.io, Quay, any OCI registry; tags, their dates and digests when cheap | Private registries (a pull token per registry), Helm charts, host OS packages (Q-26) |
-| Image verdicts for running Docker containers and Kubernetes pods: up to date, behind (patch / minor / major / build), rebuilt (floating tag moved), floating (cannot tell), unknown (with the reason) | Per-app tag filters and ignored versions (F-UPD-01 rules); release notes links; end of life of runtimes (F-UPD-06, endoflife.date); deployment detection (F-UPD-05) |
-| **Maintenance** page after Data: a summary, "what needs attention" across both halves, two sub-tabs *My code* and *Deployed images* | Issues and notifications (V5, V6); the "update" badge on app tiles; a timeline of releases |
+| Image verdicts for running Docker containers and Kubernetes pods: up to date, behind (patch / minor / major / build), rebuilt (floating tag moved), floating (cannot tell), unknown (with the reason) | Per-app tag filters and ignored versions (F-UPD-01 rules); release notes links; end of life of the runtimes of apps (base images, files of repositories; F-UPD-06: the machines' platforms are done, D-119); deployment detection (F-UPD-05) |
+| **Maintenance** page after Data: a summary, "what needs attention" across the halves, sub-tabs *My code*, *Deployed images* and *Platforms* (D-119) | Issues and notifications (V5, V6); the "update" badge on app tiles; a timeline of releases |
 
 ## UI proposal (D-67)
 
@@ -114,6 +114,7 @@ Maintenance findings are not app statuses: an app is not Down because a newer ve
 - [x] An image started from an id, built locally or private says why it cannot be checked
 - [x] Each image repository is looked up at most every 6 hours; repositories at most every 30 minutes
 - [x] The attention list mixes both halves, worst first, and names what each finding concerns
+- [x] The *Platforms* tab lists what each machine runs (K3s, its operating system) with the newer versions that exist (the patch of the same line, then the next line), when support stops and what that deserves; a date nobody announced is shown as unknown (D-119)
 - [x] Summary figures and attention lines filter the page (URL query string, pill with a clear button); the page says when GitHub and the registries were read; a rate-limited manual refresh (D-75)
 - [x] Integration tests of the tools over HTTP with a fake code source and a fake registry (`MaintenanceToolsFixture`), and an E2E test of the page (`maintenance.spec.ts`)
 

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Portarr.Core.Maintenance;
+using Portarr.Core.Net;
 
 namespace Portarr.Providers.Registries;
 
@@ -18,7 +19,7 @@ public static class RegistriesServiceCollectionExtensions
         })
         // Redirects are followed by the client itself (a few, to an https host, without the token); every connection,
         // the token realm's and a redirect's included, goes through the address policy (15-20).
-        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, ConnectCallback = RegistryAddressPolicy.ConnectAsync });
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, ConnectCallback = OutboundAddressPolicy.ConnectAsync });
         services.AddSingleton<IImageRegistry, ContainerRegistryClient>();
 
         return services;
