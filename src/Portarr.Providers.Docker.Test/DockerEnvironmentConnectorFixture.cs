@@ -48,6 +48,14 @@ public sealed class DockerEnvironmentConnectorFixture : EnvironmentConnectorCont
     }
 
     [Fact]
+    public void should_refuse_the_token_variable_of_the_retired_reader_and_name_the_key()
+    {
+        var result = Parse("environments:\n  - { id: server-1, docker: { url: \"http://10.0.0.10:2375\", tokenEnv: PORTARR_READER_SERVER_1 } }\n");
+
+        result.Errors.Should().NotBeEmpty().And.Contain(error => error.Contains("tokenEnv", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void should_be_one_machine_that_can_host_vms()
     {
         var parsed = Parse("environments:\n  - { id: hypervisor, docker: { url: \"http://10.0.0.10:2375\" } }\n  - { id: vm-1, host: hypervisor }\n");

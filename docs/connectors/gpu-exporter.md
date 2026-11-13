@@ -1,6 +1,6 @@
 # GPU exporter connector
 
-Reads the graphics card of a Docker host from an **NVIDIA GPU exporter** every 5 seconds (D-120, [ADR 0019](../adr/0019-the-gpu-is-read-from-a-standard-exporter.md)). Installation: [companions.md](../companions.md#nvidia-gpu-exporter). Catalog: `gpu: { exporter: <URL> }` on a Docker environment ([catalog.md](../catalog.md)).
+Reads the graphics card of a Docker host from an **NVIDIA GPU exporter** every 5 seconds (D-120, [ADR 0019](../adr/0019-the-gpu-is-read-from-a-standard-exporter.md)). Installation: [companions.md](../companions.md#nvidia-gpu-exporter). Catalog: `nvidiaGpu: { exporter: <URL> }` on a Docker environment ([catalog.md](../catalog.md)).
 
 ## What is read
 
@@ -17,9 +17,13 @@ One `GET` of the `/metrics` URL, gzip accepted, 5 s timeout, no redirects, no cr
 
 A figure the exporter does not give is shown as missing. A failed read says why (`unreachable`, `timeout`, `http-503`…) and the last values stay.
 
+## What is covered
+
+NVIDIA cards only: the section is named after the tool (`nvidiaGpu`), so another vendor's exporter is one more connector and one more section, not a change to this one. The card is read every 5 seconds, a fixed interval (the exporter asks the driver on each read). A Docker host only.
+
 ## The containers attached to the card
 
-The running containers created with the NVIDIA runtime (`HostConfig.Runtime`) or a GPU device request (`HostConfig.DeviceRequests`: the `nvidia` driver or the `gpu` capability) are listed under the card ("Attached to"). This is read with `docker inspect` (read-only, through the same Docker endpoint as the inventory), once per container for as long as it exists, at most 20 per pass. **It says which containers can use the card, not how much each uses it.**
+The running containers created with the NVIDIA runtime (`HostConfig.Runtime`) or a GPU device request (`HostConfig.DeviceRequests`: the `nvidia` driver or the `gpu` capability) are listed under the card ("Attached to"). A container given the device by path (`/dev/dri`) is not. This is read with `docker inspect` (read-only, through the same Docker endpoint as the inventory), once per container for as long as it exists, at most 20 per pass. **It says which containers can use the card, not how much each uses it.**
 
 ## Contract
 

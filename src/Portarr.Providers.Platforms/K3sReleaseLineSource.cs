@@ -22,6 +22,8 @@ public sealed partial class K3sReleaseLineSource : IReleaseLineSource
 
     public string Platform => PlatformKinds.K3s;
 
+    public string DisplayName => "K3s";
+
     [GeneratedRegex(@"^v(?<line>[0-9]{1,3}\.[0-9]{1,3})$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 200)]
     private static partial Regex LineChannel();
 
@@ -30,7 +32,7 @@ public sealed partial class K3sReleaseLineSource : IReleaseLineSource
         using var request = new HttpRequestMessage(HttpMethod.Get, ChannelsUrl);
         using var response = await _httpClientFactory.CreateClient(PlatformsHttp.ClientName).SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        await using var stream = PlatformsHttp.Capped(await response.Content.ReadAsStreamAsync(cancellationToken));
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
         if (!document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
@@ -41,19 +43,14 @@ public sealed partial class K3sReleaseLineSource : IReleaseLineSource
         var lines = new List<ReleaseLine>();
         foreach (var channel in data.EnumerateArray())
         {
-            var id = Text(channel, "id");
-            var latest = Text(channel, "latest");
-            if (id is not null && latest is not null && LineChannel().Match(id) is { Success: true } match && KubernetesVersion.Parse(latest) is { IsK3s: true, PreRelease: false })
+            var id = PlatformsHttp.Text(channel, "id");
+            var latest = PlatformsHttp.Text(channel, "latest");
+            if (id is not null && latest is not null && LineChannel().Match(id) is { Success: true } match && KubernetesVersion.Parse(latest) is { Distribution: "k3s", PreRelease: false })
             {
                 lines.Add(new ReleaseLine(match.Groups["line"].Value, latest));
             }
         }
 
         return lines.OrderByDescending(l => KubernetesVersion.Parse(l.Latest)).ToList();
-    }
-
-    private static string? Text(JsonElement element, string name)
-    {
-        return element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     }
 }

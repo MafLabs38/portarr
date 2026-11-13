@@ -73,6 +73,18 @@ public sealed class DockerGpuAttachmentSourceFixture
     }
 
     [Fact]
+    public async Task should_inspect_the_rest_on_the_following_passes_so_every_container_is_reached()
+    {
+        var many = Enumerable.Range(0, DockerGpuAttachmentSource.InspectionsPerPass + 5).Select(i => Container($"c{i:D2}")).ToList();
+        var source = Source;
+
+        await source.AttachedAsync(Environment, many, TestContext.Current.CancellationToken);
+        await source.AttachedAsync(Environment, many, TestContext.Current.CancellationToken);
+
+        _asked.Should().HaveCount(many.Count).And.OnlyHaveUniqueItems("the 25 containers are inspected once each over two passes");
+    }
+
+    [Fact]
     public void should_support_a_docker_environment_and_no_other()
     {
         Source.Supports(Environment).Should().BeTrue();

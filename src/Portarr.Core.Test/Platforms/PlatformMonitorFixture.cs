@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+using Portarr.Core.Configuration;
 using Portarr.Core.Infrastructure;
 using Portarr.Core.Platforms;
 
@@ -19,6 +21,7 @@ public sealed class PlatformMonitorFixture
     {
         _hosts.Current.Returns(new Dictionary<HostMachineKey, HostMetricsView>());
         _k3s.Platform.Returns("k3s");
+        _k3s.DisplayName.Returns("K3s");
         _k3s.ReadAsync(Arg.Any<CancellationToken>()).Returns([new ReleaseLine("1.32", "v1.32.2+k3s1")]);
         _lifecycle.ReadAsync("kubernetes", Arg.Any<CancellationToken>()).Returns([new SupportCycle("1.32", null, new DateOnly(2027, 2, 28))]);
         _lifecycle.ReadAsync("ubuntu", Arg.Any<CancellationToken>()).Returns([new SupportCycle("25.10", null, new DateOnly(2027, 7, 1))]);
@@ -26,7 +29,7 @@ public sealed class PlatformMonitorFixture
         Machines(new MachineSystem("ubuntu", "Ubuntu 25.10", "25.10", "6.17.0", "v1.32.0+k3s1"));
     }
 
-    private PlatformMonitor Monitor => new(_infrastructure, _hosts, [_k3s], [_lifecycle], _clock, NullLogger<PlatformMonitor>.Instance);
+    private PlatformMonitor Monitor => new(_infrastructure, _hosts, [_k3s], [_lifecycle], Options.Create(new PortarrOptions()), _clock, NullLogger<PlatformMonitor>.Instance);
 
     private void Machines(params MachineSystem[] systems)
     {
@@ -111,6 +114,47 @@ public sealed class PlatformMonitorFixture
         await Monitor.RunDueAsync(TestContext.Current.CancellationToken);
 
         await _lifecycle.DidNotReceive().ReadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task should_keep_the_cycles_it_has_and_retry_sooner_when_one_product_cannot_be_read()
+    {
+        var monitor = Monitor;
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+        _lifecycle.ReadAsync("ubuntu", Arg.Any<CancellationToken>()).Returns<IReadOnlyList<SupportCycle>?>(_ => throw new HttpRequestException("down"));
+
+        _clock.Advance(PlatformMonitor.Interval);
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+
+        monitor.Current.Cycles.Keys.Should().BeEquivalentTo(["kubernetes", "ubuntu"], "the dead product keeps its last answer and the others are read again");
+        monitor.Current.Cycles["ubuntu"].Should().ContainSingle().Which.Cycle.Should().Be("25.10");
+
+        _clock.Advance(PlatformMonitor.RetryInterval);
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+        await _lifecycle.Received(3).ReadAsync("ubuntu", Arg.Any<CancellationToken>());
+        await _lifecycle.Received(2).ReadAsync("kubernetes", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task should_read_nothing_when_the_platform_lookups_are_switched_off()
+    {
+        var monitor = new PlatformMonitor(_infrastructure, _hosts, [_k3s], [_lifecycle], Options.Create(new PortarrOptions { PlatformUpdates = false }), _clock, NullLogger<PlatformMonitor>.Instance);
+
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+
+        await _k3s.DidNotReceive().ReadAsync(Arg.Any<CancellationToken>());
+        await _lifecycle.DidNotReceive().ReadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        monitor.Current.Should().Be(PlatformKnowledge.Empty);
+    }
+
+    [Fact]
+    public async Task should_carry_the_display_name_of_the_platform_the_source_gives()
+    {
+        var monitor = Monitor;
+
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+
+        monitor.Current.DisplayNames.Should().Contain("k3s", "K3s");
     }
 
     [Fact]

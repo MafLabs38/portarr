@@ -1,7 +1,7 @@
-namespace Portarr.Providers.NodeExporter;
+namespace Portarr.Core.Net;
 
 /// <summary>A read-only view of a stream that fails once more than <c>limit</c> bytes were read from it (a decompressed answer can be far larger than what was sent).</summary>
-internal sealed class CappedStream(Stream inner, long limit) : Stream
+public sealed class CappedStream(Stream inner, long limit) : Stream
 {
     private long _read;
 
@@ -49,6 +49,6 @@ internal sealed class CappedStream(Stream inner, long limit) : Stream
     private int Count(int read)
     {
         _read += read;
-        return _read > limit ? throw new InvalidDataException($"The metrics answer is larger than {limit} bytes.") : read;
+        return _read > limit ? throw new InvalidDataException($"The answer is larger than {limit} bytes.") : read;
     }
 }

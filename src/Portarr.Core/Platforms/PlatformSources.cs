@@ -18,8 +18,14 @@ public sealed record ReleaseLine(string Line, string Latest);
 /// </summary>
 public interface IReleaseLineSource
 {
-    /// <summary>The platform whose releases this source lists, a <see cref="PlatformKinds"/> value (<c>k3s</c>).</summary>
+    /// <summary>
+    /// The platform whose releases this source lists: the distribution a kubelet version names after its plus sign (<c>k3s</c> for
+    /// <c>v1.31.4+k3s1</c>). Core asks for the lines of every distribution the nodes run; the source that carries that name answers.
+    /// </summary>
     string Platform { get; }
+
+    /// <summary>The platform as it is shown to the operator (<c>K3s</c>).</summary>
+    string DisplayName { get; }
 
     /// <summary>One line per published release line, each with its newest version; throws when the source cannot be read.</summary>
     Task<IReadOnlyList<ReleaseLine>> ReadAsync(CancellationToken cancellationToken);

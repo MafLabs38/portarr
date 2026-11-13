@@ -6,20 +6,20 @@ namespace Portarr.Core.Platforms;
 /// <summary>
 /// The version of a Kubernetes distribution as a kubelet reports it: <c>v1.31.4+k3s1</c> is Kubernetes 1.31.4, build 1 of K3s.
 /// Versions compare as Kubernetes does (major, minor, patch, a release over its pre-release), then by build. <see cref="Line"/>
-/// is the minor line (<c>1.31</c>): Kubernetes supports a few lines at a time and a cluster moves one line at a time.
+/// is the minor line (<c>1.31</c>): Kubernetes supports a few lines at a time and a cluster moves one line at a time. The build after the
+/// plus sign is read generically: its letters name the distribution (<c>k3s</c>, <c>rke2r</c>) and its trailing number is the build.
 /// </summary>
 public sealed partial record KubernetesVersion(int Major, int Minor, int Patch, bool PreRelease, string? Distribution, int Build, string Text) : IComparable<KubernetesVersion>
 {
-    public const string K3s = "k3s";
-
     /// <summary>The minor line, <c>1.31</c>.</summary>
     public string Line => string.Create(CultureInfo.InvariantCulture, $"{Major}.{Minor}");
-
-    public bool IsK3s => Distribution == K3s;
 
     [GeneratedRegex(@"^v?(?<major>[0-9]{1,3})\.(?<minor>[0-9]{1,3})\.(?<patch>[0-9]{1,4})(?<pre>-[0-9A-Za-z.]+)?(?:\+(?<build>[0-9A-Za-z]+))?$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 200)]
     private static partial Regex Pattern();
 
+    /// <summary>The build of a distribution: <c>k3s1</c> is <c>k3s</c> build 1, <c>rke2r1</c> is <c>rke2r</c> build 1, <c>k3s</c> alone is build 0.</summary>
+    [GeneratedRegex("^(?<name>[0-9A-Za-z]*?)(?<number>[0-9]+)?$", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 200)]
+    private static partial Regex BuildPattern();
 
     /// <summary>Reads a version as a kubelet or the K3s release channels write it; null when it is not one.</summary>
     public static KubernetesVersion? Parse(string? text)
@@ -31,17 +31,10 @@ public sealed partial record KubernetesVersion(int Major, int Minor, int Patch, 
 
         string? distribution = null;
         var build = 0;
-        if (match.Groups["build"] is { Success: true } buildGroup)
+        if (match.Groups["build"] is { Success: true } buildGroup && BuildPattern().Match(buildGroup.Value) is { Success: true } parts)
         {
-            // "k3s1": the distribution "k3s" and its build 1; anything else (rke2r1, eks-1) keeps its text as the distribution.
-            if (buildGroup.Value.StartsWith(K3s, StringComparison.Ordinal) && int.TryParse(buildGroup.Value[K3s.Length..], NumberStyles.None, CultureInfo.InvariantCulture, out build))
-            {
-                distribution = K3s;
-            }
-            else
-            {
-                distribution = buildGroup.Value;
-            }
+            distribution = parts.Groups["name"].Value is { Length: > 0 } name ? name.ToLowerInvariant() : null;
+            build = parts.Groups["number"].Success ? int.Parse(parts.Groups["number"].Value, NumberStyles.None, CultureInfo.InvariantCulture) : 0;
         }
 
         return new KubernetesVersion(
@@ -53,6 +46,11 @@ public sealed partial record KubernetesVersion(int Major, int Minor, int Patch, 
             build,
             text.Trim());
     }
+
+    /// <summary>Two versions are equal when they compare equal: <c>v1.31.4</c> and <c>1.31.4</c> are the same version, whatever their text.</summary>
+    public bool Equals(KubernetesVersion? other) => other is not null && CompareTo(other) == 0;
+
+    public override int GetHashCode() => HashCode.Combine(Major, Minor, Patch, PreRelease, Build);
 
     public int CompareTo(KubernetesVersion? other)
     {

@@ -1,6 +1,8 @@
-namespace Portarr.Providers.NodeExporter.Test;
+using Portarr.Core.Net;
 
-/// <summary>The byte cap on a scrape: exactly the limit passes, one byte more fails, whichever way the stream is read.</summary>
+namespace Portarr.Core.Test.Net;
+
+/// <summary>The byte cap on an answer read from a service: exactly the limit passes, one byte more fails, whichever way the stream is read.</summary>
 public sealed class CappedStreamFixture
 {
     private const int Limit = 10;

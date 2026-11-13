@@ -133,7 +133,7 @@ Run `utkuozdemir/nvidia_gpu_exporter` (the `-nvml` image) with the NVIDIA runtim
 environments:
   - id: server-1
     docker: { url: "http://10.0.0.10:2375" }
-    gpu: { exporter: "http://10.0.0.10:9835/metrics" }
+    nvidiaGpu: { exporter: "http://10.0.0.10:9835/metrics" }
 ```
 
 ### Verification

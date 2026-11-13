@@ -10,7 +10,7 @@ The operator wants the load of the graphics card of a machine (an RTX 2070 that 
 
 ## Decision
 
-- **The card is read from `nvidia_gpu_exporter`** (the `-nvml` flavor: native NVML, no `nvidia-smi` subprocess), one container on the host started with the NVIDIA runtime, which serves the card's figures as Prometheus text. It is declared in the catalog (`gpu: { exporter }` on the Docker environment), owned by its own connector library (ADR 0013), read-only (GET), every 5 seconds because the exporter asks the driver on each read.
+- **The card is read from `nvidia_gpu_exporter`** (the `-nvml` flavor: native NVML, no `nvidia-smi` subprocess), one container on the host started with the NVIDIA runtime, which serves the card's figures as Prometheus text. It is declared in the catalog under a key that names the tool (`nvidiaGpu: { exporter }` on the Docker environment: another vendor's exporter is one more connector and section, never a change to this one), owned by its own connector library (ADR 0013), read-only (GET), every 5 seconds because the exporter asks the driver on each read.
 - **Two capabilities, each with a contract suite** (rule 8): `IGpuSource` (the cards: load, memory, encoder, decoder, temperature, power) and `IGpuAttachmentSource` (the workloads created with a card attached). Another exporter or another runtime joins by its contract.
 - **The Prometheus text parser moves to Core** (`PrometheusText`) so node_exporter and the GPU exporter share it.
 - **Which workloads have the card is read from the runtime**: a container created with the NVIDIA runtime or a GPU device request (`docker inspect`), once per container, cached while it exists, at most 20 per pass.

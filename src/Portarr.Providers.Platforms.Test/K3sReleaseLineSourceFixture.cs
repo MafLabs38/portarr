@@ -1,5 +1,6 @@
 using System.Net;
 using Portarr.Core.Platforms;
+using Portarr.Test.Common;
 using Portarr.Test.Common.Contracts;
 
 namespace Portarr.Providers.Platforms.Test;
@@ -52,15 +53,26 @@ public sealed class K3sReleaseLineSourceFixture
     }
 
     [Theory]
-    [InlineData("""{ "type": "collection" }""")]
-    [InlineData("""{ "data": "x" }""")]
-    [InlineData("not json")]
-    public async Task should_refuse_an_answer_that_is_not_the_channels(string body)
+    [InlineData("""{ "type": "collection" }""", typeof(InvalidDataException))]
+    [InlineData("""{ "data": "x" }""", typeof(InvalidDataException))]
+    [InlineData("not json", typeof(System.Text.Json.JsonException))]
+    public async Task should_refuse_an_answer_that_is_not_the_channels(string body, Type expected)
     {
         var source = new K3sReleaseLineSource(new StubHttp(_ => StubHttp.Json(body)));
 
         var act = () => source.ReadAsync(TestContext.Current.CancellationToken);
 
-        await act.Should().ThrowAsync<Exception>();
+        (await act.Should().ThrowAsync<Exception>()).Which.Should().BeAssignableTo(expected);
+    }
+
+    [Fact]
+    public async Task should_refuse_an_answer_larger_than_the_cap_whatever_the_buffer_of_the_client()
+    {
+        var huge = "{ \"data\": [" + string.Join(',', Enumerable.Repeat("""{ "id": "v1.31" }""", PlatformsHttp.MaxResponseBytes / 10)) + "] }";
+        var source = new K3sReleaseLineSource(new StubHttp(_ => StubHttp.Json(huge)));
+
+        var act = () => source.ReadAsync(TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<InvalidDataException>();
     }
 }

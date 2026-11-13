@@ -51,13 +51,10 @@ public sealed partial class GpuMonitor : BackgroundService, IGpuMonitor
             .Where(pair => pair.Source is not null)
             .ToList();
 
-        var next = new Dictionary<string, GpuView>(StringComparer.Ordinal);
-        foreach (var (environment, source) in environments)
-        {
-            next[environment.Id] = await ReadAsync(environment, source!, _current.GetValueOrDefault(environment.Id), cancellationToken);
-        }
-
-        _current = next;
+        // Every card is read on its own: an exporter that has gone away holds back its own reading, not the others'.
+        var previous = _current;
+        var views = await Task.WhenAll(environments.Select(pair => ReadAsync(pair.Environment, pair.Source!, previous.GetValueOrDefault(pair.Environment.Id), cancellationToken)));
+        _current = views.ToDictionary(view => view.EnvironmentId, StringComparer.Ordinal);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

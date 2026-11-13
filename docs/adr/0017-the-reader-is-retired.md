@@ -3,7 +3,7 @@
 - **Status**: proposed
 - **Date**: 2026-11-13
 - **Spec**: D-117 (supersedes D-100, D-101 and D-102)
-- **Supersedes**: [0011](0011-reader-speaking-the-existing-protocols.md) and [0010](0010-optional-read-only-agent.md); retires points 8 and 10 of [0013](0013-connectors-own-their-environment-settings.md) as far as they concern the reader (an accepted ADR is not edited)
+- **Supersedes**: [0011](0011-reader-speaking-the-existing-protocols.md) and [0010](0010-optional-read-only-agent.md); retires points 8 and 10 of [0013](0013-connectors-own-their-environment-settings.md) and the third published image of [0014](0014-releases-with-semantic-release.md), as far as they concern the reader (an accepted ADR is not edited)
 
 ## Context
 

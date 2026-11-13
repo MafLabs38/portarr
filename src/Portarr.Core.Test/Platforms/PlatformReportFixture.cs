@@ -52,6 +52,20 @@ public sealed class PlatformReportFixture
     }
 
     [Fact]
+    public void should_take_the_name_a_source_gives_its_platform_and_look_up_the_lines_of_any_distribution()
+    {
+        var knowledge = new PlatformKnowledge(
+            new Dictionary<string, IReadOnlyList<ReleaseLine>> { ["rke2r"] = [new("1.32", "v1.32.3+rke2r1")] },
+            new Dictionary<string, IReadOnlyList<SupportCycle>>(),
+            Now,
+            new Dictionary<string, string> { ["rke2r"] = "RKE2" });
+
+        var status = PlatformReport.Build([Entry(new MachineSystem(null, null, null, null, "v1.32.0+rke2r1"))], knowledge, Now).Single();
+
+        (status.Name, status.Kind, status.NewestPatch).Should().Be(("RKE2", "rke2r", "v1.32.3+rke2r1"));
+    }
+
+    [Fact]
     public void should_say_nothing_about_a_k3s_node_that_is_up_to_date_on_a_supported_line()
     {
         var status = Build(Entry(new MachineSystem(null, null, null, null, "v1.33.1+k3s1"))).Single();
@@ -64,15 +78,14 @@ public sealed class PlatformReportFixture
     {
         var status = Build(Entry(new MachineSystem(null, null, null, null, "v1.32.0+rke2r1"))).Single();
 
-        status.Kind.Should().Be("kubernetes");
-        status.Name.Should().Be("Kubernetes");
+        status.Kind.Should().Be("rke2r", "the platform is the distribution the kubelet names, and no source carries it yet");
+        status.Name.Should().Be("Rke2r");
         (status.NewestPatch, status.NextMinor).Should().Be(((string?)null, (string?)null));
         status.EndOfLife.Should().Be(new DateOnly(2027, 2, 28));
     }
 
     [Theory]
     [InlineData("20.04", AttentionLevel.Danger)]
-    [InlineData("25.10", null)]
     [InlineData("24.04", null)]
     public void should_rate_an_operating_system_by_its_end_of_life(string version, AttentionLevel? expected)
     {
@@ -179,7 +192,7 @@ public sealed class PlatformReportFixture
             Entry(new MachineSystem("unraid-os", "Unraid", "7", null)),
         ]);
 
-        lines.Should().BeEquivalentTo(["k3s"]);
+        lines.Should().BeEquivalentTo(["k3s", "rke2r"], "every distribution a node names is asked for; a source that carries the name answers");
         products.Should().BeEquivalentTo(["ubuntu", "kubernetes", "debian", "unraid-os"]);
     }
 

@@ -1,10 +1,10 @@
 using System.Net;
 using System.Text;
 
-namespace Portarr.Providers.Platforms.Test;
+namespace Portarr.Test.Common;
 
 /// <summary>An HTTP client factory whose client answers from a function: the request in, the response out, every request kept.</summary>
-internal sealed class StubHttp : IHttpClientFactory
+public sealed class StubHttp : IHttpClientFactory
 {
     private readonly Func<HttpRequestMessage, HttpResponseMessage> _answer;
 

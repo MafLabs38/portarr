@@ -2,20 +2,21 @@ using System.Globalization;
 using Portarr.Core.Catalog;
 using Portarr.Core.Infrastructure.Gpu;
 using Portarr.Core.Metrics;
+using Portarr.Core.Net;
 
 namespace Portarr.Providers.GpuExporter;
 
 /// <summary>
 /// The NVIDIA GPU exporter (<c>utkuozdemir/nvidia_gpu_exporter</c>) read over HTTP (D-120): one GET of its <c>/metrics</c> URL, streamed
-/// and filtered to the few families the card needs, size capped, no redirect. Every family carries the card's <c>uuid</c>; the model and
+/// and filtered to the few families the card needs, capped at <see cref="MaxBytes"/>, no redirect. Every family carries the card's <c>uuid</c>; the model and
 /// the driver are labels of <c>nvidia_smi_gpu_info</c>; loads are ratios (0 to 1) of the exporter's base units.
 /// </summary>
 public sealed class GpuExporterSource : IGpuSource
 {
     public const string HttpClientName = "gpu-exporter";
 
-    /// <summary>The largest answer read: a card's families are a few hundred lines, and a runaway answer is not the exporter.</summary>
-    public const int MaxCharacters = 1_000_000;
+    /// <summary>The largest answer read, in bytes once decompressed: a card's families are a few hundred lines, and a runaway answer is not the exporter.</summary>
+    public const int MaxBytes = 1_000_000;
 
     private const string Prefix = "nvidia_smi_";
 
@@ -35,7 +36,8 @@ public sealed class GpuExporterSource : IGpuSource
         using var response = await _httpClientFactory.CreateClient(HttpClientName).SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var reader = new StreamReader(stream);
+        // The cap counts the bytes read after any decompression, so a line that never ends cannot fill the memory before it is counted.
+        using var reader = new StreamReader(new CappedStream(stream, MaxBytes));
         return await ParseAsync(reader, cancellationToken);
     }
 
@@ -43,15 +45,8 @@ public sealed class GpuExporterSource : IGpuSource
     internal static async Task<IReadOnlyList<GpuReading>> ParseAsync(TextReader reader, CancellationToken cancellationToken)
     {
         var cards = new Dictionary<string, Card>(StringComparer.Ordinal);
-        long read = 0;
         while (await reader.ReadLineAsync(cancellationToken) is { } line)
         {
-            read += line.Length + 1;
-            if (read > MaxCharacters)
-            {
-                throw new InvalidDataException($"The metrics answer is larger than {MaxCharacters} characters.");
-            }
-
             if (line.StartsWith(Prefix, StringComparison.Ordinal) && PrometheusText.TryParseSample(line, IsWanted, out var sample) && sample.Label("uuid") is { Length: > 0 } uuid)
             {
                 if (!cards.TryGetValue(uuid, out var card))

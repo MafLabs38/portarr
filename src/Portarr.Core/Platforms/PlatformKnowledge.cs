@@ -1,18 +1,21 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Portarr.Core.Configuration;
 using Portarr.Core.Infrastructure;
 
 namespace Portarr.Core.Platforms;
 
 /// <summary>
-/// What Portarr knows of the world's releases and support dates (D-119): the newest version of every release line per platform,
-/// and the support cycles per product. A product the lifecycle source does not know is absent. In memory only: a restart reads
+/// What Portarr knows of the world's releases and support dates (D-119): the newest version of every release line per platform
+/// (with the platform's display name), and the support cycles per product. A product the lifecycle source does not know is absent. In memory only: a restart reads
 /// again, the sources are cheap and public.
 /// </summary>
 public sealed record PlatformKnowledge(
     IReadOnlyDictionary<string, IReadOnlyList<ReleaseLine>> ReleaseLines,
     IReadOnlyDictionary<string, IReadOnlyList<SupportCycle>> Cycles,
-    DateTimeOffset? CheckedAt)
+    DateTimeOffset? CheckedAt,
+    IReadOnlyDictionary<string, string>? DisplayNames = null)
 {
     public static readonly PlatformKnowledge Empty = new(new Dictionary<string, IReadOnlyList<ReleaseLine>>(), new Dictionary<string, IReadOnlyList<SupportCycle>>(), null);
 }
@@ -42,6 +45,8 @@ public sealed partial class PlatformMonitor : BackgroundService, IPlatformKnowle
 
     // Only touched by RunDueAsync, which the loop never runs twice at the same time.
     private readonly Dictionary<string, DateTimeOffset> _nextRuns = new(StringComparer.Ordinal);
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly bool _enabled;
     private volatile PlatformKnowledge _current = PlatformKnowledge.Empty;
 
     public PlatformMonitor(
@@ -49,9 +54,11 @@ public sealed partial class PlatformMonitor : BackgroundService, IPlatformKnowle
         IHostMetricsMonitor hostMetrics,
         IEnumerable<IReleaseLineSource> releaseSources,
         IEnumerable<ISupportLifecycleSource> lifecycleSources,
+        IOptions<PortarrOptions> options,
         TimeProvider timeProvider,
         ILogger<PlatformMonitor> logger)
     {
+        _enabled = options.Value.PlatformUpdates;
         _infrastructure = infrastructure;
         _hostMetrics = hostMetrics;
         _releaseSources = releaseSources.ToList();
@@ -65,16 +72,36 @@ public sealed partial class PlatformMonitor : BackgroundService, IPlatformKnowle
     /// <summary>Reads what is due. Release lines are keyed <c>lines:&lt;platform&gt;</c>, cycles <c>cycles:&lt;product&gt;</c>.</summary>
     public async Task RunDueAsync(CancellationToken cancellationToken = default)
     {
+        if (!_enabled)
+        {
+            return;
+        }
+
+        // One pass at a time: the schedule is a plain dictionary, and a caller other than the loop (a test, a manual refresh) must not race it.
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            await RunPassAsync(cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task RunPassAsync(CancellationToken cancellationToken)
+    {
         var now = _timeProvider.GetUtcNow();
         var wanted = PlatformReport.Wanted(PlatformReport.SystemsOf(_infrastructure.Current, _hostMetrics.Current));
         var current = _current;
         var lines = current.ReleaseLines.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
         var cycles = current.Cycles.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        var names = (current.DisplayNames ?? new Dictionary<string, string>()).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
         var changed = false;
 
         foreach (var platform in wanted.ReleaseLines.Where(p => IsDue($"lines:{p}", now)))
         {
-            changed |= await ReadLinesAsync(platform, lines, now, cancellationToken);
+            changed |= await ReadLinesAsync(platform, lines, names, now, cancellationToken);
         }
 
         foreach (var product in wanted.Products.Where(p => IsDue($"cycles:{p}", now)))
@@ -84,7 +111,7 @@ public sealed partial class PlatformMonitor : BackgroundService, IPlatformKnowle
 
         if (changed)
         {
-            _current = new PlatformKnowledge(lines, cycles, now);
+            _current = new PlatformKnowledge(lines, cycles, now, names);
         }
     }
 
@@ -108,7 +135,7 @@ public sealed partial class PlatformMonitor : BackgroundService, IPlatformKnowle
 
     private bool IsDue(string key, DateTimeOffset now) => !_nextRuns.TryGetValue(key, out var next) || next <= now;
 
-    private async Task<bool> ReadLinesAsync(string platform, Dictionary<string, IReadOnlyList<ReleaseLine>> lines, DateTimeOffset now, CancellationToken cancellationToken)
+    private async Task<bool> ReadLinesAsync(string platform, Dictionary<string, IReadOnlyList<ReleaseLine>> lines, Dictionary<string, string> names, DateTimeOffset now, CancellationToken cancellationToken)
     {
         var source = _releaseSources.FirstOrDefault(s => s.Platform == platform);
         if (source is null)
@@ -120,6 +147,7 @@ public sealed partial class PlatformMonitor : BackgroundService, IPlatformKnowle
         try
         {
             lines[platform] = await source.ReadAsync(cancellationToken);
+            names[platform] = source.DisplayName;
             _nextRuns[$"lines:{platform}"] = now + Interval;
             return true;
         }

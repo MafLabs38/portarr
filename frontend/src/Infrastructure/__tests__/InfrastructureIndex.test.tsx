@@ -68,12 +68,15 @@ describe('InfrastructureIndex', () => {
     expect(within(gpu).getByText('NVIDIA GeForce RTX 2070')).toBeInTheDocument();
   });
 
-  it('has no graphics card box for a machine without one', async () => {
+  it('has no graphics card box for a machine that declares none', async () => {
+    const withoutCard = structuredClone(infrastructure) as InfrastructureEnvironment[];
+    (withoutCard[0]?.machines[0] as Machine).gpu = null;
+    server.use(http.get('/api/v1/infrastructure', () => HttpResponse.json(withoutCard)));
     renderWithProviders(<InfrastructureIndex />);
 
-    await screen.findByRole('article', { name: 'Server 1' });
+    const machine = await screen.findByRole('article', { name: 'Server 1' });
 
-    expect(screen.getAllByRole('region', { name: 'GPU' })).toHaveLength(1);
+    expect(within(machine).queryByRole('region', { name: 'GPU' })).not.toBeInTheDocument();
   });
 
   it('shows the age of the last sample, live or stale', async () => {

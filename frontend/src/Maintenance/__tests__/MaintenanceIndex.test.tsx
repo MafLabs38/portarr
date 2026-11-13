@@ -178,7 +178,7 @@ describe('MaintenanceIndex', () => {
     renderWithProviders(<MaintenanceIndex />);
 
     const attention = within(await screen.findByRole('list', { name: 'Needs attention' }));
-    await user.click(attention.getByText(/1 platforms are out of support/));
+    await user.click(attention.getByText(/platforms? (are|is) out of support/));
 
     expect(await screen.findByRole('tab', { name: /Platforms/ })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('listitem', { name: 'server-1 Ubuntu 20.04' })).toBeInTheDocument();

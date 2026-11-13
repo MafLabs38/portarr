@@ -4,7 +4,8 @@
 # publish it on the host's LAN address only and allow only Portarr's host (firewall).
 services:
   nvidia-gpu-exporter:
-    image: utkuozdemir/nvidia_gpu_exporter:1.18.0-nvml   # pin a version (or a digest) in production; keep the -nvml flavor
+    # Pinned by digest (the -nvml flavor of 1.18.0): a third-party image that gets the card of the host. Bump it on purpose.
+    image: utkuozdemir/nvidia_gpu_exporter@sha256:bf82122fdf8cc960b1233e33dea82767a711343fa2919d525ca9199e83cc5195
     container_name: nvidia-gpu-exporter
     restart: unless-stopped
     runtime: nvidia                     # the NVIDIA Container Toolkit hands the driver library to the container

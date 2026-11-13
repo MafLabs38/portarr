@@ -37,7 +37,7 @@ public sealed class EndOfLifeDateSource : ISupportLifecycleSource
         }
 
         response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        await using var stream = PlatformsHttp.Capped(await response.Content.ReadAsStreamAsync(cancellationToken));
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
         if (!document.RootElement.TryGetProperty("result", out var result) || !result.TryGetProperty("releases", out var releases) || releases.ValueKind != JsonValueKind.Array)
@@ -48,7 +48,7 @@ public sealed class EndOfLifeDateSource : ISupportLifecycleSource
         var cycles = new List<SupportCycle>();
         foreach (var release in releases.EnumerateArray())
         {
-            if (Text(release, "name") is { Length: > 0 } name)
+            if (PlatformsHttp.Text(release, "name") is { Length: > 0 } name)
             {
                 cycles.Add(new SupportCycle(name, Date(release, "eoasFrom"), Date(release, "eolFrom")));
             }
@@ -57,14 +57,9 @@ public sealed class EndOfLifeDateSource : ISupportLifecycleSource
         return cycles;
     }
 
-    private static string? Text(JsonElement element, string name)
-    {
-        return element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
-    }
-
     /// <summary>A day written <c>yyyy-MM-dd</c>; null when there is none (null, a boolean, anything else).</summary>
     private static DateOnly? Date(JsonElement element, string name)
     {
-        return Text(element, name) is { } text && DateOnly.TryParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date : null;
+        return PlatformsHttp.Text(element, name) is { } text && DateOnly.TryParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date : null;
     }
 }

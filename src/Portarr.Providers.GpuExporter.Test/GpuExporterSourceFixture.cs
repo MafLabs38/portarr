@@ -105,11 +105,11 @@ public sealed class GpuExporterSourceFixture
     }
 
     [Fact]
-    public async Task should_refuse_an_answer_larger_than_the_cap()
+    public async Task should_refuse_an_answer_larger_than_the_cap_even_when_it_is_one_line_that_never_ends()
     {
-        var huge = string.Join('\n', Enumerable.Repeat("nvidia_smi_temperature_gpu{uuid=\"GPU-A\"} 1", 40_000));
+        var http = new StubHttp(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(new string('x', GpuExporterSource.MaxBytes + 1)) });
 
-        var act = () => Parse(huge);
+        var act = () => new GpuExporterSource(http).ReadAsync(GpuEnvironments.With(), TestContext.Current.CancellationToken);
 
         await act.Should().ThrowAsync<InvalidDataException>();
     }
@@ -132,17 +132,17 @@ public sealed class GpuExporterEnvironmentConnectorFixture
     [Fact]
     public void should_read_the_exporter_of_a_docker_host()
     {
-        var parsed = Parse("environments:\n  - { id: server-1, docker: { url: \"http://10.0.0.10:2375\" }, gpu: { exporter: \"http://10.0.0.10:9835/metrics\" } }\n");
+        var parsed = Parse("environments:\n  - { id: server-1, docker: { url: \"http://10.0.0.10:2375\" }, nvidiaGpu: { exporter: \"http://10.0.0.10:9835/metrics\" } }\n");
 
         parsed.Errors.Should().BeEmpty();
         parsed.Catalog.Environments.Single().Gpu().Should().Be(new GpuEndpoint(new Uri("http://10.0.0.10:9835/metrics")));
     }
 
     [Theory]
-    [InlineData("gpu: { exporter: \"http://u:p@10.0.0.10:9835/metrics\" }", "gpu.exporter must be")]
-    [InlineData("gpu: { exporter: nope }", "gpu.exporter must be")]
-    [InlineData("gpu: {}", "gpu.exporter must be")]
-    [InlineData("gpu: { exporter: \"http://10.0.0.10:9835/metrics\", tokenEnv: X }", "tokenEnv")]
+    [InlineData("nvidiaGpu: { exporter: \"http://u:p@10.0.0.10:9835/metrics\" }", "nvidiaGpu.exporter must be")]
+    [InlineData("nvidiaGpu: { exporter: nope }", "nvidiaGpu.exporter must be")]
+    [InlineData("nvidiaGpu: {}", "nvidiaGpu.exporter must be")]
+    [InlineData("nvidiaGpu: { exporter: \"http://10.0.0.10:9835/metrics\", tokenEnv: X }", "tokenEnv")]
     public void should_refuse_a_section_that_is_not_an_exporter_url_or_carries_a_credential(string section, string expected)
     {
         var result = Parse($"environments:\n  - {{ id: server-1, docker: {{ url: \"http://10.0.0.10:2375\" }}, {section} }}\n");
@@ -153,8 +153,8 @@ public sealed class GpuExporterEnvironmentConnectorFixture
     [Fact]
     public void should_only_be_for_an_environment_that_is_one_machine_with_a_runtime()
     {
-        var result = Parse("environments:\n  - { id: cdn, cloudflare: { accountId: abc }, gpu: { exporter: \"http://10.0.0.10:9835/metrics\" } }\n");
+        var result = Parse("environments:\n  - { id: cdn, cloudflare: { accountId: abc }, nvidiaGpu: { exporter: \"http://10.0.0.10:9835/metrics\" } }\n");
 
-        result.Errors.Should().ContainSingle().Which.Should().Contain("gpu is for a docker environment");
+        result.Errors.Should().ContainSingle().Which.Should().Contain("nvidiaGpu is for a docker environment");
     }
 }

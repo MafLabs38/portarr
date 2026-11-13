@@ -110,9 +110,9 @@ public static partial class PlatformReport
             if (KubernetesVersion.Parse(system.KubeletVersion) is { } kubelet)
             {
                 products.Add(PlatformKinds.Kubernetes);
-                if (kubelet.IsK3s)
+                if (kubelet.Distribution is { } distribution && ProductPattern().IsMatch(distribution))
                 {
-                    lines.Add(PlatformKinds.K3s);
+                    lines.Add(distribution);
                 }
             }
 
@@ -157,18 +157,26 @@ public static partial class PlatformReport
             return null;
         }
 
-        var newer = Newer.None;
-        if (version.IsK3s && knowledge.ReleaseLines.GetValueOrDefault(PlatformKinds.K3s) is { } lines)
-        {
-            var known = lines.Select(l => (Line: l, Version: KubernetesVersion.Parse(l.Latest))).Where(l => l.Version is not null).ToList();
-            newer = new Newer(
-                known.FirstOrDefault(l => l.Version!.Line == version.Line && l.Version > version).Line?.Latest,
-                known.FirstOrDefault(l => l.Version!.Major == version.Major && l.Version.Minor == version.Minor + 1).Line?.Latest);
-        }
-
+        // The platform is the distribution the kubelet names (k3s, rke2r…), or plain Kubernetes: a source that carries that name gives its lines.
+        var platform = version.Distribution ?? PlatformKinds.Kubernetes;
+        var newer = knowledge.ReleaseLines.GetValueOrDefault(platform) is { } lines ? NewerOf(version, lines) : Newer.None;
         var cycle = knowledge.Cycles.GetValueOrDefault(PlatformKinds.Kubernetes)?.FirstOrDefault(c => c.Cycle == version.Line);
-        var name = version.IsK3s ? "K3s" : "Kubernetes";
-        return Status(entry, version.IsK3s ? PlatformKinds.K3s : PlatformKinds.Kubernetes, name, version.Text, newer, cycle, today);
+        return Status(entry, platform, DisplayNameOf(platform, knowledge), version.Text, newer, cycle, today);
+    }
+
+    /// <summary>The newest version of the line the node is on, when it is newer than the node's, and the first version of the next line (never a jump of two).</summary>
+    private static Newer NewerOf(KubernetesVersion version, IReadOnlyList<ReleaseLine> lines)
+    {
+        var known = lines.Select(line => KubernetesVersion.Parse(line.Latest)).OfType<KubernetesVersion>().ToList();
+        return new Newer(
+            known.FirstOrDefault(v => v.Line == version.Line && v > version)?.Text,
+            known.FirstOrDefault(v => v.Major == version.Major && v.Minor == version.Minor + 1)?.Text);
+    }
+
+    /// <summary>The name the source gives its platform; else the platform as it was written, with a capital (<c>k3s</c> is <c>K3s</c>); plain Kubernetes is Kubernetes.</summary>
+    private static string DisplayNameOf(string platform, PlatformKnowledge knowledge)
+    {
+        return knowledge.DisplayNames?.GetValueOrDefault(platform) ?? string.Concat(char.ToUpperInvariant(platform[0]).ToString(), platform.AsSpan(1));
     }
 
     private static PlatformStatus? OperatingSystem(MachineSystemEntry entry, PlatformKnowledge knowledge, DateOnly today)

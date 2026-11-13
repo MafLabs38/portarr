@@ -57,6 +57,14 @@ public sealed class NodeExporterEnvironmentConnectorFixture : EnvironmentConnect
         result.Errors.Should().ContainSingle().Which.Should().Contain("hostMetrics.nodeExporter must be node_exporter's metrics URL");
     }
 
+    [Fact]
+    public void should_refuse_the_token_variable_of_the_retired_reader_and_name_the_key()
+    {
+        var result = Parse("environments:\n  - { id: server-1, docker: { url: \"http://10.0.0.10:2375\" }, hostMetrics: { nodeExporter: \"http://10.0.0.10:9100/metrics\", tokenEnv: PORTARR_READER_SERVER_1 } }\n");
+
+        result.Errors.Should().NotBeEmpty().And.Contain(error => error.Contains("tokenEnv", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData("5s", 5)]
     [InlineData("1m", 60)]

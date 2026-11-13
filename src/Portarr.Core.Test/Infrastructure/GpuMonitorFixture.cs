@@ -107,6 +107,47 @@ public sealed class GpuMonitorFixture
     }
 
     [Fact]
+    public async Task should_forget_the_card_of_an_environment_that_left_the_catalog()
+    {
+        var monitor = Monitor;
+        await monitor.SampleAsync(TestContext.Current.CancellationToken);
+        var without = TestCatalog.Parse("environments:\n  - { id: server-2, name: Server 2 }\n");
+        _catalog.Current.Returns(new CatalogState(without.Catalog, "catalog.yaml", true, [], Start));
+
+        await monitor.SampleAsync(TestContext.Current.CancellationToken);
+
+        monitor.Current.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task should_still_report_the_card_when_the_runtime_cannot_be_asked_on_the_very_first_pass()
+    {
+        _attachments.AttachedAsync(Arg.Any<CatalogEnvironment>(), Arg.Any<IReadOnlyList<Workload>>(), Arg.Any<CancellationToken>()).Returns<IReadOnlySet<string>>(_ => throw new HttpRequestException("down"));
+
+        var monitor = Monitor;
+        await monitor.SampleAsync(TestContext.Current.CancellationToken);
+
+        var view = monitor.Current["server-1"];
+        (view.Gpus.Count, view.WorkloadIds, view.Error).Should().Be((1, Array.Empty<string>(), (string?)null));
+    }
+
+    [Fact]
+    public async Task should_read_the_cards_of_several_environments_without_one_holding_back_the_others()
+    {
+        var parsed = TestCatalog.Parse("environments:\n  - { id: server-1, name: Server 1 }\n  - { id: server-2, name: Server 2 }\n");
+        _catalog.Current.Returns(new CatalogState(parsed.Catalog, "catalog.yaml", true, [], Start));
+        _source.Supports(Arg.Any<CatalogEnvironment>()).Returns(true);
+        _source.ReadAsync(Arg.Is<CatalogEnvironment>(e => e.Id == "server-1"), Arg.Any<CancellationToken>()).Returns<IReadOnlyList<GpuReading>>(_ => throw new TimeoutException());
+        _source.ReadAsync(Arg.Is<CatalogEnvironment>(e => e.Id == "server-2"), Arg.Any<CancellationToken>()).Returns(_ => [Card(70)]);
+
+        var monitor = Monitor;
+        await monitor.SampleAsync(TestContext.Current.CancellationToken);
+
+        monitor.Current["server-1"].Error.Should().Be("timeout");
+        monitor.Current["server-2"].Gpus.Single().UtilizationPercent.Should().Be(70);
+    }
+
+    [Fact]
     public async Task should_keep_the_known_attachments_when_the_runtime_cannot_be_asked()
     {
         var monitor = Monitor;

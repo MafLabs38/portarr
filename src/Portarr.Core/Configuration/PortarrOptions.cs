@@ -51,6 +51,14 @@ public sealed class PortarrOptions
     public bool ImageUpdates { get; set; } = true;
 
     /// <summary>
+    /// Whether Portarr reads the newest K3s releases (<c>update.k3s.io</c>) and the support dates of the operating systems and Kubernetes
+    /// lines the machines run (<c>endoflife.date</c>), every few hours (D-119). <c>PORTARR__PLATFORMUPDATES=false</c> turns the two lookups
+    /// off for an air-gapped installation: the versions are still shown, with no newer version and no support date. The requests name the
+    /// operating systems and the Kubernetes distribution the machines run, nothing else.
+    /// </summary>
+    public bool PlatformUpdates { get; set; } = true;
+
+    /// <summary>
     /// Reverse proxies allowed to set X-Forwarded-For and X-Forwarded-Proto: comma-separated IPs or
     /// CIDR networks (e.g. <c>10.0.0.2,10.0.1.0/24</c>). Empty: forwarded headers are never trusted,
     /// so a client cannot pick its own address to dodge the per-client rate limits.
