@@ -47,7 +47,7 @@ export default function ConsumerBars({
     <div>
       <div className={styles.headingRow}>
         <h3 className={styles.heading}>{translate('TopConsumers')}</h3>
-        <div aria-label={translate('RankConsumersBy')} className={styles.sort} role="group">
+        <fieldset aria-label={translate('RankConsumersBy')} className={styles.sort}>
           {(['cpu', 'memory'] as const).map((option) => (
             <button
               aria-pressed={sort === option}
@@ -59,7 +59,7 @@ export default function ConsumerBars({
               {translate(option === 'cpu' ? 'SortCpu' : 'SortRam')}
             </button>
           ))}
-        </div>
+        </fieldset>
       </div>
       <ul className={styles.list}>
         {shown.map(({ workload, cpuCores, memoryBytes }) => {

@@ -6,8 +6,12 @@
   margin-bottom: 4px;
 }
 
+/* A fieldset: the group of the two buttons, with the browser's own box reset. */
 .sort {
   display: inline-flex;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
   overflow: hidden;
   border: var(--borderWidth) solid var(--hairlineStrong);
   border-radius: var(--radiusPill);
