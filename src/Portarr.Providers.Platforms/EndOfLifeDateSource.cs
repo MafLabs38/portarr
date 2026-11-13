@@ -25,8 +25,6 @@ public sealed class EndOfLifeDateSource : ISupportLifecycleSource
         ["amzn"] = "amazon-linux",
         ["ol"] = "oracle-linux",
         ["opensuse-leap"] = "opensuse",
-        ["almalinux"] = "almalinux",
-        ["rhel"] = "rhel",
     };
 
     private readonly IHttpClientFactory _httpClientFactory;

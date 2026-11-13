@@ -89,11 +89,11 @@ public sealed class DockerGpuAttachmentSourceFixture
         _asked.Clear();
         await source.AttachedAsync(Environment, many, TestContext.Current.CancellationToken);
 
-        _asked.Should().HaveCount(5, "the twenty that failed wait a minute: the next pass reaches the five that were never asked");
+        _asked.Should().BeEquivalentTo(["containers/c20/json", "containers/c21/json", "containers/c22/json", "containers/c23/json", "containers/c24/json"], "the twenty that failed wait a minute: the next pass reaches the five that were never asked");
     }
 
     [Fact]
-    public async Task should_skip_a_container_whose_answer_is_cut_by_the_timeout_while_the_body_is_read()
+    public async Task should_skip_a_container_whose_read_is_cancelled_while_the_body_is_read()
     {
         _slow.Add("jellyfin");
 

@@ -40,6 +40,8 @@ A run on `main` that finds nothing worth releasing (only `chore`, `docs`…) pub
 | `ghcr.io/<owner>/portarr` | the application |
 | `ghcr.io/<owner>/portarr-agent` | the chat's agent runner |
 
+The `portarr-reader` image of earlier releases (ADR 0017) is no longer published; its published tags stay on the registry.
+
 Tags: `X.Y.Z`, `latest`, the branch (`develop`, `main`) and `sha-<commit>`.
 
 ## The seed tag

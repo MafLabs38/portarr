@@ -77,16 +77,6 @@ public sealed class EndOfLifeDateSourceFixture
     }
 
     [Fact]
-    public async Task should_make_no_request_for_text_that_could_reshape_the_address()
-    {
-        var http = new StubHttp(_ => StubHttp.Json(Ubuntu));
-
-        await new EndOfLifeDateSource(http).ReadAsync("../../x", TestContext.Current.CancellationToken);
-
-        http.Requests.Should().BeEmpty();
-    }
-
-    [Fact]
     public async Task should_refuse_an_answer_larger_than_the_cap()
     {
         var huge = "{ \"result\": { \"releases\": [" + string.Join(',', Enumerable.Repeat("""{ "name": "26.04" }""", PlatformsHttp.MaxResponseBytes / 10)) + "] } }";

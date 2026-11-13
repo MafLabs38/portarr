@@ -10,7 +10,7 @@ public static class PlatformsServiceCollectionExtensions
     {
         services.AddHttpClient(PlatformsHttp.ClientName, client =>
         {
-            client.Timeout = TimeSpan.FromSeconds(20);
+            client.Timeout = PlatformsHttp.ReadTimeout;
             client.DefaultRequestHeaders.UserAgent.ParseAdd("Portarr");
         })
         // Public services, read with GET: a redirect is not followed, and every connection goes through the address policy.

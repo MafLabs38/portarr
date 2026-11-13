@@ -89,7 +89,8 @@ public sealed class DockerGpuAttachmentSource : IGpuAttachmentSource
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(InspectTimeout);
-        using var response = await client.GetAsync($"containers/{Uri.EscapeDataString(id)}/json", timeout.Token);
+        // Headers first: the body is read through the cap below, never buffered whole by the client.
+        using var response = await client.GetAsync($"containers/{Uri.EscapeDataString(id)}/json", HttpCompletionOption.ResponseHeadersRead, timeout.Token);
         response.EnsureSuccessStatusCode();
         await using var body = new CappedStream(await response.Content.ReadAsStreamAsync(timeout.Token), MaxInspectBytes);
         var inspect = await System.Text.Json.JsonSerializer.DeserializeAsync(body, DockerJsonContext.Default.ContainerInspect, timeout.Token);
