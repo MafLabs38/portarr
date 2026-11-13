@@ -66,6 +66,7 @@ const report = {
     refreshing: false,
     availableAt: null,
   },
+  platforms: [],
 };
 
 test.describe('Maintenance', { tag: '@smoke' }, () => {
