@@ -23,7 +23,6 @@ const partTokens: Record<HostMemoryPart['key'], string> = {
   guests: '--pink',
   guestsSystem: '--pink',
   consumers: '--purple',
-  reclaimable: '--hairlineStrong',
   free: '--paperSunken',
 };
 
@@ -32,7 +31,6 @@ const partClasses: Record<HostMemoryPart['key'], string | undefined> = {
   guests: styles.legendGuests,
   guestsSystem: styles.legendGuests,
   consumers: styles.legendContainers,
-  reclaimable: styles.legendReclaimable,
   free: styles.legendFree,
 };
 
@@ -118,7 +116,7 @@ export default function HostGauges({ machine, host, guests, chart }: Readonly<Ho
           <ul className={styles.legend}>
             {parts.map((part) => (
               <li className={partClasses[part.key]} key={part.key}>
-                <span className={styles.legendLabel}>{partLabel(part.key, machine, guests)}</span>
+                <span className={styles.legendLabel}>{partLabel(part.key, machine, guests, part.cacheBytes)}</span>
                 <span className={styles.legendValue}>{formatBytes(part.bytes)}</span>
               </li>
             ))}
@@ -146,13 +144,17 @@ export default function HostGauges({ machine, host, guests, chart }: Readonly<Ho
   );
 }
 
-function partLabel(key: HostMemoryPart['key'], machine: Machine, guests: GuestTotals | null): string {
+function partLabel(key: HostMemoryPart['key'], machine: Machine, guests: GuestTotals | null, cacheBytes = 0): string {
   if (key === 'consumers') {
     return translate(machine.kind === 'kubernetes-node' ? 'Pods' : 'Containers');
   }
 
   if (key === 'guestsSystem') {
     return translate('MemoryPart_guestsSystem', { allocated: formatBytes(guests?.memoryBytes ?? 0) });
+  }
+
+  if (key === 'free' && cacheBytes > 0) {
+    return translate('MemoryPart_freeWithCache', { cache: formatBytes(cacheBytes) });
   }
 
   return translate(`MemoryPart_${key}`);

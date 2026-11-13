@@ -61,7 +61,7 @@ public sealed class ApiKeyService : IApiKeyService
 
     /// <summary>What a scope keeps of the owner's permissions.</summary>
     public static IReadOnlySet<string> Scoped(IReadOnlySet<string> ownerPermissions, string scope) =>
-        scope == FullScope ? ownerPermissions : ownerPermissions.Where(Permissions.View.Contains).ToHashSet(StringComparer.Ordinal);
+        scope == FullScope ? ownerPermissions : ownerPermissions.Where(Permissions.ReadOnlyKey.Contains).ToHashSet(StringComparer.Ordinal);
 
     public static string Hash(string key) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
 

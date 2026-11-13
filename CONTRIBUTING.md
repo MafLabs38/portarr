@@ -34,7 +34,7 @@ A connector that owns a section of an environment in the catalog (`backrest:`, l
 
 ## CI lanes
 
-Merging into `develop` is meant to be fast. A pull request into `develop` runs the **light lane**: lint, the SQLite tests, the frontend tests and the security scans. CodeQL is the only check a merge into `develop` waits for. The **full lane** adds PostgreSQL, the reader, the E2E smoke test and SonarQube; it runs on every push to `develop` and `main`, on every pull request into `main` (where merging is demanding: the full lane and a review), on a pull request labelled `full-ci` (add the label before pushing) and on demand (*Run workflow*). The review agents are label-triggered (`ai-review`) and are not a merge gate.
+Merging into `develop` is meant to be fast. A pull request into `develop` runs the **light lane**: lint, the SQLite tests, the frontend tests and the security scans. CodeQL is the only check a merge into `develop` waits for. The **full lane** adds PostgreSQL, the E2E smoke test and SonarQube; it runs on every push to `develop` and `main`, on every pull request into `main` (where merging is demanding: the full lane and a review), on a pull request labelled `full-ci` (add the label before pushing) and on demand (*Run workflow*). The review agents are label-triggered (`ai-review`) and are not a merge gate.
 
 ## Development setup
 

@@ -13,13 +13,11 @@ One `GET` of the `/metrics` URL per machine and second, `Accept-Encoding: gzip`,
 | `node_memory_Buffers_bytes`, `Cached`, `SReclaimable` | Kernel cache, informative (MCP, API) |
 | `node_memory_SwapTotal_bytes`, `SwapFree` | Swap bar |
 | `node_load1` | Load average |
+| `node_os_info{id,pretty_name,version_id}` | The operating system (D-118): `id` is `/etc/os-release`'s `ID` (the key of the support dates), `pretty_name` the text shown, `version_id` the version. Present when node_exporter sees the host's `/etc/os-release` (a container needs `--path.rootfs` on the host root) |
+| `node_uname_info{release}` | The kernel release (D-118) |
 | `node_hwmon_temp_celsius{chip}` | CPU temperature: the hottest sensor of a CPU chip (`coretemp`, `k10temp`, `zenpower`, `cpu_thermal`); disks and boards are ignored |
 
 A Kubernetes node is read at `http://<InternalIP>:<port>/metrics`, or through the API server's **pod proxy** (`/api/v1/namespaces/<namespace>/pods/<pod>:<port>/proxy/metrics`, with the cluster's token). The pod is the running node_exporter pod on that node, found by listing the pods of `kubernetes.nodeExporter.namespace` that match `selector` with the field selector `spec.nodeName` (listing pods is already allowed), and remembered per node (looked up again on a 404 or 503 and every 5 minutes). It needs `get` on `pods/proxy` in that namespace only: the node proxy (`nodes/proxy`) reaches any port of any node, kubelet included, and Portarr does not use it. A refused read (`http-403`) shows as "access refused" and the node keeps metrics-server's values.
-
-## Behind a proxy that asks for a token
-
-`hostMetrics.tokenEnv` names the environment variable that holds a bearer token, sent to the machine's own `nodeExporter` URL only (never to a node's exporter reached through Kubernetes). The variable must start with `PORTARR_READER_` ([the reader](reader.md), D-102). An empty variable shows the machine as `token-missing`. A machine with a [reader](reader.md) declares `reader:` instead, which sets this and the Docker connection.
 
 ## Formulas
 

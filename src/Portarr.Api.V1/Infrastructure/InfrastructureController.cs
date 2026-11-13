@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Portarr.Core.Accounts;
 using Portarr.Core.Catalog;
 using Portarr.Core.Infrastructure;
+using Portarr.Core.Infrastructure.Gpu;
 using Portarr.Core.Status;
 using Portarr.Http;
 
@@ -24,10 +25,12 @@ public sealed class InfrastructureController : ControllerBase
     private readonly ICatalogService _catalogService;
     private readonly IInfrastructureMonitor _monitor;
     private readonly IHostMetricsMonitor _hostMonitor;
+    private readonly IGpuMonitor _gpuMonitor;
     private readonly IFleetService _fleetService;
 
-    public InfrastructureController(ICatalogService catalogService, IInfrastructureMonitor monitor, IHostMetricsMonitor hostMonitor, IFleetService fleetService)
+    public InfrastructureController(ICatalogService catalogService, IInfrastructureMonitor monitor, IHostMetricsMonitor hostMonitor, IGpuMonitor gpuMonitor, IFleetService fleetService)
     {
+        _gpuMonitor = gpuMonitor;
         _catalogService = catalogService;
         _monitor = monitor;
         _hostMonitor = hostMonitor;
@@ -40,7 +43,7 @@ public sealed class InfrastructureController : ControllerBase
     [ProducesResponseType<IReadOnlyList<InfrastructureEnvironmentResource>>(StatusCodes.Status200OK)]
     public IReadOnlyList<InfrastructureEnvironmentResource> Get()
     {
-        return InfrastructureResourceBuilder.Build(_catalogService.Current.Catalog, _monitor.Current, _fleetService.GetWorkloads(), _hostMonitor.Current);
+        return InfrastructureResourceBuilder.Build(_catalogService.Current.Catalog, _monitor.Current, _fleetService.GetWorkloads(), _hostMonitor.Current, _gpuMonitor.Current);
     }
 
     /// <summary>Live host metrics as server-sent events.</summary>

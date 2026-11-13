@@ -1,9 +1,10 @@
-import type { DeployedImage, Repository } from 'typings/Maintenance';
+import type { DeployedImage, Platform, Repository } from 'typings/Maintenance';
 
 export const codeTab = 'code';
 export const imagesTab = 'images';
+export const platformsTab = 'platforms';
 
-export type MaintenanceTab = typeof codeTab | typeof imagesTab;
+export type MaintenanceTab = typeof codeTab | typeof imagesTab | typeof platformsTab;
 
 /** Filters of the "My code" tab: the repositories a figure of the summary or a finding counts. */
 export const repositoryFilters = {
@@ -36,9 +37,18 @@ export const imageFilters = {
   unknown: (i: DeployedImage) => i.status === 'unknown',
 } as const satisfies Record<string, (image: DeployedImage) => boolean>;
 
+/** Filters of the "Platforms" tab: what each finding of the attention list counts. */
+export const platformFilters = {
+  'platform-out-of-support': (p: Platform) => p.level === 'danger',
+  'platform-support-ending': (p: Platform) => p.level === 'warning',
+  'platform-behind': (p: Platform) => p.level === 'info',
+  'platform-lookup-failed': (p: Platform) => p.lookup === 'failed',
+} as const satisfies Record<string, (platform: Platform) => boolean>;
+
 export type RepositoryFilter = keyof typeof repositoryFilters;
 export type ImageFilter = keyof typeof imageFilters;
-export type MaintenanceFilter = RepositoryFilter | ImageFilter;
+export type PlatformFilter = keyof typeof platformFilters;
+export type MaintenanceFilter = RepositoryFilter | ImageFilter | PlatformFilter;
 
 export function isRepositoryFilter(id: string | null): id is RepositoryFilter {
   return id !== null && Object.hasOwn(repositoryFilters, id);
@@ -48,10 +58,17 @@ export function isImageFilter(id: string | null): id is ImageFilter {
   return id !== null && Object.hasOwn(imageFilters, id);
 }
 
+export function isPlatformFilter(id: string | null): id is PlatformFilter {
+  return id !== null && Object.hasOwn(platformFilters, id);
+}
+
 /** The filter of the URL, when it exists and belongs to the tab shown: anything else is ignored. */
 export function activeFilter(tab: MaintenanceTab, id: string | null): MaintenanceFilter | null {
   if (tab === codeTab) {
     return isRepositoryFilter(id) ? id : null;
+  }
+  if (tab === platformsTab) {
+    return isPlatformFilter(id) ? id : null;
   }
   return isImageFilter(id) ? id : null;
 }
@@ -62,6 +79,10 @@ export function filterRepositories(repositories: Repository[], filter: Maintenan
 
 export function filterImages(images: DeployedImage[], filter: MaintenanceFilter | null): DeployedImage[] {
   return isImageFilter(filter) ? images.filter(imageFilters[filter]) : images;
+}
+
+export function filterPlatforms(platforms: Platform[], filter: MaintenanceFilter | null): Platform[] {
+  return isPlatformFilter(filter) ? platforms.filter(platformFilters[filter]) : platforms;
 }
 
 /** The query string that shows a tab, optionally filtered (shareable, and each filter is a history entry). */
@@ -90,6 +111,10 @@ const attentionFilters: Record<string, { tab: MaintenanceTab; filter: Maintenanc
   'images-behind': { tab: imagesTab, filter: 'behind-minor' },
   'image-rebuilt': { tab: imagesTab, filter: 'rebuilt' },
   'images-unknown': { tab: imagesTab, filter: 'unknown' },
+  'platform-out-of-support': { tab: platformsTab, filter: 'platform-out-of-support' },
+  'platform-support-ending': { tab: platformsTab, filter: 'platform-support-ending' },
+  'platforms-behind': { tab: platformsTab, filter: 'platform-behind' },
+  'platform-lookup-failed': { tab: platformsTab, filter: 'platform-lookup-failed' },
 };
 
 export function attentionSearch(kind: string): string | null {

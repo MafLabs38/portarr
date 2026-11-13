@@ -11,8 +11,11 @@
     <ProjectReference Include="..\Portarr.Providers.Cloudflare\Portarr.Providers.Cloudflare.csproj" />
     <ProjectReference Include="..\Portarr.Providers.GitHub\Portarr.Providers.GitHub.csproj" />
     <ProjectReference Include="..\Portarr.Providers.Registries\Portarr.Providers.Registries.csproj" />
+    <ProjectReference Include="..\Portarr.Providers.Platforms\Portarr.Providers.Platforms.csproj" />
+    <ProjectReference Include="..\Portarr.Providers.GpuExporter\Portarr.Providers.GpuExporter.csproj" />
     <ProjectReference Include="..\Portarr.Providers.Docker\Portarr.Providers.Docker.csproj" />
     <ProjectReference Include="..\Portarr.Providers.Kubernetes\Portarr.Providers.Kubernetes.csproj" />
+    <ProjectReference Include="..\Portarr.Providers.McpClients\Portarr.Providers.McpClients.csproj" />
     <ProjectReference Include="..\Portarr.Providers.NodeExporter\Portarr.Providers.NodeExporter.csproj" />
   </ItemGroup>
 </Project>

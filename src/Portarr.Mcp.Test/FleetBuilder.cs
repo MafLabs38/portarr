@@ -6,6 +6,7 @@ using Portarr.Core.Checks;
 using Portarr.Core.Data;
 using Portarr.Core.Infrastructure;
 using Portarr.Core.Maintenance;
+using Portarr.Core.Platforms;
 using Portarr.Core.Status;
 using Portarr.Core.Workloads;
 using Portarr.Mcp.Digest;
@@ -73,6 +74,9 @@ internal sealed class FleetBuilder
 
     public Dictionary<string, EnvironmentMetrics> Metrics { get; } = [];
 
+    /// <summary>The platforms the machines run, as the maintenance report carries them (none by default).</summary>
+    public IReadOnlyList<PlatformStatus> Platforms { get; set; } = [];
+
     public FleetDigest Digest => Build().Digest;
 
     public KnowledgeBase Knowledge => Build().Knowledge;
@@ -116,7 +120,7 @@ internal sealed class FleetBuilder
         data.GetReport().Returns(_ => DataService.Build(parsed.Catalog, Backups, Now));
         var maintenance = Substitute.For<IMaintenanceService>();
         maintenance.GetReport().Returns(new MaintenanceReport(
-            new MaintenanceSummary(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), [], false, RepositoryScan.NotConfigured, [], [], MaintenanceRefresh.None));
+            new MaintenanceSummary(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), [], false, RepositoryScan.NotConfigured, [], [], MaintenanceRefresh.None, Platforms));
 
         var source = Substitute.For<IWorkloadSource>();
         source.Supports(Arg.Any<CatalogEnvironment>()).Returns(call => call.Arg<CatalogEnvironment>().Runtime != RuntimeNames.None);

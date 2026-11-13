@@ -1,0 +1,175 @@
+### install memory | user | linux
+supported: yes
+requires: MEMORY_MCP_KEY
+[file] ~/.config/devin/mcp_config.json
+  Merge this into ~/.config/devin/mcp_config.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "memory": {
+          "serverUrl": "https://memory.homelab.example/mcp",
+          "headers": {
+            "Accept": "application/json",
+            "X-Api-Key": "${env:MEMORY_MCP_KEY}"
+          }
+        }
+      }
+    }
+note: Older Windsurf builds read ~/.codeium/windsurf/mcp_config.json instead; use the file your installed version opens from its MCP settings.
+
+### install github | user | linux
+supported: yes
+requires: GITHUB_TOKEN
+[file] ~/.config/devin/mcp_config.json
+  Merge this into ~/.config/devin/mcp_config.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "github": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "@example/github-mcp@1.4.2"
+          ],
+          "env": {
+            "GITHUB_TOKEN": "${env:GITHUB_TOKEN}",
+            "LOG_LEVEL": "info"
+          }
+        }
+      }
+    }
+note: Older Windsurf builds read ~/.codeium/windsurf/mcp_config.json instead; use the file your installed version opens from its MCP settings.
+
+### install memory | project | linux
+supported: yes
+requires: MEMORY_MCP_KEY
+[file] .devin/mcp_config.json
+  Merge this into .devin/mcp_config.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "memory": {
+          "serverUrl": "https://memory.homelab.example/mcp",
+          "headers": {
+            "Accept": "application/json",
+            "X-Api-Key": "${env:MEMORY_MCP_KEY}"
+          }
+        }
+      }
+    }
+note: Older Windsurf builds read ~/.codeium/windsurf/mcp_config.json instead; use the file your installed version opens from its MCP settings.
+
+### install github | project | linux
+supported: yes
+requires: GITHUB_TOKEN
+[file] .devin/mcp_config.json
+  Merge this into .devin/mcp_config.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "github": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "@example/github-mcp@1.4.2"
+          ],
+          "env": {
+            "GITHUB_TOKEN": "${env:GITHUB_TOKEN}",
+            "LOG_LEVEL": "info"
+          }
+        }
+      }
+    }
+note: Older Windsurf builds read ~/.codeium/windsurf/mcp_config.json instead; use the file your installed version opens from its MCP settings.
+
+### install memory | user | windows
+supported: yes
+requires: MEMORY_MCP_KEY
+[file] %AppData%\devin\mcp_config.json
+  Merge this into %AppData%\devin\mcp_config.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "memory": {
+          "serverUrl": "https://memory.homelab.example/mcp",
+          "headers": {
+            "Accept": "application/json",
+            "X-Api-Key": "${env:MEMORY_MCP_KEY}"
+          }
+        }
+      }
+    }
+note: Older Windsurf builds read ~/.codeium/windsurf/mcp_config.json instead; use the file your installed version opens from its MCP settings.
+
+### install memory | user | macos
+supported: yes
+requires: MEMORY_MCP_KEY
+[file] ~/.config/devin/mcp_config.json
+  Merge this into ~/.config/devin/mcp_config.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "memory": {
+          "serverUrl": "https://memory.homelab.example/mcp",
+          "headers": {
+            "Accept": "application/json",
+            "X-Api-Key": "${env:MEMORY_MCP_KEY}"
+          }
+        }
+      }
+    }
+note: Older Windsurf builds read ~/.codeium/windsurf/mcp_config.json instead; use the file your installed version opens from its MCP settings.
+
+### install github | user | windows
+supported: yes
+requires: GITHUB_TOKEN
+[file] %AppData%\devin\mcp_config.json
+  Merge this into %AppData%\devin\mcp_config.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "github": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "@example/github-mcp@1.4.2"
+          ],
+          "env": {
+            "GITHUB_TOKEN": "${env:GITHUB_TOKEN}",
+            "LOG_LEVEL": "info"
+          }
+        }
+      }
+    }
+note: Older Windsurf builds read ~/.codeium/windsurf/mcp_config.json instead; use the file your installed version opens from its MCP settings.
+note: On native Windows, if the client cannot start npx, declare the command as cmd with the arguments /c npx … (not verified for every client).
+
+### install github | user | macos
+supported: yes
+requires: GITHUB_TOKEN
+[file] ~/.config/devin/mcp_config.json
+  Merge this into ~/.config/devin/mcp_config.json; create the file if it does not exist and keep every other entry.
+    {
+      "mcpServers": {
+        "github": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "@example/github-mcp@1.4.2"
+          ],
+          "env": {
+            "GITHUB_TOKEN": "${env:GITHUB_TOKEN}",
+            "LOG_LEVEL": "info"
+          }
+        }
+      }
+    }
+note: Older Windsurf builds read ~/.codeium/windsurf/mcp_config.json instead; use the file your installed version opens from its MCP settings.
+
+### remove memory | user | linux
+supported: yes
+[remove] ~/.config/devin/mcp_config.json
+  If present, delete the entry "memory" under mcpServers from ~/.config/devin/mcp_config.json; touch nothing else.
+    the entry "memory" under mcpServers
+note: Older Windsurf builds read ~/.codeium/windsurf/mcp_config.json instead; use the file your installed version opens from its MCP settings.
+
+### remove github | user | linux
+supported: yes
+[remove] ~/.config/devin/mcp_config.json
+  If present, delete the entry "github" under mcpServers from ~/.config/devin/mcp_config.json; touch nothing else.
+    the entry "github" under mcpServers
+note: Older Windsurf builds read ~/.codeium/windsurf/mcp_config.json instead; use the file your installed version opens from its MCP settings.
+

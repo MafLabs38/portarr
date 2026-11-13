@@ -42,6 +42,9 @@ public static class McpServiceCollectionExtensions
         learn the whole map at once, portarr://knowledge/glossary for the meaning of statuses and codes, and
         get_environment_knowledge for access, links and providers.
         Portarr never acts on the infrastructure: suggest what the operator could do.
+        The operator's MCP servers are described too: list_mcp_servers, then get_mcp_server to install one for your own
+        client on this machine, or list_workstations and get_workstation_plan to bring a whole machine in line. Portarr
+        describes, you install: show exactly what you will write and wait for approval.
         """;
 
     /// <summary>Added to the instructions when the catalog write tools are on (D-86).</summary>
@@ -142,12 +145,16 @@ public static class McpServiceCollectionExtensions
         public void Configure(McpServerOptions options)
         {
             options.ToolCollection ??= new McpServerPrimitiveCollection<McpServerTool>();
-            foreach (var method in typeof(PortarrTools).GetMethods().Where(m => m.GetCustomAttribute<McpServerToolAttribute>() is not null))
+            foreach (var type in new[] { typeof(PortarrTools), typeof(McpServerTools) })
             {
-                options.ToolCollection.Add(McpServerTool.Create(
-                    method,
-                    context => ActivatorUtilities.CreateInstance<PortarrTools>(context.Services ?? _provider),
-                    ToolOptions(_provider)));
+                foreach (var method in type.GetMethods().Where(m => m.GetCustomAttribute<McpServerToolAttribute>() is not null))
+                {
+                    var toolType = type;
+                    options.ToolCollection.Add(McpServerTool.Create(
+                        method,
+                        context => ActivatorUtilities.CreateInstance(context.Services ?? _provider, toolType),
+                        ToolOptions(_provider)));
+                }
             }
         }
     }

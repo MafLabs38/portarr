@@ -90,7 +90,7 @@ Resulting order after V2: **V10/V11 Data and backups → V12 Maintenance → V16
 
 - **Data and backups** (V10 + V11): which databases and volumes exist, which are backed up, by which scheduled job, to which destination (local RAID array, S3), and when it last succeeded; everything that is *not* backed up is listed first. Portarr observes and reports (D-43); it does not run backups. Spec page: [verticals/V3-data-backups.md](verticals/V3-data-backups.md) (D-60 to D-63 for the first demo, superseded by D-77 to D-82; the page takes the next number, the V3 Routes row below keeps its place). The first slice discovered data from storage; the maintainer rejected it as too generic, and the accepted plan (step 4) made data declarative.
 - **Maintenance** (V12): Dependabot and code scanning alerts across the operator's repositories, container images with a newer version, end-of-life runtimes, all in one view. Spec page: [verticals/V4-maintenance.md](verticals/V4-maintenance.md) (D-64 to D-67; the page takes the next number, the V4 Kubernetes row below keeps its place). First slice: GitHub connector (`sources: github:`), anonymous registry lookups, Maintenance page with a "needs attention" list and two sub-tabs (*My code*, *Deployed images*); end of life, declared versions and deployments follow.
-- **V16 AI** (new, resolves Q-32): an MCP server and a knowledge base so that an AI assistant can learn the infrastructure and what is happening on it (inventory, statuses, issues, history). Read-only by default; any action stays out of scope until decided (D-31). Spec page: [verticals/V5-ai-mcp.md](verticals/V5-ai-mcp.md) (D-68 to D-71; the page takes the next number, the V5 Overview row below keeps its place). First slice: seven read-only tools over the existing views, two Markdown resources (infrastructure map, glossary), endpoint off by default behind an API key, Assistant page; issues and history come with V5 Overview and V6.
+- **V16 AI** (new, resolves Q-32): an MCP server and a knowledge base so that an AI assistant can learn the infrastructure and what is happening on it (inventory, statuses, issues, history). Read-only by default; any action stays out of scope until decided (D-31). Spec page: [verticals/V5-ai-mcp.md](verticals/V5-ai-mcp.md) (D-68 to D-71; the page takes the next number, the V5 Overview row below keeps its place). First slice: seven read-only tools over the existing views (eight today, twelve with the four of the MCP vertical), two Markdown resources (infrastructure map, glossary), endpoint off by default behind an API key, Assistant page; issues and history come with V5 Overview and V6.
 - **Apps layout** (new, small): the operator arranges the Apps page (columns, order and placement of stacks) instead of a fixed sequence.
 
 #### Accepted plan after the demos (2026-10-31)
@@ -202,12 +202,13 @@ Each row is a PR (or a stack). The listed tests come on top of the generic DoD.
 | **V13 Security** | Trivy (image vulnerabilities), identity provider events | F-SEC-01/02 |
 | **V14 Tool configuration** | Connectors that push configuration to their tool through its API (alert rules, scrape targets), with audit (D-36, D-37). No workload actions (D-31) | D-36 |
 | **V15 IaC for Portarr** | `portarr` Terraform provider (apps, stacks, connectors as code) and Helm chart for Portarr itself. The collector kit is not shipped (D-38) | F-API-05 |
+| **MCP servers and workstations** (no V number: [its page](verticals/mcp-servers.md)) | The MCP servers and the workstations defined in the catalog, an install plan per AI client rendered from it (Portarr is the master, the configuration flows one way), the health of the MCP server, secrets by reference to the operator's vault. Built on V5 and V7 | F-MCP-01 to F-MCP-07 |
 
 ---
 
-### The reader (before further connectors)
+### The reader (retired)
 
-Decided 2026-10-31, after the consolidation: adding a machine must be one container and one URL ([ADR 0010](adr/0010-optional-read-only-agent.md), [ADR 0011](adr/0011-reader-speaking-the-existing-protocols.md), D-100 to D-102). It comes before new connectors and before the non-web apps. Slices A1 (the reader, written in Rust, its image and CI job, the `reader:` catalog key and the optional token on the Docker and node_exporter connectors), A2 (the "Add environment" screen, documentation and migration notes), A3 (Kubernetes in-cluster authentication and one install manifest); A1 is shippable alone. Each slice is a small pull request reviewed on its own.
+Decided 2026-10-31 ([ADR 0010](adr/0010-optional-read-only-agent.md), [ADR 0011](adr/0011-reader-speaking-the-existing-protocols.md), D-100 to D-102), built as slice A1, never put in service, and retired on 2026-11-13 ([ADR 0017](adr/0017-the-reader-is-retired.md), D-117): node_exporter and the Docker API stay the sources.
 
 ## 5. Blocking prerequisites
 

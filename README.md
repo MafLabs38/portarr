@@ -16,12 +16,13 @@ Portarr connects those dots.
 
 - **Launcher** — every app with its real icon, grouped by stack, `Ctrl+K` search, desktop apps included.
 - **Health** — HTTP/TCP/ping checks, native container health, heartbeats for jobs, stack viability rules.
-- **Infrastructure** — hypervisors → VMs → containers / pods, in one tree; inside *and* outside views of each VM.
+- **Infrastructure** — hypervisors → VMs → containers / pods, in one tree; inside *and* outside views of each VM; the operating system of each machine and the graphics card of a Docker host with the containers attached to it.
 - **Resources** — "who consumes what" explorer, capacity and over-allocation, disk-full forecasts.
 - **Logs** — live tail for containers and pods, history via Loki, probable cause of unexpected stops.
 - **Data** — databases, storage and **backup verification** (is the last backup recent, external, plausible?).
-- **Maintenance** — image updates, deployed vs declared vs released versions, end-of-life runtimes, Dependabot alerts.
+- **Maintenance** — image updates, deployed vs declared vs released versions, the platforms the machines run (K3s, operating systems) with their newer versions and end-of-support dates, Dependabot alerts.
 - **Security** — image CVEs (Trivy), dependency vulnerabilities, login events.
+- **MCP servers** — describe your MCP servers once, see which are down, and let any assistant install them on any workstation ([docs/verticals/mcp-servers.md](docs/verticals/mcp-servers.md)).
 - **Alerts** — e-mail, in-app and browser push notifications, periodic digest.
 - **As code** — catalog in YAML or container labels, Terraform provider, Helm chart.
 
@@ -34,6 +35,7 @@ See the full [specification](docs/SPEC.md).
 | [SPEC.md](docs/SPEC.md) | Vision, decisions, domain model, providers, screens, features, roadmap |
 | [DESIGN.md](docs/DESIGN.md) | UI guidelines: *arr patterns and Portarr theme |
 | [TESTING.md](docs/TESTING.md) | Test strategy: unit, integration, end-to-end |
+| [mcp-servers.md](docs/verticals/mcp-servers.md) | MCP servers and workstations: defined in the catalog, replicated onto machines |
 | [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) | Core first, then vertical slices — one PR each |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
 | [SECURITY.md](SECURITY.md) | Security policy |
@@ -78,8 +80,9 @@ Settings come from `appsettings.json`, overridden by `PORTARR__*` environment va
 | `PORTARR__DATAFOLDER` | `/config` in the image, the user's local data folder otherwise | SQLite database and future backups |
 | `PORTARR__DATABASE__TYPE` | `Sqlite` | `Sqlite` or `Postgres` |
 | `PORTARR__DATABASE__CONNECTIONSTRING` | — | Required for PostgreSQL, e.g. `Host=db;Database=portarr;Username=portarr;Password=…` |
-| `PORTARR__CATALOGFILE` | `<data folder>/catalog.yaml` | The [catalog](docs/catalog.md) of environments, stacks and apps; your own icons go in `icons/` next to it |
+| `PORTARR__CATALOGFILE` | `<data folder>/catalog.yaml` | The [catalog](docs/catalog.md) of environments, stacks, apps, data, knowledge, and the [MCP servers and workstations](docs/verticals/mcp-servers.md); your own icons go in `icons/` next to it |
 | `PORTARR__LOGSOFALLWORKLOADS` | `false` | Serve live logs and usage of containers no app declares |
+| `PORTARR__PLATFORMUPDATES` | `true` | Ask `update.k3s.io` and `endoflife.date` about the platforms the machines run (Maintenance → Platforms). `false` for an air-gapped homelab: the versions are shown with no newer version and no support date |
 | `PORTARR__IMAGEUPDATES` | `true` | Ask the registries about the images that run (Maintenance). `false` for an air-gapped homelab, where every lookup would only fail |
 | `PORTARR__AGENT__URL` | — (chat off) | The optional [agent runner](docs/companions.md#agent-runner) (`portarr-agent`) behind the built-in chat, e.g. `http://portarr-agent:8488`. Without it the chat icon is hidden |
 | `PORTARR__AGENT__SECRET` | — | Shared with the runner (32 characters at least, `openssl rand -hex 32`); required with `PORTARR__AGENT__URL` |
@@ -88,7 +91,7 @@ Settings come from `appsettings.json`, overridden by `PORTARR__*` environment va
 | `PORTARR__AUTH__REQUIRESETUPCODE` | `true` | Ask for the one-time setup code on a fresh install |
 | `PORTARR__TRUSTEDPROXIES` | — (none) | Reverse proxies allowed to set `X-Forwarded-For` / `X-Forwarded-Proto`: comma-separated IPs or CIDR networks, e.g. `10.0.0.2,10.0.1.0/24`. Empty: these headers are ignored |
 
-Connectors: [Docker](docs/connectors/docker.md).
+Connectors: [Docker](docs/connectors/docker.md), [Kubernetes](docs/connectors/kubernetes.md), [node_exporter](docs/connectors/node-exporter.md), [NVIDIA GPU exporter](docs/connectors/gpu-exporter.md), [platform versions](docs/connectors/platforms.md).
 
 Prometheus: `GET /metrics` needs the `system.view` permission, so a scrape sends a per-user API key (create it in your profile, scope `read`; the user's role must hold `system.view`, as Observer, Operator and Admin do):
 

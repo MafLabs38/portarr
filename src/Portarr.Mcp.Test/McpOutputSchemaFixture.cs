@@ -14,7 +14,7 @@ namespace Portarr.Mcp.Test;
 public sealed class McpOutputSchemaFixture
 {
     private static IEnumerable<McpServerTool> Tools() =>
-        new[] { typeof(PortarrTools), typeof(CatalogTools) }
+        new[] { typeof(PortarrTools), typeof(CatalogTools), typeof(McpServerTools) }
             .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance)
                 .Where(method => method.GetCustomAttribute<McpServerToolAttribute>() is not null)
                 .Select(method => McpServerTool.Create(method, _ => null!, McpServiceCollectionExtensions.ToolOptions(null))));

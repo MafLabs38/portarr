@@ -1,4 +1,5 @@
 using Portarr.Core.Infrastructure;
+using Portarr.Core.Infrastructure.Gpu;
 
 namespace Portarr.Api.V1.Infrastructure;
 
@@ -55,6 +56,42 @@ public sealed record HostMetricsResource(
 /// <summary>Usage of a workload on its machine; <c>CpuCores</c> is null until two samples were taken.</summary>
 public sealed record MachineWorkloadResource(string Id, double? CpuCores, long? MemoryBytes);
 
+/// <summary>A point of a card's chart.</summary>
+public sealed record GpuPointResource(DateTimeOffset At, double? UtilizationPercent, long? MemoryUsedBytes, double? EncoderPercent);
+
+/// <summary>
+/// One graphics card (D-120): its load, memory, video encoder and decoder (what a media server uses), temperature and power, and the
+/// points of the live window (oldest first). A figure the exporter did not give is null.
+/// </summary>
+public sealed record GpuDeviceResource(
+    string Id,
+    string Name,
+    string? Driver,
+    double? UtilizationPercent,
+    long? MemoryUsedBytes,
+    long? MemoryTotalBytes,
+    double? EncoderPercent,
+    double? DecoderPercent,
+    int? EncoderSessions,
+    double? TemperatureCelsius,
+    double? PowerWatts,
+    double? PowerLimitWatts,
+    IReadOnlyList<GpuPointResource> History);
+
+/// <summary>
+/// The graphics cards of a machine (D-120), read from the exporter the catalog names every <c>IntervalSeconds</c>. <c>WorkloadIds</c> are
+/// the running workloads created with a card attached (the NVIDIA runtime or a GPU device request): Portarr does not measure a card's
+/// load per workload. <c>Error</c> is the reason code of the last read when it failed (the last values are kept).
+/// </summary>
+public sealed record GpuResource(IReadOnlyList<GpuDeviceResource> Devices, IReadOnlyList<string> WorkloadIds, DateTimeOffset? SampledAt, string? Error, int IntervalSeconds);
+
+/// <summary>
+/// What a machine says about its system (D-118): <c>Os</c> is the text to show (<c>Ubuntu 25.10</c>), <c>OsId</c> the identifier of
+/// <c>/etc/os-release</c>, <c>OsVersion</c> its version, <c>Kernel</c> the kernel release, <c>KubeletVersion</c> the version of a
+/// cluster node's kubelet (<c>v1.31.4+k3s1</c>). A field the sources did not say is null.
+/// </summary>
+public sealed record MachineSystemResource(string? OsId, string? Os, string? OsVersion, string? Kernel, string? KubeletVersion);
+
 /// <summary>
 /// A machine: a Docker host or a Kubernetes node. <c>Kind</c>: docker-host or kubernetes-node. <c>Scope</c>:
 /// what its usage measures, <c>containers</c> (the sum of its containers, Docker alone) or <c>host</c>.
@@ -78,7 +115,9 @@ public sealed record MachineResource(
     IReadOnlyList<MachineWorkloadResource> Workloads,
     MachineHostResource? Host,
     IReadOnlyList<GuestResource> Guests,
-    HostMetricsResource? HostMetrics = null);
+    HostMetricsResource? HostMetrics = null,
+    MachineSystemResource? System = null,
+    GpuResource? Gpu = null);
 
 /// <summary>
 /// An environment with its machines (none for Cloudflare or a launcher-only environment). <c>Error</c> is a
@@ -100,6 +139,30 @@ public sealed record InfrastructureEnvironmentResource(
 
 public static class InfrastructureResourceMapper
 {
+    /// <summary>The cards of a machine as the API shows them.</summary>
+    public static GpuResource ToResource(this GpuView view)
+    {
+        return new GpuResource(
+            view.Gpus.Select(gpu => new GpuDeviceResource(
+                gpu.Id,
+                gpu.Name,
+                gpu.Driver,
+                gpu.UtilizationPercent,
+                gpu.MemoryUsedBytes,
+                gpu.MemoryTotalBytes,
+                gpu.EncoderPercent,
+                gpu.DecoderPercent,
+                gpu.EncoderSessions,
+                gpu.TemperatureCelsius,
+                gpu.PowerWatts,
+                gpu.PowerLimitWatts,
+                (view.History.GetValueOrDefault(gpu.Id) ?? []).Select(p => new GpuPointResource(p.At, p.UtilizationPercent, p.MemoryUsedBytes, p.EncoderPercent)).ToList())).ToList(),
+            view.WorkloadIds,
+            view.SampledAt,
+            view.Error,
+            (int)GpuMonitor.Interval.TotalSeconds);
+    }
+
     public static string ToResource(this UsageScope scope) => scope == UsageScope.Containers ? "containers" : "host";
 
     /// <summary>A host agent's view; <paramref name="withHistory"/> false for the live stream (one point at a time).</summary>

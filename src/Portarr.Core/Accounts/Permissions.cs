@@ -4,10 +4,17 @@ namespace Portarr.Core.Accounts;
 /// <param name="Key">The stable key (<c>apps.view</c>), also the name of its authorization policy.</param>
 /// <param name="Area">Where the roles editor lists it (Apps, Infrastructure, Data, Maintenance, Assistant, Catalog, System, Administration).</param>
 /// <param name="Reserved">Only Admin holds it, a custom role cannot be given it: defined for a feature that does not exist yet, or too powerful to delegate (<see cref="Permissions.UsersManage"/> creates Admins).</param>
-public sealed record PermissionInfo(string Key, string Area, bool Reserved = false)
+/// <param name="ReadOnly">Everything it opens only reads (the MCP page and tools): a read-only API key keeps it, so that a key can sit on a machine without any right to change anything.</param>
+public sealed record PermissionInfo(string Key, string Area, bool Reserved = false, bool ReadOnly = false)
 {
-    /// <summary>A view permission: what a read-only API key keeps of its owner's role.</summary>
+    /// <summary>A view permission: what the Observer holds, and what a read-only API key keeps first of its owner's role.</summary>
     public bool IsView => !Reserved && Key.EndsWith(".view", StringComparison.Ordinal);
+
+    /// <summary>
+    /// What a read-only API key keeps of its owner's role: the view permissions, and a permission whose every endpoint and tool only reads
+    /// (<see cref="ReadOnly"/>), so that a key can sit on a machine without any right to change anything (D-115).
+    /// </summary>
+    public bool KeptByReadOnlyKey => IsView || (!Reserved && ReadOnly);
 }
 
 /// <summary>
@@ -21,6 +28,12 @@ public static class Permissions
     public const string InfrastructureView = "infrastructure.view";
     public const string DataView = "data.view";
     public const string MaintenanceView = "maintenance.view";
+
+    /// <summary>
+    /// The MCP page and tools (D-115): the operator's MCP servers, their health, the plan of a workstation.
+    /// Deliberately not a <c>.view</c> permission: the Observer, who looks at the infrastructure, has no use for the configuration of the operator's assistants.
+    /// </summary>
+    public const string McpUse = "mcp.use";
 
     /// <summary>The Assistant page: the MCP server's state and the knowledge base.</summary>
     public const string AssistantView = "assistant.view";
@@ -45,6 +58,7 @@ public static class Permissions
         new(InfrastructureView, "Infrastructure"),
         new(DataView, "Data"),
         new(MaintenanceView, "Maintenance"),
+        new(McpUse, "MCP", ReadOnly: true),
         new(AssistantView, "Assistant"),
         new(ChatUse, "Assistant"),
         new(CatalogWrite, "Catalog"),
@@ -60,6 +74,9 @@ public static class Permissions
     public static IReadOnlySet<string> Assignable { get; } = All.Where(p => !p.Reserved).Select(p => p.Key).ToHashSet(StringComparer.Ordinal);
 
     public static IReadOnlySet<string> View { get; } = All.Where(p => p.IsView).Select(p => p.Key).ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>What a read-only API key keeps of its owner's role: the view permissions and the read-only ones such as <see cref="McpUse"/>.</summary>
+    public static IReadOnlySet<string> ReadOnlyKey { get; } = All.Where(p => p.KeptByReadOnlyKey).Select(p => p.Key).ToHashSet(StringComparer.Ordinal);
 
     /// <summary>The permissions that are in the list, in the list's order.</summary>
     public static IReadOnlyList<string> Ordered(IEnumerable<string> keys)

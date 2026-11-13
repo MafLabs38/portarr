@@ -1,6 +1,9 @@
 import DataIndex from 'Data/DataIndex';
 import InfrastructureIndex from 'Infrastructure/InfrastructureIndex';
 import MaintenanceIndex from 'Maintenance/MaintenanceIndex';
+import McpIndex from 'Mcp/McpIndex';
+import McpServerDetail from 'Mcp/McpServerDetail';
+import McpWorkstationDetail from 'Mcp/McpWorkstationDetail';
 import { Navigate, Route, Routes } from 'react-router';
 
 import AccountPage from 'Account/AccountPage';
@@ -15,6 +18,7 @@ import {
   DATA_VIEW,
   INFRASTRUCTURE_VIEW,
   MAINTENANCE_VIEW,
+  MCP_USE,
   SYSTEM_VIEW,
   USERS_MANAGE,
 } from 'Helpers/Props/permissions';
@@ -64,6 +68,31 @@ export default function AppRoutes() {
           </RequirePermission>
         }
         path="/maintenance"
+      />
+      {/* `/mcp` is Portarr's own MCP endpoint, so the page lives at /mcp-servers. */}
+      <Route
+        element={
+          <RequirePermission permission={MCP_USE}>
+            <McpIndex />
+          </RequirePermission>
+        }
+        path="/mcp-servers"
+      />
+      <Route
+        element={
+          <RequirePermission permission={MCP_USE}>
+            <McpServerDetail />
+          </RequirePermission>
+        }
+        path="/mcp-servers/:id"
+      />
+      <Route
+        element={
+          <RequirePermission permission={MCP_USE}>
+            <McpWorkstationDetail />
+          </RequirePermission>
+        }
+        path="/mcp-servers/workstations/:id"
       />
       <Route
         element={

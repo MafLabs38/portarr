@@ -1,6 +1,6 @@
 # The catalog (`catalog.yaml`)
 
-The catalog declares what you run: **environments**, **stacks** and **apps**, plus the **data you follow** (and which backup tools should protect it), the **code sources** you make apps from, and **what you know** about the fleet for people and AI assistants: notes, how to reach each machine, network links and external providers ([Knowledge](#knowledge-for-people-and-assistants)). Workloads (containers, pods, Pages projects, Workers) are never declared: Portarr discovers them and links them to apps through selectors (spec §4.2).
+The catalog declares what you run: **environments**, **stacks** and **apps**, plus the **data you follow** (and which backup tools should protect it), the **code sources** you make apps from, **what you know** about the fleet for people and AI assistants: notes, how to reach each machine, network links and external providers ([Knowledge](#knowledge-for-people-and-assistants)), and the **MCP servers** you use with your AI assistants and the **workstations** you use them from ([MCP servers](#mcp-servers)). Workloads (containers, pods, Pages projects, Workers) are never declared: Portarr discovers them and links them to apps through selectors (spec §4.2).
 
 - Location: `<data folder>/catalog.yaml` (`/config/catalog.yaml` in the image), or `PORTARR__CATALOGFILE`.
 - Reloaded as soon as the file is saved. A broken edit keeps the last valid catalog; the errors are shown on the Apps page and at `GET /api/v1/catalog/status`.
@@ -14,8 +14,6 @@ environments:
     address: 10.0.0.10                # LAN address: LAN links are built from published ports
     docker: { url: "http://socket-proxy:2375" }   # or unix:///var/run/docker.sock
     hostMetrics: { nodeExporter: "http://10.0.0.10:9100/metrics" }   # host agent, read every second (D-72)
-    # or, in place of the two lines above, one line for the Portarr reader of the machine (D-100, D-101):
-    # reader: { url: "http://10.0.0.10:8485", tokenEnv: PORTARR_READER_SERVER_1 }
     backrest: { url: "http://10.0.0.10:9898", userEnv: PORTARR_BACKREST_USER, passwordEnv: PORTARR_BACKREST_PASSWORD }   # backup tool of this machine (D-80)
   - id: cdn
     name: Cloudflare
@@ -131,7 +129,6 @@ The catalog never holds a secret: a section that sends a credential to a URL nam
 
 | Section | Variable names accepted |
 |---|---|
-| `reader`, `docker.tokenEnv`, `hostMetrics.tokenEnv` | `PORTARR_READER_…` |
 | `kubernetes.tokenEnv` | `PORTARR_K8S_…`, or the default `K8S_TOKEN` |
 | `backrest.userEnv`, `backrest.passwordEnv` | `PORTARR_BACKREST_…` |
 | `cloudflare.tokenEnv` | `PORTARR_CLOUDFLARE_…`, or the default `CLOUDFLARE_API_TOKEN` |
@@ -197,8 +194,8 @@ On the Infrastructure page, the host's card then splits its memory into **Contai
 
 Docker sees only its containers and metrics-server only refreshes a node every ~15 s. A **node_exporter** on a machine gives Portarr the machine as its kernel sees it, every second: overall load, I/O wait, load per core, memory, swap and CPU temperature (D-72, [connectors/node-exporter.md](connectors/node-exporter.md); installation in [companions.md](companions.md#node_exporter)).
 
+- `nvidiaGpu: { exporter: <URL> }` on a **Docker** environment: the `/metrics` URL of the NVIDIA GPU exporter of the machine's graphics card (`http` or `https`, no credentials in it): the card's load, memory, video encoder and decoder, temperature and power appear on the machine's card, with the containers that have the card attached (D-120, [the connector](connectors/gpu-exporter.md)).
 - `hostMetrics: { nodeExporter: <URL> }` on a **Docker** environment: the `/metrics` URL of the host's node_exporter (`http` or `https`, no credentials in it). `interval` (optional, `5s`, `1m`, from 1 second to 5 minutes, default every second) reads it less often, for a machine behind a slow link or a large fleet (D-107).
-- `reader: { url, tokenEnv }` on a **Docker** environment: the [Portarr reader](connectors/reader.md) of the machine, in place of `docker` and `hostMetrics` (declaring both is an error). `url` is the reader's address (it may carry a path behind a reverse proxy), `tokenEnv` the name of the variable that holds its token, which **must start with `PORTARR_READER_`**. `docker` and `hostMetrics` also accept an optional `tokenEnv` for a proxy that asks for a bearer token, in the same namespace.
 - `kubernetes.nodeExporter:` on a Kubernetes environment, for every node:
   - `port` (default 9100): node_exporter's port at the node's InternalIP (a DaemonSet with `hostNetwork`).
   - `access`: `direct` (default, Portarr calls the node's InternalIP; a node whose address is not an IP, or is a loopback, link-local or unspecified one, is shown with the reason `invalid-address`; give it a route in `nodes`) or `api-server` (through the API server's **pod proxy** to the node_exporter pod running on that node, `GET /api/v1/namespaces/<namespace>/pods/<pod>:<port>/proxy/metrics`, which needs `get` on `pods/proxy` in that namespace only; the node proxy, `nodes/proxy`, would reach any port of any node and is not used).
@@ -336,13 +333,94 @@ providers:                               # external providers and accounts you u
 - A machine name can be one of `machines`, or a node of `kubernetes.nodeHosts`; a link end that is a machine of several environments must be written `environment/machine`.
 - **No secrets**: a value that looks like one (a private key or a certificate, SSH key material, a well-known token format, `password=…`, credentials in a URL, a long random string) is a catalog error that names the field, never the value. Name the key file or the environment variable instead.
 
+## MCP servers
+
+The MCP servers you use with your AI assistants ([verticals/mcp-servers.md](verticals/mcp-servers.md), D-110 to D-116). Portarr checks the remote ones, remembers when each was last seen healthy, and tells any assistant how to install each in its own client, on its own machine. Seen at `/mcp-servers`, for the roles that hold `mcp.use` (Admin and Operator).
+
+```yaml
+mcpServers:
+  - id: memory                        # lowercase letters, digits and dashes
+    name: Memory
+    app: memory                       # optional: an app of the catalog
+    transport: http                   # http (remote) or stdio (a local process)
+    http:
+      url: https://memory.homelab.example/mcp
+      # allowInsecure: true           # a plain http:// address, for a network you trust (as D-103)
+      headers:
+        X-Api-Key: { env: MEMORY_MCP_KEY }     # the NAME of a variable on the workstation, never the value
+        Accept: application/json               # a harmless literal is fine
+    scope: user                       # where a client installs it by default: user, project or local
+    check: { interval: 5m, timeout: 10s }      # optional; check: false turns the check off
+    notes: Long-term memory.
+  - id: github
+    transport: stdio
+    stdio:
+      command: npx
+      args: ["-y", "@example/github-mcp@1.4.2"]    # pin a version
+      env: { GITHUB_TOKEN: { env: GITHUB_TOKEN } }
+```
+
+- **No secrets.** A header or variable is a harmless text, or `{ env: NAME }`: the name of a variable on the workstation, read by the client when it starts. Portarr never reads that variable. A name that suggests a credential (authorization, auth, key, token, secret, pass, pwd, password, credential, session, signature, cookie) accepts only `{ env: NAME }`; the same words in the name of a query parameter of the address (`?access_token=`, `?sig=`) are refused, and so is an argument of a local program that carries one (`--token` followed by its value, `Authorization: Bearer …`, `--header=Authorization: …`); a credential goes through `env` (`{ env: NAME }`), never through an argument, in clear or as a reference such as `${NAME}`, which each client reads differently. A file (`--token-file /run/secrets/x`) is no credential, and a literal that looks like a secret is refused like in the knowledge above, naming the field and never the value.
+- **Health** (remote servers only): every 5 minutes (`check.interval`, 10 seconds to 24 hours), Portarr sends one MCP `initialize` request without credentials. A valid answer, even an error answer, is **healthy**; a 401 or 403 is **healthy, asks for credentials** (the server is there and enforcing); a timeout, a refused connection, a name that does not resolve, an invalid certificate, a 5xx or anything that is not MCP is **down**. The pages say since when it is up or down and when it was last seen healthy, and keep that across restarts. A local (`stdio`) server, or one with `check: false`, is **not checked**: it is a process on the machine that uses it. A down server is also listed in the Overview's "needs attention" (MCP tool `get_overview`) for roles that hold `mcp.use`.
+- **Installation.** `GET /api/v1/mcp/servers/{id}?os=windows|linux|macos` (and the MCP tools `list_mcp_servers` and `get_mcp_server`) give, for each client, the command and the file entry that install the server; the page shows them with a copy button. The clients and what was checked about each are in [connectors/mcp-clients.md](connectors/mcp-clients.md).
+- **A package run through `npx` or `uvx` without a version** is flagged on the server's page: it changes under you.
+- **The catalog file is the only place these are defined** (D-110, D-112). The catalog edit API, the MCP tools and the chat cannot create, change or remove them, and `get_catalog_item` does not return them. Portarr never reads what a machine has: if a machine differs, it is brought in line with the catalog.
+- A server that is **not checked** is shown as "Not monitored": it is not a fault.
+
+### Workstations
+
+The machines you work from with an assistant: a laptop, a training PC, the dev VM. Only the name matters; production machines are not workstations unless you declare them. Portarr never reaches a workstation (D-110): an assistant running on it asks for its **plan** (`/mcp-servers/workstations/{id}`, `GET /api/v1/mcp/workstations/{id}`, the MCP tools `list_workstations` and `get_workstation_plan`), shows you each step and applies it with your approval.
+
+```yaml
+workstations:
+  - id: dev-laptop
+    name: Dev laptop
+    os: windows                       # windows, linux or macos: paths and commands differ
+    environment: server-1             # optional: this machine is also this environment (a dev VM)
+    clients: [claude-code, cursor]    # the assistants installed there (connectors/mcp-clients.md)
+    mcp:                              # the servers wanted here
+      - memory                        # every client of the machine, at the server's own scope
+      - { server: github, clients: [claude-code], scope: user }
+    notes: The machine I work on.
+```
+
+- The **plan** has three parts: what to **install** (each wanted server in each of its clients), what to **remove if present** (each server of the catalog that is not wanted in a client of this machine; a client that cannot hold the server at its scope has nothing to remove), and the **variables** the machine must provide.
+- **Nothing is tracked about whether a plan was applied**, nor whether the machine is on: the matrix on the Workstations tab says what is *wanted*, not what is installed (D-114). To remove a server from a machine, take it out of its `mcp` list.
+- Validation: `os` and at least one client are required, every client, server and environment must exist, a server is listed once, and `scope` is one of user, project, local.
+- Like the servers, workstations are edited by a person only (D-112).
+
+### Secrets
+
+Portarr holds **no secret** and reads none (D-116). The secrets of your MCP servers live in **your vault**, and the vault's own access control decides which machine reads which key.
+
+```yaml
+secretStore:
+  kind: vault                         # vault (HashiCorp Vault) or azure-key-vault
+  address: https://vault.homelab.example     # the store's address, without path or credentials
+  prefix: kv/mcp                      # vault: the path under which the MCP secrets live; azure-key-vault: put before the key (mcp-)
+  # allowInsecure: true               # a plain http:// store, for a network you trust
+
+mcpServers:
+  - id: memory
+    transport: http
+    http:
+      url: https://memory.homelab.example/mcp
+      headers:
+        X-Api-Key: { env: MEMORY_MCP_KEY, secret: memory }   # the variable the client reads, and the key of the secret in the store
+```
+
+- `secret:` is the **key** of the secret under the store's prefix (`memory`: `kv/mcp/memory` in Vault, `mcp-memory` in an Azure Key Vault), never its value; it needs `env:` (the variable that receives it) and a `secretStore`. Without a `secretStore`, only `{ env: NAME }` exists and you provision the variables as you like.
+- For each client, the rendering then also gives a **provisioning command** that the workstation runs in its own shell: it reads the secret from the store into the variable the client reads (`export MEMORY_MCP_KEY="$(vault kv get -field=value kv/mcp/memory)"`; in PowerShell, `$env:MEMORY_MCP_KEY = (vault kv get …)`; Azure: `az keyvault secret show … --query value -o tsv`). The value is resolved by the shell when it starts: it never passes through Portarr, an assistant or its provider. Details and the vault side in [connectors/mcp-secret-stores.md](connectors/mcp-secret-stores.md).
+- A workstation's plan lists the **keys it must be able to read**: you grant them in the vault (a policy, a role assignment), as for any machine. Portarr does not check them.
+- `secretStore` is edited by a person only, like the servers (D-112).
+
 ## Editing through the API
 
 The catalog file stays the source of truth (D-44); Portarr can edit it for you, or for an assistant, instead of you editing YAML (D-83 to D-86). Off by default:
 
 | Setting | Effect |
 |---|---|
-| `PORTARR__CATALOG__WRITABLE=true` | Turns the write endpoints on. Who may write is the `catalog.write` permission of a role (V7): a signed-in user, or a per-user API key of such a user. The editor never changes how a host is reached (`runtime`, `reader`, the connector sections such as `docker` or `kubernetes`, and an app's `check`): those stay in the file, and an edit that leaves them out keeps them. **Mount the folder** that holds the catalog, not the single file: backups (`catalog.yaml.bak-*`) and the audit trail (`catalog.audit.jsonl`) are written next to it and a single-file mount loses them when the container is recreated; with a read-only folder the catalog is reported read-only. Edits made through Portarr are not in your infrastructure-as-code copy: commit them back. |
+| `PORTARR__CATALOG__WRITABLE=true` | Turns the write endpoints on. Who may write is the `catalog.write` permission of a role (V7): a signed-in user, or a per-user API key of such a user. The editor never changes how a host is reached (`runtime`, the connector sections such as `docker` or `kubernetes`, and an app's `check`): those stay in the file, and an edit that leaves them out keeps them. **Mount the folder** that holds the catalog, not the single file: backups (`catalog.yaml.bak-*`) and the audit trail (`catalog.audit.jsonl`) are written next to it and a single-file mount loses them when the container is recreated; with a read-only folder the catalog is reported read-only. Edits made through Portarr are not in your infrastructure-as-code copy: commit them back. |
 | `PORTARR__APIKEY` | Deprecated bootstrap key (at least 32 characters, e.g. `openssl rand -hex 32`), sent in `X-Api-Key` or `Authorization: Bearer`: acts as the built-in `system` principal with Admin permissions. Optional; a warning is logged at startup when set. |
 | `PORTARR__CATALOG__BACKUPS` | Previous versions kept next to the catalog (`catalog.yaml.bak-<timestamp>`), default 10. |
 | `PORTARR__MCP__WRITETOOLS=true` | Adds the MCP write tools ([verticals/V5-ai-mcp.md](verticals/V5-ai-mcp.md)); they also need the catalog to be writable. |

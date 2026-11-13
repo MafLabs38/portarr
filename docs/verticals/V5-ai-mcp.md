@@ -25,7 +25,7 @@ The four tabs answer four questions; the assistant asks them all, mixes them and
 | In | Out (later) |
 |---|---|
 | An MCP server inside Portarr (official C# SDK), Streamable HTTP at `/mcp`, stateless | stdio transport, a separate binary; prompts; subscriptions and change notifications |
-| Seven read-only tools over the views the pages show (fleet, Infrastructure, Data, Maintenance) | Any tool that acts (start, stop, restart, open a PR): out of scope (D-31) |
+| Read-only tools over the views the pages show (fleet, Infrastructure, Data, Maintenance), seven at the first slice and eight today (`get_environment_knowledge` came with D-83 to D-86), twelve with the four MCP tools of [mcp-servers.md](mcp-servers.md) on top | Any tool that acts (start, stop, restart, open a PR): out of scope (D-31) |
 | Two Markdown resources: the infrastructure knowledge base and the glossary, generated on each read | Issues, events and history (they come with the Overview and Notifications verticals of the plan); logs; long-term metrics (Prometheus, V8) |
 | Off by default; keyed (per-user API keys since V7, D-97; the shared key is deprecated) | OAuth for MCP clients (D-99, step 2) |
 | An **Assistant** page: server state, how to connect, knowledge preview | An assistant chat inside Portarr: [the chat vertical](V6-chat.md), through an optional agent runner; Portarr itself never calls an LLM |
@@ -42,15 +42,17 @@ The four tabs answer four questions; the assistant asks them all, mixes them and
 
 | Tool | Arguments | Returns |
 |---|---|---|
-| `get_overview` | — | App counts; **needs attention** (grouped findings, danger → warning → info: `app-down`, `environment-unreachable`, `machine-not-ready`, `backup-failed`, `data-missing`, `backup-late`, `backup-tool-not-set-up`, `critical-without-offsite`, `critical-offsite-pending`, the Maintenance attention kinds…); environments and their connection; the 5 busiest machines; data and maintenance counts; catalog errors (count only) |
+| `get_overview` | — | App counts; **needs attention** (grouped findings, danger → warning → info: `app-down`, `environment-unreachable`, `machine-not-ready`, `backup-failed`, `data-missing`, `backup-late`, `backup-tool-not-set-up`, `critical-without-offsite`, `critical-offsite-pending`, the Maintenance attention kinds…, and `mcp-server-down` for a caller who holds `mcp.use`, D-115); environments and their connection; the 5 busiest machines; data and maintenance counts; catalog errors (count only) |
 | `list_apps` | `status`, `stack`, `environment` (optional) | Apps, worst first: status and reason, stack and role, environments, main URL |
 | `get_app` | `app` (id or name) | Status and reason, URLs, workloads with environment, machine, hypervisor, image and usage, the HTTP check, data assets and coverage, images and verdicts, repository. Unknown app: an error naming close matches |
 | `get_infrastructure` | `environment` (optional) | Machines: kind, readiness, roles, scope, CPU and memory now / lowest / highest over the live window, capacity, hypervisor, guests, top 5 consumers with their apps |
 | `find_workload` | `query` (1–200 characters) | Containers and pods whose name, image, namespace or app contains it, worst first |
 | `get_data_coverage` | `onlyAtRisk` | Followed data by state and "x of y critical assets have an off-site copy", assets at risk first (importance, accepted window, local and off-site copy with state, reason and jobs), the backup tools read |
-| `get_maintenance` | `section`: all, code or images | Summary, attention list, repositories with something to say, images not up to date |
+| `get_maintenance` | `section`: all, code, images or platforms | Summary, attention list, repositories with something to say, images not up to date, and the platforms the machines run (K3s or Kubernetes, the operating system) with their newer versions, support dates and the state of their lookup (D-119) |
 
 The live window is described as now, lowest and highest point: the chart in words, not a metric store (D-30).
+
+Four more read-only tools describe the operator's own MCP servers and how to install them in an assistant: `list_mcp_servers`, `get_mcp_server`, `list_workstations` and `get_workstation_plan` ([mcp-servers.md](mcp-servers.md), D-110 to D-116). They need `mcp.use`, which the roles that configure the environment hold and the Observer does not, so the shared key of this page does not list them; `get_overview` adds a Down MCP server to its attention list for the same callers.
 
 ### Knowledge base (D-69)
 
@@ -66,7 +68,7 @@ The live window is described as now, lowest and highest point: the chart in word
 
 ### Security model (D-70)
 
-- **Off by default.** `PORTARR__MCP__ENABLED=true` maps `/mcp`. Since V7 (D-97) a call needs a per-user API key (Account, API keys), the chat runner's token, or the deprecated `PORTARR__MCP__APIKEY` (optional, at least 32 characters when set; acts as the `system` principal, Admin). Each tool needs the permission of the page it mirrors (D-98).
+- **Off by default.** `PORTARR__MCP__ENABLED=true` maps `/mcp`. Since V7 (D-97) a call needs a per-user API key (Account, API keys), the chat runner's token, or the deprecated `PORTARR__MCP__APIKEY` (optional, at least 32 characters when set; acts as a `system` principal limited to the view permissions, plus `catalog.write` while the write tools are on, D-97; it never holds `mcp.use`). Each tool needs the permission of the page it mirrors (D-98).
 - **API key** in `X-Api-Key` or `Authorization: Bearer`; SHA-256 of both sides compared with `CryptographicOperations.FixedTimeEquals` (no content or length timing leak). Missing or wrong: **401** with `WWW-Authenticate: Bearer realm="portarr-mcp"`. The key is never returned (`/api/v1/assistant` only says whether one is set) and never logged.
 - **Rate limit**: 120 requests per minute per client address (forwarded only from trusted proxies), counted before authentication so wrong keys are throttled too; then **429**.
 - **No secrets in answers**: URLs lose credentials, query and fragment (`SafeUrl`); workload labels, environment variables, Docker and Kubernetes endpoints and token variable names are never part of a tool output; failures are reason codes; catalog errors are a count.
@@ -125,7 +127,7 @@ When the server is off, an info alert says how to turn it on.
 - [x] `/mcp` is not served unless `PORTARR__MCP__ENABLED=true`; startup fails when it is on without a key of 32+ characters
 - [x] Without the key, or with a wrong one: 401; with `X-Api-Key` or a bearer token: initialize, tools/list, tools/call and resources/read work
 - [x] More than 120 requests per minute from one client: 429, wrong keys included
-- [x] Seven tools, all read-only and closed-world, reusing the Core services and the API mappers; none acts
+- [x] Seven tools at the first slice, eight today (the MCP tools of [mcp-servers.md](mcp-servers.md) come on top), all read-only and closed-world, reusing the Core services and the API mappers; none acts
 - [x] `get_overview` lists what needs attention across apps, infrastructure, data and maintenance, worst first, naming its subjects
 - [x] `get_app` tells where an app runs down to the machine and the hypervisor, and how to reach it
 - [x] The knowledge base nests VMs under their hypervisor and lists stacks, apps, URLs, data, jobs, repositories

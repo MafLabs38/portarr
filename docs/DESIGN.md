@@ -150,6 +150,10 @@ Identical to the *arr apps: **Status** (Health, Disk Space, About, More Info) ·
 
 ---
 
+### 3.6 Standing notices: a bell, not an alert
+
+An `Alert` is for what the person must act on now (an error, a failed request). A limit that stays true and cannot be acted on from the screen (the chat's runner does not answer, no credentials, a read-only catalog) is a **notice**: it sits behind a bell in the header of its panel (`ChatNotices`), with a dot when there is something to say, a list that opens on a click and closes on Escape or a click elsewhere, and no bell when there is nothing. Never a large box in the middle of the content (D-121).
+
 ## 4. Component catalog
 
 ### 4.1 Taken from the *arr apps (same name, same API)
