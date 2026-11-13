@@ -1,9 +1,12 @@
 using Portarr.Core.Infrastructure;
+using Portarr.Core.Metrics;
 
 namespace Portarr.Providers.NodeExporter.Test;
 
 public sealed class NodeExporterParserFixture
 {
+    private static bool Wanted(string name) => name is "node_cpu_seconds_total" or "node_load1" or "node_hwmon_temp_celsius" || name.StartsWith("node_memory_", StringComparison.Ordinal);
+
     private const string Scrape = """
         # HELP node_cpu_seconds_total Seconds the CPUs spent in each mode.
         # TYPE node_cpu_seconds_total counter
@@ -91,14 +94,14 @@ public sealed class NodeExporterParserFixture
     [InlineData("node_load1{} 2", 2)]
     public void should_read_special_values_timestamps_and_empty_labels(string line, double expected)
     {
-        NodeExporterParser.TryParseSample(line, out var sample).Should().BeTrue();
+        PrometheusText.TryParseSample(line, Wanted, out var sample).Should().BeTrue();
         sample.Value.Should().Be(expected);
     }
 
     [Fact]
     public void should_unescape_label_values()
     {
-        NodeExporterParser.TryParseSample("""node_hwmon_temp_celsius{chip="a\"b\\c",sensor="x, y"} 40""", out var sample).Should().BeTrue();
+        PrometheusText.TryParseSample("""node_hwmon_temp_celsius{chip="a\"b\\c",sensor="x, y"} 40""", Wanted, out var sample).Should().BeTrue();
 
         sample.Label("chip").Should().Be("a\"b\\c");
         sample.Label("sensor").Should().Be("x, y");
@@ -112,7 +115,7 @@ public sealed class NodeExporterParserFixture
     [InlineData("node_filesystem_size_bytes 12")]
     public void should_skip_malformed_or_unwanted_lines(string line)
     {
-        NodeExporterParser.TryParseSample(line, out _).Should().BeFalse();
+        PrometheusText.TryParseSample(line, Wanted, out _).Should().BeFalse();
     }
 
     [Fact]
