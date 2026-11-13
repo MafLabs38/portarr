@@ -7,7 +7,7 @@ RUN corepack enable && yarn install --frozen-lockfile
 COPY frontend ./frontend
 RUN yarn build
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS backend
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS backend
 ARG VERSION=0.0.0-dev
 WORKDIR /build
 COPY global.json Directory.Build.props Directory.Packages.props ./
