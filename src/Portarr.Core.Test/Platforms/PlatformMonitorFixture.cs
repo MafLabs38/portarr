@@ -161,7 +161,67 @@ public sealed class PlatformMonitorFixture
 
         await _k3s.DidNotReceive().ReadAsync(Arg.Any<CancellationToken>());
         await _lifecycle.DidNotReceive().ReadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
-        monitor.Current.Should().Be(PlatformKnowledge.Empty);
+        (monitor.Current.Enabled, monitor.Current.CheckedAt).Should().Be((false, (DateTimeOffset?)null));
+    }
+
+    [Fact]
+    public async Task should_record_why_a_lookup_failed_and_clear_it_when_it_works_again()
+    {
+        var monitor = CreateMonitor();
+        _lifecycle.ReadAsync("ubuntu", Arg.Any<CancellationToken>()).Returns<IReadOnlyList<SupportCycle>?>(_ => throw new TaskCanceledException());
+        _k3s.ReadAsync(Arg.Any<CancellationToken>()).Returns<IReadOnlyList<ReleaseLine>>(_ => throw new HttpRequestException(null, null, System.Net.HttpStatusCode.BadGateway));
+
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+
+        monitor.Current.Failures.Should().Contain(new KeyValuePair<string, string>("cycles:ubuntu", "timeout")).And.Contain(new KeyValuePair<string, string>("lines:k3s", "http-502"));
+
+        _lifecycle.ReadAsync("ubuntu", Arg.Any<CancellationToken>()).Returns([new SupportCycle("25.10", null, new DateOnly(2027, 7, 1))]);
+        _k3s.ReadAsync(Arg.Any<CancellationToken>()).Returns([new ReleaseLine("1.32", "v1.32.2+k3s1")]);
+        _clock.Advance(PlatformMonitor.RetryInterval);
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+
+        monitor.Current.Failures.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task should_say_a_product_no_source_lists_is_unlisted_and_not_failed()
+    {
+        Machines(new MachineSystem("unraid-os", "Unraid OS 7.3", "7.3.4", null));
+        var monitor = CreateMonitor();
+
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+
+        monitor.Current.Unlisted.Should().Contain("cycles:unraid-os");
+        monitor.Current.Failures.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task should_forget_what_no_machine_needs_any_more()
+    {
+        var monitor = CreateMonitor();
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+        Machines(new MachineSystem("debian", "Debian 13", "13", null));
+        _lifecycle.ReadAsync("debian", Arg.Any<CancellationToken>()).Returns([new SupportCycle("13", null, null)]);
+        _clock.Advance(PlatformMonitor.Tick);
+
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+
+        monitor.Current.Cycles.Keys.Should().BeEquivalentTo(["debian"]);
+        monitor.Current.ReleaseLines.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task should_read_a_bounded_number_of_products_per_pass_whatever_the_machines_report()
+    {
+        Machines(Enumerable.Range(0, PlatformMonitor.MaxReadsPerPass + 10).Select(i => new MachineSystem($"os{i:D3}", $"OS {i}", "1", null)).ToArray());
+        _lifecycle.ReadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns((IReadOnlyList<SupportCycle>?)null);
+        var monitor = CreateMonitor();
+
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+        await _lifecycle.Received(PlatformMonitor.MaxReadsPerPass).ReadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+
+        await monitor.RunDueAsync(TestContext.Current.CancellationToken);
+        await _lifecycle.Received(PlatformMonitor.MaxReadsPerPass + 10).ReadAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

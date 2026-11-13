@@ -40,17 +40,17 @@ public sealed partial class K3sReleaseLineSource : IReleaseLineSource
             throw new InvalidDataException("The K3s channels answer has no list of channels.");
         }
 
-        var lines = new List<ReleaseLine>();
+        var lines = new List<(ReleaseLine Line, KubernetesVersion Version)>();
         foreach (var channel in data.EnumerateArray())
         {
             var id = PlatformsHttp.Text(channel, "id");
             var latest = PlatformsHttp.Text(channel, "latest");
-            if (id is not null && latest is not null && LineChannel().Match(id) is { Success: true } match && KubernetesVersion.Parse(latest) is { Distribution: "k3s", PreRelease: false })
+            if (id is not null && latest is not null && LineChannel().Match(id) is { Success: true } match && KubernetesVersion.Parse(latest) is { Distribution: "k3s", PreRelease: false } version)
             {
-                lines.Add(new ReleaseLine(match.Groups["line"].Value, latest));
+                lines.Add((new ReleaseLine(match.Groups["line"].Value, latest), version));
             }
         }
 
-        return lines.OrderByDescending(l => KubernetesVersion.Parse(l.Latest)).ToList();
+        return lines.OrderByDescending(l => l.Version).Select(l => l.Line).ToList();
     }
 }

@@ -35,7 +35,7 @@ public sealed record AttentionSubject(string Label, Uri? Url, int? Count = null)
 /// "What needs attention" (D-67): one entry per kind of finding, worst first, naming what it concerns.
 /// <c>Kind</c>: severe-alerts, secret-alerts, ci-failing, image-major, images-behind, image-rebuilt,
 /// dependabot-off, code-scanning-off, other-alerts, dependabot-prs, images-unknown, code-source-error, and for the platforms the machines
-/// run (D-119): platform-out-of-support (end of life reached), platform-support-ending, platforms-behind.
+/// run (D-119): platform-out-of-support (end of life reached), platform-support-ending, platforms-behind, platform-lookup-failed.
 /// </summary>
 public sealed record AttentionItem(string Kind, AttentionLevel Level, int Count, IReadOnlyList<AttentionSubject> Subjects);
 
@@ -300,6 +300,8 @@ public sealed class MaintenanceService : IMaintenanceService
         Add("platform-out-of-support", AttentionLevel.Danger, platforms.Where(p => p.Level == AttentionLevel.Danger).Select(Platform).ToList());
         Add("platform-support-ending", AttentionLevel.Warning, platforms.Where(p => p.Level == AttentionLevel.Warning).Select(Platform).ToList());
         Add("platforms-behind", AttentionLevel.Info, platforms.Where(p => p.Level == AttentionLevel.Info).Select(Platform).ToList());
+        // A lookup that failed leaves a platform without its dates: said, so that a missing danger is never mistaken for none.
+        Add("platform-lookup-failed", AttentionLevel.Warning, platforms.Where(p => p.Lookup == PlatformLookups.Failed).Select(Platform).ToList());
 
         return items.OrderBy(item => item.Level).ToList();
     }

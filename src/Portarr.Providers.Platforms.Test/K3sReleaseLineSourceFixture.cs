@@ -28,7 +28,9 @@ public sealed class K3sReleaseLineSourceFixture
           { "id": "v1.32", "name": "v1.32", "latest": "v1.32.2+k3s1" },
           { "id": "v1.33", "name": "v1.33", "latest": "v1.33.1+k3s1" },
           { "id": "v1.34", "name": "v1.34", "latest": "v1.34.0-rc1+k3s1" },
-          { "id": "v1.30", "name": "v1.30", "latest": "not a version" }
+          { "id": "v1.30", "name": "v1.30", "latest": "not a version" },
+          { "id": "v1.29", "name": "v1.29", "latest": "v1.29.9+rke2r1" },
+          { "id": "v1.28", "name": "v1.28", "latest": "v1.28.9" }
         ] }
         """;
 

@@ -81,6 +81,7 @@ describe('maintenanceFilters', () => {
   it('shows the platforms tab for a platform finding and ignores a filter of another tab', () => {
     expect(attentionSearch('platform-out-of-support')).toBe('?tab=platforms&filter=platform-out-of-support');
     expect(attentionSearch('platforms-behind')).toBe('?tab=platforms&filter=platform-behind');
+    expect(attentionSearch('platform-lookup-failed')).toBe('?tab=platforms&filter=platform-lookup-failed');
     expect(activeFilter('platforms', 'platform-behind')).toBe('platform-behind');
     expect(activeFilter('platforms', 'severe')).toBeNull();
     expect(activeFilter('code', 'platform-behind')).toBeNull();

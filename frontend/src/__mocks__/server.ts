@@ -753,6 +753,7 @@ export const maintenanceReport: MaintenanceReport = {
       supportedUntil: '2025-05-31',
       endOfLife: '2025-05-31',
       level: 'danger',
+      lookup: 'ok',
     },
     {
       environmentId: 'cluster',
@@ -767,6 +768,7 @@ export const maintenanceReport: MaintenanceReport = {
       supportedUntil: null,
       endOfLife: '2027-10-28',
       level: 'info',
+      lookup: 'ok',
     },
     {
       environmentId: 'cluster',
@@ -781,6 +783,7 @@ export const maintenanceReport: MaintenanceReport = {
       supportedUntil: null,
       endOfLife: null,
       level: null,
+      lookup: 'not-listed',
     },
   ],
 };

@@ -17,10 +17,23 @@ function look(platform: Platform): { kind: kinds.Kind; icon: LucideIcon; text: s
     case 'info':
       return { kind: kinds.INFO, icon: icons.UPDATE, text: translate('PlatformStatus_newer-version') };
     default:
-      return platform.endOfLife
-        ? { kind: kinds.SUCCESS, icon: icons.HEALTHY, text: translate('PlatformStatus_supported') }
-        : { kind: kinds.DISABLED, icon: icons.UNKNOWN, text: translate('PlatformStatus_unknown') };
+      return noDangerLook(platform);
   }
+}
+
+/** Nothing to warn about: supported, or why the support date is missing (a failed lookup is a warning, never a neutral grey). */
+function noDangerLook(platform: Platform): { kind: kinds.Kind; icon: LucideIcon; text: string } {
+  if (platform.lookup === 'failed') {
+    return { kind: kinds.WARNING, icon: icons.DEGRADED, text: translate('PlatformStatus_lookup-failed') };
+  }
+  if (platform.lookup === 'disabled') {
+    return { kind: kinds.DISABLED, icon: icons.UNKNOWN, text: translate('PlatformStatus_lookups-off') };
+  }
+  if (platform.endOfLife) {
+    return { kind: kinds.SUCCESS, icon: icons.HEALTHY, text: translate('PlatformStatus_supported') };
+  }
+  const text = translate(platform.lookup === 'pending' ? 'PlatformStatus_checking' : 'PlatformStatus_unknown');
+  return { kind: kinds.DISABLED, icon: icons.UNKNOWN, text };
 }
 
 /** Where a platform stands: icon plus text, never color alone. */

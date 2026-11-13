@@ -14,7 +14,7 @@ import PlatformStatusLabel from './PlatformStatusLabel';
 export default function PlatformRow({ platform }: Readonly<{ platform: Platform }>) {
   const support = (() => {
     if (!platform.endOfLife) {
-      return translate('PlatformSupportUnknown');
+      return translate(`PlatformSupport_${platform.lookup}`);
     }
     return translate(platform.level === 'danger' ? 'PlatformSupportEnded' : 'PlatformSupportEnds', {
       date: formatDay(platform.endOfLife),

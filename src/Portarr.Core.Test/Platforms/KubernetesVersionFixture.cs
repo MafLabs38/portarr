@@ -35,6 +35,19 @@ public sealed class KubernetesVersionFixture
     }
 
     [Theory]
+    [InlineData("v1.29.6+aba1e8d", null, false)]
+    [InlineData("v1.30.4-eks-a737599", null, false)]
+    [InlineData("v1.30.5-gke.1014001", null, false)]
+    [InlineData("v1.30.0-rc.1", null, true)]
+    [InlineData("v1.30.0-beta.0+k3s1", "k3s", true)]
+    public void should_not_take_a_commit_hash_or_a_vendor_suffix_for_a_distribution_or_a_pre_release(string text, string? distribution, bool preRelease)
+    {
+        var version = KubernetesVersion.Parse(text)!;
+
+        (version.Distribution, version.PreRelease).Should().Be((distribution, preRelease));
+    }
+
+    [Theory]
     [InlineData("v1.31.4+k3s99999999999999999999999")]
     [InlineData("v1.31.4+k3s4294967296")]
     [InlineData("v1.31.4-rc.1+k3s99999999999")]

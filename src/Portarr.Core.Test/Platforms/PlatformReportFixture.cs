@@ -144,6 +144,52 @@ public sealed class PlatformReportFixture
         new PlatformStatus("e", "m", "m", "os", name, version, null, null, null, null, null).Label.Should().Be(expected);
     }
 
+    [Theory]
+    [InlineData("ubuntu", "20.04", null, null, "ok")]
+    [InlineData("ubuntu", "20.04", "cycles:ubuntu", "timeout", "ok")]
+    [InlineData("ubuntu", "99.99", "cycles:ubuntu", "timeout", "failed")]
+    [InlineData("ubuntu", "99.99", null, null, "not-listed")]
+    [InlineData("unraid-os", "7.3.4", null, null, "pending")]
+    [InlineData(null, "7.3.4", null, null, "not-listed")]
+    public void should_say_where_the_lookup_of_a_support_date_stands(string? osId, string version, string? failureKey, string? reason, string expected)
+    {
+        var knowledge = Knowledge with { Failures = failureKey is null ? null : new Dictionary<string, string> { [failureKey] = reason! } };
+
+        var status = PlatformReport.Build([Entry(new MachineSystem(osId, $"OS {version}", version, null))], knowledge, Now).Single();
+
+        status.Lookup.Should().Be(expected);
+    }
+
+    [Fact]
+    public void should_say_a_listed_product_is_not_listed_for_a_version_it_does_not_have_and_unlisted_products_are_known()
+    {
+        var knowledge = Knowledge with { Unlisted = new HashSet<string> { "cycles:unraid-os" } };
+
+        PlatformReport.Build([Entry(new MachineSystem("unraid-os", "Unraid", "7.3.4", null))], knowledge, Now).Single().Lookup.Should().Be("not-listed");
+        PlatformReport.Build([Entry(new MachineSystem("ubuntu", "Ubuntu 99", "99.99", null))], Knowledge, Now).Single().Lookup.Should().Be("not-listed");
+    }
+
+    [Fact]
+    public void should_say_the_lookups_are_off_when_they_are_switched_off_even_for_a_known_date()
+    {
+        var status = PlatformReport.Build([Entry(new MachineSystem("ubuntu", "Ubuntu 20.04", "20.04", null))], Knowledge with { Enabled = false }, Now).Single();
+
+        status.Lookup.Should().Be("disabled");
+    }
+
+    [Fact]
+    public void should_say_a_failed_release_lookup_for_a_k3s_node_that_has_no_lines_kept()
+    {
+        var knowledge = new PlatformKnowledge(
+            new Dictionary<string, IReadOnlyList<ReleaseLine>>(),
+            new Dictionary<string, IReadOnlyList<SupportCycle>> { ["kubernetes"] = [new("1.31", null, new DateOnly(2027, 1, 1))] },
+            Now,
+            null,
+            new Dictionary<string, string> { ["lines:k3s"] = "unreachable" });
+
+        PlatformReport.Build([Entry(new MachineSystem(null, null, null, null, "v1.31.4+k3s1"))], knowledge, Now).Single().Lookup.Should().Be("failed");
+    }
+
     [Fact]
     public void should_say_nothing_for_a_machine_that_says_nothing()
     {

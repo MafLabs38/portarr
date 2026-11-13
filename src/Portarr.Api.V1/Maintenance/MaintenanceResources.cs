@@ -104,7 +104,8 @@ public sealed record MaintenanceRefreshResource(
 /// <summary>
 /// A platform a machine runs (D-119): <c>kind</c> is <c>os</c> for the operating system, else the distribution the kubelet names after its plus sign (<c>k3s</c>, <c>rke2r</c>…) or <c>kubernetes</c> for a plain one, with the version it reports, the newer versions that
 /// exist (<c>newestPatchOfMinor</c>: the newest of the same line; <c>nextMinor</c>: the next line, one at a time), the days its
-/// support stops and what that deserves (<c>level</c>: danger, warning or info; null when there is nothing to say). A date nobody
+/// support stops and what that deserves (<c>level</c>: danger, warning or info; null when there is nothing to say), and where the lookup
+/// behind the dates stands (<c>lookup</c>: ok, pending, not-listed, failed or disabled). A date nobody
 /// announced is null, never an infinite support.
 /// </summary>
 public sealed record PlatformResource(
@@ -119,7 +120,8 @@ public sealed record PlatformResource(
     string? NextMinor,
     DateOnly? SupportedUntil,
     DateOnly? EndOfLife,
-    string? Level);
+    string? Level,
+    string Lookup);
 
 public sealed record MaintenanceResource(
     MaintenanceSummaryResource Summary,
@@ -166,7 +168,8 @@ public static class MaintenanceResourceMapper
             platform.NextMinor,
             platform.SupportedUntil,
             platform.EndOfLife,
-            platform.Level?.ToString().ToLowerInvariant());
+            platform.Level?.ToString().ToLowerInvariant(),
+            platform.Lookup);
     }
 
     public static MaintenanceRefreshResource ToResource(this MaintenanceRefresh refresh)

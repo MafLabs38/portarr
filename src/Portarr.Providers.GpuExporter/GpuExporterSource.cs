@@ -50,7 +50,7 @@ public sealed class GpuExporterSource : IGpuSource
         var cards = new Dictionary<string, Card>(StringComparer.Ordinal);
         while (await reader.ReadLineAsync(cancellationToken) is { } line)
         {
-            if (line.StartsWith(Prefix, StringComparison.Ordinal) && PrometheusText.TryParseSample(line, IsWanted, out var sample) && sample.Label("uuid") is { Length: > 0 } uuid)
+            if (line.StartsWith(Prefix, StringComparison.Ordinal) && PrometheusText.TryParseSample(line, IsWanted, out var sample) && ReportedText.Clean(sample.Label("uuid")) is { } uuid)
             {
                 if (!cards.TryGetValue(uuid, out var card))
                 {
@@ -60,7 +60,7 @@ public sealed class GpuExporterSource : IGpuSource
                         continue;
                     }
 
-                    cards[uuid] = card = new Card(ReportedText.Clean(uuid) ?? uuid[..Math.Min(uuid.Length, ReportedText.MaxLength)]);
+                    cards[uuid] = card = new Card(uuid);
                 }
 
                 card.Add(sample);

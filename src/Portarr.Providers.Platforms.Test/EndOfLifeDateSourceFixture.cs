@@ -62,6 +62,20 @@ public sealed class EndOfLifeDateSourceFixture
         http.Requests.Should().Equal(new Uri("https://endoflife.date/api/v1/products/unraid-os/"));
     }
 
+    [Theory]
+    [InlineData("rocky", "rocky-linux")]
+    [InlineData("amzn", "amazon-linux")]
+    [InlineData("ol", "oracle-linux")]
+    [InlineData("ubuntu", "ubuntu")]
+    public async Task should_ask_the_name_the_site_gives_a_distribution_the_machine_reported_by_its_os_release_id(string reported, string site)
+    {
+        var http = new StubHttp(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        await new EndOfLifeDateSource(http).ReadAsync(reported, TestContext.Current.CancellationToken);
+
+        http.Requests.Should().Equal(new Uri($"https://endoflife.date/api/v1/products/{site}/"));
+    }
+
     [Fact]
     public async Task should_make_no_request_for_text_that_could_reshape_the_address()
     {

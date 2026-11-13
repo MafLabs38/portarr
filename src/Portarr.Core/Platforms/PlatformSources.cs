@@ -8,6 +8,28 @@ public static class PlatformKinds
     public const string Os = "os";
 }
 
+/// <summary>
+/// Where the lookup of a platform's support dates and newer versions stands (D-119), so that "the sources do not list it", "the lookup
+/// failed", "the lookups are off" and "not read yet" are never the same grey pill.
+/// </summary>
+public static class PlatformLookups
+{
+    /// <summary>The support date of this version is known.</summary>
+    public const string Ok = "ok";
+
+    /// <summary>Not read yet (a few minutes after start, or after a machine appears).</summary>
+    public const string Pending = "pending";
+
+    /// <summary>The sources do not list this product or this version: Portarr says what it does not know.</summary>
+    public const string NotListed = "not-listed";
+
+    /// <summary>The lookup failed (a source is down, outbound traffic is blocked) and no earlier answer is kept.</summary>
+    public const string Failed = "failed";
+
+    /// <summary>The operator switched the lookups off (<c>PORTARR__PLATFORMUPDATES=false</c>).</summary>
+    public const string Disabled = "disabled";
+}
+
 /// <summary>A release line of a platform and the newest version published on it: <c>1.31</c> and <c>v1.31.4+k3s1</c>.</summary>
 public sealed record ReleaseLine(string Line, string Latest);
 

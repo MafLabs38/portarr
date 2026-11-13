@@ -22,6 +22,9 @@ public sealed class DockerGpuAttachmentSource : IGpuAttachmentSource
     /// <summary>The largest inspect answer read: it holds the whole container configuration, labels included.</summary>
     private const int MaxInspectBytes = 512 * 1024;
 
+    /// <summary>The time one inspection may take, answer included.</summary>
+    private static readonly TimeSpan InspectTimeout = TimeSpan.FromSeconds(5);
+
     private const string NvidiaRuntime = "nvidia";
 
     private readonly Func<DockerEndpoint, HttpClient> _client;
@@ -60,7 +63,7 @@ public sealed class DockerGpuAttachmentSource : IGpuAttachmentSource
             {
                 _known[(environment.Id, id)] = await HasGpuAsync(client, id, token);
             }
-            catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or InvalidDataException && !cancellationToken.IsCancellationRequested)
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested && (exception is HttpRequestException or OperationCanceledException or System.Text.Json.JsonException or InvalidDataException))
             {
                 // Not cached: the next pass asks again.
             }
@@ -73,7 +76,7 @@ public sealed class DockerGpuAttachmentSource : IGpuAttachmentSource
     private static async Task<bool> HasGpuAsync(HttpClient client, string id, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        timeout.CancelAfter(InspectTimeout);
         using var response = await client.GetAsync($"containers/{Uri.EscapeDataString(id)}/json", timeout.Token);
         response.EnsureSuccessStatusCode();
         await using var body = new CappedStream(await response.Content.ReadAsStreamAsync(timeout.Token), MaxInspectBytes);

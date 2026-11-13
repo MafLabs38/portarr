@@ -284,7 +284,7 @@ public sealed class FleetDigest
             : [];
 
         var platformLines = platforms
-            ? resource.Platforms.Select(p => new PlatformLine(p.EnvironmentName, p.Machine, p.Kind, p.Name, p.Version, p.NewestPatchOfMinor, p.NextMinor, p.SupportedUntil?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), p.EndOfLife?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), p.Level)).ToList()
+            ? resource.Platforms.Select(p => new PlatformLine(p.EnvironmentName, p.Machine, p.Kind, p.Name, p.Version, p.NewestPatchOfMinor, p.NextMinor, p.SupportedUntil?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), p.EndOfLife?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), p.Level, p.Lookup)).ToList()
             : [];
 
         return new MaintenanceDigest(

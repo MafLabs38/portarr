@@ -42,6 +42,7 @@ export const platformFilters = {
   'platform-out-of-support': (p: Platform) => p.level === 'danger',
   'platform-support-ending': (p: Platform) => p.level === 'warning',
   'platform-behind': (p: Platform) => p.level === 'info',
+  'platform-lookup-failed': (p: Platform) => p.lookup === 'failed',
 } as const satisfies Record<string, (platform: Platform) => boolean>;
 
 export type RepositoryFilter = keyof typeof repositoryFilters;
@@ -113,6 +114,7 @@ const attentionFilters: Record<string, { tab: MaintenanceTab; filter: Maintenanc
   'platform-out-of-support': { tab: platformsTab, filter: 'platform-out-of-support' },
   'platform-support-ending': { tab: platformsTab, filter: 'platform-support-ending' },
   'platforms-behind': { tab: platformsTab, filter: 'platform-behind' },
+  'platform-lookup-failed': { tab: platformsTab, filter: 'platform-lookup-failed' },
 };
 
 export function attentionSearch(kind: string): string | null {

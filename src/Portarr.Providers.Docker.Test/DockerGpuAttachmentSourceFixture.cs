@@ -16,6 +16,7 @@ public sealed class DockerGpuAttachmentSourceFixture
     };
 
     private readonly List<string> _asked = [];
+    private readonly Lock _lock = new();
     private readonly HashSet<string> _failing = [];
     private readonly HashSet<string> _oversized = [];
     private readonly List<HttpMethod> _methods = [];
@@ -108,9 +109,12 @@ public sealed class DockerGpuAttachmentSourceFixture
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            owner._methods.Add(request.Method);
             var path = request.RequestUri!.AbsolutePath.TrimStart('/');
-            owner._asked.Add(path);
+            lock (owner._lock)
+            {
+                owner._methods.Add(request.Method);
+                owner._asked.Add(path);
+            }
             var id = path.Split('/')[1];
             if (owner._failing.Contains(id))
             {

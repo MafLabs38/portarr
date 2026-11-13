@@ -10,7 +10,7 @@ public sealed record MachineSystemEntry(string EnvironmentId, string MachineId, 
 /// <summary>
 /// A platform a machine runs, as reported to the operator and to Orchestrarr (D-119): what it is, the version it runs, the newer
 /// versions that exist (a patch of the same line, then the next line: one line at a time), when its support stops and what that
-/// deserves. <c>Level</c> is null when there is nothing to say (up to date, or no date known).
+/// deserves. <c>Level</c> is null when there is nothing to say (up to date, or no date known); <c>Lookup</c> says why a date is missing (<see cref="PlatformLookups"/>).
 /// </summary>
 public sealed record PlatformStatus(
     string EnvironmentId,
@@ -23,7 +23,8 @@ public sealed record PlatformStatus(
     string? NextMinor,
     DateOnly? SupportedUntil,
     DateOnly? EndOfLife,
-    AttentionLevel? Level)
+    AttentionLevel? Level,
+    string Lookup = PlatformLookups.Pending)
 {
     /// <summary>The name and the version to show: <c>K3s v1.31.4+k3s1</c>; a name that already says its version (<c>Ubuntu 25.10</c>) is not followed by it again.</summary>
     public string Label => Name.Contains(Version, StringComparison.Ordinal) ? Name : $"{Name} {Version}";
@@ -163,7 +164,8 @@ public static partial class PlatformReport
         var platform = version.Distribution ?? PlatformKinds.Kubernetes;
         var newer = knowledge.ReleaseLines.GetValueOrDefault(platform) is { } lines ? NewerOf(version, lines) : Newer.None;
         var cycle = knowledge.Cycles.GetValueOrDefault(PlatformKinds.Kubernetes)?.FirstOrDefault(c => c.Cycle == version.Line);
-        return Status(entry, platform, DisplayNameOf(platform, knowledge), version.Text, newer, cycle, today);
+        var lookup = LookupOf(knowledge, PlatformKinds.Kubernetes, platform, cycle);
+        return Status(entry, new Described(platform, DisplayNameOf(platform, knowledge), version.Text), newer, cycle, lookup, today);
     }
 
     /// <summary>The newest version of the line the node is on, when it is newer than the node's, and the first version of the next line (never a jump of two).</summary>
@@ -191,7 +193,8 @@ public static partial class PlatformReport
 
         var cycle = system.OsId?.ToLowerInvariant() is { } id ? knowledge.Cycles.GetValueOrDefault(id)?.FirstOrDefault(c => IsCycleOf(c, system.OsVersion)) : null;
         var name = system.OsName ?? $"{system.OsId} {system.OsVersion}".Trim();
-        return Status(entry, PlatformKinds.Os, name, system.OsVersion ?? system.OsName!, Newer.None, cycle, today);
+        var lookup = LookupOf(knowledge, system.OsId?.ToLowerInvariant(), null, cycle);
+        return Status(entry, new Described(PlatformKinds.Os, name, system.OsVersion ?? system.OsName!), Newer.None, cycle, lookup, today);
     }
 
     /// <summary>The newer versions that exist: a patch of the same line and the first version of the next line.</summary>
@@ -206,20 +209,52 @@ public static partial class PlatformReport
         return version is not null && (version == cycle.Cycle || version.StartsWith(cycle.Cycle + ".", StringComparison.Ordinal));
     }
 
-    private static PlatformStatus Status(MachineSystemEntry entry, string kind, string name, string version, Newer newer, SupportCycle? cycle, DateOnly today)
+    /// <summary>What a status says it is: its kind, the name to show and the version it runs.</summary>
+    private sealed record Described(string Kind, string Name, string Version);
+
+    private static PlatformStatus Status(MachineSystemEntry entry, Described what, Newer newer, SupportCycle? cycle, string lookup, DateOnly today)
     {
         return new PlatformStatus(
             entry.EnvironmentId,
             entry.MachineId,
             entry.MachineName,
-            kind,
-            name,
-            version,
+            what.Kind,
+            what.Name,
+            what.Version,
             newer.Patch,
             newer.NextMinor,
             cycle?.EndOfActiveSupport,
             cycle?.EndOfLife,
-            LevelOf(cycle?.EndOfLife, newer.Patch is not null || newer.NextMinor is not null, today));
+            LevelOf(cycle?.EndOfLife, newer.Patch is not null || newer.NextMinor is not null, today),
+            lookup);
+    }
+
+    /// <summary>
+    /// Where the lookup behind a status stands: switched off, failed with nothing kept (the support cycles of <paramref name="product"/>, or the
+    /// release lines of <paramref name="platform"/>), known, not listed by any source, or not read yet.
+    /// </summary>
+    private static string LookupOf(PlatformKnowledge knowledge, string? product, string? platform, SupportCycle? cycle)
+    {
+        if (!knowledge.Enabled)
+        {
+            return PlatformLookups.Disabled;
+        }
+
+        var cyclesKey = product is null ? null : $"cycles:{product}";
+        var cyclesFailed = cycle is null && cyclesKey is not null && knowledge.Failures?.ContainsKey(cyclesKey) == true;
+        var linesFailed = platform is not null && knowledge.Failures?.ContainsKey($"lines:{platform}") == true && !knowledge.ReleaseLines.ContainsKey(platform);
+        if (cyclesFailed || linesFailed)
+        {
+            return PlatformLookups.Failed;
+        }
+
+        if (cycle is not null)
+        {
+            return PlatformLookups.Ok;
+        }
+
+        var listed = product is not null && (knowledge.Cycles.ContainsKey(product) || knowledge.Unlisted?.Contains(cyclesKey!) == true);
+        return product is null || listed ? PlatformLookups.NotListed : PlatformLookups.Pending;
     }
 
     /// <summary>

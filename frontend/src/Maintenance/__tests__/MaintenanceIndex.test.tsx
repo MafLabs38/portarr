@@ -170,7 +170,7 @@ describe('MaintenanceIndex', () => {
     expect(within(node).getByText('next line v1.32.2+k3s1')).toBeInTheDocument();
     const unknown = screen.getByRole('listitem', { name: 'node-2 Unraid OS 7.3 x86_64' });
     expect(within(unknown).getByText('Support unknown')).toBeInTheDocument();
-    expect(within(unknown).getByText('support dates unknown')).toBeInTheDocument();
+    expect(within(unknown).getByText(/no source lists this version/)).toBeInTheDocument();
   });
 
   it('opens the platforms filtered when the finding of the attention list is followed', async () => {
@@ -183,6 +183,37 @@ describe('MaintenanceIndex', () => {
     expect(await screen.findByRole('tab', { name: /Platforms/ })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('listitem', { name: 'server-1 Ubuntu 20.04' })).toBeInTheDocument();
     expect(screen.queryByRole('listitem', { name: 'node-1 K3s' })).not.toBeInTheDocument();
+  });
+
+  it('says a failed lookup, and that the lookups are off, instead of a neutral grey', async () => {
+    const platforms = maintenanceReport.platforms.map((platform) =>
+      platform.machineId === 'node-2' ? { ...platform, lookup: 'failed' as const } : platform,
+    );
+    server.use(http.get('/api/v1/maintenance', () => HttpResponse.json({ ...maintenanceReport, platforms })));
+    const user = userEvent.setup();
+    renderWithProviders(<MaintenanceIndex />);
+
+    await user.click(await screen.findByRole('tab', { name: /Platforms/ }));
+
+    const failed = screen.getByRole('listitem', { name: 'node-2 Unraid OS 7.3 x86_64' });
+    expect(within(failed).getByText('Lookup failed')).toBeInTheDocument();
+    expect(within(failed).getByText(/the lookup failed/)).toBeInTheDocument();
+  });
+
+  it('says the lookups are off when they are switched off', async () => {
+    const platforms = maintenanceReport.platforms.map((platform) => ({
+      ...platform,
+      level: null,
+      lookup: 'disabled' as const,
+      endOfLife: null,
+    }));
+    server.use(http.get('/api/v1/maintenance', () => HttpResponse.json({ ...maintenanceReport, platforms })));
+    const user = userEvent.setup();
+    renderWithProviders(<MaintenanceIndex />);
+
+    await user.click(await screen.findByRole('tab', { name: /Platforms/ }));
+
+    expect(screen.getAllByText('Lookups off')).toHaveLength(3);
   });
 
   it('says when no machine reported a system', async () => {

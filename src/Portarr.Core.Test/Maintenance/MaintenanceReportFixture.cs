@@ -120,6 +120,20 @@ public sealed class MaintenanceReportFixture
     }
 
     [Fact]
+    public void should_warn_when_a_platform_lookup_failed_so_that_a_missing_danger_is_not_taken_for_none()
+    {
+        var parsed = TestCatalog.Parse(Catalog);
+
+        var report = MaintenanceService.Build(
+            parsed.Catalog,
+            new Dictionary<string, EnvironmentInventory>(),
+            new MaintenanceState(new RepositoryScan([], null, Now), new Dictionary<string, RegistryLookup>()),
+            platforms: [new PlatformStatus("env", "a", "a", "os", "Ubuntu", "20.04", null, null, null, null, null, PlatformLookups.Failed)]);
+
+        Item(report, "platform-lookup-failed").Should().Match<AttentionItem>(a => a.Level == AttentionLevel.Warning && a.Subjects.Single().Label == "a: Ubuntu 20.04");
+    }
+
+    [Fact]
     public void should_report_a_code_source_that_could_not_be_scanned_as_a_warning()
     {
         var scan = new RepositoryScan([], "rate-limited", Now);

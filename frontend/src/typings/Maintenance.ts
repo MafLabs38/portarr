@@ -158,6 +158,8 @@ export interface Platform {
   endOfLife: string | null;
   /** danger: end of life reached; warning: within 90 days of it; info: a newer version exists; null: nothing to say. */
   level: AttentionLevel | null;
+  /** Why a date may be missing: `ok`, `pending` (not read yet), `not-listed` (no source lists it), `failed` (the lookup failed) or `disabled`. */
+  lookup: 'ok' | 'pending' | 'not-listed' | 'failed' | 'disabled';
 }
 
 export default interface MaintenanceReport {

@@ -15,6 +15,20 @@ public sealed class EndOfLifeDateSource : ISupportLifecycleSource
 {
     public static readonly Uri BaseUrl = new("https://endoflife.date/api/v1/products/");
 
+    /// <summary>
+    /// <c>/etc/os-release</c>'s <c>ID</c> of the distributions that endoflife.date names otherwise: this connector speaks its site's names,
+    /// so Core only ever passes the identifier a machine reported.
+    /// </summary>
+    private static readonly Dictionary<string, string> Products = new(StringComparer.Ordinal)
+    {
+        ["rocky"] = "rocky-linux",
+        ["amzn"] = "amazon-linux",
+        ["ol"] = "oracle-linux",
+        ["opensuse-leap"] = "opensuse",
+        ["almalinux"] = "almalinux",
+        ["rhel"] = "rhel",
+    };
+
     private readonly IHttpClientFactory _httpClientFactory;
 
     public EndOfLifeDateSource(IHttpClientFactory httpClientFactory)
@@ -29,7 +43,8 @@ public sealed class EndOfLifeDateSource : ISupportLifecycleSource
             return null;
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(BaseUrl, product + Path.AltDirectorySeparatorChar));
+        var site = Products.GetValueOrDefault(product, product);
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(BaseUrl, site + Path.AltDirectorySeparatorChar));
         using var response = await _httpClientFactory.CreateClient(PlatformsHttp.ClientName).SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
