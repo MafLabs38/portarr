@@ -22,3 +22,4 @@ An accepted ADR is never edited to change its decision: a new ADR supersedes it.
 | [0015](0015-review-findings-are-answered-in-a-register-the-agents-read.md) | Review findings are answered in a register the agents read; a serious one not fixed is the maintainer's to accept | — |
 | [0016](0016-mcp-servers-are-defined-in-portarr-and-replicated-onto-machines.md) | MCP servers are defined in Portarr and replicated onto machines, never the other way | D-110 to D-116 |
 | [0017](0017-the-reader-is-retired.md) | The reader is retired: node_exporter is the host source | D-117 |
+| [0018](0018-platforms-are-reported-from-the-tools-portarr-reads-and-two-public-sources.md) | Platforms are reported from the tools Portarr reads and two public sources | D-118, D-119 |

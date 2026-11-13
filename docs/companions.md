@@ -28,6 +28,7 @@ Without it, a Docker host's card only knows the **sum of its containers** (D-57)
 - the **memory ring**: used (total − available) split into containers or pods, VMs and the host's own apps, then reclaimable cache and free, parts that add up to the total;
 - **swap** (used of total, or "No swap");
 - the **load average** and the **CPU temperature** when a CPU sensor is exposed.
+- the **operating system and the kernel** (`node_os_info`, `node_uname_info`, D-118), shown under the machine's name and reported with their support dates in Maintenance → Platforms (D-119): they need the host's `/` mounted and `--path.rootfs`, as below.
 
 Formulas and details: [connectors/node-exporter.md](connectors/node-exporter.md).
 

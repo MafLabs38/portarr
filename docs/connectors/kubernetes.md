@@ -87,3 +87,7 @@ Pod names change on every rollout: match pods by `namespace` and `labels` (`app:
 | Usage of one pod | `GET /apis/metrics.k8s.io/v1beta1/namespaces/{ns}/pods/{name}` | Workload page, catalog pods only. |
 
 Pod logs are not served yet.
+
+## The system a node reports (D-118)
+
+The node list Portarr already reads carries each node's `status.nodeInfo`: the kubelet version (`v1.31.4+k3s1` on K3s), the operating system image (`Ubuntu 25.10`) and the kernel. Portarr shows them under the machine's name and reports them as platforms (`GET /api/v1/maintenance`, `platforms[]`, D-119): the K3s line, the newer versions that exist and when the line stops being supported. Nothing more is asked of the cluster.
