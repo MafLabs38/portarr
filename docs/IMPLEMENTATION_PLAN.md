@@ -206,9 +206,9 @@ Each row is a PR (or a stack). The listed tests come on top of the generic DoD.
 
 ---
 
-### The reader (before further connectors)
+### The reader (retired)
 
-Decided 2026-10-31, after the consolidation: adding a machine must be one container and one URL ([ADR 0010](adr/0010-optional-read-only-agent.md), [ADR 0011](adr/0011-reader-speaking-the-existing-protocols.md), D-100 to D-102). It comes before new connectors and before the non-web apps. Slices A1 (the reader, written in Rust, its image and CI job, the `reader:` catalog key and the optional token on the Docker and node_exporter connectors), A2 (the "Add environment" screen, documentation and migration notes), A3 (Kubernetes in-cluster authentication and one install manifest); A1 is shippable alone. Each slice is a small pull request reviewed on its own.
+Decided 2026-10-31 ([ADR 0010](adr/0010-optional-read-only-agent.md), [ADR 0011](adr/0011-reader-speaking-the-existing-protocols.md), D-100 to D-102), built as slice A1, never put in service, and retired on 2026-11-13 ([ADR 0017](adr/0017-the-reader-is-retired.md), D-117): node_exporter and the Docker API stay the sources.
 
 ## 5. Blocking prerequisites
 

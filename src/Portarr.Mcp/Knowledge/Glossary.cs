@@ -63,7 +63,10 @@ public static class Glossary
           **newer-build** (a floating tag was rebuilt), **floating** (cannot tell), **unknown** (with a reason:
           `image-id`, `not-found`, `refused`, `rate-limited`), **pending** (not looked up yet).
         - Attention kinds: `severe-alerts`, `secret-alerts`, `ci-failing`, `image-major`, `images-behind`,
-          `image-rebuilt`, `dependabot-off`, `code-scanning-off`, `other-alerts`, `dependabot-prs`, `images-unknown`.
+          `image-rebuilt`, `dependabot-off`, `code-scanning-off`, `other-alerts`, `dependabot-prs`, `images-unknown`,
+          and for the platforms the machines run: `platform-out-of-support` (end of life reached), `platform-support-ending`
+          (within 90 days), `platforms-behind` (a newer version exists), `platform-lookup-failed` (the sources of newer
+          versions and support dates could not be read, so a platform may be missing its dates).
 
         ## Overview finding kinds
 

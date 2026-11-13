@@ -192,7 +192,14 @@ internal sealed record Node(
 internal sealed record NodeStatus(
     [property: JsonPropertyName("capacity")] IReadOnlyDictionary<string, string>? Capacity,
     [property: JsonPropertyName("conditions")] IReadOnlyList<Condition>? Conditions,
-    [property: JsonPropertyName("addresses")] IReadOnlyList<NodeAddress>? Addresses = null);
+    [property: JsonPropertyName("addresses")] IReadOnlyList<NodeAddress>? Addresses = null,
+    [property: JsonPropertyName("nodeInfo")] NodeSystemInfo? NodeInfo = null);
+
+/// <summary>What a node reports about itself: its kubelet (<c>v1.31.4+k3s1</c> on K3s), its operating system image and its kernel.</summary>
+internal sealed record NodeSystemInfo(
+    [property: JsonPropertyName("kubeletVersion")] string? KubeletVersion,
+    [property: JsonPropertyName("osImage")] string? OsImage,
+    [property: JsonPropertyName("kernelVersion")] string? KernelVersion);
 
 /// <summary>An address of a node: InternalIP, ExternalIP, Hostname…</summary>
 internal sealed record NodeAddress(

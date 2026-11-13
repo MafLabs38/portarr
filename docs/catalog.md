@@ -14,8 +14,6 @@ environments:
     address: 10.0.0.10                # LAN address: LAN links are built from published ports
     docker: { url: "http://socket-proxy:2375" }   # or unix:///var/run/docker.sock
     hostMetrics: { nodeExporter: "http://10.0.0.10:9100/metrics" }   # host agent, read every second (D-72)
-    # or, in place of the two lines above, one line for the Portarr reader of the machine (D-100, D-101):
-    # reader: { url: "http://10.0.0.10:8485", tokenEnv: PORTARR_READER_SERVER_1 }
     backrest: { url: "http://10.0.0.10:9898", userEnv: PORTARR_BACKREST_USER, passwordEnv: PORTARR_BACKREST_PASSWORD }   # backup tool of this machine (D-80)
   - id: cdn
     name: Cloudflare
@@ -131,7 +129,6 @@ The catalog never holds a secret: a section that sends a credential to a URL nam
 
 | Section | Variable names accepted |
 |---|---|
-| `reader`, `docker.tokenEnv`, `hostMetrics.tokenEnv` | `PORTARR_READER_…` |
 | `kubernetes.tokenEnv` | `PORTARR_K8S_…`, or the default `K8S_TOKEN` |
 | `backrest.userEnv`, `backrest.passwordEnv` | `PORTARR_BACKREST_…` |
 | `cloudflare.tokenEnv` | `PORTARR_CLOUDFLARE_…`, or the default `CLOUDFLARE_API_TOKEN` |
@@ -197,8 +194,8 @@ On the Infrastructure page, the host's card then splits its memory into **Contai
 
 Docker sees only its containers and metrics-server only refreshes a node every ~15 s. A **node_exporter** on a machine gives Portarr the machine as its kernel sees it, every second: overall load, I/O wait, load per core, memory, swap and CPU temperature (D-72, [connectors/node-exporter.md](connectors/node-exporter.md); installation in [companions.md](companions.md#node_exporter)).
 
+- `nvidiaGpu: { exporter: <URL> }` on a **Docker** environment: the `/metrics` URL of the NVIDIA GPU exporter of the machine's graphics card (`http` or `https`, no credentials in it): the card's load, memory, video encoder and decoder, temperature and power appear on the machine's card, with the containers that have the card attached (D-120, [the connector](connectors/gpu-exporter.md)).
 - `hostMetrics: { nodeExporter: <URL> }` on a **Docker** environment: the `/metrics` URL of the host's node_exporter (`http` or `https`, no credentials in it). `interval` (optional, `5s`, `1m`, from 1 second to 5 minutes, default every second) reads it less often, for a machine behind a slow link or a large fleet (D-107).
-- `reader: { url, tokenEnv }` on a **Docker** environment: the [Portarr reader](connectors/reader.md) of the machine, in place of `docker` and `hostMetrics` (declaring both is an error). `url` is the reader's address (it may carry a path behind a reverse proxy), `tokenEnv` the name of the variable that holds its token, which **must start with `PORTARR_READER_`**. `docker` and `hostMetrics` also accept an optional `tokenEnv` for a proxy that asks for a bearer token, in the same namespace.
 - `kubernetes.nodeExporter:` on a Kubernetes environment, for every node:
   - `port` (default 9100): node_exporter's port at the node's InternalIP (a DaemonSet with `hostNetwork`).
   - `access`: `direct` (default, Portarr calls the node's InternalIP; a node whose address is not an IP, or is a loopback, link-local or unspecified one, is shown with the reason `invalid-address`; give it a route in `nodes`) or `api-server` (through the API server's **pod proxy** to the node_exporter pod running on that node, `GET /api/v1/namespaces/<namespace>/pods/<pod>:<port>/proxy/metrics`, which needs `get` on `pods/proxy` in that namespace only; the node proxy, `nodes/proxy`, would reach any port of any node and is not used).
@@ -423,7 +420,7 @@ The catalog file stays the source of truth (D-44); Portarr can edit it for you, 
 
 | Setting | Effect |
 |---|---|
-| `PORTARR__CATALOG__WRITABLE=true` | Turns the write endpoints on. Who may write is the `catalog.write` permission of a role (V7): a signed-in user, or a per-user API key of such a user. The editor never changes how a host is reached (`runtime`, `reader`, the connector sections such as `docker` or `kubernetes`, and an app's `check`): those stay in the file, and an edit that leaves them out keeps them. **Mount the folder** that holds the catalog, not the single file: backups (`catalog.yaml.bak-*`) and the audit trail (`catalog.audit.jsonl`) are written next to it and a single-file mount loses them when the container is recreated; with a read-only folder the catalog is reported read-only. Edits made through Portarr are not in your infrastructure-as-code copy: commit them back. |
+| `PORTARR__CATALOG__WRITABLE=true` | Turns the write endpoints on. Who may write is the `catalog.write` permission of a role (V7): a signed-in user, or a per-user API key of such a user. The editor never changes how a host is reached (`runtime`, the connector sections such as `docker` or `kubernetes`, and an app's `check`): those stay in the file, and an edit that leaves them out keeps them. **Mount the folder** that holds the catalog, not the single file: backups (`catalog.yaml.bak-*`) and the audit trail (`catalog.audit.jsonl`) are written next to it and a single-file mount loses them when the container is recreated; with a read-only folder the catalog is reported read-only. Edits made through Portarr are not in your infrastructure-as-code copy: commit them back. |
 | `PORTARR__APIKEY` | Deprecated bootstrap key (at least 32 characters, e.g. `openssl rand -hex 32`), sent in `X-Api-Key` or `Authorization: Bearer`: acts as the built-in `system` principal with Admin permissions. Optional; a warning is logged at startup when set. |
 | `PORTARR__CATALOG__BACKUPS` | Previous versions kept next to the catalog (`catalog.yaml.bak-<timestamp>`), default 10. |
 | `PORTARR__MCP__WRITETOOLS=true` | Adds the MCP write tools ([verticals/V5-ai-mcp.md](verticals/V5-ai-mcp.md)); they also need the catalog to be writable. |

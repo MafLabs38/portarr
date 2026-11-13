@@ -73,6 +73,55 @@ export interface MachineWorkload {
   memoryBytes: number | null;
 }
 
+/** What a machine says about its system (D-118): the operating system, the kernel and, on a cluster node, the kubelet. */
+export interface MachineSystem {
+  osId: string | null;
+  /** The text to show, e.g. "Ubuntu 25.10". */
+  os: string | null;
+  osVersion: string | null;
+  kernel: string | null;
+  /** The kubelet version of a cluster node, e.g. "v1.31.4+k3s1". */
+  kubeletVersion: string | null;
+}
+
+/** A point of a graphics card's chart. */
+export interface GpuPoint {
+  at: string;
+  utilizationPercent: number | null;
+  memoryUsedBytes: number | null;
+  encoderPercent: number | null;
+}
+
+/** One graphics card (D-120): load, memory, video encoder and decoder, temperature and power, and its live window. */
+export interface GpuDevice {
+  id: string;
+  name: string;
+  driver: string | null;
+  utilizationPercent: number | null;
+  memoryUsedBytes: number | null;
+  memoryTotalBytes: number | null;
+  encoderPercent: number | null;
+  decoderPercent: number | null;
+  encoderSessions: number | null;
+  temperatureCelsius: number | null;
+  powerWatts: number | null;
+  powerLimitWatts: number | null;
+  history: GpuPoint[];
+}
+
+/**
+ * The graphics cards of a machine, read every `intervalSeconds` from the exporter the catalog names. `workloadIds` are the running
+ * workloads created with a card attached: Portarr does not measure a card's load per workload.
+ */
+export interface Gpu {
+  devices: GpuDevice[];
+  workloadIds: string[];
+  sampledAt: string | null;
+  /** Reason code of the last read when it failed; the last values are kept. */
+  error: string | null;
+  intervalSeconds: number;
+}
+
 export interface Machine {
   id: string;
   name: string;
@@ -94,6 +143,10 @@ export interface Machine {
   guests: Guest[];
   /** Its host agent, when the catalog declares one (D-72): wins over the container sums. */
   hostMetrics?: HostMetrics | null;
+  /** The system the machine reports, when a source said anything (node_exporter, a cluster's node information). */
+  system?: MachineSystem | null;
+  /** The graphics cards, when the catalog declares an exporter for them (D-120). */
+  gpu?: Gpu | null;
 }
 
 export interface InfrastructureEnvironment {

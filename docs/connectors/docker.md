@@ -32,9 +32,9 @@ environments:
   - { id: server-1, name: Server 1, docker: { url: "http://server-1:2375" } }
 ```
 
-## Behind a proxy that asks for a token
+## Behind a reverse proxy
 
-`docker.url` may carry a base path (a reverse proxy serving the API under `/docker/`), and `docker.tokenEnv` names the environment variable that holds a bearer token to send with every request. The variable must start with `PORTARR_READER_`: a catalog can be edited through the API, and only that namespace is ever sent to a catalog URL ([the reader](reader.md), D-102). When the variable is empty the machine is shown as `token-missing` instead of being read anonymously. For a machine with a [reader](reader.md), declare `reader:` instead: it sets both.
+`docker.url` may carry a base path (a reverse proxy serving the API under `/docker/`).
 
 ## Local Docker
 
@@ -47,9 +47,10 @@ When Portarr runs on the Docker host itself, it can use `unix:///var/run/docker.
 | Containers, state, healthcheck, Compose project, mounts (bind mounts and named volumes: where their data lives, V3) | `GET /containers/json?all=true` | every 15 s |
 | CPU (cores) and memory (without page cache) | `GET /containers/{name}/stats?stream=false` | on demand, every 5 s on the container page |
 | Logs (stdout/stderr, timestamps) | `GET /containers/{name}/logs?follow=true` | live (server-sent events) |
+| The TTY flag of a container (to read its logs; a read-only socket proxy that allows the container list and logs allows this too) and, on a host that declares a GPU exporter, whether it was created with the NVIDIA runtime or a GPU device request (D-120) | `GET /containers/{id}/json` | on demand; the GPU part once per container, at most 20 per pass |
 
 ## Machine card (Infrastructure)
 
 A Docker environment is one machine on the Infrastructure page (D-54). Every 3 s Portarr takes a one-shot stats sample of each running container (`GET /containers/{id}/stats?stream=false&one-shot=true`, 4 at a time: about 0.1 s for 40 containers) and measures CPU between two samples. The machine's usage is the **sum of its containers**, labelled "Containers" (D-57): Docker does not see the host's own processes, VMs or page cache. Its capacity (cores, memory) comes from `GET /info` when the proxy allows `INFO=1`, else from the containers' stats (online CPUs, and the memory limit of an unlimited container, which is the host's memory).
 
-Host-level usage needs a host metrics source (node_exporter or Prometheus), planned as an integration; none is shipped yet.
+Host-level usage comes from the host's node_exporter ([node-exporter.md](node-exporter.md), D-72); without one, the machine shows the sum of its containers.

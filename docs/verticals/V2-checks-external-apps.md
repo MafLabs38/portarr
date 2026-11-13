@@ -92,3 +92,7 @@ An app's status is the worst of its critical members: workloads (V1, Kubernetes 
 - [ ] An app matched by `namespace` + `app` keeps its pod after a rollout (new pod name)
 - [ ] A Kubernetes environment without its token shows "not connected · token-missing"; with a read-only token, its nodes and pods appear
 - [ ] No secret in the catalog: Cloudflare and Kubernetes tokens come from environment variables
+
+## Later additions to the Infrastructure page
+
+- The operating system and the kernel under a machine's name (D-118), the graphics card of a Docker host with the containers attached to it (D-120), free memory counting the reclaimable cache, top consumers ranked by CPU or RAM, kept in the browser (D-121).

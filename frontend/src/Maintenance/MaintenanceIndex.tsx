@@ -14,17 +14,18 @@ import AttentionList from './AttentionList';
 import CodeSourceNotices from './CodeSourceNotices';
 import CodeTab from './CodeTab';
 import ImagesTab from './ImagesTab';
-import { activeFilter, codeTab, imagesTab, type MaintenanceTab } from './maintenanceFilters';
+import { activeFilter, codeTab, imagesTab, type MaintenanceTab, platformsTab } from './maintenanceFilters';
 import MaintenanceFreshness from './MaintenanceFreshness';
 import styles from './MaintenanceIndex.module.css';
 import MaintenanceSummaryBar from './MaintenanceSummaryBar';
 import MaintenanceTabs from './MaintenanceTabs';
+import PlatformsTab from './PlatformsTab';
 import useMaintenance from './useMaintenance';
 
 /**
  * "What is vulnerable, outdated or late in my fleet?" (V4): what needs attention first, then two sub-tabs for
- * the two halves of the fleet: the code the operator makes (repositories, deployed here or not) and the images
- * the fleet runs. The summary figures and the attention lines filter the tabs (`?tab=images&filter=behind`, kept
+ * the parts of the fleet: the code the operator makes (repositories, deployed here or not), the images the
+ * fleet runs and the platforms the machines run (K3s, their operating system). The summary figures and the attention lines filter the tabs (`?tab=images&filter=behind`, kept
  * in the URL). Portarr informs; the operator acts on GitHub and in the deployments (D-16).
  */
 export default function MaintenanceIndex() {
@@ -32,7 +33,8 @@ export default function MaintenanceIndex() {
   const { data: appList } = useApps();
   const apps = useMemo(() => new Map<string, App>((appList ?? []).map((app) => [app.id, app])), [appList]);
   const [params, setParams] = useSearchParams();
-  const tab: MaintenanceTab = params.get('tab') === imagesTab ? imagesTab : codeTab;
+  const tabParam = params.get('tab');
+  const tab: MaintenanceTab = tabParam === imagesTab || tabParam === platformsTab ? tabParam : codeTab;
   const filter = activeFilter(tab, params.get('filter'));
   const report = maintenance.data;
   const source = report?.codeSource;
@@ -68,13 +70,18 @@ export default function MaintenanceIndex() {
                 tabs={[
                   { id: codeTab, label: translate('MyCode'), count: report.repositories.length },
                   { id: imagesTab, label: translate('DeployedImages'), count: report.images.length },
+                  { id: platformsTab, label: translate('Platforms'), count: report.platforms.length },
                 ]}
               >
                 {tab === codeTab ? (
                   <CodeTab apps={apps} filter={filter} onClearFilter={clearFilter} report={report} source={source} />
-                ) : (
+                ) : null}
+                {tab === imagesTab ? (
                   <ImagesTab apps={apps} filter={filter} onClearFilter={clearFilter} report={report} />
-                )}
+                ) : null}
+                {tab === platformsTab ? (
+                  <PlatformsTab filter={filter} onClearFilter={clearFilter} report={report} />
+                ) : null}
               </MaintenanceTabs>
             </section>
           </>

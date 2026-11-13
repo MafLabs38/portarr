@@ -47,7 +47,8 @@ public sealed record HostMetricsTarget(CatalogEnvironment Environment, string Ma
 /// <summary>
 /// One read of a host agent. Percentages are 0–100 of the whole machine, measured since the previous read
 /// (null on the first one): <c>CpuPercent</c> is 100 − idle (I/O wait included, like top and Unraid),
-/// <c>IowaitPercent</c> the part spent waiting for I/O, <c>CorePercents</c> the same load per logical core.
+/// <c>IowaitPercent</c> the part spent waiting for I/O, <c>CorePercents</c> the same load per logical core, <c>System</c> what the
+/// machine says about its operating system and kernel (null when the exporter does not expose them).
 /// </summary>
 public sealed record HostReading(
     int Cores,
@@ -56,7 +57,8 @@ public sealed record HostReading(
     IReadOnlyList<double>? CorePercents,
     HostMemory Memory,
     double? Load1,
-    double? TemperatureCelsius);
+    double? TemperatureCelsius,
+    MachineSystem? System = null);
 
 /// <summary>
 /// The kernel's memory counters (/proc/meminfo, bytes). <c>Used</c> is Total − Available: what cannot be given

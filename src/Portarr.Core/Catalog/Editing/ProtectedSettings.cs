@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 namespace Portarr.Core.Catalog.Editing;
 
 /// <summary>
-/// The settings the catalog editor never changes (17-1): how Portarr reaches an environment (<c>runtime</c>, <c>reader</c>
+/// The settings the catalog editor never changes (17-1): how Portarr reaches an environment (<c>runtime</c>
 /// and every section a connector owns: docker, kubernetes, cloudflare, backrest, hostMetrics…) and what it fetches for an
 /// app (<c>check</c>). They hold an address and the name of the variable that holds the credential for it, so whoever can
 /// write them can make Portarr send that credential to another host. Editing them is the operator's, in the catalog file;
@@ -13,13 +13,12 @@ namespace Portarr.Core.Catalog.Editing;
 public static class ProtectedSettings
 {
     public const string RuntimeKey = "runtime";
-    public const string ReaderKey = "reader";
     public const string CheckKey = "check";
 
     /// <summary>The keys of a section's items that are protected; the connector sections are those the registered connectors own.</summary>
     public static IReadOnlyList<string> KeysOf(string section, IEnumerable<string> connectorSections) => section switch
     {
-        CatalogSections.Environments => [RuntimeKey, ReaderKey, .. connectorSections],
+        CatalogSections.Environments => [RuntimeKey, .. connectorSections],
         CatalogSections.Apps => [CheckKey],
         _ => [],
     };

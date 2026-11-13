@@ -118,12 +118,12 @@ public sealed class PortarrTools
 
     [RequiresPermissions(Permissions.MaintenanceView)]
     [McpServerTool(Name = "get_maintenance", Title = "Maintenance", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("What is vulnerable, outdated or late: the attention list, repositories with alerts, scanning off, CI failing or Dependabot pull requests waiting, and running images that are not up to date.")]
-    public MaintenanceDigest GetMaintenance([Description("all, code (repositories) or images.")] string section = "all")
+    [Description("What is vulnerable, outdated or late: the attention list, repositories with alerts, scanning off, CI failing or Dependabot pull requests waiting, running images that are not up to date, and the platforms the machines run (K3s or Kubernetes, the operating system) with the newer versions that exist and when their support stops.")]
+    public MaintenanceDigest GetMaintenance([Description("all, code (repositories), images or platforms.")] string section = "all")
     {
-        if (section is not ("all" or "code" or "images"))
+        if (section is not ("all" or "code" or "images" or "platforms"))
         {
-            throw new McpException("section must be all, code or images.");
+            throw new McpException("section must be all, code, images or platforms.");
         }
 
         return _digest.GetMaintenance(section);

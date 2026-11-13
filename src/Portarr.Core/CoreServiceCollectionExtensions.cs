@@ -15,11 +15,13 @@ using Portarr.Core.Datastore;
 using Portarr.Core.Datastore.Migration;
 using Portarr.Core.Icons;
 using Portarr.Core.Infrastructure;
+using Portarr.Core.Infrastructure.Gpu;
 using Portarr.Core.Instrumentation;
 using Portarr.Core.Maintenance;
 using Portarr.Core.Mcp;
 using Portarr.Core.Mcp.Clients;
 using Portarr.Core.Mcp.Secrets;
+using Portarr.Core.Platforms;
 using Portarr.Core.Portal;
 using Portarr.Core.Status;
 using Portarr.Core.SystemInfo;
@@ -80,6 +82,17 @@ public static class CoreServiceCollectionExtensions
         // The health of the operator's MCP servers (D-114): the server is checked, never the workstation.
         services.AddSingleton<IMcpHealthStore, McpHealthStore>();
         services.AddSingleton<McpCheckRunner>();
+        // The platforms the machines run, their newer versions and their support dates (D-119).
+        services.AddSingleton<PlatformMonitor>();
+        services.AddSingleton<IPlatformKnowledge>(provider => provider.GetRequiredService<PlatformMonitor>());
+        services.AddHostedService(provider => provider.GetRequiredService<PlatformMonitor>());
+        services.AddSingleton<IPlatformService, PlatformService>();
+
+        // The graphics cards of the machines, and the workloads that have one attached (D-120).
+        services.AddSingleton<GpuMonitor>();
+        services.AddSingleton<IGpuMonitor>(provider => provider.GetRequiredService<GpuMonitor>());
+        services.AddHostedService(provider => provider.GetRequiredService<GpuMonitor>());
+
         services.AddSingleton<McpHealthMonitor>();
         services.AddSingleton<IMcpHealth>(provider => provider.GetRequiredService<McpHealthMonitor>());
         services.AddHostedService(provider => provider.GetRequiredService<McpHealthMonitor>());

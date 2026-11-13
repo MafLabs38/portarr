@@ -252,9 +252,6 @@ internal sealed class EnvironmentDocument
     /// <summary>docker, cloudflare or kubernetes; inferred from the connector block when omitted.</summary>
     public string? Runtime { get; set; }
 
-    /// <summary>The Portarr reader of this machine, in place of <c>docker</c> and <c>hostMetrics</c> (D-100, D-101).</summary>
-    public ReaderDocument? Reader { get; set; }
-
     public string? Address { get; set; }
 
     /// <summary>The environment this machine is a VM on (D-59): its hypervisor counts it as a guest.</summary>
@@ -272,17 +269,6 @@ internal sealed class EnvironmentDocument
 
     /// <summary>Knowledge about the machines of this environment, e.g. the nodes of a cluster (D-84).</summary>
     public List<MachineDocument>? Machines { get; set; }
-}
-
-/// <summary>
-/// The Portarr reader of a machine (D-100): one URL and the variable holding its token, read as <c>docker:</c> and
-/// <c>hostMetrics:</c> (D-101).
-/// </summary>
-internal sealed class ReaderDocument
-{
-    public string? Url { get; set; }
-
-    public string? TokenEnv { get; set; }
 }
 
 internal sealed class StackDocument

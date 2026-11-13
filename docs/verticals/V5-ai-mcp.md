@@ -48,7 +48,7 @@ The four tabs answer four questions; the assistant asks them all, mixes them and
 | `get_infrastructure` | `environment` (optional) | Machines: kind, readiness, roles, scope, CPU and memory now / lowest / highest over the live window, capacity, hypervisor, guests, top 5 consumers with their apps |
 | `find_workload` | `query` (1–200 characters) | Containers and pods whose name, image, namespace or app contains it, worst first |
 | `get_data_coverage` | `onlyAtRisk` | Followed data by state and "x of y critical assets have an off-site copy", assets at risk first (importance, accepted window, local and off-site copy with state, reason and jobs), the backup tools read |
-| `get_maintenance` | `section`: all, code or images | Summary, attention list, repositories with something to say, images not up to date |
+| `get_maintenance` | `section`: all, code, images or platforms | Summary, attention list, repositories with something to say, images not up to date, and the platforms the machines run (K3s or Kubernetes, the operating system) with their newer versions, support dates and the state of their lookup (D-119) |
 
 The live window is described as now, lowest and highest point: the chart in words, not a metric store (D-30).
 

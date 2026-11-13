@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Portarr.Core.Infrastructure;
+using Portarr.Core.Infrastructure.Gpu;
 using Portarr.Core.Workloads;
 using Portarr.Providers.Kubernetes;
 
@@ -23,6 +24,7 @@ public sealed class InfrastructureToolsFixture : IAsyncLifetime
 
     private readonly TestDatabase _database;
     private readonly ToolServer _host = new();
+    private readonly ToolServer _gpu = new();
     private readonly ToolServer _docker = new();
     private readonly ToolServer _cluster = new();
     private PortarrFactory _factory = null!;
@@ -46,10 +48,11 @@ public sealed class InfrastructureToolsFixture : IAsyncLifetime
             .Serve("GET", "/api/v1/namespaces/monitoring/pods/ne-a:9100/proxy/metrics", Exposition(900, 100), contentType: "text/plain");
         _host.Serve("GET", "/metrics", Exposition(400, 100), contentType: "text/plain");
         _docker.Serve("GET", "/info", """{ "NCPU": 1, "MemTotal": 16000 }""");
+        _gpu.Serve("GET", "/metrics", GpuExposition(0.5), contentType: "text/plain");
 
         var catalog = $$"""
             environments:
-              - { id: server-1, name: Server 1, docker: { url: "{{_docker.Url}}" }, hostMetrics: { nodeExporter: "{{_host.Url}}/metrics" } }
+              - { id: server-1, name: Server 1, docker: { url: "{{_docker.Url}}" }, hostMetrics: { nodeExporter: "{{_host.Url}}/metrics" }, nvidiaGpu: { exporter: "{{_gpu.Url}}/metrics" } }
               - { id: cluster, name: Cluster, kubernetes: { server: "{{_cluster.Url}}", allowInsecure: true, tokenEnv: PORTARR_K8S_CLUSTER, nodeExporter: { port: 9100, access: api-server } } }
             apps:
               - { id: shop, name: Shop, workloads: [{ runtime: kubernetes@cluster, match: { name: api-1 } }] }
@@ -81,6 +84,7 @@ public sealed class InfrastructureToolsFixture : IAsyncLifetime
         _client.Dispose();
         await _factory.DisposeAsync();
         _host.Dispose();
+        _gpu.Dispose();
         _docker.Dispose();
         _cluster.Dispose();
     }
@@ -100,6 +104,32 @@ public sealed class InfrastructureToolsFixture : IAsyncLifetime
         node.GetProperty("cpuCapacityCores").GetDouble().Should().Be(4);
         node.GetProperty("cpuCores").GetDouble().Should().Be(0.5);
         node.GetProperty("memoryBytes").GetInt64().Should().Be(2L * 1024 * 1024 * 1024);
+    }
+
+    [Fact]
+    public async Task should_show_the_graphics_card_of_a_docker_host_with_a_point_per_reading_and_never_on_a_cluster_node()
+    {
+        await _factory.Services.GetRequiredService<IInfrastructureMonitor>().SampleAsync(TestContext.Current.CancellationToken);
+        var monitor = _factory.Services.GetRequiredService<GpuMonitor>();
+        await monitor.SampleAsync(TestContext.Current.CancellationToken);
+        _gpu.Reset();
+        _gpu.Serve("GET", "/metrics", GpuExposition(0.8), contentType: "text/plain");
+        _factory.Clock.Advance(TimeSpan.FromSeconds(5));
+        await monitor.SampleAsync(TestContext.Current.CancellationToken);
+
+        var environments = await GetInfrastructureAsync();
+
+        var card = environments.Single(e => e.GetProperty("id").GetString() == "server-1").GetProperty("machines").EnumerateArray().Single().GetProperty("gpu");
+        card.GetProperty("error").ValueKind.Should().Be(JsonValueKind.Null);
+        card.GetProperty("intervalSeconds").GetInt32().Should().Be(5);
+        var device = card.GetProperty("devices").EnumerateArray().Single();
+        device.GetProperty("name").GetString().Should().Be("Test Card");
+        device.GetProperty("utilizationPercent").GetDouble().Should().Be(80);
+        device.GetProperty("memoryTotalBytes").GetInt64().Should().Be(8_000_000_000);
+        // The monitor's own first pass at start counts too: the points are the readings, oldest first.
+        device.GetProperty("history").EnumerateArray().Select(p => p.GetProperty("utilizationPercent").GetDouble()).Should().StartWith(50).And.EndWith(80);
+        environments.Single(e => e.GetProperty("id").GetString() == "cluster").GetProperty("machines").EnumerateArray().Should().OnlyContain(m => m.GetProperty("gpu").ValueKind == JsonValueKind.Null);
+        _gpu.Calls.Should().OnlyContain(c => c.StartsWith("GET ", StringComparison.Ordinal), "Portarr never writes to the exporter");
     }
 
     [Fact]
@@ -187,4 +217,14 @@ public sealed class InfrastructureToolsFixture : IAsyncLifetime
         node_memory_MemAvailable_bytes 10000
         node_memory_MemFree_bytes 4000
         """;
+
+    private static string GpuExposition(double load)
+    {
+        return $$"""
+            nvidia_smi_gpu_info{driver_version="1.0",index="0",name="Test Card",uuid="GPU-1"} 1
+            nvidia_smi_utilization_gpu_ratio{uuid="GPU-1"} {{load.ToString(System.Globalization.CultureInfo.InvariantCulture)}}
+            nvidia_smi_memory_used_bytes{uuid="GPU-1"} 2e+09
+            nvidia_smi_memory_total_bytes{uuid="GPU-1"} 8e+09
+            """;
+    }
 }

@@ -63,6 +63,28 @@ public sealed class KubernetesMapperFixture
     }
 
     [Fact]
+    public void should_report_the_system_a_node_says_it_runs()
+    {
+        var node = JsonSerializer.Deserialize("""
+            { "metadata": { "name": "node-1" },
+              "status": { "capacity": { "cpu": "4" },
+                          "nodeInfo": { "kubeletVersion": "v1.31.4+k3s1", "osImage": "Ubuntu 25.10", "kernelVersion": "6.17.0-41-generic", "architecture": "amd64" } } }
+            """, KubernetesJsonContext.Default.Node)!;
+
+        KubernetesMapper.ToMachine(node, null).System.Should().Be(new MachineSystem(null, "Ubuntu 25.10", null, "6.17.0-41-generic", "v1.31.4+k3s1"));
+    }
+
+    [Theory]
+    [InlineData("""{ "metadata": { "name": "n" }, "status": { "capacity": { "cpu": "1" } } }""")]
+    [InlineData("""{ "metadata": { "name": "n" }, "status": { "nodeInfo": { "kubeletVersion": " ", "osImage": "", "kernelVersion": null } } }""")]
+    public void should_report_no_system_when_the_node_says_nothing(string json)
+    {
+        var node = JsonSerializer.Deserialize(json, KubernetesJsonContext.Default.Node)!;
+
+        KubernetesMapper.ToMachine(node, null).System.Should().BeNull();
+    }
+
+    [Fact]
     public void should_map_a_node_with_its_capacity_roles_readiness_and_usage()
     {
         var node = JsonSerializer.Deserialize("""
