@@ -7,6 +7,7 @@ Generic deployment examples live in [`deploy/companions/`](../deploy/companions/
 | Capability | Companion | Portarr reads |
 |---|---|---|
 | Host metrics (CPU per core, I/O wait, memory, swap) | [node_exporter](#node_exporter) | `/metrics`, every second |
+| Graphics card of a Docker host (load, memory, encoder, decoder, temperature, power) | [NVIDIA GPU exporter](#nvidia-gpu-exporter) (`nvidia_gpu_exporter`, [compose example](../deploy/companions/gpu-exporter/docker-compose.yml)) | `/metrics`, every 5 seconds |
 | Backups of hosts and VMs | [Backrest](#backrest) | plans and their last backups (its API) |
 | Backups in Kubernetes | [K8up](#k8up) | `Schedule`, `Backup` and `Snapshot` resources |
 | Built-in chat (optional) | [Agent runner](#agent-runner) (`portarr-agent`) | — (it calls Portarr's MCP server) |

@@ -17,6 +17,7 @@ Every platform carries a `lookup` state: `ok` (its support date is known), `pend
 - The end of life reached is a **danger**; within 90 days a **warning**; a newer version is **information**; nothing otherwise. A date nobody announced stays empty and is shown as unknown.
 - Read at most every 6 hours (1 hour after a failure, keeping the last answer). At most 32 support lookups per pass, and what no machine needs any more is forgotten, so the product names machines report never make Portarr grow or flood a service. Only what the machines make worth reading is asked: the K3s lines when a node runs K3s, a product when a machine runs it.
 - The product identifier comes from a machine: it is refused unless it is a plain identifier (lower case letters, digits, dots and dashes), so it can never reshape the address.
+- Each read has a 20 second time limit, body included.
 - Every connection goes through the outbound address policy (no loopback, link-local or multicast address) and a redirect is not followed. An answer is read through a byte cap (2 MB once decompressed): a service that sends more is refused.
 - The requests name the operating systems and the Kubernetes distribution the machines run (`/products/ubuntu/`, the K3s channels), nothing else.
 - `PORTARR__PLATFORMUPDATES=false` turns both lookups off (an air-gapped installation, a blocked outbound traffic): the versions are still shown, with no newer version and no support date.

@@ -40,6 +40,8 @@ A run on `main` that finds nothing worth releasing (only `chore`, `docs`…) pub
 | `ghcr.io/<owner>/portarr` | the application |
 | `ghcr.io/<owner>/portarr-agent` | the chat's agent runner |
 
+Tags: `X.Y.Z`, `latest`, the branch (`develop`, `main`) and `sha-<commit>`.
+
 The `portarr-reader` image of earlier releases (ADR 0017) is no longer published; its published tags stay on the registry.
 
 ## Upgrading from a release that used the reader
@@ -51,7 +53,6 @@ The reader (`portarr-reader`, `reader:` in the catalog) was documented in 0.1.0 
 
 A catalog that never used the reader needs nothing.
 
-Tags: `X.Y.Z`, `latest`, the branch (`develop`, `main`) and `sha-<commit>`.
 
 ## The seed tag
 
