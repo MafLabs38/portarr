@@ -85,7 +85,13 @@ public static class InfrastructureResourceBuilder
             workloads,
             view.HostEnvironmentId is { } hypervisor ? new MachineHostResource(hypervisor, names.GetValueOrDefault(hypervisor, hypervisor)) : null,
             (view.Guests ?? []).Select(g => ToGuest(g, hosts.GetValueOrDefault(new HostMachineKey(g.EnvironmentId, g.MachineId)))).ToList(),
-            agent?.ToResource());
+            agent?.ToResource(),
+            ToSystem(MachineSystem.Merge(agent?.Latest?.System, machine.System)));
+    }
+
+    private static MachineSystemResource? ToSystem(MachineSystem? system)
+    {
+        return system is null ? null : new MachineSystemResource(system.OsId, system.OsName, system.OsVersion, system.Kernel, system.KubeletVersion);
     }
 
     /// <summary>A VM with its own host agent reports its whole load and memory (D-72), not only its containers.</summary>

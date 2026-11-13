@@ -139,6 +139,29 @@ export interface MaintenanceRefresh {
   availableAt: string | null;
 }
 
+/** What a machine runs (D-119): K3s or Kubernetes, or its operating system. */
+export type PlatformKind = 'k3s' | 'kubernetes' | 'os';
+
+export interface Platform {
+  environmentId: string;
+  environmentName: string;
+  machineId: string;
+  machine: string;
+  kind: PlatformKind;
+  name: string;
+  version: string;
+  /** The newest version of the same line, when it is newer than the one that runs. */
+  newestPatchOfMinor: string | null;
+  /** The first version of the next line: a cluster moves one line at a time. */
+  nextMinor: string | null;
+  /** A day, yyyy-MM-dd: when active support ends. */
+  supportedUntil: string | null;
+  /** A day, yyyy-MM-dd: when security fixes stop. */
+  endOfLife: string | null;
+  /** danger: end of life reached; warning: within 90 days of it; info: a newer version exists; null: nothing to say. */
+  level: AttentionLevel | null;
+}
+
 export default interface MaintenanceReport {
   summary: MaintenanceSummary;
   attention: AttentionItem[];
@@ -146,4 +169,5 @@ export default interface MaintenanceReport {
   repositories: Repository[];
   images: DeployedImage[];
   refresh: MaintenanceRefresh;
+  platforms: Platform[];
 }

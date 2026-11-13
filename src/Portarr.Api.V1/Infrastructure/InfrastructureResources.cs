@@ -56,6 +56,13 @@ public sealed record HostMetricsResource(
 public sealed record MachineWorkloadResource(string Id, double? CpuCores, long? MemoryBytes);
 
 /// <summary>
+/// What a machine says about its system (D-118): <c>Os</c> is the text to show (<c>Ubuntu 25.10</c>), <c>OsId</c> the identifier of
+/// <c>/etc/os-release</c>, <c>OsVersion</c> its version, <c>Kernel</c> the kernel release, <c>KubeletVersion</c> the version of a
+/// cluster node's kubelet (<c>v1.31.4+k3s1</c>). A field the sources did not say is null.
+/// </summary>
+public sealed record MachineSystemResource(string? OsId, string? Os, string? OsVersion, string? Kernel, string? KubeletVersion);
+
+/// <summary>
 /// A machine: a Docker host or a Kubernetes node. <c>Kind</c>: docker-host or kubernetes-node. <c>Scope</c>:
 /// what its usage measures, <c>containers</c> (the sum of its containers, Docker alone) or <c>host</c>.
 /// <c>Workloads</c> lists every workload placed on it (stopped ones without usage), by workload id. <c>Host</c>
@@ -78,7 +85,8 @@ public sealed record MachineResource(
     IReadOnlyList<MachineWorkloadResource> Workloads,
     MachineHostResource? Host,
     IReadOnlyList<GuestResource> Guests,
-    HostMetricsResource? HostMetrics = null);
+    HostMetricsResource? HostMetrics = null,
+    MachineSystemResource? System = null);
 
 /// <summary>
 /// An environment with its machines (none for Cloudflare or a launcher-only environment). <c>Error</c> is a

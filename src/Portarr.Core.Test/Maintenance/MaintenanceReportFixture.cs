@@ -1,5 +1,6 @@
 using Portarr.Core.Catalog;
 using Portarr.Core.Maintenance;
+using Portarr.Core.Platforms;
 using Portarr.Core.Workloads;
 using Portarr.Test.Common;
 
@@ -97,6 +98,25 @@ public sealed class MaintenanceReportFixture
         var pulls = Item(report, "dependabot-prs");
         pulls.Count.Should().Be(2);
         pulls.Subjects.Single().Url!.AbsoluteUri.Should().Be("https://github.com/example/shop/pulls/app%2Fdependabot", "the address comes from the host's connector, Core builds none");
+    }
+
+    [Fact]
+    public void should_report_the_platforms_and_what_each_deserves_as_attention()
+    {
+        PlatformStatus Platform(string machine, AttentionLevel? level) => new("env", machine, machine, "os", "Ubuntu", "20.04", null, null, null, null, level);
+        var parsed = TestCatalog.Parse(Catalog);
+
+        var report = MaintenanceService.Build(
+            parsed.Catalog,
+            new Dictionary<string, EnvironmentInventory>(),
+            new MaintenanceState(new RepositoryScan([], null, Now), new Dictionary<string, RegistryLookup>()),
+            platforms: [Platform("a", AttentionLevel.Danger), Platform("b", AttentionLevel.Warning), Platform("c", AttentionLevel.Info), Platform("d", null)]);
+
+        report.Platforms.Should().HaveCount(4);
+        Item(report, "platform-out-of-support").Should().Match<AttentionItem>(a => a.Level == AttentionLevel.Danger && a.Subjects.Single().Label == "a: Ubuntu 20.04");
+        Item(report, "platform-support-ending").Level.Should().Be(AttentionLevel.Warning);
+        Item(report, "platforms-behind").Level.Should().Be(AttentionLevel.Info);
+        report.Attention.Should().NotContain(a => a.Subjects.Any(s => s.Label.StartsWith("d:", StringComparison.Ordinal)));
     }
 
     [Fact]

@@ -26,6 +26,7 @@ describe('InfrastructureIndex', () => {
     expect(within(machine).getByText('25 %')).toBeInTheDocument();
     expect(within(machine).getAllByText(/Containers/).length).toBeGreaterThan(0);
     expect(within(machine).getByText('Docker host · 8 cores · 16.0 GB')).toBeInTheDocument();
+    expect(within(machine).getByText('Ubuntu 25.10 · kernel 6.17.0-41-generic')).toBeInTheDocument();
     expect(within(machine).getByText(/every 3 s/)).toBeInTheDocument();
   });
 

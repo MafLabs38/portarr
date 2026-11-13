@@ -23,7 +23,11 @@ public sealed record PlatformStatus(
     string? NextMinor,
     DateOnly? SupportedUntil,
     DateOnly? EndOfLife,
-    AttentionLevel? Level);
+    AttentionLevel? Level)
+{
+    /// <summary>The name and the version to show: <c>K3s v1.31.4+k3s1</c>; a name that already says its version (<c>Ubuntu 25.10</c>) is not followed by it again.</summary>
+    public string Label => Name.Contains(Version, StringComparison.Ordinal) ? Name : $"{Name} {Version}";
+}
 
 public interface IPlatformService
 {
@@ -76,7 +80,7 @@ public static partial class PlatformReport
             {
                 var key = new HostMachineKey(environment.EnvironmentId, machine.Id);
                 seen.Add(key);
-                if (Merge(hosts.GetValueOrDefault(key)?.Latest?.System, machine.System) is { } system)
+                if (MachineSystem.Merge(hosts.GetValueOrDefault(key)?.Latest?.System, machine.System) is { } system)
                 {
                     entries.Add(new MachineSystemEntry(key.EnvironmentId, key.MachineId, machine.Name, system));
                 }
@@ -144,17 +148,6 @@ public static partial class PlatformReport
             .ThenBy(s => s.MachineId, StringComparer.Ordinal)
             .ThenBy(s => s.Kind, StringComparer.Ordinal)
             .ToList();
-    }
-
-    private static MachineSystem? Merge(MachineSystem? host, MachineSystem? inventory)
-    {
-        var merged = new MachineSystem(
-            host?.OsId ?? inventory?.OsId,
-            host?.OsName ?? inventory?.OsName,
-            host?.OsVersion ?? inventory?.OsVersion,
-            host?.Kernel ?? inventory?.Kernel,
-            inventory?.KubeletVersion ?? host?.KubeletVersion);
-        return merged.IsEmpty ? null : merged;
     }
 
     private static PlatformStatus? Kubernetes(MachineSystemEntry entry, PlatformKnowledge knowledge, DateOnly today)

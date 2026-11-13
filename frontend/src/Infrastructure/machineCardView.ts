@@ -94,6 +94,21 @@ export function machineMeta(machine: Machine): string {
     .join(' · ');
 }
 
+/** "Ubuntu 25.10 · kernel 6.17.0-41-generic": what the machine runs, or null when no source said. */
+export function machineSystem(machine: Machine): string | null {
+  const system = machine.system;
+  if (!system) {
+    return null;
+  }
+  const text = [
+    system.os ?? system.osVersion,
+    system.kernel ? translate('KernelVersion', { version: system.kernel }) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return text === '' ? null : text;
+}
+
 /** A value of the container view's chart: % of the machine when its cores are known, else cores. */
 function toChart(cores: number | null, capacity: number | null): number | null {
   if (cores === null) {

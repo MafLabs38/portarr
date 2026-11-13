@@ -2,6 +2,7 @@ import {
   activeFilter,
   attentionSearch,
   filterImages,
+  filterPlatforms,
   filterRepositories,
   maintenanceSearch,
 } from 'Maintenance/maintenanceFilters';
@@ -67,5 +68,21 @@ describe('maintenanceFilters', () => {
     expect(attentionSearch('image-major')).toBe('?tab=images&filter=major');
     expect(attentionSearch('images-behind')).toBe('?tab=images&filter=behind-minor');
     expect(attentionSearch('code-source-error')).toBeNull();
+  });
+
+  it.each([
+    ['platform-out-of-support', ['server-1']],
+    ['platform-support-ending', []],
+    ['platform-behind', ['node-1']],
+  ] as const)('keeps the platforms the "%s" finding counts', (filter, expected) => {
+    expect(filterPlatforms(maintenanceReport.platforms, filter).map((platform) => platform.machine)).toEqual(expected);
+  });
+
+  it('shows the platforms tab for a platform finding and ignores a filter of another tab', () => {
+    expect(attentionSearch('platform-out-of-support')).toBe('?tab=platforms&filter=platform-out-of-support');
+    expect(attentionSearch('platforms-behind')).toBe('?tab=platforms&filter=platform-behind');
+    expect(activeFilter('platforms', 'platform-behind')).toBe('platform-behind');
+    expect(activeFilter('platforms', 'severe')).toBeNull();
+    expect(activeFilter('code', 'platform-behind')).toBeNull();
   });
 });

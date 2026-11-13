@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Portarr.Core.Catalog;
+using Portarr.Core.Platforms;
 using Portarr.Core.Workloads;
 
 namespace Portarr.Core.Maintenance;
@@ -33,7 +34,8 @@ public sealed record AttentionSubject(string Label, Uri? Url, int? Count = null)
 /// <summary>
 /// "What needs attention" (D-67): one entry per kind of finding, worst first, naming what it concerns.
 /// <c>Kind</c>: severe-alerts, secret-alerts, ci-failing, image-major, images-behind, image-rebuilt,
-/// dependabot-off, code-scanning-off, other-alerts, dependabot-prs, images-unknown, code-source-error.
+/// dependabot-off, code-scanning-off, other-alerts, dependabot-prs, images-unknown, code-source-error, and for the platforms the machines
+/// run (D-119): platform-out-of-support (end of life reached), platform-support-ending, platforms-behind.
 /// </summary>
 public sealed record AttentionItem(string Kind, AttentionLevel Level, int Count, IReadOnlyList<AttentionSubject> Subjects);
 
@@ -64,7 +66,8 @@ public sealed record MaintenanceReport(
     RepositoryScan Scan,
     IReadOnlyList<RepositoryView> Repositories,
     IReadOnlyList<DeployedImageView> Images,
-    MaintenanceRefresh Refresh);
+    MaintenanceRefresh Refresh,
+    IReadOnlyList<PlatformStatus> Platforms);
 
 public interface IMaintenanceService
 {
@@ -81,9 +84,11 @@ public sealed class MaintenanceService : IMaintenanceService
     private readonly IWorkloadInventory _inventory;
     private readonly IMaintenanceMonitor _monitor;
     private readonly IReadOnlyList<ICodeRepositorySource> _codeSources;
+    private readonly IPlatformService _platforms;
 
-    public MaintenanceService(ICatalogService catalogService, IWorkloadInventory inventory, IMaintenanceMonitor monitor, IEnumerable<ICodeRepositorySource> codeSources)
+    public MaintenanceService(ICatalogService catalogService, IWorkloadInventory inventory, IMaintenanceMonitor monitor, IEnumerable<ICodeRepositorySource> codeSources, IPlatformService platforms)
     {
+        _platforms = platforms;
         _catalogService = catalogService;
         _inventory = inventory;
         _monitor = monitor;
@@ -92,10 +97,10 @@ public sealed class MaintenanceService : IMaintenanceService
 
     public MaintenanceReport GetReport()
     {
-        return Build(_catalogService.Current.Catalog, _inventory.Current, _monitor.Current, _monitor.Refresh, _codeSources);
+        return Build(_catalogService.Current.Catalog, _inventory.Current, _monitor.Current, _monitor.Refresh, _codeSources, _platforms.GetPlatforms());
     }
 
-    public static MaintenanceReport Build(Catalog.Catalog catalog, IReadOnlyDictionary<string, EnvironmentInventory> inventory, MaintenanceState state, MaintenanceRefresh? refresh = null, IReadOnlyList<ICodeRepositorySource>? codeSources = null)
+    public static MaintenanceReport Build(Catalog.Catalog catalog, IReadOnlyDictionary<string, EnvironmentInventory> inventory, MaintenanceState state, MaintenanceRefresh? refresh = null, IReadOnlyList<ICodeRepositorySource>? codeSources = null, IReadOnlyList<PlatformStatus>? platforms = null)
     {
         var scanned = state.Repositories.Repositories.ToDictionary(r => r.FullName, StringComparer.OrdinalIgnoreCase);
         var appsOf = AppsOf(catalog);
@@ -126,12 +131,13 @@ public sealed class MaintenanceService : IMaintenanceService
 
         return new MaintenanceReport(
             Summarize(repositories, images),
-            Attention(repositories, images, state.Repositories),
+            Attention(repositories, images, state.Repositories, platforms ?? []),
             catalog.CodeSources.Count > 0,
             state.Repositories,
             repositories,
             images,
-            refresh ?? MaintenanceRefresh.None);
+            refresh ?? MaintenanceRefresh.None,
+            platforms ?? []);
     }
 
     private static HashSet<string> Link(Dictionary<string, HashSet<string>> links, string repository)
@@ -249,7 +255,7 @@ public sealed class MaintenanceService : IMaintenanceService
             images.Count(i => i.Check.Status is ImageStatus.Unknown or ImageStatus.Pending));
     }
 
-    private static List<AttentionItem> Attention(List<RepositoryView> repositories, List<DeployedImageView> images, RepositoryScan scan)
+    private static List<AttentionItem> Attention(List<RepositoryView> repositories, List<DeployedImageView> images, RepositoryScan scan, IReadOnlyList<PlatformStatus> platforms)
     {
         var code = repositories.Select(r => r.Repository).ToList();
         var items = new List<AttentionItem>();
@@ -288,6 +294,12 @@ public sealed class MaintenanceService : IMaintenanceService
         var pulls = code.Where(r => r.DependabotPullRequests > 0).ToList();
         Add("dependabot-prs", AttentionLevel.Info, pulls.Select(r => new AttentionSubject(r.FullName, r.DependabotPullsUrl ?? r.Url, r.DependabotPullRequests)).ToList(), pulls.Sum(r => r.DependabotPullRequests ?? 0));
         Add("images-unknown", AttentionLevel.Info, images.Where(i => i.Check.Status == ImageStatus.Unknown).Select(Image).ToList());
+
+        // A platform past its end of life gets no more security fixes: it is a danger; the ones about to be are a warning; a newer version is news.
+        static AttentionSubject Platform(PlatformStatus platform) => new($"{platform.MachineName}: {platform.Label}", null);
+        Add("platform-out-of-support", AttentionLevel.Danger, platforms.Where(p => p.Level == AttentionLevel.Danger).Select(Platform).ToList());
+        Add("platform-support-ending", AttentionLevel.Warning, platforms.Where(p => p.Level == AttentionLevel.Warning).Select(Platform).ToList());
+        Add("platforms-behind", AttentionLevel.Info, platforms.Where(p => p.Level == AttentionLevel.Info).Select(Platform).ToList());
 
         return items.OrderBy(item => item.Level).ToList();
     }

@@ -122,6 +122,15 @@ public sealed class PlatformReportFixture
         statuses.Select(s => $"{s.MachineId}/{s.Kind}").Should().Equal("a/os", "b/k3s", "b/os");
     }
 
+    [Theory]
+    [InlineData("K3s", "v1.31.4+k3s1", "K3s v1.31.4+k3s1")]
+    [InlineData("Ubuntu 25.10", "25.10", "Ubuntu 25.10")]
+    [InlineData("Unraid OS 7.3 x86_64", "7.3.4", "Unraid OS 7.3 x86_64 7.3.4")]
+    public void should_label_a_platform_without_saying_its_version_twice(string name, string version, string expected)
+    {
+        new PlatformStatus("e", "m", "m", "os", name, version, null, null, null, null, null).Label.Should().Be(expected);
+    }
+
     [Fact]
     public void should_say_nothing_for_a_machine_that_says_nothing()
     {

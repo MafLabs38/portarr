@@ -73,6 +73,17 @@ export interface MachineWorkload {
   memoryBytes: number | null;
 }
 
+/** What a machine says about its system (D-118): the operating system, the kernel and, on a cluster node, the kubelet. */
+export interface MachineSystem {
+  osId: string | null;
+  /** The text to show, e.g. "Ubuntu 25.10". */
+  os: string | null;
+  osVersion: string | null;
+  kernel: string | null;
+  /** The kubelet version of a cluster node, e.g. "v1.31.4+k3s1". */
+  kubeletVersion: string | null;
+}
+
 export interface Machine {
   id: string;
   name: string;
@@ -94,6 +105,8 @@ export interface Machine {
   guests: Guest[];
   /** Its host agent, when the catalog declares one (D-72): wins over the container sums. */
   hostMetrics?: HostMetrics | null;
+  /** The system the machine reports, when a source said anything (node_exporter, a cluster's node information). */
+  system?: MachineSystem | null;
 }
 
 export interface InfrastructureEnvironment {

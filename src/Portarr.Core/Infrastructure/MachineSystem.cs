@@ -9,6 +9,21 @@ namespace Portarr.Core.Infrastructure;
 /// </summary>
 public sealed record MachineSystem(string? OsId, string? OsName, string? OsVersion, string? Kernel, string? KubeletVersion = null)
 {
+    /// <summary>
+    /// What a machine says about itself, from its host agent and from the inventory (a cluster's node info): the host agent wins for the
+    /// operating system and the kernel, the inventory is the only source of the kubelet. Null when neither said anything.
+    /// </summary>
+    public static MachineSystem? Merge(MachineSystem? host, MachineSystem? inventory)
+    {
+        var merged = new MachineSystem(
+            host?.OsId ?? inventory?.OsId,
+            host?.OsName ?? inventory?.OsName,
+            host?.OsVersion ?? inventory?.OsVersion,
+            host?.Kernel ?? inventory?.Kernel,
+            inventory?.KubeletVersion ?? host?.KubeletVersion);
+        return merged.IsEmpty ? null : merged;
+    }
+
     /// <summary>True when the source said nothing at all.</summary>
     public bool IsEmpty => OsId is null && OsName is null && OsVersion is null && Kernel is null && KubeletVersion is null;
 }
