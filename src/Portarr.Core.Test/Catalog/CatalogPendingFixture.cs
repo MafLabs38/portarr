@@ -338,6 +338,10 @@ public sealed class CatalogPendingFixture : IDisposable
     [InlineData("169.254.169.254")]
     [InlineData("localhost")]
     [InlineData("metadata.google.internal")]
+    [InlineData("x@127.0.0.1")]
+    [InlineData("127.0.0.1/")]
+    [InlineData("169.254.169.254#")]
+    [InlineData("localhost/")]
     public async Task should_refuse_an_environment_address_that_means_this_host_or_a_metadata_service(string address)
     {
         var item = new JsonObject { ["name"] = "Host 1", ["address"] = address };

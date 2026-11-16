@@ -138,6 +138,7 @@ The catalog never holds a secret: a section that sends a credential to a URL nam
 | `backrest.userEnv`, `backrest.passwordEnv` | `PORTARR_BACKREST_…` |
 | `cloudflare.tokenEnv` | `PORTARR_CLOUDFLARE_…`, or the default `CLOUDFLARE_API_TOKEN` |
 | `sources.github.tokenEnv` | `PORTARR_GITHUB_…`, or the default `GITHUB_TOKEN` |
+| `proxmox.tokenEnv` | `PORTARR_PROXMOX_…` |
 
 A catalog that names anything else is refused, with the way out in the message. An existing setup keeps its variable names without touching the catalog: whoever runs Portarr lists them in `PORTARR__CATALOG__SECRETVARIABLES` (comma separated, for example `BACKREST_USER,BACKREST_PASSWORD`). That list is outside the catalog on purpose: the catalog cannot widen it.
 

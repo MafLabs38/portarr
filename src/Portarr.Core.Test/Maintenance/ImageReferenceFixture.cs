@@ -21,6 +21,15 @@ public sealed class ImageReferenceFixture
         image.Display.Should().Be(display);
     }
 
+    [Theory]
+    [InlineData("Proxmox LXC")]
+    [InlineData("Cloudflare Pages")]
+    [InlineData("Cloudflare Worker")]
+    public void should_not_read_the_kind_a_connector_without_images_puts_in_the_image_field(string kind)
+    {
+        ImageReference.Parse(kind).Should().BeNull("such a workload runs no image: the maintenance pass must not look it up");
+    }
+
     [Fact]
     public void should_keep_a_digest_and_recognize_an_image_id()
     {

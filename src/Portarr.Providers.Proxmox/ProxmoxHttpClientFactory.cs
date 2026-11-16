@@ -59,12 +59,18 @@ public sealed class ProxmoxHttpClientFactory : IDisposable
 
     private static HttpClient Create(ProxmoxEndpoint endpoint)
     {
+        return new HttpClient(CreateHandler(endpoint)) { BaseAddress = endpoint.Url, Timeout = TimeSpan.FromSeconds(15) };
+    }
+
+    /// <summary>The handler: no redirect, the address policy checked when it connects, and the certificate pinned when the node declares a fingerprint.</summary>
+    internal static SocketsHttpHandler CreateHandler(ProxmoxEndpoint endpoint)
+    {
         var handler = new SocketsHttpHandler { MaxConnectionsPerServer = 4, AllowAutoRedirect = false, ConnectCallback = OutboundAddressPolicy.ConnectAsync };
         if (endpoint.Fingerprint is { } pinned)
         {
             handler.SslOptions.RemoteCertificateValidationCallback = (_, certificate, _, _) => Matches(certificate, pinned);
         }
 
-        return new HttpClient(handler) { BaseAddress = endpoint.Url, Timeout = TimeSpan.FromSeconds(15) };
+        return handler;
     }
 }

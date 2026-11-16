@@ -43,7 +43,7 @@ public sealed class ProxmoxSourceFixture
     {
         var workloads = await Source().ListAsync(Environment, TestContext.Current.CancellationToken);
 
-        workloads.Select(w => (w.Id, w.Name, w.Image, w.State)).Should().Equal(("103", "jellyfin", "lxc", WorkloadState.Running), ("104", "wiki", "lxc", WorkloadState.Exited));
+        workloads.Select(w => (w.Id, w.Name, w.Image, w.State)).Should().Equal(("103", "jellyfin", "Proxmox LXC", WorkloadState.Running), ("104", "wiki", "Proxmox LXC", WorkloadState.Exited));
         workloads[0].StatusText.Should().Be("Up 2 hours");
         workloads[0].Node.Should().Be("hv");
         workloads[0].Labels.Should().Contain("proxmox.tags", "gpu;staging");
@@ -129,7 +129,7 @@ public sealed class ProxmoxSourceFixture
 
         var act = () => Source().ListAsync(Environment, TestContext.Current.CancellationToken);
 
-        await act.Should().ThrowAsync<Exception>("a runaway answer is not a Proxmox node");
+        await act.Should().ThrowAsync<InvalidDataException>("a runaway answer is not a Proxmox node");
     }
 
     [Fact]
@@ -162,6 +162,18 @@ public sealed class ProxmoxSourceFixture
         var machine = sample.Machines.Should().ContainSingle().Subject;
         machine.CpuCapacityCores.Should().BeNull();
         machine.MemoryCapacityBytes.Should().BeNull();
+    }
+
+    [Fact]
+    public void should_build_a_handler_that_never_follows_a_redirect_checks_the_address_and_pins_only_when_asked()
+    {
+        var pinned = ProxmoxHttpClientFactory.CreateHandler(Endpoint with { Fingerprint = new string('A', 64) });
+        var unpinned = ProxmoxHttpClientFactory.CreateHandler(Endpoint);
+
+        pinned.AllowAutoRedirect.Should().BeFalse();
+        pinned.ConnectCallback.Should().NotBeNull("the address policy is checked when it connects");
+        pinned.SslOptions.RemoteCertificateValidationCallback.Should().NotBeNull();
+        unpinned.SslOptions.RemoteCertificateValidationCallback.Should().BeNull("without a fingerprint the system's trust applies, never accept-any");
     }
 
     [Fact]

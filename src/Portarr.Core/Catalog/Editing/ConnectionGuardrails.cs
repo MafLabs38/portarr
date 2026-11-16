@@ -36,7 +36,7 @@ public static partial class ConnectionGuardrails
                     // An environment's address is a bare host (an app with no link of its own is probed there).
                     if (node is JsonValue host && host.TryGetValue<string>(out var text))
                     {
-                        CheckHost(text.Trim(), key, problems);
+                        CheckAddressIsHost(text.Trim(), key, problems);
                     }
                 }
                 else
@@ -111,6 +111,18 @@ public static partial class ConnectionGuardrails
         {
             CheckHost(uri.Host, path, problems);
         }
+    }
+
+    /// <summary>An environment's address: a host name or an address, nothing else (no user, path, fragment or port: those would make the derived URL point elsewhere).</summary>
+    private static void CheckAddressIsHost(string text, string path, List<string> problems)
+    {
+        if (Uri.CheckHostName(text) is UriHostNameType.Unknown or UriHostNameType.Basic)
+        {
+            problems.Add($"{path}: '{text}' is not a host name or an address (no user, port or path).");
+            return;
+        }
+
+        CheckHost(text, path, problems);
     }
 
     /// <summary>A host Portarr will call: not a name that always means this host or a metadata service, nor an address literal the outbound policy refuses.</summary>

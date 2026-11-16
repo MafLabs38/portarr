@@ -123,7 +123,8 @@ public sealed class FleetService : IFleetService
 
         // UriBuilder puts an IPv6 address in brackets.
         if (derived.Port is not null
-            && Uri.TryCreate(new UriBuilder(Uri.UriSchemeHttp, derived.Address, derived.Port.PublicPort).ToString(), UriKind.Absolute, out var href))
+            && Uri.TryCreate(new UriBuilder(Uri.UriSchemeHttp, derived.Address, derived.Port.PublicPort).ToString(), UriKind.Absolute, out var href)
+            && string.Equals(href.Host.Trim('[', ']'), derived.Address!.Trim('[', ']'), StringComparison.OrdinalIgnoreCase))
         {
             urls.Add(new AppUrlView("LAN", href, UrlScope.Lan, true));
         }

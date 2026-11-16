@@ -14,7 +14,8 @@ public sealed class ProxmoxSource : IWorkloadSource, IInfrastructureSource
     public const string MachineKind = "proxmox-node";
 
     /// <summary>The image shown for an LXC container: what it is.</summary>
-    public const string ContainerKind = "lxc";
+    /// <summary>What an LXC container runs, for the Image of its workload: not an image reference (it holds a space), so the maintenance pass and the icons skip it, as they do Cloudflare's.</summary>
+    public const string ContainerKind = "Proxmox LXC";
 
     private readonly ProxmoxClient _client;
     private readonly TimeProvider _timeProvider;
