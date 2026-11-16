@@ -1,5 +1,6 @@
 import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { diskColor } from 'Infrastructure/DiskBars';
 import InfrastructureIndex from 'Infrastructure/InfrastructureIndex';
 import { http, HttpResponse } from 'msw';
 
@@ -139,6 +140,13 @@ describe('InfrastructureIndex', () => {
         memoryFreeBytes: 6 * gb,
         swapTotalBytes: 4 * gb,
         swapUsedBytes: gb,
+        disks: [
+          { mount: '/', device: '/dev/sda1', fsType: 'ext4', sizeBytes: 100 * gb, usedBytes: 50 * gb },
+          { mount: '/mnt/data', device: '/dev/sdb1', fsType: 'btrfs', sizeBytes: 100 * gb, usedBytes: 92 * gb },
+          { mount: '/mnt/full', device: '/dev/sdc1', fsType: 'xfs', sizeBytes: 100 * gb, usedBytes: 97 * gb },
+        ],
+        networkReceiveBytesPerSecond: 2 * 1024 * 1024,
+        networkTransmitBytesPerSecond: 512 * 1024,
         history: [],
       };
       server.use(
@@ -173,6 +181,25 @@ describe('InfrastructureIndex', () => {
       expect(
         memory.compareDocumentPosition(within(card).getByText('Swap')) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
+    });
+
+    it('shows how full each disk is, orange from 90 % and red from 95 %, and what the network carries', async () => {
+      const card = await renderHostAgentCard();
+
+      const disks = within(card).getByRole('region', { name: 'Disks' });
+      expect(within(disks).getByRole('progressbar', { name: 'Disk / of Server 1' })).toHaveAttribute(
+        'aria-valuenow',
+        '50',
+      );
+      expect(within(disks).getByRole('progressbar', { name: 'Disk /mnt/data of Server 1' })).toHaveAttribute(
+        'aria-valuenow',
+        '92',
+      );
+      expect(within(disks).getByText(/97 % · 97\.0 GB of 100 GB · 3\.0 GB free/)).toBeInTheDocument();
+      expect(within(card).getByText(/↓ 2\.0 MB\/s · ↑ 512 KB\/s/)).toBeInTheDocument();
+      expect(diskColor(0.5)).toBe('disk');
+      expect(diskColor(0.92)).toBe('warning');
+      expect(diskColor(0.97)).toBe('danger');
     });
   });
 

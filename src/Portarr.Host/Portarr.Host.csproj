@@ -17,5 +17,6 @@
     <ProjectReference Include="..\Portarr.Providers.Kubernetes\Portarr.Providers.Kubernetes.csproj" />
     <ProjectReference Include="..\Portarr.Providers.McpClients\Portarr.Providers.McpClients.csproj" />
     <ProjectReference Include="..\Portarr.Providers.NodeExporter\Portarr.Providers.NodeExporter.csproj" />
+    <ProjectReference Include="..\Portarr.Providers.Proxmox\Portarr.Providers.Proxmox.csproj" />
   </ItemGroup>
 </Project>

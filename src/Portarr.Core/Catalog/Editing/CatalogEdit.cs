@@ -14,19 +14,19 @@ public static class CatalogSections
     public const string Links = "links";
     public const string Providers = "providers";
 
-    /// <summary>The MCP servers (D-111). Not in <see cref="All"/>: they are edited in the catalog file only (D-112), never through the editor.</summary>
+    /// <summary>The MCP servers (D-111). Edited like the rest (D-125): how to launch or reach one is a protected setting that waits for approval.</summary>
     public const string McpServers = "mcpServers";
 
-    /// <summary>The workstations (D-111). Not in <see cref="All"/> either, like <see cref="McpServers"/>.</summary>
+    /// <summary>The workstations (D-111): a name, an operating system, the assistants and the wanted servers.</summary>
     public const string Workstations = "workstations";
 
     /// <summary>The identity of the portal (D-91): one mapping, not a list, edited through the same editor (id <c>portal</c>).</summary>
     public const string Portal = "portal";
 
-    public static readonly IReadOnlyList<string> All = [Environments, Stacks, Apps, Data, Links, Providers];
+    public static readonly IReadOnlyList<string> All = [Environments, Stacks, Apps, Data, Links, Providers, McpServers, Workstations];
 
     /// <summary>The sections that carry <c>notes</c>.</summary>
-    public static readonly IReadOnlyList<string> WithNotes = [Environments, Stacks, Apps, Links, Providers];
+    public static readonly IReadOnlyList<string> WithNotes = [Environments, Stacks, Apps, Links, Providers, McpServers, Workstations];
 }
 
 public enum CatalogEditStatus
@@ -47,19 +47,28 @@ public enum CatalogEditStatus
 
     /// <summary>The edit, or the catalog it would produce, is not valid.</summary>
     Invalid,
+
+    /// <summary>The edit changes how a host is reached and its author may not do that alone: it waits for an administrator's approval, nothing is written yet.</summary>
+    Pending,
+
+    /// <summary>A dry run: the edit would be accepted as it is, nothing was written.</summary>
+    Valid,
 }
 
 /// <summary>
 /// Who asked for an edit: the channel (<c>api</c>, <c>mcp</c>, <c>console</c>), the client's address and, for an MCP
 /// client that says so, where the request came from (<c>chat:&lt;conversation&gt;</c> for the built-in chat, D-89)
 /// and, since accounts (V7, D-96), the user who made the edit (<c>system</c> for the deprecated environment keys).
+/// <c>Reconfigure</c> says the author may change how a host is reached (<see cref="ProtectedSettings"/>) without approval:
+/// a person holding <c>settings.manage</c>, never an assistant.
 /// </summary>
-public sealed record CatalogActor(string Channel, string? Client, string? Via = null, string? User = null);
+public sealed record CatalogActor(string Channel, string? Client, string? Via = null, string? User = null, bool Reconfigure = false);
 
 /// <summary>
 /// One edit of one catalog item. <c>Change</c> gets the current item (null when absent) and returns the new one
 /// (null to remove it); it throws <see cref="CatalogEditException"/> to refuse. <c>ExpectedVersion</c> is the
-/// version the caller read (optimistic concurrency).
+/// version the caller read (optimistic concurrency). With <c>DryRun</c> the edit goes through every check a real one
+/// does and nothing is written.
 /// </summary>
 public sealed record CatalogEdit(
     string Section,
@@ -67,15 +76,17 @@ public sealed record CatalogEdit(
     string Operation,
     string? ExpectedVersion,
     CatalogActor Actor,
-    Func<JsonObject?, JsonObject?> Change);
+    Func<JsonObject?, JsonObject?> Change,
+    bool DryRun = false);
 
 /// <summary>
 /// The outcome of an edit. <c>Version</c> is the catalog's version after it (or the current one when refused);
 /// <c>Changes</c> summarises what changed (<c>notes: changed</c>); <c>Errors</c> say why it was refused.
 /// </summary>
-public sealed record CatalogEditResult(CatalogEditStatus Status, string Version, IReadOnlyList<string> Changes, IReadOnlyList<string> Errors)
+public sealed record CatalogEditResult(CatalogEditStatus Status, string Version, IReadOnlyList<string> Changes, IReadOnlyList<string> Errors, string? PendingId = null)
 {
-    public bool Succeeded => Status is CatalogEditStatus.Applied or CatalogEditStatus.Unchanged;
+    /// <summary>Not refused: applied, unchanged, waiting for approval, or a dry run that would pass.</summary>
+    public bool Succeeded => Status is CatalogEditStatus.Applied or CatalogEditStatus.Unchanged or CatalogEditStatus.Pending or CatalogEditStatus.Valid;
 }
 
 /// <summary>One item as the file holds it, with the version to send back when changing it.</summary>

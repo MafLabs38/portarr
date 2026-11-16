@@ -53,7 +53,7 @@ public sealed class ProtectedSettingsFixture
     {
         var edit = () => ProtectedSettings.Apply(CatalogSections.Environments, "server-1", Environment(), JsonNode.Parse(sent)!.AsObject(), EnvironmentKeys);
 
-        edit.Should().Throw<CatalogEditException>().Which.Message.Should().Contain(key).And.Contain("catalog file");
+        edit.Should().Throw<CatalogEditException>().Which.Message.Should().Contain(key).And.Contain("approval");
     }
 
     [Fact]

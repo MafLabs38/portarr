@@ -3,32 +3,51 @@ using System.Text.Json.Nodes;
 namespace Portarr.Core.Catalog.Editing;
 
 /// <summary>
-/// The settings the catalog editor never changes (17-1): how Portarr reaches an environment (<c>runtime</c>
-/// and every section a connector owns: docker, kubernetes, cloudflare, backrest, hostMetrics…) and what it fetches for an
-/// app (<c>check</c>). They hold an address and the name of the variable that holds the credential for it, so whoever can
-/// write them can make Portarr send that credential to another host. Editing them is the operator's, in the catalog file;
-/// the API and the MCP tools describe the fleet (notes, machines, links, providers, stacks…) and never reconfigure how it
-/// is reached. An edit that carries none of them keeps the current ones; one that sets or removes them is refused.
+/// The settings that say how Portarr reaches an environment (<c>runtime</c> and every section a connector owns: docker,
+/// kubernetes, cloudflare, backrest, hostMetrics…) and what it fetches for an app (<c>check</c>). They hold an address and
+/// the name of the variable that holds the credential for it, so whoever can write them can make Portarr send that
+/// credential to another host. An MCP server's <c>http</c> and <c>stdio</c> are the same kind of setting (an address with its
+/// credential variables, or a command the operator's machines will run, D-125). Declaring a machine needs them, so they can be written, but not by anyone alone: a person
+/// holding <c>settings.manage</c> writes them directly, and any other author (an assistant, a key that only edits the
+/// catalog) leaves a <b>pending change</b> that such a person approves in Settings (<see cref="CatalogPendingStore"/>). Every
+/// change, approved or not, goes through <see cref="ConnectionGuardrails"/>. A read for an assistant leaves them out, and an
+/// edit that omits them keeps the current ones.
 /// </summary>
 public static class ProtectedSettings
 {
     public const string RuntimeKey = "runtime";
     public const string CheckKey = "check";
+    public const string HttpKey = "http";
+    public const string StdioKey = "stdio";
 
     /// <summary>The keys of a section's items that are protected; the connector sections are those the registered connectors own.</summary>
     public static IReadOnlyList<string> KeysOf(string section, IEnumerable<string> connectorSections) => section switch
     {
         CatalogSections.Environments => [RuntimeKey, .. connectorSections],
         CatalogSections.Apps => [CheckKey],
+        CatalogSections.McpServers => [HttpKey, StdioKey],
         _ => [],
     };
 
     /// <summary>
-    /// The item as it will be written: the protected settings are the current ones whatever the caller sent (kept when
-    /// omitted). Throws when the caller sets, changes or removes one. A removed item is removed whole: that is an
-    /// explicit act of its own.
+    /// The protected keys whose addresses <see cref="ConnectionGuardrails"/> checks: the ones Portarr itself calls. The arguments of a
+    /// local MCP program (<c>stdio</c>) may name a loopback address (a browser's debugging port): they wait for approval, no more.
     /// </summary>
-    public static JsonObject? Apply(string section, string id, JsonObject? current, JsonObject? next, IReadOnlyList<string> keys)
+    public static IReadOnlyList<string> GuardedKeysOf(string section, IEnumerable<string> connectorSections) =>
+        section == CatalogSections.McpServers ? [HttpKey] : KeysOf(section, connectorSections);
+
+    /// <summary>Whether the edit sets, changes or removes a protected setting (a removed item is removed whole: that is an explicit act of its own).</summary>
+    public static bool Touches(JsonObject? current, JsonObject? next, IReadOnlyList<string> keys)
+    {
+        return next is not null
+            && keys.Any(key => next[key] is { } sent && (current?[key] is not { } before || YamlNodes.Canonical(before) != YamlNodes.Canonical(sent)));
+    }
+
+    /// <summary>
+    /// The item as it will be written: a protected setting the caller left out is the current one (kept). One the caller sets
+    /// or changes is refused unless <paramref name="allowChange"/> (the author may reconfigure, or it is an approval).
+    /// </summary>
+    public static JsonObject? Apply(string section, string id, JsonObject? current, JsonObject? next, IReadOnlyList<string> keys, bool allowChange = false)
     {
         if (next is null || keys.Count == 0)
         {
@@ -45,7 +64,7 @@ public static class ProtectedSettings
             {
                 result = Restore(result, next, key, before);
             }
-            else if (before is null || YamlNodes.Canonical(before) != YamlNodes.Canonical(sent))
+            else if (!allowChange && (before is null || YamlNodes.Canonical(before) != YamlNodes.Canonical(sent)))
             {
                 refused.Add(key);
             }
@@ -55,7 +74,7 @@ public static class ProtectedSettings
         {
             throw new CatalogEditException(
                 CatalogEditStatus.Invalid,
-                $"{section} '{id}': {string.Join(", ", refused)} cannot be changed through the API or the MCP tools: they say how Portarr reaches a host and with which credential, so they are edited in the catalog file.");
+                $"{section} '{id}': {string.Join(", ", refused)} need an administrator's approval: they say how Portarr reaches a host and with which credential.");
         }
 
         return result;

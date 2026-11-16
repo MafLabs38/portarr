@@ -29,6 +29,21 @@ public interface ICatalogEditor
     Task<IReadOnlyList<string>> GetIdsAsync(string section, CancellationToken cancellationToken);
 
     Task<CatalogEditResult> EditAsync(CatalogEdit edit, CancellationToken cancellationToken);
+
+    /// <summary>The items of a section as the file holds them, how hosts are reached included only when <paramref name="withConnections"/> (a person who may reconfigure), with the version to send back.</summary>
+    Task<(string Version, IReadOnlyList<JsonObject> Items)> GetItemsAsync(string section, bool withConnections, CancellationToken cancellationToken);
+
+    /// <summary>The catalog file as it is, to download or commit back.</summary>
+    Task<(string Version, string Text)> ExportAsync(CancellationToken cancellationToken);
+
+    /// <summary>The changes waiting for an administrator's approval, oldest first.</summary>
+    Task<IReadOnlyList<PendingChange>> ListPendingAsync(CancellationToken cancellationToken);
+
+    /// <summary>Applies a waiting change as <paramref name="approver"/> (who may reconfigure); refused when the item changed since it was asked for.</summary>
+    Task<CatalogEditResult> ApproveAsync(string pendingId, CatalogActor approver, CancellationToken cancellationToken);
+
+    /// <summary>Drops a waiting change without applying it; false when there is none with this id.</summary>
+    Task<bool> RejectAsync(string pendingId, CatalogActor rejecter, CancellationToken cancellationToken);
 }
 
 public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
@@ -40,6 +55,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
     private readonly ICatalogService _catalogService;
     private readonly ICatalogParser _parser;
     private readonly ICatalogAuditLog _auditLog;
+    private readonly CatalogPendingStore _pending;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<CatalogEditor> _logger;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
@@ -50,6 +66,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
         ICatalogService catalogService,
         ICatalogParser parser,
         ICatalogAuditLog auditLog,
+        CatalogPendingStore pending,
         TimeProvider timeProvider,
         ILogger<CatalogEditor> logger)
     {
@@ -58,6 +75,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
         _catalogService = catalogService;
         _parser = parser;
         _auditLog = auditLog;
+        _pending = pending;
         _timeProvider = timeProvider;
         _logger = logger;
         _folderWritable = new Lazy<bool>(FolderIsWritable);
@@ -92,7 +110,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
 
     public async Task<CatalogEditResult> EditAsync(CatalogEdit edit, CancellationToken cancellationToken)
     {
-        if (!Writable)
+        if (!Writable && !edit.DryRun)
         {
             return Refused(
                 CatalogEditStatus.ReadOnly,
@@ -137,15 +155,20 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
         string result;
         JsonObject? current;
         JsonObject? next;
+        bool needsApproval;
         try
         {
             current = FindItem(text, edit.Section, edit.Id);
-            next = ProtectedSettings.Apply(
-                edit.Section,
-                edit.Id,
-                current,
-                edit.Change(current?.DeepClone().AsObject()),
-                ProtectedSettings.KeysOf(edit.Section, _parser.GetConnectorSections()));
+            var keys = ProtectedSettings.KeysOf(edit.Section, _parser.GetConnectorSections());
+            var proposed = edit.Change(current?.DeepClone().AsObject());
+            var touches = ProtectedSettings.Touches(current, proposed, keys);
+            needsApproval = touches && !edit.Actor.Reconfigure;
+            next = ProtectedSettings.Apply(edit.Section, edit.Id, current, proposed, keys, allowChange: true);
+            if (touches && ConnectionGuardrails.Check(next, ProtectedSettings.GuardedKeysOf(edit.Section, _parser.GetConnectorSections())) is { Count: > 0 } problems)
+            {
+                return new CatalogEditResult(CatalogEditStatus.Invalid, version, [], problems);
+            }
+
             if (YamlNodes.Canonical(current) == YamlNodes.Canonical(next))
             {
                 return new CatalogEditResult(CatalogEditStatus.Unchanged, version, [], []);
@@ -170,26 +193,131 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
             return new CatalogEditResult(CatalogEditStatus.Invalid, version, [], parsed.Errors);
         }
 
-        await WriteAsync(result, bom, cancellationToken);
-        var after = CatalogVersion.Of(result);
         var changes = Describe(current, next);
-        try
+        if (needsApproval)
         {
-            await _auditLog.AppendAsync(
-                new CatalogAuditEntry(_timeProvider.GetUtcNow(), edit.Actor.Channel, edit.Actor.Client, edit.Operation, edit.Section, edit.Id, version, after, changes, edit.Actor.Via, edit.Actor.User),
-                cancellationToken);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            // The file is written: the edit is applied. Say so, and that the trail missed it, instead of answering 500 for a change that happened.
-            LogAuditFailed(edit.Section, edit.Id, exception.GetType().Name);
+            return await ProposeAsync(edit, version, current, next, changes, cancellationToken);
         }
 
+        if (edit.DryRun)
+        {
+            return new CatalogEditResult(CatalogEditStatus.Valid, version, changes, []);
+        }
+
+        await WriteAsync(result, bom, cancellationToken);
+        var after = CatalogVersion.Of(result);
+        await AuditAsync(new CatalogAuditEntry(_timeProvider.GetUtcNow(), edit.Actor.Channel, edit.Actor.Client, edit.Operation, edit.Section, edit.Id, version, after, changes, edit.Actor.Via, edit.Actor.User), cancellationToken);
         LogEdited(edit.Operation, edit.Section, edit.Id, edit.Actor.Channel, string.Join("; ", changes));
 
         // Our own write: reload now so the next read sees it; the watcher's later reload finds the same version.
         await _catalogService.ReloadAsync(cancellationToken);
         return new CatalogEditResult(CatalogEditStatus.Applied, after, changes, []);
+    }
+
+    /// <summary>The edit changes how a host is reached and its author may not do that alone: it is kept for an administrator, nothing is written.</summary>
+    private async Task<CatalogEditResult> ProposeAsync(CatalogEdit edit, string version, JsonObject? current, JsonObject? next, List<string> changes, CancellationToken cancellationToken)
+    {
+        if (edit.DryRun)
+        {
+            return new CatalogEditResult(CatalogEditStatus.Pending, version, changes, []);
+        }
+
+        var pending = new PendingChange(Guid.NewGuid().ToString("N")[..12], _timeProvider.GetUtcNow(), edit.Actor.Channel, edit.Actor.User, edit.Actor.Via, edit.Section, edit.Id, edit.Operation, current, next, changes);
+        if (!await _pending.AddAsync(pending, cancellationToken))
+        {
+            return Refused(CatalogEditStatus.Invalid, version, $"{CatalogPendingStore.Capacity} changes already wait for approval: approve or reject some in Settings, Catalog.");
+        }
+
+        await AuditAsync(new CatalogAuditEntry(pending.At, edit.Actor.Channel, edit.Actor.Client, $"propose:{edit.Operation}", edit.Section, edit.Id, version, version, changes, edit.Actor.Via, edit.Actor.User), cancellationToken);
+        LogEdited($"propose:{edit.Operation}", edit.Section, edit.Id, edit.Actor.Channel, string.Join("; ", changes));
+        return new CatalogEditResult(CatalogEditStatus.Pending, version, changes, [], pending.Id);
+    }
+
+    private async Task AuditAsync(CatalogAuditEntry entry, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _auditLog.AppendAsync(entry, cancellationToken);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // The file is written: the edit is applied. Say so, and that the trail missed it, instead of answering 500 for a change that happened.
+            LogAuditFailed(entry.Section, entry.Id, exception.GetType().Name);
+        }
+    }
+
+    public async Task<(string Version, IReadOnlyList<JsonObject> Items)> GetItemsAsync(string section, bool withConnections, CancellationToken cancellationToken)
+    {
+        var (text, _) = await ReadFileAsync(cancellationToken);
+        var keys = withConnections ? [] : ProtectedSettings.KeysOf(section, _parser.GetConnectorSections());
+        var items = (Section(text, section)?.Children.OfType<YamlMappingNode>() ?? [])
+            .Select(node => ProtectedSettings.Redact((JsonObject)YamlNodes.ToJson(node)!, keys))
+            .ToList();
+        return (CatalogVersion.Of(text), items);
+    }
+
+    public async Task<(string Version, string Text)> ExportAsync(CancellationToken cancellationToken)
+    {
+        var (text, _) = await ReadFileAsync(cancellationToken);
+        return (CatalogVersion.Of(text), text);
+    }
+
+    public Task<IReadOnlyList<PendingChange>> ListPendingAsync(CancellationToken cancellationToken) => _pending.ListAsync(cancellationToken);
+
+    public async Task<CatalogEditResult> ApproveAsync(string pendingId, CatalogActor approver, CancellationToken cancellationToken)
+    {
+        if (!Writable)
+        {
+            return Refused(CatalogEditStatus.ReadOnly, string.Empty, "The catalog is read-only: set PORTARR__CATALOG__WRITABLE=true to edit it through Portarr.");
+        }
+
+        await _writeLock.WaitAsync(cancellationToken);
+        try
+        {
+            var change = (await _pending.ListAsync(cancellationToken)).FirstOrDefault(p => p.Id == pendingId);
+            if (change is null)
+            {
+                return Refused(CatalogEditStatus.NotFound, string.Empty, $"No change waits with id '{pendingId}'.");
+            }
+
+            var (text, _) = await ReadFileAsync(cancellationToken);
+            var version = CatalogVersion.Of(text);
+            var actor = approver with { Reconfigure = true, Via = $"approved:{change.Id} asked by {change.User ?? change.Channel}" };
+            var result = await EditLockedAsync(
+                new CatalogEdit(change.Section, change.ItemId, $"approve:{change.Operation}", version, actor, now => PendingMerge.Apply(change.Section, change.ItemId, change.Before, change.After, now)),
+                cancellationToken);
+            if (result.Succeeded)
+            {
+                await _pending.RemoveAsync(change.Id, cancellationToken);
+            }
+
+            return result;
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
+    public async Task<bool> RejectAsync(string pendingId, CatalogActor rejecter, CancellationToken cancellationToken)
+    {
+        await _writeLock.WaitAsync(cancellationToken);
+        try
+        {
+            var change = (await _pending.ListAsync(cancellationToken)).FirstOrDefault(p => p.Id == pendingId);
+            if (change is null || !await _pending.RemoveAsync(pendingId, cancellationToken))
+            {
+                return false;
+            }
+
+            var version = CatalogVersion.Of((await ReadFileAsync(cancellationToken)).Text);
+            await AuditAsync(new CatalogAuditEntry(_timeProvider.GetUtcNow(), rejecter.Channel, rejecter.Client, $"reject:{change.Operation}", change.Section, change.ItemId, version, version, change.Changes, $"rejected:{change.Id} asked by {change.User ?? change.Channel}", rejecter.User), cancellationToken);
+            return true;
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
     }
 
     /// <summary>Whether a file can be created next to the catalog: backups, the audit trail and the atomic replace all live there.</summary>

@@ -20,8 +20,28 @@ public sealed record CatalogNotesRequest(string? Version, string? Notes);
 /// <summary>An item as the catalog file holds it, with the version to send back when changing it.</summary>
 public sealed record CatalogItemResource(string Version, string Section, string Id, JsonObject Item);
 
-/// <summary>An edit's outcome: <c>applied</c> or <c>unchanged</c>, the catalog's new version and what changed.</summary>
-public sealed record CatalogEditResource(string Status, string Version, IReadOnlyList<string> Changes);
+/// <summary>
+/// An edit's outcome: <c>applied</c>, <c>unchanged</c>, <c>valid</c> (a dry run that would pass) or <c>pending</c> (it waits for an
+/// administrator, <c>PendingId</c> names it), the catalog's version and what changed.
+/// </summary>
+public sealed record CatalogEditResource(string Status, string Version, IReadOnlyList<string> Changes, string? PendingId = null);
+
+/// <summary>A change that waits for an administrator's approval: who asked, for which item, the item before and after.</summary>
+public sealed record CatalogPendingResource(
+    string Id,
+    DateTimeOffset At,
+    string Channel,
+    string? User,
+    string? Via,
+    string Section,
+    string ItemId,
+    string Operation,
+    JsonObject? Before,
+    JsonObject? After,
+    IReadOnlyList<string> Changes);
+
+/// <summary>The items of a section as the file holds them, with the version to send back.</summary>
+public sealed record CatalogSectionResource(string Version, string Section, IReadOnlyList<JsonObject> Items);
 
 /// <summary>One audited catalog edit (D-85).</summary>
 public sealed record CatalogAuditEntryResource(
@@ -82,7 +102,12 @@ public static partial class CatalogEditMapper
 
     public static CatalogEditResource ToResource(this CatalogEditResult result)
     {
-        return new CatalogEditResource(result.Status.ToString().ToLowerInvariant(), result.Version, result.Changes);
+        return new CatalogEditResource(result.Status.ToString().ToLowerInvariant(), result.Version, result.Changes, result.PendingId);
+    }
+
+    public static CatalogPendingResource ToResource(this PendingChange change)
+    {
+        return new CatalogPendingResource(change.Id, change.At, change.Channel, change.User, change.Via, change.Section, change.ItemId, change.Operation, change.Before, change.After, change.Changes);
     }
 
     /// <summary>The HTTP answer to an edit's outcome, the same for every endpoint that edits the catalog.</summary>
@@ -91,7 +116,8 @@ public static partial class CatalogEditMapper
         var detail = string.Join(" ", result.Errors);
         return result.Status switch
         {
-            CatalogEditStatus.Applied or CatalogEditStatus.Unchanged => controller.Ok(result.ToResource()),
+            CatalogEditStatus.Applied or CatalogEditStatus.Unchanged or CatalogEditStatus.Valid => controller.Ok(result.ToResource()),
+            CatalogEditStatus.Pending => controller.Accepted(result.ToResource()),
             CatalogEditStatus.Invalid => controller.ValidationProblem(new ValidationProblemDetails(result.ToErrors(section, id)) { Extensions = { ["version"] = result.Version } }),
             CatalogEditStatus.NotFound => controller.Problem(title: "Not found", detail: detail, statusCode: StatusCodes.Status404NotFound),
             CatalogEditStatus.ReadOnly => controller.Problem(title: "Catalog read-only", detail: detail, statusCode: StatusCodes.Status403Forbidden),

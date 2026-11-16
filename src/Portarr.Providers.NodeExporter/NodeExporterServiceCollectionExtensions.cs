@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.Extensions.DependencyInjection;
 using Portarr.Core.Catalog;
 using Portarr.Core.Infrastructure;
+using Portarr.Core.Workloads;
 
 namespace Portarr.Providers.NodeExporter;
 
@@ -21,6 +22,10 @@ public static class NodeExporterServiceCollectionExtensions
         });
         services.AddSingleton<IHostMetricsSource, NodeExporterHostMetricsSource>();
         services.AddSingleton<IEnvironmentConnector, NodeExporterEnvironmentConnector>();
+        services.AddSingleton<IEnvironmentConnector, MachineEnvironmentConnector>();
+        services.AddSingleton<MachineSource>();
+        services.AddSingleton<IWorkloadSource>(provider => provider.GetRequiredService<MachineSource>());
+        services.AddSingleton<IInfrastructureSource>(provider => provider.GetRequiredService<MachineSource>());
 
         return services;
     }

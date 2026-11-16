@@ -19,6 +19,11 @@ environments:
     name: Cloudflare
     runtime: cloudflare               # Pages projects and Workers (connectors/cloudflare.md)
     cloudflare: { accountId: "0123456789abcdef0123456789abcdef", tokenEnv: CLOUDFLARE_API_TOKEN }   # the variable name, never the token
+  - id: hypervisor
+    name: Proxmox hypervisor     # its LXC containers are its workloads: runtime: proxmox (connectors/proxmox.md, D-128)
+    runtime: machine                  # a host with no container engine to read: a hypervisor, a NAS (D-126)
+    address: 10.0.0.30
+    hostMetrics: { nodeExporter: "http://10.0.0.30:9100/metrics" }   # its CPU, memory, system; add nvidiaGpu for its card
   - id: cluster
     name: Kubernetes cluster
     runtime: kubernetes               # pods and nodes (connectors/kubernetes.md)
@@ -194,7 +199,7 @@ On the Infrastructure page, the host's card then splits its memory into **Contai
 
 Docker sees only its containers and metrics-server only refreshes a node every ~15 s. A **node_exporter** on a machine gives Portarr the machine as its kernel sees it, every second: overall load, I/O wait, load per core, memory, swap and CPU temperature (D-72, [connectors/node-exporter.md](connectors/node-exporter.md); installation in [companions.md](companions.md#node_exporter)).
 
-- `nvidiaGpu: { exporter: <URL> }` on a **Docker** environment: the `/metrics` URL of the NVIDIA GPU exporter of the machine's graphics card (`http` or `https`, no credentials in it): the card's load, memory, video encoder and decoder, temperature and power appear on the machine's card, with the containers that have the card attached (D-120, [the connector](connectors/gpu-exporter.md)).
+- `nvidiaGpu: { exporter: <URL> }` on a **Docker** environment (or a `runtime: machine` one): the `/metrics` URL of the NVIDIA GPU exporter of the machine's graphics card (`http` or `https`, no credentials in it): the card's load, memory, video encoder and decoder, temperature and power appear on the machine's card, with the containers that have the card attached (D-120, [the connector](connectors/gpu-exporter.md)).
 - `hostMetrics: { nodeExporter: <URL> }` on a **Docker** environment: the `/metrics` URL of the host's node_exporter (`http` or `https`, no credentials in it). `interval` (optional, `5s`, `1m`, from 1 second to 5 minutes, default every second) reads it less often, for a machine behind a slow link or a large fleet (D-107).
 - `kubernetes.nodeExporter:` on a Kubernetes environment, for every node:
   - `port` (default 9100): node_exporter's port at the node's InternalIP (a DaemonSet with `hostNetwork`).
@@ -364,7 +369,7 @@ mcpServers:
 - **Health** (remote servers only): every 5 minutes (`check.interval`, 10 seconds to 24 hours), Portarr sends one MCP `initialize` request without credentials. A valid answer, even an error answer, is **healthy**; a 401 or 403 is **healthy, asks for credentials** (the server is there and enforcing); a timeout, a refused connection, a name that does not resolve, an invalid certificate, a 5xx or anything that is not MCP is **down**. The pages say since when it is up or down and when it was last seen healthy, and keep that across restarts. A local (`stdio`) server, or one with `check: false`, is **not checked**: it is a process on the machine that uses it. A down server is also listed in the Overview's "needs attention" (MCP tool `get_overview`) for roles that hold `mcp.use`.
 - **Installation.** `GET /api/v1/mcp/servers/{id}?os=windows|linux|macos` (and the MCP tools `list_mcp_servers` and `get_mcp_server`) give, for each client, the command and the file entry that install the server; the page shows them with a copy button. The clients and what was checked about each are in [connectors/mcp-clients.md](connectors/mcp-clients.md).
 - **A package run through `npx` or `uvx` without a version** is flagged on the server's page: it changes under you.
-- **The catalog file is the only place these are defined** (D-110, D-112). The catalog edit API, the MCP tools and the chat cannot create, change or remove them, and `get_catalog_item` does not return them. Portarr never reads what a machine has: if a machine differs, it is brought in line with the catalog.
+- **They are edited like the rest of the catalog** (D-110, D-125): Settings, Catalog (MCP servers and Workstations tabs), the API and the MCP tools (`upsert_mcp_server`, `upsert_workstation`). How to reach or launch a server (`http`, `stdio`) waits for an administrator's approval when an assistant asks (D-123); `get_catalog_item` leaves those keys out for an assistant. Portarr never reads what a machine has: if a machine differs, it is brought in line with the catalog.
 - A server that is **not checked** is shown as "Not monitored": it is not a fault.
 
 ### Workstations
@@ -387,7 +392,7 @@ workstations:
 - The **plan** has three parts: what to **install** (each wanted server in each of its clients), what to **remove if present** (each server of the catalog that is not wanted in a client of this machine; a client that cannot hold the server at its scope has nothing to remove), and the **variables** the machine must provide.
 - **Nothing is tracked about whether a plan was applied**, nor whether the machine is on: the matrix on the Workstations tab says what is *wanted*, not what is installed (D-114). To remove a server from a machine, take it out of its `mcp` list.
 - Validation: `os` and at least one client are required, every client, server and environment must exist, a server is listed once, and `scope` is one of user, project, local.
-- Like the servers, workstations are edited by a person only (D-112).
+- A workstation defines no command: it is written at once, even by an assistant (D-125).
 
 ### Secrets
 
@@ -412,7 +417,7 @@ mcpServers:
 - `secret:` is the **key** of the secret under the store's prefix (`memory`: `kv/mcp/memory` in Vault, `mcp-memory` in an Azure Key Vault), never its value; it needs `env:` (the variable that receives it) and a `secretStore`. Without a `secretStore`, only `{ env: NAME }` exists and you provision the variables as you like.
 - For each client, the rendering then also gives a **provisioning command** that the workstation runs in its own shell: it reads the secret from the store into the variable the client reads (`export MEMORY_MCP_KEY="$(vault kv get -field=value kv/mcp/memory)"`; in PowerShell, `$env:MEMORY_MCP_KEY = (vault kv get …)`; Azure: `az keyvault secret show … --query value -o tsv`). The value is resolved by the shell when it starts: it never passes through Portarr, an assistant or its provider. Details and the vault side in [connectors/mcp-secret-stores.md](connectors/mcp-secret-stores.md).
 - A workstation's plan lists the **keys it must be able to read**: you grant them in the vault (a policy, a role assignment), as for any machine. Portarr does not check them.
-- `secretStore` is edited by a person only, like the servers (D-112).
+- `secretStore` is edited in the catalog file only (D-125): it says where the credentials are fetched from.
 
 ## Editing through the API
 
@@ -420,7 +425,7 @@ The catalog file stays the source of truth (D-44); Portarr can edit it for you, 
 
 | Setting | Effect |
 |---|---|
-| `PORTARR__CATALOG__WRITABLE=true` | Turns the write endpoints on. Who may write is the `catalog.write` permission of a role (V7): a signed-in user, or a per-user API key of such a user. The editor never changes how a host is reached (`runtime`, the connector sections such as `docker` or `kubernetes`, and an app's `check`): those stay in the file, and an edit that leaves them out keeps them. **Mount the folder** that holds the catalog, not the single file: backups (`catalog.yaml.bak-*`) and the audit trail (`catalog.audit.jsonl`) are written next to it and a single-file mount loses them when the container is recreated; with a read-only folder the catalog is reported read-only. Edits made through Portarr are not in your infrastructure-as-code copy: commit them back. |
+| `PORTARR__CATALOG__WRITABLE=true` | Turns the write endpoints on. Who may write is the `catalog.write` permission of a role (V7): a signed-in user, or a per-user API key of such a user. How a host is reached (`runtime`, the connector sections such as `docker` or `kubernetes`, an app's `check`) can be written, but not by anyone alone: a person with `settings.manage` writes it at once, anyone else (an assistant, a key with `catalog.write` only) leaves a [pending change](#settings-catalog-and-pending-changes); an edit that leaves these settings out keeps them. **Mount the folder** that holds the catalog, not the single file: backups (`catalog.yaml.bak-*`) and the audit trail (`catalog.audit.jsonl`) are written next to it and a single-file mount loses them when the container is recreated; with a read-only folder the catalog is reported read-only. Edits made through Portarr are not in your infrastructure-as-code copy: download it (`GET /api/v1/catalog/export`, or Settings, Catalog) and commit it back. |
 | `PORTARR__APIKEY` | Deprecated bootstrap key (at least 32 characters, e.g. `openssl rand -hex 32`), sent in `X-Api-Key` or `Authorization: Bearer`: acts as the built-in `system` principal with Admin permissions. Optional; a warning is logged at startup when set. |
 | `PORTARR__CATALOG__BACKUPS` | Previous versions kept next to the catalog (`catalog.yaml.bak-<timestamp>`), default 10. |
 | `PORTARR__MCP__WRITETOOLS=true` | Adds the MCP write tools ([verticals/V5-ai-mcp.md](verticals/V5-ai-mcp.md)); they also need the catalog to be writable. |
@@ -432,11 +437,19 @@ curl -s -X PUT localhost:8484/api/v1/catalog/apps/blog/notes -H "X-Api-Key: $KEY
   -H 'Content-Type: application/json' -d '{"version":"3f2a…","notes":"Built by CI."}'
 ```
 
-- Endpoints: `GET|PUT|DELETE /api/v1/catalog/{section}/{id}`, `POST /api/v1/catalog/{section}`, `PUT /api/v1/catalog/{section}/{id}/notes`, `PUT|DELETE /api/v1/catalog/environments/{id}/machines/{name}`, `GET /api/v1/catalog/audit`; the identity has its own ([Identity of the portal](#identity-of-the-portal)); sections `environments`, `stacks`, `apps`, `data`, `links`, `providers`. Items are JSON with the keys of the file. Reference at `/docs`.
+- Endpoints: `GET|PUT|DELETE /api/v1/catalog/{section}/{id}`, `POST /api/v1/catalog/{section}`, `PUT /api/v1/catalog/{section}/{id}/notes`, `PUT|DELETE /api/v1/catalog/environments/{id}/machines/{name}`, `GET /api/v1/catalog/audit`, `GET /api/v1/catalog/{section}` (the items), `POST /api/v1/catalog/{section}/{id}/validate` (a dry run), `GET /api/v1/catalog/pending`, `POST /api/v1/catalog/pending/{id}/approve`, `DELETE /api/v1/catalog/pending/{id}`, `GET /api/v1/catalog/export`; the identity has its own ([Identity of the portal](#identity-of-the-portal)); sections `environments`, `stacks`, `apps`, `data`, `links`, `providers`. Items are JSON with the keys of the file. Reference at `/docs`.
 - **Versions**: every write sends the version it read; if the file changed since (by hand, by another client), the write is refused with 409 and the current version. Writes are serialized.
 - **Validation**: the whole resulting file goes through the parser; an error is a 400 whose `errors` are keyed by field path (`apps[blog].check.url`) and the file is not touched.
 - **What changes in the file**: only what differs. A changed value is rewritten in place, a new key or item is added after the last one with the file's indentation and style (an item of a list written `- { … }` is written that way), a removed one loses its lines; comments and formatting elsewhere stay. Limits: a comment *inside* a rewritten node is lost (a flow item is rewritten whole; a list whose order changed is rewritten), and a comment line above a removed item stays.
 - **Safety**: the file is written to a temporary file and renamed over the catalog (atomic); a catalog bind-mounted as a single file is rewritten in place instead. Each write keeps the previous version and is appended to `catalog.audit.jsonl` next to the catalog (when, channel `api` or `mcp`, client address, operation, item, versions before and after, which keys changed; never values or keys). 30 writes per minute per client.
+
+### Settings, Catalog and pending changes
+
+**Settings, Catalog** is the same editor as a page (D-122): one tab per section, the items in a table, and for each item a form of its simple fields over the whole item as JSON (the keys of this file), a **Check** button that writes nothing and a **Save**. It needs `catalog.write` and a writable catalog; otherwise it says how to turn writes on.
+
+A change to how a host is reached (`docker`, `kubernetes`, `hostMetrics`, `nvidiaGpu`, `runtime`, an app's `check`…) is accepted, but only a person with `settings.manage` writes it at once (D-123). From anyone else, an assistant included, the answer is `pending` (HTTP 202): nothing is written, the change shows in the **Pending** tab with the item before and after, and an administrator approves or rejects it. Whoever asks, an address in these settings must be `http`, `https` or `unix`, carry no `user:password@`, and not be a loopback, link-local or unspecified address literal. An approval is merged key by key over the item as it is then; it is refused as a conflict only when the same key changed since.
+
+The catalog is Portarr's to keep (D-124): in production it lives on a volume. Git is a backup you keep: download the file from Settings, Catalog (or `GET /api/v1/catalog/export`) and commit it.
 
 ## Icons
 

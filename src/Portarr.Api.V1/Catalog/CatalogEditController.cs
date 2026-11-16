@@ -36,13 +36,16 @@ public sealed class CatalogEditController : ControllerBase
     private readonly ICatalogAuditLog _auditLog;
     private readonly IValidator<CatalogItemRequest> _itemValidator;
     private readonly IValidator<CatalogNotesRequest> _notesValidator;
+    private readonly IAuthorizationService _authorization;
 
     public CatalogEditController(
         ICatalogEditor editor,
         ICatalogAuditLog auditLog,
         IValidator<CatalogItemRequest> itemValidator,
-        IValidator<CatalogNotesRequest> notesValidator)
+        IValidator<CatalogNotesRequest> notesValidator,
+        IAuthorizationService authorization)
     {
+        _authorization = authorization;
         _editor = editor;
         _auditLog = auditLog;
         _itemValidator = itemValidator;
@@ -50,7 +53,7 @@ public sealed class CatalogEditController : ControllerBase
     }
 
     /// <summary>One item of the catalog as the file holds it, with the version to send back when changing it.</summary>
-    /// <param name="section">environments, stacks, apps, data, links or providers.</param>
+    /// <param name="section">environments, stacks, apps, data, links, providers, mcpServers or workstations.</param>
     /// <param name="id">The item's id.</param>
     /// <param name="cancellationToken">Cancels the read.</param>
     /// <response code="404">No such item.</response>
@@ -66,6 +69,95 @@ public sealed class CatalogEditController : ControllerBase
             : new CatalogItemResource(item.Version, item.Section, item.Id, item.Item);
     }
 
+    /// <summary>The items of a section as the file holds them, with the version to send back when changing one. How hosts are reached (<c>docker</c>, <c>kubernetes</c>…) is left out unless the caller may reconfigure (<c>settings.manage</c>).</summary>
+    /// <param name="section">environments, stacks, apps, data, links, providers, mcpServers or workstations.</param>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    [HttpGet(Section)]
+    [Authorize(Policy = Permissions.CatalogWrite)]
+    [ProducesResponseType<CatalogSectionResource>(StatusCodes.Status200OK)]
+    public async Task<CatalogSectionResource> GetSectionAsync(string section, CancellationToken cancellationToken)
+    {
+        var (version, items) = await _editor.GetItemsAsync(section, await MayReconfigureAsync(), cancellationToken);
+        return new CatalogSectionResource(version, section, items);
+    }
+
+    /// <summary>Checks an item as a write would, without writing anything: <c>valid</c>, <c>pending</c> (it would wait for approval) or the errors by field path.</summary>
+    /// <param name="section">environments, stacks, apps, data, links, providers, mcpServers or workstations.</param>
+    /// <param name="id">The item's id; the item's own id may be omitted.</param>
+    /// <param name="request">The version read and the whole item.</param>
+    /// <param name="cancellationToken">Cancels the check.</param>
+    /// <response code="400">The item, or the catalog it would produce, is not valid: errors by field path.</response>
+    /// <response code="409">The catalog changed since the version sent.</response>
+    [HttpPost(Section + "/{id}/validate")]
+    [Authorize(Policy = Permissions.CatalogWrite)]
+    [EnableRateLimiting(HttpServiceCollectionExtensions.CatalogWritesPolicyName)]
+    [ProducesResponseType<CatalogEditResource>(StatusCodes.Status200OK)]
+    [ProducesResponseType<CatalogEditResource>(StatusCodes.Status202Accepted)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ValidateItemAsync(string section, string id, CatalogItemRequest request, CancellationToken cancellationToken)
+    {
+        return await ValidateAsync(_itemValidator, request, cancellationToken)
+            ?? await EditAsync(section, id, "validate", request.Version, CatalogEdits.Upsert(id, request.Item!), cancellationToken, dryRun: true);
+    }
+
+    /// <summary>The changes that wait for an administrator's approval, oldest first.</summary>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    [HttpGet("pending")]
+    [Authorize(Policy = Permissions.CatalogWrite)]
+    [ProducesResponseType<IReadOnlyList<CatalogPendingResource>>(StatusCodes.Status200OK)]
+    public async Task<IReadOnlyList<CatalogPendingResource>> GetPendingAsync(CancellationToken cancellationToken)
+    {
+        return (await _editor.ListPendingAsync(cancellationToken)).Select(p => p.ToResource()).ToList();
+    }
+
+    /// <summary>Applies a waiting change. Needs <c>settings.manage</c>: it changes how a host is reached.</summary>
+    /// <param name="id">The pending change's id.</param>
+    /// <param name="cancellationToken">Cancels the edit.</param>
+    /// <response code="404">Nothing waits with this id.</response>
+    /// <response code="409">The item changed since the change was asked for.</response>
+    [HttpPost("pending/{id}/approve")]
+    [Authorize(Policy = Permissions.SettingsManage)]
+    [CatalogWriteAccess]
+    [EnableRateLimiting(HttpServiceCollectionExtensions.CatalogWritesPolicyName)]
+    [ProducesResponseType<CatalogEditResource>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ApproveAsync(string id, CancellationToken cancellationToken)
+    {
+        var result = await _editor.ApproveAsync(id, Actor(reconfigure: true), cancellationToken);
+        return this.ToActionResult(result, "pending", id);
+    }
+
+    /// <summary>Drops a waiting change without applying it.</summary>
+    /// <param name="id">The pending change's id.</param>
+    /// <param name="cancellationToken">Cancels the edit.</param>
+    /// <response code="404">Nothing waits with this id.</response>
+    [HttpDelete("pending/{id}")]
+    [Authorize(Policy = Permissions.SettingsManage)]
+    [EnableRateLimiting(HttpServiceCollectionExtensions.CatalogWritesPolicyName)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RejectAsync(string id, CancellationToken cancellationToken)
+    {
+        return await _editor.RejectAsync(id, Actor(reconfigure: true), cancellationToken)
+            ? NoContent()
+            : Problem(title: "Not found", detail: $"No change waits with id '{id}'.", statusCode: StatusCodes.Status404NotFound);
+    }
+
+    /// <summary>The catalog file as it is, to keep a copy or commit it back to a repository. Needs <c>settings.manage</c>.</summary>
+    /// <param name="cancellationToken">Cancels the read.</param>
+    [HttpGet("export")]
+    [Authorize(Policy = Permissions.SettingsManage)]
+    [Produces("application/yaml")]
+    [ProducesResponseType<string>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ExportAsync(CancellationToken cancellationToken)
+    {
+        var (version, text) = await _editor.ExportAsync(cancellationToken);
+        Response.Headers.ETag = $"\"{version}\"";
+        return Content(text, "application/yaml; charset=utf-8");
+    }
+
     /// <summary>The latest catalog edits, newest first: when, through which channel, what, and the versions before and after.</summary>
     /// <param name="limit">How many entries, 1 to 200 (default 20).</param>
     /// <param name="cancellationToken">Cancels the read.</param>
@@ -79,7 +171,7 @@ public sealed class CatalogEditController : ControllerBase
     }
 
     /// <summary>Adds an item to a section of the catalog.</summary>
-    /// <param name="section">environments, stacks, apps, data, links or providers.</param>
+    /// <param name="section">environments, stacks, apps, data, links, providers, mcpServers or workstations.</param>
     /// <param name="request">The version read and the item, with its id.</param>
     /// <param name="cancellationToken">Cancels the edit.</param>
     /// <response code="201">Added; the body gives the catalog's new version.</response>
@@ -113,7 +205,7 @@ public sealed class CatalogEditController : ControllerBase
     }
 
     /// <summary>Creates or replaces an item; only what changed is rewritten in the file, comments elsewhere are kept.</summary>
-    /// <param name="section">environments, stacks, apps, data, links or providers.</param>
+    /// <param name="section">environments, stacks, apps, data, links, providers, mcpServers or workstations.</param>
     /// <param name="id">The item's id; the item's own id may be omitted.</param>
     /// <param name="request">The version read and the whole item.</param>
     /// <param name="cancellationToken">Cancels the edit.</param>
@@ -137,7 +229,7 @@ public sealed class CatalogEditController : ControllerBase
     }
 
     /// <summary>Removes an item.</summary>
-    /// <param name="section">environments, stacks, apps, data, links or providers.</param>
+    /// <param name="section">environments, stacks, apps, data, links, providers, mcpServers or workstations.</param>
     /// <param name="id">The item's id.</param>
     /// <param name="version">The catalog version you read.</param>
     /// <param name="cancellationToken">Cancels the edit.</param>
@@ -233,10 +325,15 @@ public sealed class CatalogEditController : ControllerBase
         return validation.IsValid ? null : ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
     }
 
-    private async Task<IActionResult> EditAsync(string section, string id, string operation, string? version, Func<JsonObject?, JsonObject?> change, CancellationToken cancellationToken)
+    private async Task<IActionResult> EditAsync(string section, string id, string operation, string? version, Func<JsonObject?, JsonObject?> change, CancellationToken cancellationToken, bool dryRun = false)
     {
-        var actor = new CatalogActor(Channel, HttpContext.Connection.RemoteIpAddress?.ToString(), null, User.Identity?.Name);
-        var result = await _editor.EditAsync(new CatalogEdit(section, id, operation, version, actor, change), cancellationToken);
+        var actor = Actor(await MayReconfigureAsync());
+        var result = await _editor.EditAsync(new CatalogEdit(section, id, operation, version, actor, change, dryRun), cancellationToken);
         return this.ToActionResult(result, section, id);
     }
+
+    private CatalogActor Actor(bool reconfigure) => new(Channel, HttpContext.Connection.RemoteIpAddress?.ToString(), null, User.Identity?.Name, reconfigure);
+
+    /// <summary>A person (or the key of one) holding <c>settings.manage</c> may change how a host is reached; anyone else leaves a change for approval.</summary>
+    private async Task<bool> MayReconfigureAsync() => (await _authorization.AuthorizeAsync(User, Permissions.SettingsManage)).Succeeded;
 }

@@ -11,8 +11,12 @@ using Portarr.Http.Authentication;
 
 namespace Portarr.Mcp.Server;
 
-/// <summary>An edit's outcome: <c>applied</c> or <c>unchanged</c>, the catalog's new version (send it with the next edit) and what changed.</summary>
-public sealed record CatalogWriteAnswer(string Status, string Version, IReadOnlyList<string> Changes);
+/// <summary>
+/// An edit's outcome: <c>applied</c>, <c>unchanged</c>, <c>valid</c> (a dry run that would pass) or <c>pending</c> (the change says how
+/// a host is reached, so the operator approves it in Settings, Catalog: nothing is written yet), the catalog's new version
+/// (send it with the next edit) and what changed.
+/// </summary>
+public sealed record CatalogWriteAnswer(string Status, string Version, IReadOnlyList<string> Changes, string? PendingId = null, string? Next = null);
 
 /// <summary>A catalog item as the file holds it, or, without an id, the ids of the section; with the version to send back.</summary>
 public sealed record CatalogItemAnswer(string Version, string Section, string? Id, JsonObject? Item, IReadOnlyList<string>? Ids);
@@ -55,7 +59,7 @@ public sealed partial class CatalogTools
     [McpServerTool(Name = "get_catalog_item", Title = "Read a catalog item", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Reads the catalog file before changing it: one item exactly as written (keys of the catalog file), or without an id the ids of the section; always the version to send with a write.")]
     public async Task<CatalogItemAnswer> GetCatalogItemAsync(
-        [Description("environments, stacks, apps, data, links or providers.")] string section,
+        [Description("environments, stacks, apps, data, links, providers, mcpServers or workstations.")] string section,
         [Description("The item's id; omit to list the ids of the section.")] string? id = null,
         CancellationToken cancellationToken = default)
     {
@@ -132,7 +136,7 @@ public sealed partial class CatalogTools
 
     [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "upsert_environment", Title = "Create or replace an environment", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Creates or replaces an environment (a host, a cluster, a hosting account): id, name, address, host (its hypervisor), connector (docker, cloudflare, kubernetes), notes, access ({ ssh: { alias, host, port, user, key (file name only), jump }, consoles: [{ label, href }], notes }) and machines ([{ name, notes, access }]). Read it first: the connector settings must be kept.")]
+    [Description("Creates or replaces an environment (a host, a cluster, a hosting account): id, name, address, host (its hypervisor), connector (docker, cloudflare, kubernetes), notes, access ({ ssh: { alias, host, port, user, key (file name only), jump }, consoles: [{ label, href }], notes }) and machines ([{ name, notes, access }]). Read it first. Connector settings (docker, kubernetes, cloudflare, hostMetrics, nvidiaGpu, runtime…) can be sent: a change to them is not written at once, it waits for the operator to approve it in Settings, Catalog (the answer says pending); the rest is written immediately. Check an item with get_catalog_item_check before sending it.")]
     public Task<CatalogWriteAnswer> UpsertEnvironmentAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
         UpsertAsync(CatalogSections.Environments, item, version, cancellationToken);
 
@@ -170,10 +174,22 @@ public sealed partial class CatalogTools
         UpsertAsync(CatalogSections.Providers, item, version, cancellationToken);
 
     [RequiresPermissions(Permissions.CatalogWrite)]
+    [McpServerTool(Name = "upsert_mcp_server", Title = "Create or replace an MCP server", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Creates or replaces an MCP server of the catalog: id, name, transport (http or stdio), http ({ url, headers: { Name: { env: VARIABLE } } }) or stdio ({ command, args, env }), notes. Never a secret: a credential is the name of a variable. How to reach or launch a server is a connection setting: it waits for the operator's approval in Settings, Catalog.")]
+    public Task<CatalogWriteAnswer> UpsertMcpServerAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
+        UpsertAsync(CatalogSections.McpServers, item, version, cancellationToken);
+
+    [RequiresPermissions(Permissions.CatalogWrite)]
+    [McpServerTool(Name = "upsert_workstation", Title = "Create or replace a workstation", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Creates or replaces a workstation (a machine an operator works from with an assistant): id, name, os (windows, linux or macos), clients (the assistants installed), mcp (the ids of the MCP servers wanted there), notes.")]
+    public Task<CatalogWriteAnswer> UpsertWorkstationAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
+        UpsertAsync(CatalogSections.Workstations, item, version, cancellationToken);
+
+    [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "remove_catalog_item", Title = "Remove a catalog item", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Removes a stack, environment, data asset, link or provider (refused while something else names it).")]
+    [Description("Removes a stack, environment, data asset, link, provider, MCP server or workstation (refused while something else names it).")]
     public Task<CatalogWriteAnswer> RemoveItemAsync(
-        [Description("environments, stacks, apps, data, links or providers.")] string section,
+        [Description("environments, stacks, apps, data, links, providers, mcpServers or workstations.")] string section,
         [Description("The item's id.")] string id,
         [Description(VersionHelp)] string version,
         CancellationToken cancellationToken = default)
@@ -191,7 +207,7 @@ public sealed partial class CatalogTools
     [McpServerTool(Name = "set_notes", Title = "Set notes", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("Sets the free Markdown notes of an environment, a machine of an environment, a stack, an app, a link or a provider; empty clears them. Notes are for people and assistants: what it is for, quirks, how it is wired. Never secrets.")]
     public Task<CatalogWriteAnswer> SetNotesAsync(
-        [Description("environments, stacks, apps, links or providers.")] string section,
+        [Description("environments, stacks, apps, links, providers, mcpServers or workstations.")] string section,
         [Description("The item's id.")] string id,
         [Description("Markdown, at most 8000 characters; empty to clear.")] string notes,
         [Description(VersionHelp)] string version,
@@ -235,6 +251,21 @@ public sealed partial class CatalogTools
         return item["id"]?.ToString() is { Length: > 0 } id ? id : throw new McpException("item.id is required: lowercase letters, digits and dashes.");
     }
 
+    [RequiresPermissions(Permissions.CatalogWrite)]
+    [McpServerTool(Name = "get_catalog_item_check", Title = "Check a catalog item without writing it", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Checks an item exactly as upsert would, on the whole resulting catalog, and writes nothing: valid, pending (it would wait for the operator's approval because it changes how a host is reached) or the errors by field path. Use it before an upsert, and to try a change on a machine you are adding.")]
+    public Task<CatalogWriteAnswer> ValidateCatalogItemAsync(
+        [Description("environments, stacks, apps, data, links, providers, mcpServers or workstations.")] string section,
+        [Description(ItemShape)] JsonElement item,
+        [Description(VersionHelp)] string version,
+        CancellationToken cancellationToken = default)
+    {
+        CheckSection(section);
+        var value = Object(item, "item");
+        var id = IdOf(value);
+        return EditAsync(section, id, "validate", version, CatalogEdits.Upsert(id, value), cancellationToken, dryRun: true);
+    }
+
     private Task<CatalogWriteAnswer> UpsertAsync(string section, JsonElement item, string version, CancellationToken cancellationToken)
     {
         var value = Object(item, "item");
@@ -244,19 +275,22 @@ public sealed partial class CatalogTools
 
     private Task<IReadOnlyList<string>> IdsAsync(string section, CancellationToken cancellationToken) => _editor.GetIdsAsync(section, cancellationToken);
 
-    private async Task<CatalogWriteAnswer> EditAsync(string section, string id, string operation, string version, Func<JsonObject?, JsonObject?> change, CancellationToken cancellationToken)
+    private async Task<CatalogWriteAnswer> EditAsync(string section, string id, string operation, string version, Func<JsonObject?, JsonObject?> change, CancellationToken cancellationToken, bool dryRun = false)
     {
         var context = _httpContext.HttpContext;
 
         // A chat token names its conversation: that is the truth. The header is only a hint from other clients.
         var via = context?.User.FindFirst(PortarrClaims.Conversation)?.Value is { } conversation ? $"chat:{conversation}" : OriginOf(context?.Request.Headers[OriginHeader].ToString());
         var actor = new CatalogActor(Channel, context?.Connection.RemoteIpAddress?.ToString(), via, context?.User.Identity?.Name);
-        var result = await _editor.EditAsync(new CatalogEdit(section, id, operation, version, actor, change), cancellationToken);
+        var result = await _editor.EditAsync(new CatalogEdit(section, id, operation, version, actor, change, dryRun), cancellationToken);
         if (!result.Succeeded)
         {
             throw new McpException($"{result.Status}: {string.Join(" ", result.Errors)} (catalog version {result.Version})");
         }
 
-        return new CatalogWriteAnswer(result.Status.ToString().ToLowerInvariant(), result.Version, result.Changes);
+        var next = result.Status == CatalogEditStatus.Pending
+            ? "This changes how a host is reached, so it is not written yet: the operator approves it in Settings, Catalog. Tell them it is waiting."
+            : null;
+        return new CatalogWriteAnswer(result.Status.ToString().ToLowerInvariant(), result.Version, result.Changes, result.PendingId, next);
     }
 }

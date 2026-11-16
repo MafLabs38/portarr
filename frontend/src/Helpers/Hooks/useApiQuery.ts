@@ -6,6 +6,8 @@ export class ApiError extends Error {
     path: string,
     /** The problem details' `detail`, when the server gave one (safe to show: it never holds a secret). */
     public readonly detail?: string,
+    /** The field errors of a 400 (validation problem details): path to messages. */
+    public readonly errors?: Record<string, string[]>,
   ) {
     super(`Request to ${path} failed with status ${status}`);
     this.name = 'ApiError';

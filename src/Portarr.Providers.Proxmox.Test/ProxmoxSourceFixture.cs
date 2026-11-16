@@ -1,0 +1,137 @@
+using System.Net;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+using System.Text;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Time.Testing;
+using Portarr.Core.Catalog;
+using Portarr.Core.Infrastructure;
+using Portarr.Core.Workloads;
+
+namespace Portarr.Providers.Proxmox.Test;
+
+public sealed class ProxmoxSourceFixture
+{
+    private static readonly ProxmoxEndpoint Endpoint = new(new Uri("https://10.0.0.30:8006/api2/json/"), "hv", "portarr@pve!readonly", "PORTARR_PROXMOX_TOKEN", null);
+
+    private static readonly CatalogEnvironment Environment = new("hv", "Hypervisor", null, Connectors: new Dictionary<string, object> { ["proxmox"] = Endpoint }, ConnectorRuntime: "proxmox");
+
+    private readonly List<HttpRequestMessage> _requests = [];
+    private readonly Dictionary<string, string?> _configuration = new() { ["PORTARR_PROXMOX_TOKEN"] = "the-secret" };
+    private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 11, 16, 12, 0, 0, TimeSpan.Zero));
+
+    private const string Nodes = """{ "data": [ { "node": "other", "status": "online", "maxcpu": 2, "cpu": 0.9 }, { "node": "hv", "status": "online", "maxcpu": 8, "cpu": 0.25, "mem": 8000000000, "maxmem": 32000000000 } ] }""";
+
+    private const string Containers = """
+        { "data": [
+          { "vmid": 103, "name": "jellyfin", "status": "running", "cpus": 4, "cpu": 0.5, "mem": 700000000, "maxmem": 4294967296, "disk": 4700000000, "maxdisk": 16000000000, "uptime": 7300, "tags": "gpu;staging" },
+          { "vmid": "104", "name": "wiki", "status": "stopped", "cpus": 1, "cpu": 0, "mem": 0, "maxmem": 1073741824, "uptime": 0 }
+        ] }
+        """;
+
+    private ProxmoxSource Source()
+    {
+        var factory = new ProxmoxHttpClientFactory(_ => new HttpClient(new Handler(this)) { BaseAddress = Endpoint.Url });
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(_configuration).Build();
+        return new ProxmoxSource(new ProxmoxClient(factory, configuration), _clock);
+    }
+
+    [Fact]
+    public async Task should_list_the_containers_as_workloads_with_a_read_only_token()
+    {
+        var workloads = await Source().ListAsync(Environment, TestContext.Current.CancellationToken);
+
+        workloads.Select(w => (w.Id, w.Name, w.Image, w.State)).Should().Equal(("103", "jellyfin", "lxc", WorkloadState.Running), ("104", "wiki", "lxc", WorkloadState.Exited));
+        workloads[0].StatusText.Should().Be("Up 2 hours");
+        workloads[0].Node.Should().Be("hv");
+        workloads[0].Labels.Should().Contain("proxmox.tags", "gpu;staging");
+        _requests.Should().ContainSingle().Which.Method.Should().Be(HttpMethod.Get);
+        _requests[0].RequestUri!.AbsolutePath.Should().Be("/api2/json/nodes/hv/lxc");
+        _requests[0].Headers.GetValues("Authorization").Should().ContainSingle().Which.Should().Be("PVEAPIToken=portarr@pve!readonly=the-secret");
+    }
+
+    [Fact]
+    public async Task should_sample_the_node_as_one_machine_and_the_running_containers_as_its_consumers()
+    {
+        var source = Source();
+        var workloads = await source.ListAsync(Environment, TestContext.Current.CancellationToken);
+
+        var sample = await source.SampleAsync(Environment, workloads, TestContext.Current.CancellationToken);
+
+        var machine = sample.Machines.Should().ContainSingle().Subject;
+        (machine.Id, machine.Kind, machine.CpuCapacityCores, machine.CpuCores, machine.MemoryBytes, machine.MemoryCapacityBytes, machine.Scope)
+            .Should().Be(("hv", ProxmoxSource.MachineKind, 8, 2, 8_000_000_000, 32_000_000_000, UsageScope.Host));
+        sample.Workloads.Should().ContainSingle().Which.Should().Be(new WorkloadUsageSample("103", 2, 700_000_000));
+    }
+
+    [Fact]
+    public async Task should_give_the_usage_of_a_running_container_against_its_limit()
+    {
+        var usage = await Source().GetUsageAsync(Environment, "jellyfin", TestContext.Current.CancellationToken);
+
+        usage.Should().Be(new WorkloadUsage(2, 700_000_000, 4_294_967_296));
+        (await Source().GetUsageAsync(Environment, "wiki", TestContext.Current.CancellationToken)).Should().BeNull("a stopped container uses nothing");
+    }
+
+    [Fact]
+    public async Task should_fail_when_the_node_is_not_the_one_declared()
+    {
+        var source = Source();
+        var other = Environment with { Connectors = new Dictionary<string, object> { ["proxmox"] = Endpoint with { Node = "elsewhere" } } };
+
+        await FluentActions.Awaiting(() => source.SampleAsync(other, [], TestContext.Current.CancellationToken)).Should().ThrowAsync<InvalidDataException>();
+    }
+
+    [Fact]
+    public void should_report_a_missing_token_as_not_configured_without_calling_the_node()
+    {
+        Source().GetConfigurationError(Environment).Should().BeNull();
+
+        _configuration.Clear();
+
+        Source().GetConfigurationError(Environment).Should().Be("token-missing");
+        _requests.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void should_pin_the_certificate_by_its_sha256_whatever_the_case_of_the_fingerprint()
+    {
+        using var key = RSA.Create(2048);
+        var request = new CertificateRequest("CN=pve", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        var hash = Convert.ToHexString(certificate.GetCertHash(HashAlgorithmName.SHA256));
+        var fingerprint = string.Join(':', Enumerable.Range(0, hash.Length / 2).Select(i => hash.Substring(i * 2, 2)));
+
+        ProxmoxHttpClientFactory.Matches(certificate, fingerprint).Should().BeTrue();
+        ProxmoxHttpClientFactory.Matches(certificate, fingerprint.ToLowerInvariant()).Should().BeTrue();
+        ProxmoxHttpClientFactory.Matches(certificate, new string('0', 2) + fingerprint[2..]).Should().BeFalse();
+        ProxmoxHttpClientFactory.Matches(null, fingerprint).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(30, "seconds")]
+    [InlineData(600, "10 minutes")]
+    [InlineData(7300, "2 hours")]
+    [InlineData(200_000, "2 days")]
+    public void should_say_the_uptime_in_a_few_words(long seconds, string expected)
+    {
+        ProxmoxMapper.Duration(seconds).Should().Be(expected);
+    }
+
+    private sealed class Handler(ProxmoxSourceFixture owner) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            owner._requests.Add(request);
+            var body = request.RequestUri!.AbsolutePath switch
+            {
+                "/api2/json/nodes" => Nodes,
+                "/api2/json/nodes/hv/lxc" => Containers,
+                _ => null,
+            };
+            return Task.FromResult(body is null
+                ? new HttpResponseMessage(HttpStatusCode.NotFound)
+                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") });
+        }
+    }
+}

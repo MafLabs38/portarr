@@ -10,7 +10,7 @@ interface ProgressBarProps {
   /** small (5 px), medium (15 px), large (20 px), as in the *arr ProgressBar. */
   size?: 'small' | 'medium' | 'large';
   /** Bar color role. */
-  color?: 'cpu' | 'memory' | 'guests' | 'swap';
+  color?: 'cpu' | 'memory' | 'guests' | 'swap' | 'disk' | 'warning' | 'danger';
   /** A second part stacked after the first (0 to 1, e.g. the VMs of a hypervisor), in the guests color. */
   stacked?: number;
 }

@@ -58,7 +58,24 @@ public sealed record HostReading(
     HostMemory Memory,
     double? Load1,
     double? TemperatureCelsius,
-    MachineSystem? System = null);
+    MachineSystem? System = null,
+    IReadOnlyList<HostDisk>? Disks = null,
+    HostNetwork? Network = null);
+
+/// <summary>
+/// What the machine's physical network interfaces carried per second since the previous read (bytes/s, received and transmitted, summed over
+/// the interfaces that are real network cards: bridges, container and VM interfaces would count the same traffic twice).
+/// </summary>
+public sealed record HostNetwork(double ReceiveBytesPerSecond, double TransmitBytesPerSecond);
+
+/// <summary>
+/// A filesystem of a machine that holds data (its kernel's view, from node_exporter): where it is mounted, its device, its type, its size and
+/// what is still available to a user. Used = size − available. One per device (a bind mount or a Btrfs subvolume is not another disk).
+/// </summary>
+public sealed record HostDisk(string Mount, string Device, string FsType, long SizeBytes, long AvailableBytes)
+{
+    public long UsedBytes => Math.Max(SizeBytes - AvailableBytes, 0);
+}
 
 /// <summary>
 /// The kernel's memory counters (/proc/meminfo, bytes). <c>Used</c> is Total − Available: what cannot be given
