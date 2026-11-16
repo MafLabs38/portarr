@@ -47,8 +47,12 @@ export default function SectionPanel({ section, writable }: Readonly<SectionPane
   const onRemove = async (id: string) => {
     setNotice(null);
     try {
-      await remove.mutateAsync({ section, id, version: data.version });
-      setNotice({ kind: 'info', text: translate('CatalogItemRemoved', { id }) });
+      const outcome = await remove.mutateAsync({ section, id, version: data.version });
+      setNotice({
+        kind: 'info',
+        text:
+          outcome?.status === 'pending' ? translate('CatalogChangeWaiting') : translate('CatalogItemRemoved', { id }),
+      });
     } catch (error) {
       setNotice({
         kind: 'danger',

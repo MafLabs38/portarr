@@ -171,6 +171,26 @@ describe('CatalogPage', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 
+  it('says a removal waits for an administrator when the server keeps it for approval', async () => {
+    const user = userEvent.setup();
+    arrange({ admin: false });
+    server.use(
+      http.delete('/api/v1/catalog/apps/:id', () =>
+        HttpResponse.json(
+          { status: 'pending', version: 'v1', changes: ['removed'], pendingId: 'abc123' },
+          { status: 202 },
+        ),
+      ),
+    );
+    renderWithProviders(<CatalogPage />);
+
+    await user.click(await screen.findByRole('button', { name: 'Remove jellyfin' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm delete' }));
+
+    expect(await screen.findByText(/waits for an administrator/)).toBeInTheDocument();
+    expect(screen.queryByText('jellyfin removed.')).not.toBeInTheDocument();
+  });
+
   it('lets an administrator approve a waiting change and shows what would change', async () => {
     const user = userEvent.setup();
     arrange({ pending: [pendingChange] });

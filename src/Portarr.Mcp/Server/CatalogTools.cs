@@ -124,7 +124,7 @@ public sealed partial class CatalogTools
 
     [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "remove_app", Title = "Remove an app", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Removes an app from the catalog (refused while a stack, a data asset or a provider still names it).")]
+    [Description("Removes an app from the catalog (refused while a stack, a data asset or a provider still names it). Removing an app that has a check waits for the operator's approval in Settings, Catalog.")]
     public Task<CatalogWriteAnswer> RemoveAppAsync([Description("The app id.")] string id, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
         EditAsync(CatalogSections.Apps, id, "remove", version, CatalogEdits.Remove(CatalogSections.Apps, id), cancellationToken);
 
@@ -187,7 +187,7 @@ public sealed partial class CatalogTools
 
     [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "remove_catalog_item", Title = "Remove a catalog item", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Removes a stack, environment, data asset, link, provider, MCP server or workstation (refused while something else names it).")]
+    [Description("Removes a stack, environment, data asset, link, provider, MCP server or workstation (refused while something else names it). Removing an item that says how a host is reached (an environment's connector, an MCP server's http or stdio) waits for the operator's approval in Settings, Catalog.")]
     public Task<CatalogWriteAnswer> RemoveItemAsync(
         [Description("environments, stacks, apps, data, links, providers, mcpServers or workstations.")] string section,
         [Description("The item's id.")] string id,
