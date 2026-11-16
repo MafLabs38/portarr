@@ -100,7 +100,7 @@ public sealed class McpToolsFixture : IClassFixture<McpToolsHosts>
 
         // The shared key is a view-only principal: the operator's MCP servers need mcp.use (D-115), which only a user's role grants.
         readOnly.Should().NotContain(["list_mcp_servers", "get_mcp_server"]);
-        writable.Should().Contain(["get_catalog_item", "get_portal", "upsert_app", "remove_app", "upsert_stack", "set_portal", "set_notes"]);
+        writable.Should().Contain(["get_catalog_item", "get_portal", "upsert_app", "remove_app", "upsert_stack", "set_portal", "set_notes", "upsert_mcp_server", "upsert_workstation", "get_catalog_item_check"]);
     }
 
     // Each tool answers with a fact only it can say about the seeded fleet (one app, one unreachable Docker host).

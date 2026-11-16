@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Portarr.Core.Catalog;
+using Portarr.Core.Net;
 using Portarr.Core.Workloads;
 
 namespace Portarr.Providers.Proxmox;
@@ -82,7 +83,8 @@ public sealed class ProxmoxClient
 
         using var response = await _clients.Get(endpoint).SendAsync(request, timeout.Token);
         response.EnsureSuccessStatusCode();
-        return await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(timeout.Token), cancellationToken: timeout.Token);
+        await using var body = new CappedStream(await response.Content.ReadAsStreamAsync(timeout.Token), ProxmoxHttpClientFactory.MaxResponseBytes);
+        return await JsonDocument.ParseAsync(body, cancellationToken: timeout.Token);
     }
 
     private static string? Text(JsonElement element, string name)

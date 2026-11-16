@@ -2,7 +2,7 @@
 
 - **Status**: proposed
 - **Date**: 2026-11-16
-- **Spec**: D-122, D-123, D-124 (amends D-16 and D-31)
+- **Spec**: D-122 to D-125 (amends D-16, D-31 and D-112); D-126 to D-128 (a runtime without an engine, disks and network, the Proxmox connector) follow the same connector pattern and carry no ADR of their own
 
 ## Context
 
@@ -12,7 +12,7 @@ Adding a machine, a VM and an app through the MCP was impossible. Three things s
 
 - **Read-only toward the infrastructure, writable toward the configuration.** The catalog is written by three doors that share one editor (the same validation of the whole file, versions, backups, audit): the Settings, Catalog page, the API and the MCP tools. They all end in the same YAML file.
 - **A change of connection is accepted, and waits for approval unless its author may reconfigure.** A person with `settings.manage` writes it at once. Anyone else (an assistant, a key with `catalog.write` only) leaves a pending change, stored next to the catalog, which an administrator approves or rejects in the UI. Approval merges the change key by key over the current item; it is a conflict only when the same key changed since.
-- **Guardrails apply to everyone**: `http`, `https` or `unix`, no credentials in an address, no loopback, link-local or unspecified address literal (the outbound address policy of the registries and platforms lookups). The catalog holds no secret, as before.
+- **Guardrails apply to everyone**, on every address a change sets or changes (what an item already holds is not judged again): `http`, `https`, `tcp` or `unix`, no credentials in an address, no loopback, link-local or unspecified address literal, nor `localhost` or a metadata name (the outbound address policy of the registries and platforms lookups). The catalog holds no secret, as before. The waiting changes show the connection settings only to whoever may reconfigure, and one author may leave at most 10 of the 50.
 - **A dry run** (`get_catalog_item_check`, `POST …/validate`) goes through every check and writes nothing; it is named like a read tool so that the chat runs it without asking (D-88).
 - **The catalog lives on a volume Portarr writes**, seeded once from the operator's repository; `GET /api/v1/catalog/export` gives the file back. Git is a backup the operator keeps, not a requirement. Portarr does not open pull requests (it would hold a write token).
 

@@ -8,13 +8,17 @@ namespace Portarr.Core.Catalog.Editing;
 /// What a change to how a host is reached may not contain, whoever makes it (a person, an approval, an assistant): the
 /// catalog never holds a secret (the settings name an environment variable), and an address Portarr will call must not be a
 /// door to Portarr itself or to a cloud metadata service. Checked on the settings of <see cref="ProtectedSettings"/> only,
-/// on every address in them: <c>http</c>, <c>https</c> or <c>unix</c> (a Docker socket), no <c>user:password@</c>, and an
-/// address literal that <see cref="OutboundAddressPolicy"/> accepts (a LAN address does; loopback and link-local do not). A host
-/// name is not resolved here: the catalog is edited offline, and the connectors confine the credential variables they accept.
+/// on every address a change sets or changes (what an item already holds is not judged again): <c>http</c>, <c>https</c>,
+/// <c>tcp</c> (a Docker proxy) or <c>unix</c> (a Docker socket), no <c>user:password@</c>, and an address literal that
+/// <see cref="OutboundAddressPolicy"/> accepts (a LAN address does; loopback and link-local do not), nor the names that always mean
+/// them (<c>localhost</c>, a cloud metadata name). Other host names are not resolved here: the catalog is edited offline, the
+/// connectors confine the credential variables they accept, and an administrator's approval is the control.
 /// </summary>
 public static class ConnectionGuardrails
 {
-    private static readonly string[] Schemes = ["http", "https", "unix"];
+    private static readonly string[] Schemes = ["http", "https", "tcp", "unix"];
+
+    private static readonly string[] ForbiddenNames = ["localhost", "metadata", "metadata.google.internal"];
 
     /// <summary>The problems with the protected settings of an item, empty when there is none.</summary>
     public static IReadOnlyList<string> Check(JsonObject? item, IReadOnlyList<string> keys)
@@ -75,7 +79,7 @@ public static class ConnectionGuardrails
 
         if (!Schemes.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase))
         {
-            problems.Add($"{path}: the scheme '{uri.Scheme}' is not accepted (http, https or unix).");
+            problems.Add($"{path}: the scheme '{uri.Scheme}' is not accepted (http, https, tcp or unix).");
         }
 
         if (!string.IsNullOrEmpty(uri.UserInfo))
@@ -83,9 +87,20 @@ public static class ConnectionGuardrails
             problems.Add($"{path}: an address never carries a user or password; name an environment variable for the credential instead.");
         }
 
+        if (!uri.Scheme.Equals("unix", StringComparison.OrdinalIgnoreCase) && IsForbiddenName(uri.Host))
+        {
+            problems.Add($"{path}: {uri.Host} always means this host or a metadata service: Portarr does not call it.");
+        }
+
         if (!uri.Scheme.Equals("unix", StringComparison.OrdinalIgnoreCase) && IPAddress.TryParse(uri.Host.Trim('[', ']'), out var address) && !OutboundAddressPolicy.IsAllowed(address))
         {
             problems.Add($"{path}: {uri.Host} is a loopback, link-local or unspecified address: Portarr does not call it.");
         }
+    }
+
+    private static bool IsForbiddenName(string host)
+    {
+        var name = host.Trim('[', ']').TrimEnd('.');
+        return ForbiddenNames.Contains(name, StringComparer.OrdinalIgnoreCase) || name.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase);
     }
 }

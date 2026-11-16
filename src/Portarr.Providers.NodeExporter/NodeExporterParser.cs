@@ -53,7 +53,7 @@ internal static class NodeExporterParser
     /// <summary>Interfaces that carry traffic a real card has already counted (bridges, VM and container interfaces, tunnels): left out of the traffic. Proxmox names its card <c>nic0</c>, so the physical ones are what remains.</summary>
     private static readonly string[] VirtualInterfaces =
     [
-        "lo", "veth", "docker", "br", "vmbr", "virbr", "tap", "fwbr", "fwln", "fwpr", "vnet", "vhost", "shim", "cni", "flannel", "cali", "cilium", "lxc", "tun", "wg", "kube", "dummy", "ifb", "vxlan", "bond",
+        "lo", "veth", "docker", "br", "vmbr", "virbr", "tap", "fwbr", "fwln", "fwpr", "vnet", "vhost", "shim", "cni", "flannel", "cali", "cilium", "lxc", "tun", "wg", "kube", "dummy", "ifb", "vxlan", "bond", "tailscale", "zt", "podman", "nebula",
     ];
 
     /// <summary>Mounts that belong to the container engines or the system itself, not to the machine's storage.</summary>

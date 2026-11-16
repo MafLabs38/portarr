@@ -36,8 +36,8 @@ public interface ICatalogEditor
     /// <summary>The catalog file as it is, to download or commit back.</summary>
     Task<(string Version, string Text)> ExportAsync(CancellationToken cancellationToken);
 
-    /// <summary>The changes waiting for an administrator's approval, oldest first.</summary>
-    Task<IReadOnlyList<PendingChange>> ListPendingAsync(CancellationToken cancellationToken);
+    /// <summary>The changes waiting for an administrator's approval, oldest first; how hosts are reached is left out of what they show unless <paramref name="withConnections"/>.</summary>
+    Task<IReadOnlyList<PendingChange>> ListPendingAsync(bool withConnections, CancellationToken cancellationToken);
 
     /// <summary>Applies a waiting change as <paramref name="approver"/> (who may reconfigure); refused when the item changed since it was asked for.</summary>
     Task<CatalogEditResult> ApproveAsync(string pendingId, CatalogActor approver, CancellationToken cancellationToken);
@@ -164,7 +164,8 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
             var touches = ProtectedSettings.Touches(current, proposed, keys);
             needsApproval = touches && !edit.Actor.Reconfigure;
             next = ProtectedSettings.Apply(edit.Section, edit.Id, current, proposed, keys, allowChange: true);
-            if (touches && ConnectionGuardrails.Check(next, ProtectedSettings.GuardedKeysOf(edit.Section, _parser.GetConnectorSections())) is { Count: > 0 } problems)
+            var guarded = ProtectedSettings.GuardedKeysOf(edit.Section, _parser.GetConnectorSections());
+            if (touches && ConnectionGuardrails.Check(next, ProtectedSettings.ChangedKeys(current, next, guarded)) is { Count: > 0 } problems)
             {
                 return new CatalogEditResult(CatalogEditStatus.Invalid, version, [], problems);
             }
@@ -222,10 +223,16 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
             return new CatalogEditResult(CatalogEditStatus.Pending, version, changes, []);
         }
 
+        var replaced = (await _pending.ListAsync(cancellationToken)).Where(p => CatalogPendingStore.Replaces(p, edit.Section, edit.Id, edit.Actor.Channel, edit.Actor.User)).ToList();
         var pending = new PendingChange(Guid.NewGuid().ToString("N")[..12], _timeProvider.GetUtcNow(), edit.Actor.Channel, edit.Actor.User, edit.Actor.Via, edit.Section, edit.Id, edit.Operation, current, next, changes);
         if (!await _pending.AddAsync(pending, cancellationToken))
         {
-            return Refused(CatalogEditStatus.Invalid, version, $"{CatalogPendingStore.Capacity} changes already wait for approval: approve or reject some in Settings, Catalog.");
+            return Refused(CatalogEditStatus.Invalid, version, $"Too many changes already wait for approval ({CatalogPendingStore.Capacity} in all, {CatalogPendingStore.CapacityPerAuthor} from one author): approve or reject some in Settings, Catalog.");
+        }
+
+        foreach (var old in replaced)
+        {
+            await AuditAsync(new CatalogAuditEntry(pending.At, edit.Actor.Channel, edit.Actor.Client, $"supersede:{old.Operation}", old.Section, old.ItemId, version, version, old.Changes, $"superseded:{old.Id} by {pending.Id}", edit.Actor.User), cancellationToken);
         }
 
         await AuditAsync(new CatalogAuditEntry(pending.At, edit.Actor.Channel, edit.Actor.Client, $"propose:{edit.Operation}", edit.Section, edit.Id, version, version, changes, edit.Actor.Via, edit.Actor.User), cancellationToken);
@@ -262,7 +269,28 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
         return (CatalogVersion.Of(text), text);
     }
 
-    public Task<IReadOnlyList<PendingChange>> ListPendingAsync(CancellationToken cancellationToken) => _pending.ListAsync(cancellationToken);
+    public async Task<IReadOnlyList<PendingChange>> ListPendingAsync(bool withConnections, CancellationToken cancellationToken)
+    {
+        var all = await _pending.ListAsync(cancellationToken);
+        if (withConnections)
+        {
+            return all;
+        }
+
+        // The same rule as a read of the item: how a host is reached is for whoever may reconfigure (a diff would show it).
+        var connectors = _parser.GetConnectorSections();
+        return [.. all.Select(p =>
+        {
+            var keys = ProtectedSettings.KeysOf(p.Section, connectors);
+            var changes = p.Changes.Where(line => !keys.Any(key => line.StartsWith(key, StringComparison.Ordinal))).ToList();
+            return p with
+            {
+                Before = p.Before is null ? null : ProtectedSettings.Redact(p.Before, keys),
+                After = p.After is null ? null : ProtectedSettings.Redact(p.After, keys),
+                Changes = changes.Count == p.Changes.Count ? changes : [.. changes, "connection settings changed (an administrator sees them)"],
+            };
+        })];
+    }
 
     public async Task<CatalogEditResult> ApproveAsync(string pendingId, CatalogActor approver, CancellationToken cancellationToken)
     {
@@ -282,7 +310,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
 
             var (text, _) = await ReadFileAsync(cancellationToken);
             var version = CatalogVersion.Of(text);
-            var actor = approver with { Reconfigure = true, Via = $"approved:{change.Id} asked by {change.User ?? change.Channel}" };
+            var actor = approver with { Reconfigure = true, Via = $"approved:{change.Id} asked by {change.User ?? change.Channel}{(change.Via is null ? string.Empty : $" via {change.Via}")}" };
             var result = await EditLockedAsync(
                 new CatalogEdit(change.Section, change.ItemId, $"approve:{change.Operation}", version, actor, now => PendingMerge.Apply(change.Section, change.ItemId, change.Before, change.After, now)),
                 cancellationToken);
@@ -305,12 +333,17 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
         try
         {
             var change = (await _pending.ListAsync(cancellationToken)).FirstOrDefault(p => p.Id == pendingId);
-            if (change is null || !await _pending.RemoveAsync(pendingId, cancellationToken))
+            if (change is null)
             {
                 return false;
             }
 
             var version = CatalogVersion.Of((await ReadFileAsync(cancellationToken)).Text);
+            if (!await _pending.RemoveAsync(pendingId, cancellationToken))
+            {
+                return false;
+            }
+
             await AuditAsync(new CatalogAuditEntry(_timeProvider.GetUtcNow(), rejecter.Channel, rejecter.Client, $"reject:{change.Operation}", change.Section, change.ItemId, version, version, change.Changes, $"rejected:{change.Id} asked by {change.User ?? change.Channel}", rejecter.User), cancellationToken);
             return true;
         }

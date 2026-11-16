@@ -37,10 +37,14 @@ public static class ProtectedSettings
         section == CatalogSections.McpServers ? [HttpKey] : KeysOf(section, connectorSections);
 
     /// <summary>Whether the edit sets, changes or removes a protected setting (a removed item is removed whole: that is an explicit act of its own).</summary>
-    public static bool Touches(JsonObject? current, JsonObject? next, IReadOnlyList<string> keys)
+    public static bool Touches(JsonObject? current, JsonObject? next, IReadOnlyList<string> keys) => ChangedKeys(current, next, keys).Count > 0;
+
+    /// <summary>The protected keys the edit sets, changes or removes: the guardrails check these, not what the item already held.</summary>
+    public static IReadOnlyList<string> ChangedKeys(JsonObject? current, JsonObject? next, IReadOnlyList<string> keys)
     {
-        return next is not null
-            && keys.Any(key => next[key] is { } sent && (current?[key] is not { } before || YamlNodes.Canonical(before) != YamlNodes.Canonical(sent)));
+        return next is null
+            ? []
+            : [.. keys.Where(key => next[key] is { } sent && (current?[key] is not { } before || YamlNodes.Canonical(before) != YamlNodes.Canonical(sent)))];
     }
 
     /// <summary>

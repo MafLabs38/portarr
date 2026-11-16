@@ -10,7 +10,7 @@ namespace Portarr.Providers.Proxmox;
 public sealed class ProxmoxHttpClientFactory : IDisposable
 {
     /// <summary>Largest answer read: a node with hundreds of guests is well under it.</summary>
-    private const int MaxResponseBytes = 4 * 1024 * 1024;
+    internal const int MaxResponseBytes = 4 * 1024 * 1024;
 
     private readonly Dictionary<(Uri Url, string? Fingerprint), HttpClient> _clients = [];
     private readonly Lock _lock = new();
@@ -64,6 +64,6 @@ public sealed class ProxmoxHttpClientFactory : IDisposable
             handler.SslOptions.RemoteCertificateValidationCallback = (_, certificate, _, _) => Matches(certificate, pinned);
         }
 
-        return new HttpClient(handler) { BaseAddress = endpoint.Url, Timeout = TimeSpan.FromSeconds(15), MaxResponseContentBufferSize = MaxResponseBytes };
+        return new HttpClient(handler) { BaseAddress = endpoint.Url, Timeout = TimeSpan.FromSeconds(15) };
     }
 }

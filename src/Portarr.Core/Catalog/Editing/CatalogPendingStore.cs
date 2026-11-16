@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Portarr.Core.Configuration;
 
@@ -28,21 +29,29 @@ public sealed record PendingChange(
 /// backups): they survive a restart and live with the file they would change. Not thread-safe by itself: the editor calls
 /// it under its write lock. Capped, so an assistant that keeps asking cannot fill the disk.
 /// </summary>
-public sealed class CatalogPendingStore
+public sealed partial class CatalogPendingStore
 {
     public const int Capacity = 50;
+
+    /// <summary>What one author (a user on a channel) may leave waiting: one assistant cannot fill the queue for the others.</summary>
+    public const int CapacityPerAuthor = 10;
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
     private readonly string _path;
+    private readonly ILogger _logger;
 
-    public CatalogPendingStore(IOptions<PortarrOptions> options)
+    public CatalogPendingStore(IOptions<PortarrOptions> options, ILogger<CatalogPendingStore>? logger = null)
     {
+        _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<CatalogPendingStore>.Instance;
         var catalog = Path.GetFullPath(options.Value.EffectiveCatalogFile);
         _path = Path.Combine(Path.GetDirectoryName(catalog)!, Path.GetFileNameWithoutExtension(catalog) + ".pending.json");
     }
 
-    /// <summary>The waiting changes, oldest first; an unreadable file is an empty list (nothing waits that cannot be read).</summary>
+    /// <summary>
+    /// The waiting changes, oldest first. A file that cannot be read is an empty list, but it is moved aside (<c>.corrupt-…</c>) and
+    /// logged first, so the next change does not silently overwrite what it held.
+    /// </summary>
     public async Task<IReadOnlyList<PendingChange>> ListAsync(CancellationToken cancellationToken)
     {
         if (!File.Exists(_path))
@@ -57,17 +66,26 @@ public sealed class CatalogPendingStore
         }
         catch (JsonException)
         {
+            var aside = $"{_path}.corrupt-{DateTime.UtcNow:yyyyMMddHHmmss}";
+            File.Move(_path, aside, overwrite: true);
+            LogUnreadable(aside);
             return [];
         }
     }
 
-    /// <summary>Adds a change; false when the store is full. A newer change to the same item replaces the older one.</summary>
+    /// <summary>Whether <paramref name="existing"/> is the one a new change by this author to this item replaces.</summary>
+    public static bool Replaces(PendingChange existing, string section, string itemId, string channel, string? user)
+    {
+        return existing.Section == section && existing.ItemId == itemId && existing.Channel == channel && existing.User == user;
+    }
+
+    /// <summary>Adds a change; false when the store (or the author's share of it) is full. A newer change to the same item by the same author replaces the older one.</summary>
     public async Task<bool> AddAsync(PendingChange change, CancellationToken cancellationToken)
     {
         var all = (await ListAsync(cancellationToken))
-            .Where(p => !(p.Section == change.Section && p.ItemId == change.ItemId && p.Channel == change.Channel && p.User == change.User))
+            .Where(p => !Replaces(p, change.Section, change.ItemId, change.Channel, change.User))
             .ToList();
-        if (all.Count >= Capacity)
+        if (all.Count >= Capacity || all.Count(p => p.Channel == change.Channel && p.User == change.User) >= CapacityPerAuthor)
         {
             return false;
         }
@@ -95,4 +113,7 @@ public sealed class CatalogPendingStore
         await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(all, Json), new UTF8Encoding(false), cancellationToken);
         File.Move(temporary, _path, overwrite: true);
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The pending changes file could not be read; moved aside to {Aside} and started again empty.")]
+    private partial void LogUnreadable(string aside);
 }

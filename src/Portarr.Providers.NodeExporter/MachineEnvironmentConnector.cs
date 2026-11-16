@@ -23,9 +23,16 @@ public sealed class MachineEnvironmentConnector : IEnvironmentConnector
 
     public EnvironmentConnectorResult? Parse(EnvironmentSectionContext context)
     {
-        // `runtime: machine` is the whole declaration; a `machine:` section is allowed but has nothing to say.
-        return new EnvironmentConnectorResult(new MachineEndpoint());
+        // `runtime: machine` is the whole declaration (the parser then reads an empty section): a `machine:` section has nothing to
+        // say, so any key in it is an error, and one with no value declares nothing.
+        return context.Read<MachineDocument>() is null ? null : new EnvironmentConnectorResult(new MachineEndpoint());
     }
+}
+
+/// <summary>The <c>machine:</c> section: nothing to configure. The empty document makes the reader refuse any key.</summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S2094:Classes should not be empty", Justification = "A machine has no setting; the empty document is how an unknown key is refused.")]
+internal sealed class MachineDocument
+{
 }
 
 public static class MachineEnvironmentExtensions

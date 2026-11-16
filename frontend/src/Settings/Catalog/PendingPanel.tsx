@@ -6,11 +6,18 @@ import Card from 'Components/Card';
 import form from 'Components/Form/Form.module.css';
 import { ApiError } from 'Helpers/Hooks/useApiQuery';
 import { SETTINGS_MANAGE } from 'Helpers/Props/permissions';
+import type { PendingChange } from 'typings/Catalog';
 import { formatDateTime } from 'Utilities/Date/formatDate';
 import translate from 'Utilities/String/translate';
 
 import styles from './Catalog.module.css';
 import { useApprovePending, usePendingChanges, useRejectPending } from './useCatalog';
+
+/** The authenticated author first: what the client says about itself (`via`) only follows, in brackets. */
+function author(change: PendingChange) {
+  const who = change.user ?? change.channel;
+  return change.via ? `${who} (${change.via})` : who;
+}
 
 /** The changes to how a host is reached that an assistant or an editor asked for: an administrator approves or rejects each. */
 export default function PendingPanel() {
@@ -47,14 +54,14 @@ export default function PendingPanel() {
               <strong>{`${change.section} / ${change.itemId}`}</strong>
               <span className={form.help}>
                 {translate('CatalogAskedBy', {
-                  who: change.via ?? change.user ?? change.channel,
+                  who: author(change),
                   when: formatDateTime(change.at),
                 })}
               </span>
             </div>
             <ul className={styles.errors}>
-              {change.changes.map((line) => (
-                <li key={line}>{line}</li>
+              {change.changes.map((line, index) => (
+                <li key={`${index}:${line}`}>{line}</li>
               ))}
             </ul>
             <div className={styles.diff}>

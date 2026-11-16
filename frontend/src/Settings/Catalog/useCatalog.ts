@@ -1,16 +1,20 @@
 import useApiMutation from 'Helpers/Hooks/useApiMutation';
 import useApiQuery from 'Helpers/Hooks/useApiQuery';
-import type {
-  CatalogEditOutcome,
-  CatalogItem,
-  CatalogSectionItems,
-  CatalogSectionName,
-  PendingChange,
+import {
+  type CatalogEditOutcome,
+  type CatalogItem,
+  type CatalogSectionItems,
+  type CatalogSectionName,
+  catalogSections,
+  type PendingChange,
 } from 'typings/Catalog';
 
 const pendingPath = '/catalog/pending';
 
 export const sectionPath = (section: CatalogSectionName) => `/catalog/${section}`;
+
+/** What an edit refreshes: the waiting changes and every section (an MCP server or a workstation included). */
+const invalidateAll = [pendingPath, ...catalogSections.map(sectionPath)];
 
 export function useCatalogSection(section: CatalogSectionName) {
   return useApiQuery<CatalogSectionItems>({ path: sectionPath(section) });
@@ -31,10 +35,7 @@ export function useSaveItem() {
   return useApiMutation<ItemBody, CatalogEditOutcome>({
     path: ({ section, item }) => `${sectionPath(section)}/${item.id}`,
     method: 'PUT',
-    invalidate: [
-      pendingPath,
-      ...['apps', 'environments', 'stacks', 'data', 'links', 'providers'].map((s) => `/catalog/${s}`),
-    ],
+    invalidate: invalidateAll,
     serialize: ({ item, version }) => JSON.stringify({ version, item }),
   });
 }
@@ -53,10 +54,7 @@ export function useRemoveItem() {
   return useApiMutation<{ section: CatalogSectionName; id: string; version: string }, CatalogEditOutcome>({
     path: ({ section, id, version }) => `${sectionPath(section)}/${id}?version=${encodeURIComponent(version)}`,
     method: 'DELETE',
-    invalidate: [
-      pendingPath,
-      ...['apps', 'environments', 'stacks', 'data', 'links', 'providers'].map((s) => `/catalog/${s}`),
-    ],
+    invalidate: invalidateAll,
   });
 }
 
@@ -64,10 +62,7 @@ export function useApprovePending() {
   return useApiMutation<{ id: string }, CatalogEditOutcome>({
     path: ({ id }) => `${pendingPath}/${id}/approve`,
     method: 'POST',
-    invalidate: [
-      pendingPath,
-      ...['apps', 'environments', 'stacks', 'data', 'links', 'providers'].map((s) => `/catalog/${s}`),
-    ],
+    invalidate: invalidateAll,
   });
 }
 

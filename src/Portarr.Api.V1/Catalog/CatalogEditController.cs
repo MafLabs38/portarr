@@ -101,14 +101,14 @@ public sealed class CatalogEditController : ControllerBase
             ?? await EditAsync(section, id, "validate", request.Version, CatalogEdits.Upsert(id, request.Item!), cancellationToken, dryRun: true);
     }
 
-    /// <summary>The changes that wait for an administrator's approval, oldest first.</summary>
+    /// <summary>The changes that wait for an administrator's approval, oldest first. How a host is reached is left out of what they show unless the caller may reconfigure (<c>settings.manage</c>), like a read of the item.</summary>
     /// <param name="cancellationToken">Cancels the read.</param>
     [HttpGet("pending")]
     [Authorize(Policy = Permissions.CatalogWrite)]
     [ProducesResponseType<IReadOnlyList<CatalogPendingResource>>(StatusCodes.Status200OK)]
     public async Task<IReadOnlyList<CatalogPendingResource>> GetPendingAsync(CancellationToken cancellationToken)
     {
-        return (await _editor.ListPendingAsync(cancellationToken)).Select(p => p.ToResource()).ToList();
+        return (await _editor.ListPendingAsync(await MayReconfigureAsync(), cancellationToken)).Select(p => p.ToResource()).ToList();
     }
 
     /// <summary>Applies a waiting change. Needs <c>settings.manage</c>: it changes how a host is reached.</summary>
