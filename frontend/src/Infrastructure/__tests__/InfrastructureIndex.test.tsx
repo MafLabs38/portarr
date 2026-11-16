@@ -198,7 +198,10 @@ describe('InfrastructureIndex', () => {
       expect(within(disks).getByText(/97 % · 97\.0 GB of 100 GB · 3\.0 GB free/)).toBeInTheDocument();
       expect(within(card).getByText(/↓ 2\.0 MB\/s · ↑ 512 KB\/s/)).toBeInTheDocument();
       expect(diskColor(0.5)).toBe('disk');
+      expect(diskColor(0.9)).toBe('warning');
+      expect(diskColor(0.899)).toBe('disk');
       expect(diskColor(0.92)).toBe('warning');
+      expect(diskColor(0.95)).toBe('danger');
       expect(diskColor(0.97)).toBe('danger');
     });
   });

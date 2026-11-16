@@ -61,9 +61,9 @@ public static partial class ConnectionGuardrails
 
                 break;
             default:
-                if (node is JsonValue value && value.TryGetValue<string>(out var text) && LooksLikeAddress(text))
+                if (node is JsonValue value && value.TryGetValue<string>(out var text) && LooksLikeAddress(text.Trim()))
                 {
-                    CheckAddress(text, path, problems);
+                    CheckAddress(text.Trim(), path, problems);
                 }
 
                 break;

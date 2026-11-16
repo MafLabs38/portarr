@@ -316,7 +316,15 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
                 cancellationToken);
             if (result.Succeeded)
             {
-                await _pending.RemoveAsync(change.Id, cancellationToken);
+                try
+                {
+                    await _pending.RemoveAsync(change.Id, cancellationToken);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    // The catalog is written: the change is applied. Answer so; the entry that stays in the queue is refused as a conflict if approved again.
+                    LogPendingNotUpdated(change.Section, change.ItemId, exception.GetType().Name);
+                }
             }
 
             return result;
@@ -534,6 +542,9 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Catalog edit of {Section}/{Id} was applied but the audit trail could not be written ({Error})")]
     private partial void LogAuditFailed(string section, string id, string error);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Catalog change {Section}/{Id} was approved and applied but the waiting list could not be updated ({Error})")]
+    private partial void LogPendingNotUpdated(string section, string id, string error);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Catalog edited: {Operation} {Section}/{Id} through {Channel} ({Changes})")]
     private partial void LogEdited(string operation, string section, string id, string channel, string changes);

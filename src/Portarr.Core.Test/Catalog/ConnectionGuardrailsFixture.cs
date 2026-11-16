@@ -27,6 +27,15 @@ public sealed class ConnectionGuardrailsFixture
         Check("stdio", new JsonObject { ["command"] = text }).Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData(" http://127.0.0.1:2375")]
+    [InlineData("\thttp://169.254.169.254/")]
+    [InlineData("tcp://127.0.0.1:2375 ")]
+    public void should_read_an_address_the_way_the_connectors_do_whitespace_included(string text)
+    {
+        Check("docker", new JsonObject { ["url"] = text }).Should().ContainSingle().Which.Should().Contain("loopback, link-local");
+    }
+
     [Fact]
     public void should_look_into_arrays_and_nested_settings()
     {
