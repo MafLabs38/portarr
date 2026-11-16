@@ -52,12 +52,13 @@ public sealed class CatalogEditHosts : IAsyncLifetime
         await ReadOnly.DisposeAsync();
     }
 
-    /// <summary>Puts the writable host back as it started: the seeded catalog, no audit trail, reloaded. Every test that writes starts here.</summary>
+    /// <summary>Puts the writable host back as it started: the seeded catalog, no audit trail, nothing waiting, reloaded. Every test that writes starts here.</summary>
     public async Task ResetWritableAsync()
     {
         await File.WriteAllTextAsync(Path.Combine(Folder, "catalog.yaml"), Catalog, TestContext.Current.CancellationToken);
         File.Delete(Path.Combine(Folder, "catalog.audit.jsonl"));
         File.Delete(Path.Combine(Folder, "catalog.audit.jsonl.1"));
+        File.Delete(Path.Combine(Folder, "catalog.pending.json"));
         await Writable.Services.GetRequiredService<ICatalogService>().ReloadAsync(TestContext.Current.CancellationToken);
     }
 
