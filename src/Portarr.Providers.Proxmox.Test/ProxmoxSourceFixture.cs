@@ -193,8 +193,11 @@ public sealed class ProxmoxSourceFixture
 
     [Theory]
     [InlineData(30, "seconds")]
+    [InlineData(60, "1 minute")]
     [InlineData(600, "10 minutes")]
+    [InlineData(3600, "1 hour")]
     [InlineData(7300, "2 hours")]
+    [InlineData(86_400, "24 hours")]
     [InlineData(200_000, "2 days")]
     public void should_say_the_uptime_in_a_few_words(long seconds, string expected)
     {

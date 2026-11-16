@@ -13,6 +13,8 @@ Portarr is one container (`ghcr.io/<owner>/portarr`) and a data folder. This pag
 | `Deployment` | one replica, `Recreate` (a SQLite file on a `ReadWriteOnce` volume: never two pods), non-root, read-only root file system, no capability, resource limits |
 | `Service`, `Ingress` | port 8484, and a host name for Traefik (any ingress controller works) |
 
+Your own icons go in `/config/catalog/icons` on the data volume (a ConfigMap cannot hold a folder).
+
 Change the three values marked `CHANGE` (the administrator's password, the host name, and the version of the image), then `kubectl apply -f deploy/kubernetes/portarr.yaml`.
 
 ## Settings you will want to know

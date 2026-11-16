@@ -55,6 +55,28 @@ public sealed class ConnectionGuardrailsFixture
         Check("docker", new JsonObject { ["url"] = url }).Should().ContainSingle().Which.Should().Contain(reason);
     }
 
+    [Theory]
+    [InlineData("10.0.0.7")]
+    [InlineData("server-1.homelab.example")]
+    [InlineData("2606:2800:220:1:248:1893:25c8:1946")]
+    public void should_accept_an_environment_address_that_is_a_host_or_an_address(string address)
+    {
+        ConnectionGuardrails.Check(new JsonObject { ["address"] = address }, ["address"]).Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("[::1]")]
+    [InlineData("localhost.")]
+    [InlineData("LOCALHOST")]
+    [InlineData("127.0.0.1")]
+    [InlineData("user@10.0.0.7")]
+    [InlineData("10.0.0.7:8989")]
+    [InlineData("10.0.0.7/path")]
+    public void should_refuse_an_environment_address_that_is_not_a_host_or_means_this_host(string address)
+    {
+        ConnectionGuardrails.Check(new JsonObject { ["address"] = address }, ["address"]).Should().NotBeEmpty();
+    }
+
     [Fact]
     public void should_refuse_a_scheme_a_connector_does_not_speak()
     {

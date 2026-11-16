@@ -66,9 +66,11 @@ internal static class ProxmoxMapper
 
         if (span.TotalHours < 1)
         {
-            return $"{(int)span.TotalMinutes} minutes";
+            return Plural((int)span.TotalMinutes, "minute");
         }
 
-        return span.TotalDays < 2 ? $"{(int)span.TotalHours} hours" : $"{(int)span.TotalDays} days";
+        return span.TotalDays < 2 ? Plural((int)span.TotalHours, "hour") : Plural((int)span.TotalDays, "day");
     }
+
+    private static string Plural(int count, string unit) => count == 1 ? $"1 {unit}" : $"{count} {unit}s";
 }
