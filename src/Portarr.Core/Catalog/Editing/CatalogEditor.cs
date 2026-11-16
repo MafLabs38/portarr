@@ -108,16 +108,22 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
             .ToList() ?? [];
     }
 
+    /// <summary>Why the catalog cannot be written: the option is off, or it is on and the folder is not writable.</summary>
+    private CatalogEditResult ReadOnlyRefusal()
+    {
+        return Refused(
+            CatalogEditStatus.ReadOnly,
+            string.Empty,
+            _options.Writable
+                ? "The catalog is read-only: its folder is not writable. Mount the folder (not the single file) read-write, or turn PORTARR__CATALOG__WRITABLE off."
+                : "The catalog is read-only: set PORTARR__CATALOG__WRITABLE=true to edit it through Portarr.");
+    }
+
     public async Task<CatalogEditResult> EditAsync(CatalogEdit edit, CancellationToken cancellationToken)
     {
         if (!Writable && !edit.DryRun)
         {
-            return Refused(
-                CatalogEditStatus.ReadOnly,
-                string.Empty,
-                _options.Writable
-                    ? "The catalog is read-only: its folder is not writable. Mount the folder (not the single file) read-write, or turn PORTARR__CATALOG__WRITABLE off."
-                    : "The catalog is read-only: set PORTARR__CATALOG__WRITABLE=true to edit it through Portarr.");
+            return ReadOnlyRefusal();
         }
 
         if (!CatalogSections.All.Contains(edit.Section) && edit.Section != CatalogSections.Portal)
@@ -307,7 +313,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
     {
         if (!Writable)
         {
-            return Refused(CatalogEditStatus.ReadOnly, string.Empty, "The catalog is read-only: set PORTARR__CATALOG__WRITABLE=true to edit it through Portarr.");
+            return ReadOnlyRefusal();
         }
 
         await _writeLock.WaitAsync(cancellationToken);

@@ -118,7 +118,7 @@ public sealed partial class CatalogTools
 
     [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "upsert_app", Title = "Create or replace an app", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Creates or replaces an app of the catalog: id, name, type (web, desktop, service), icon, description, urls, workloads, check, repository, notes.")]
+    [Description("Creates or replaces an app of the catalog: id, name, type (web, desktop, service), icon, description, urls, workloads, check, repository, notes. The check is a connection setting: changing it waits for the operator's approval in Settings, Catalog, and sending it as null removes it (a key left out is kept).")]
     public Task<CatalogWriteAnswer> UpsertAppAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
         UpsertAsync(CatalogSections.Apps, item, version, cancellationToken);
 
@@ -175,7 +175,7 @@ public sealed partial class CatalogTools
 
     [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "upsert_mcp_server", Title = "Create or replace an MCP server", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Creates or replaces an MCP server of the catalog: id, name, transport (http or stdio), http ({ url, headers: { Name: { env: VARIABLE } } }) or stdio ({ command, args, env }), notes. Never a secret: a credential is the name of a variable. How to reach or launch a server is a connection setting: it waits for the operator's approval in Settings, Catalog.")]
+    [Description("Creates or replaces an MCP server of the catalog: id, name, transport (http or stdio), http ({ url, headers: { Name: { env: VARIABLE } } }) or stdio ({ command, args, env }), notes. Never a secret: a credential is the name of a variable. How to reach or launch a server is a connection setting: it waits for the operator's approval in Settings, Catalog. To switch transport, send the other section as null (a key left out is kept).")]
     public Task<CatalogWriteAnswer> UpsertMcpServerAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
         UpsertAsync(CatalogSections.McpServers, item, version, cancellationToken);
 
