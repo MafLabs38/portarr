@@ -74,9 +74,9 @@ public sealed partial class CatalogPendingStore
                 File.Move(_path, aside, overwrite: true);
                 LogUnreadable(aside);
             }
-            catch (IOException)
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
-                // Another reader moved it first (a read outside the write lock): the file is gone either way.
+                // Another reader moved it first (a read outside the write lock), or the folder is read-only: an empty list either way.
             }
 
             return [];

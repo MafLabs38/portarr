@@ -65,5 +65,5 @@ The browser gets the snapshot (`GET /api/v1/infrastructure`, `hostMetrics` per m
 ## Limits
 
 - No authentication on node_exporter: restrict port 9100 to Portarr's host.
-- `hostMetrics` is for Docker environments (the only single machine with a card); a launcher-only environment cannot carry it yet.
-- Disks, filesystems and network are not shown yet; long history is Prometheus' job (V8).
+- `hostMetrics` belongs to an environment that is one machine: a Docker host, a `runtime: machine` host (D-126) or a Proxmox node (D-128); a cluster cannot carry it.
+- Only the 8 largest data disks are shown (and a ZFS pool counts once); long history is Prometheus' job (V8).
