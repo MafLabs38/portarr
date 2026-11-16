@@ -106,7 +106,7 @@ public sealed class ProxmoxSourceFixture
         var act = () => Source().ListAsync(Environment, TestContext.Current.CancellationToken);
 
         var failure = (await act.Should().ThrowAsync<HttpRequestException>()).Which;
-        failure.Message.Should().NotContain("the-secret");
+        failure.Message.Should().NotContain("the-secret").And.NotContain("secret-detail", "the body of the answer stays out of the failure");
     }
 
     [Theory]

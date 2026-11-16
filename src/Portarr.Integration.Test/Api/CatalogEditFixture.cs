@@ -203,6 +203,24 @@ public sealed class CatalogEditFixture : IClassFixture<CatalogEditHosts>
     }
 
     [Fact]
+    public async Task should_remove_a_connection_setting_sent_as_null_for_an_administrator_and_hold_it_for_a_key()
+    {
+        await _hosts.ResetWritableAsync();
+        using var admin = await _writable.CreateSignedInClientAsync();
+        var catalog = Path.Combine(_folder, "catalog.yaml");
+        await admin.SendAsync(Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin", new { version = await VersionAsync(admin), item = new { name = "Jellyfin", check = new { url = "http://10.0.0.9:8096/health" } } }, null), Token);
+
+        var asKey = await admin.SendAsync(Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin", new { version = await VersionAsync(admin), item = new { name = "Jellyfin", check = (object?)null } }, Key), Token);
+        var held = (await Pending(admin, null)).Single();
+        var asAdmin = await admin.SendAsync(Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin", new { version = await VersionAsync(admin), item = new { name = "Jellyfin", check = (object?)null } }, null), Token);
+
+        asKey.StatusCode.Should().Be(HttpStatusCode.Accepted, "removing a connection waits for approval for a key that only edits the catalog");
+        held.After!.ContainsKey("check").Should().BeFalse();
+        asAdmin.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await File.ReadAllTextAsync(catalog, Token)).Should().NotContain("10.0.0.9");
+    }
+
+    [Fact]
     public async Task should_check_an_item_without_writing_it()
     {
         await _hosts.ResetWritableAsync();

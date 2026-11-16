@@ -115,6 +115,28 @@ describe('CatalogPage', () => {
     expect(sent).toEqual({ version: 'v1', item: { id: 'grafana', name: 'Grafana' } });
   });
 
+  it('sends an explicit null for a key the draft no longer holds, so that the server removes it', async () => {
+    const user = userEvent.setup();
+    arrange();
+    let sent: unknown;
+    server.use(
+      http.put('/api/v1/catalog/apps/jellyfin', async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json({ status: 'applied', version: 'v2', changes: ['icon: removed'] });
+      }),
+    );
+    renderWithProviders(<CatalogPage />);
+    await user.click(await screen.findByRole('button', { name: 'Edit jellyfin' }));
+
+    await user.clear(screen.getByLabelText(/The whole item/));
+    await user.click(screen.getByLabelText(/The whole item/));
+    await user.paste('{"id":"jellyfin","name":"Jellyfin"}');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByText('Saved.')).toBeInTheDocument();
+    expect(sent).toEqual({ version: 'v1', item: { id: 'jellyfin', name: 'Jellyfin', icon: null } });
+  });
+
   it('checks an item without saving it and shows the server errors by field path', async () => {
     const user = userEvent.setup();
     arrange();

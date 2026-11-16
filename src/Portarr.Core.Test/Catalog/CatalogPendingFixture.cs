@@ -382,6 +382,68 @@ public sealed class CatalogPendingFixture : IDisposable
         result.Status.Should().Be(CatalogEditStatus.Applied);
     }
 
+    private async Task<CatalogEditResult> SendAsync(CatalogActor actor, JsonObject item)
+    {
+        return await _subject.EditAsync(new CatalogEdit("apps", "sonarr", "upsert", await _subject.GetVersionAsync(Token), actor, CatalogEdits.Upsert("sonarr", item)), Token);
+    }
+
+    [Fact]
+    public async Task should_remove_a_connection_setting_sent_as_an_explicit_null_by_an_author_who_may_reconfigure()
+    {
+        await File.WriteAllTextAsync(CatalogFile, "apps:\n  - { id: sonarr, name: Sonarr, notes: kept, check: { url: 'http://10.0.0.7:8989/ping' } }\n", Token);
+
+        var result = await SendAsync(Person, new JsonObject { ["name"] = "Sonarr", ["notes"] = "kept", ["check"] = null });
+
+        result.Status.Should().Be(CatalogEditStatus.Applied);
+        var file = await File.ReadAllTextAsync(CatalogFile, Token);
+        file.Should().NotContain("check").And.NotContain("null").And.Contain("notes: kept");
+    }
+
+    [Fact]
+    public async Task should_keep_a_connection_setting_the_caller_left_out_even_for_an_author_who_may_reconfigure()
+    {
+        await File.WriteAllTextAsync(CatalogFile, "apps:\n  - { id: sonarr, name: Sonarr, check: { url: 'http://10.0.0.7:8989/ping' } }\n", Token);
+
+        await SendAsync(Person, new JsonObject { ["name"] = "Sonarr TV" });
+
+        (await File.ReadAllTextAsync(CatalogFile, Token)).Should().Contain("http://10.0.0.7:8989/ping").And.Contain("Sonarr TV");
+    }
+
+    [Fact]
+    public async Task should_keep_the_removal_of_a_connection_setting_for_approval_and_apply_it_when_approved()
+    {
+        await File.WriteAllTextAsync(CatalogFile, "apps:\n  - { id: sonarr, name: Sonarr, check: { url: 'http://10.0.0.7:8989/ping' } }\n", Token);
+
+        var held = await SendAsync(Assistant, new JsonObject { ["name"] = "Sonarr", ["check"] = null });
+
+        held.Status.Should().Be(CatalogEditStatus.Pending);
+        (await File.ReadAllTextAsync(CatalogFile, Token)).Should().Contain("http://10.0.0.7:8989/ping");
+        (await _subject.ApproveAsync(held.PendingId!, Person, Token)).Status.Should().Be(CatalogEditStatus.Applied);
+        (await File.ReadAllTextAsync(CatalogFile, Token)).Should().NotContain("check");
+    }
+
+    [Fact]
+    public async Task should_switch_an_mcp_server_from_stdio_to_http_by_removing_the_one_and_setting_the_other()
+    {
+        await File.WriteAllTextAsync(CatalogFile, "mcpServers:\n  - { id: docs, name: Docs, transport: stdio, stdio: { command: docs-server } }\n", Token);
+        var item = new JsonObject { ["name"] = "Docs", ["transport"] = "http", ["stdio"] = null, ["http"] = new JsonObject { ["url"] = "https://10.0.0.20:8080/mcp" } };
+
+        var result = await _subject.EditAsync(new CatalogEdit("mcpServers", "docs", "upsert", await _subject.GetVersionAsync(Token), Person, CatalogEdits.Upsert("docs", item)), Token);
+
+        result.Status.Should().Be(CatalogEditStatus.Applied);
+        (await File.ReadAllTextAsync(CatalogFile, Token)).Should().Contain("https://10.0.0.20:8080/mcp").And.NotContain("docs-server");
+    }
+
+    [Fact]
+    public async Task should_not_write_a_null_for_a_setting_that_is_not_protected()
+    {
+        await File.WriteAllTextAsync(CatalogFile, "apps:\n  - { id: sonarr, name: Sonarr, notes: old }\n", Token);
+
+        await SendAsync(Assistant, new JsonObject { ["name"] = "Sonarr", ["notes"] = null });
+
+        (await File.ReadAllTextAsync(CatalogFile, Token)).Should().NotContain("notes").And.NotContain("null");
+    }
+
     [Fact]
     public async Task should_check_an_edit_without_writing_it()
     {

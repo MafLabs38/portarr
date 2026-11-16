@@ -90,7 +90,7 @@ public sealed class PendingMergeFixture
     {
         var merged = PendingMerge.Apply("apps", "sonarr", Item("Sonarr", "http://10.0.0.7/"), Item("Sonarr"), Item("Sonarr TV", "http://10.0.0.7/"))!;
 
-        merged.ContainsKey("check").Should().BeFalse("the change removed it");
+        merged["check"].Should().BeNull("the change removed it: an explicit null says so");
         merged["name"]!.ToString().Should().Be("Sonarr TV", "the name edited meanwhile is kept");
     }
 }

@@ -36,14 +36,8 @@ public static class PendingMerge
                 throw Conflict(section, id, key);
             }
 
-            if (after[key] is { } value)
-            {
-                merged[key] = value.DeepClone();
-            }
-            else
-            {
-                merged.Remove(key);
-            }
+            // A key the change removes is sent as an explicit null: that is how an edit says "remove it" (a key left out means keep it).
+            merged[key] = after[key]?.DeepClone();
         }
 
         return merged;

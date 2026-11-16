@@ -66,6 +66,15 @@ export const guidedFields: Record<CatalogSectionName, { key: string; label: stri
   ],
 };
 
+/**
+ * What to send for a draft: a key the item had and the draft no longer holds is sent as an explicit null, which asks the server to
+ * remove it (a key left out means keep it: an assistant reads an item without its connection settings).
+ */
+export function withRemovals(original: CatalogItem | null, draft: CatalogItem): CatalogItem {
+  const removed = Object.keys(original ?? {}).filter((key) => !(key in draft));
+  return { ...draft, ...Object.fromEntries(removed.map((key) => [key, null])) };
+}
+
 export type ParsedDraft = { item: CatalogItem } | { error: string };
 
 /** The item the text holds, or why it is not one. */

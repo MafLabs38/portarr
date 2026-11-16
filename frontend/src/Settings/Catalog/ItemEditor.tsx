@@ -8,7 +8,7 @@ import translate from 'Utilities/String/translate';
 
 import styles from './Catalog.module.css';
 import GuidedFields from './GuidedFields';
-import { formatDraft, idPattern, parseDraft } from './itemDraft';
+import { formatDraft, idPattern, parseDraft, withRemovals } from './itemDraft';
 import { useSaveItem, useValidateItem } from './useCatalog';
 
 interface ItemEditorProps {
@@ -115,7 +115,7 @@ export default function ItemEditor({ section, item, version, onClose, onSaved }:
     }
     setOutcome(null);
     try {
-      const body = { section, item: draft, version };
+      const body = { section, item: withRemovals(item, draft), version };
       const result = await (saving ? save : validate).mutateAsync(body);
       setOutcome(outcomeOf(result, saving));
       if (saving && result.status !== 'unchanged') {

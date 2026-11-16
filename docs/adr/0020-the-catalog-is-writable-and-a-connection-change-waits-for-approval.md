@@ -2,7 +2,7 @@
 
 - **Status**: proposed
 - **Date**: 2026-11-16
-- **Spec**: D-122 to D-125 (amends D-16, D-31 and D-112); D-126 to D-128 (a runtime without an engine, disks and network, the Proxmox connector) follow the same connector pattern and carry no ADR of their own
+- **Spec**: D-122 to D-125 (amends D-16, D-31 and D-112); D-126 to D-128 (a runtime without an engine, disks and network, the Proxmox connector) are in [0021](0021-a-host-without-an-engine-and-a-proxmox-node-are-runtimes.md)
 
 ## Context
 

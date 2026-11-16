@@ -61,12 +61,29 @@ public static class ProtectedSettings
     {
         return next is null
             ? []
-            : [.. keys.Where(key => next[key] is { } sent && (current?[key] is not { } before || YamlNodes.Canonical(before) != YamlNodes.Canonical(sent)))];
+            : [.. keys.Where(key => IsSetOrChanged(current, next, key) || IsRemoved(current, next, key))];
+    }
+
+    private static bool IsSetOrChanged(JsonObject? current, JsonObject next, string key)
+    {
+        return next[key] is { } sent && (current?[key] is not { } before || YamlNodes.Canonical(before) != YamlNodes.Canonical(sent));
+    }
+
+    /// <summary>A key sent as an explicit JSON <c>null</c> while the item holds it: the caller asks to remove it (a key left out means keep it).</summary>
+    private static bool IsRemoved(JsonObject? current, JsonObject next, string key) => next.ContainsKey(key) && next[key] is null && current?[key] is not null;
+
+    /// <summary>The item without its properties set to <c>null</c> (what a caller sends to remove a setting): they are never written.</summary>
+    public static JsonObject? WithoutNulls(JsonObject? item)
+    {
+        return item is null || !item.Any(p => p.Value is null)
+            ? item
+            : new JsonObject(item.Where(p => p.Value is not null).Select(p => KeyValuePair.Create(p.Key, p.Value?.DeepClone())));
     }
 
     /// <summary>
-    /// The item as it will be written: a protected setting the caller left out is the current one (kept). One the caller sets
-    /// or changes is refused unless <paramref name="allowChange"/> (the author may reconfigure, or it is an approval).
+    /// The item as it will be written: a protected setting the caller left out is the current one (kept); one sent as an explicit
+    /// <c>null</c> is removed. One the caller sets, changes or removes is refused unless <paramref name="allowChange"/> (the author
+    /// may reconfigure, or it is an approval).
     /// </summary>
     public static JsonObject? Apply(string section, string id, JsonObject? current, JsonObject? next, IReadOnlyList<string> keys, bool allowChange = false)
     {
@@ -81,11 +98,11 @@ public static class ProtectedSettings
         {
             var before = current?[key];
             var sent = next[key];
-            if (sent is null)
+            if (sent is null && !next.ContainsKey(key))
             {
                 result = Restore(result, next, key, before);
             }
-            else if (!allowChange && (before is null || YamlNodes.Canonical(before) != YamlNodes.Canonical(sent)))
+            else if (!allowChange && (IsRemoved(current, next, key) || (sent is not null && (before is null || YamlNodes.Canonical(before) != YamlNodes.Canonical(sent)))))
             {
                 refused.Add(key);
             }
