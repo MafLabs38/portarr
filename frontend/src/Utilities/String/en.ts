@@ -715,6 +715,8 @@ const en: Record<string, string> = {
   DeleteRole: 'Delete role {name}',
   DeleteUser: 'Delete user {name}',
   Description: 'Description',
+  Notes: 'Notes',
+  Kind: 'Kind',
   Detail: 'Detail',
   Disable: 'Disable',
   DisableUser: 'Disable user {name}',

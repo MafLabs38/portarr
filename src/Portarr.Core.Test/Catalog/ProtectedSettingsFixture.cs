@@ -3,7 +3,7 @@ using Portarr.Core.Catalog.Editing;
 
 namespace Portarr.Core.Test.Catalog;
 
-/// <summary>How hosts are reached (connector sections, runtime, check) is never changed by an edit (17-1).</summary>
+/// <summary>How hosts are reached (connector sections, runtime, check) is protected (17-1, amended by D-123): an edit that leaves them out keeps them, and one that sets or changes them waits for approval unless its author may reconfigure.</summary>
 public sealed class ProtectedSettingsFixture
 {
     private static readonly string[] Connectors = ["docker", "kubernetes", "cloudflare", "backrest", "hostMetrics"];

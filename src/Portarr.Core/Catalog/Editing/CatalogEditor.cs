@@ -225,7 +225,18 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
 
         var replaced = (await _pending.ListAsync(cancellationToken)).Where(p => CatalogPendingStore.Replaces(p, edit.Section, edit.Id, edit.Actor.Channel, edit.Actor.User)).ToList();
         var pending = new PendingChange(Guid.NewGuid().ToString("N")[..12], _timeProvider.GetUtcNow(), edit.Actor.Channel, edit.Actor.User, edit.Actor.Via, edit.Section, edit.Id, edit.Operation, current, next, changes);
-        if (!await _pending.AddAsync(pending, cancellationToken))
+        bool added;
+        try
+        {
+            added = await _pending.AddAsync(pending, cancellationToken);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            LogPendingNotUpdated(edit.Section, edit.Id, exception.GetType().Name);
+            return Refused(CatalogEditStatus.Invalid, version, "The waiting changes could not be saved (is the catalog folder writable?): nothing was kept.");
+        }
+
+        if (!added)
         {
             return Refused(CatalogEditStatus.Invalid, version, $"Too many changes already wait for approval ({CatalogPendingStore.Capacity} in all, {CatalogPendingStore.CapacityPerAuthor} from one author): approve or reject some in Settings, Catalog.");
         }
@@ -248,7 +259,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            // The file is written: the edit is applied. Say so, and that the trail missed it, instead of answering 500 for a change that happened.
+            // The action happened (a write, a proposal, a rejection): say that its trail missed it, instead of answering 500 for it.
             LogAuditFailed(entry.Section, entry.Id, exception.GetType().Name);
         }
     }
@@ -322,7 +333,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
                 {
-                    // The catalog is written: the change is applied. Answer so; the entry that stays in the queue is refused as a conflict if approved again.
+                    // The catalog is written: the change is applied. Answer so; the entry that stays in the queue answers unchanged and clears if approved again.
                     LogPendingNotUpdated(change.Section, change.ItemId, exception.GetType().Name);
                 }
             }
@@ -540,10 +551,10 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
     [LoggerMessage(Level = LogLevel.Error, Message = "PORTARR__CATALOG__WRITABLE is on but the catalog folder {Folder} is not writable ({Error}): the catalog stays read-only. Mount the folder, not the single file, read-write")]
     private partial void LogFolderNotWritable(string folder, string error);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "Catalog edit of {Section}/{Id} was applied but the audit trail could not be written ({Error})")]
+    [LoggerMessage(Level = LogLevel.Error, Message = "Catalog action on {Section}/{Id} happened but the audit trail could not be written ({Error})")]
     private partial void LogAuditFailed(string section, string id, string error);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "Catalog change {Section}/{Id} was approved and applied but the waiting list could not be updated ({Error})")]
+    [LoggerMessage(Level = LogLevel.Error, Message = "Catalog change {Section}/{Id}: the waiting list could not be updated ({Error})")]
     private partial void LogPendingNotUpdated(string section, string id, string error);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Catalog edited: {Operation} {Section}/{Id} through {Channel} ({Changes})")]

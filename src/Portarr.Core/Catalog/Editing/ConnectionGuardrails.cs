@@ -19,7 +19,7 @@ public static partial class ConnectionGuardrails
 {
     private static readonly string[] Schemes = ["http", "https", "tcp", "unix"];
 
-    private static readonly string[] ForbiddenNames = ["localhost", "metadata", "metadata.google.internal"];
+    private static readonly string[] ForbiddenNames = ["localhost", "metadata", "metadata.google.internal", "instance-data", "instance-data.ec2.internal"];
 
     /// <summary>The problems with the protected settings of an item, empty when there is none.</summary>
     public static IReadOnlyList<string> Check(JsonObject? item, IReadOnlyList<string> keys)

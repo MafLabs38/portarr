@@ -1,6 +1,9 @@
 import type { CatalogItem, CatalogSectionName } from 'typings/Catalog';
 
-/** The simple fields offered as inputs for each section; the rest of an item is edited in its JSON. */
+/**
+ * The simple fields offered as inputs for each section; the rest of an item is edited in its JSON. Each key is one the section's
+ * document has (CatalogDocument.cs, McpDocument.cs): the parser refuses a key it does not know.
+ */
 export const guidedFields: Record<CatalogSectionName, { key: string; label: string; options?: string[] }[]> = {
   apps: [
     { key: 'name', label: 'Name' },
@@ -13,7 +16,7 @@ export const guidedFields: Record<CatalogSectionName, { key: string; label: stri
     { key: 'name', label: 'Name' },
     { key: 'address', label: 'Address' },
     { key: 'host', label: 'HypervisorHost' },
-    { key: 'description', label: 'Description' },
+    { key: 'notes', label: 'Notes' },
   ],
   stacks: [
     { key: 'name', label: 'Name' },
@@ -21,15 +24,37 @@ export const guidedFields: Record<CatalogSectionName, { key: string; label: stri
   ],
   data: [
     { key: 'name', label: 'Name' },
-    { key: 'description', label: 'Description' },
+    { key: 'app', label: 'App' },
+    { key: 'kind', label: 'Kind' },
   ],
   links: [
     { key: 'name', label: 'Name' },
-    { key: 'description', label: 'Description' },
+    { key: 'kind', label: 'Kind', options: ['', 'wireguard-tunnel', 'vpn', 'lan', 'peering', 'ssh-tunnel', 'other'] },
+    { key: 'notes', label: 'Notes' },
   ],
   providers: [
     { key: 'name', label: 'Name' },
-    { key: 'description', label: 'Description' },
+    {
+      key: 'kind',
+      label: 'Kind',
+      options: [
+        '',
+        'cdn',
+        'paas',
+        'dns',
+        'registrar',
+        'cloud',
+        'vps',
+        'storage',
+        'backup',
+        'email',
+        'git',
+        'registry',
+        'monitoring',
+        'other',
+      ],
+    },
+    { key: 'account', label: 'Account' },
   ],
   mcpServers: [
     { key: 'name', label: 'Name' },

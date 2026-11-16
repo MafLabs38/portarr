@@ -13,7 +13,13 @@ namespace Portarr.Core.Net;
 /// </summary>
 public static class OutboundAddressPolicy
 {
-    /// <summary>Whether an address may be connected to: not loopback, link-local, unspecified or multicast (IPv4-mapped IPv6 is unmapped first).</summary>
+    /// <summary>fd00:ec2::254, the AWS metadata service over IPv6.</summary>
+    private static readonly IPAddress AwsMetadataV6 = new([0xfd, 0x00, 0x0e, 0xc2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02, 0x54]);
+
+    /// <summary>The Alibaba Cloud metadata service (a carrier-grade NAT address).</summary>
+    private static readonly IPAddress AlibabaMetadata = new([100, 100, 100, 200]);
+
+    /// <summary>Whether an address may be connected to: not loopback, link-local, unspecified, multicast or a cloud metadata address (IPv4-mapped IPv6 is unmapped first).</summary>
     public static bool IsAllowed(IPAddress address)
     {
         if (address.IsIPv4MappedToIPv6)
@@ -24,6 +30,11 @@ public static class OutboundAddressPolicy
         if (IPAddress.IsLoopback(address) || address.Equals(IPAddress.Any) || address.Equals(IPAddress.IPv6Any) || address.Equals(IPAddress.None))
         {
             return false;
+        }
+
+        if (address.Equals(AwsMetadataV6) || address.Equals(AlibabaMetadata))
+        {
+            return false; // the metadata services that are not on a link-local address
         }
 
         if (address.AddressFamily == AddressFamily.InterNetworkV6)

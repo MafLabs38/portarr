@@ -181,6 +181,9 @@ public sealed class CatalogPendingFixture : IDisposable
     [InlineData("http://metadata.google.internal/")]
     [InlineData("http://[::1]:9/")]
     [InlineData("http://0.0.0.0/")]
+    [InlineData("http://[fd00:ec2::254]/")]
+    [InlineData("http://100.100.100.200/")]
+    [InlineData("http://instance-data/")]
     [InlineData("http://[::ffff:127.0.0.1]/")]
     [InlineData("http://[::ffff:169.254.169.254]/")]
     [InlineData("http://2130706433/")]
@@ -255,6 +258,32 @@ public sealed class CatalogPendingFixture : IDisposable
 
         result.Status.Should().Be(CatalogEditStatus.Invalid);
         (await File.ReadAllTextAsync(CatalogFile, Token)).Should().NotContain("169.254");
+    }
+
+    [Fact]
+    public async Task should_answer_applied_when_the_waiting_list_cannot_be_updated_after_the_catalog_was_written()
+    {
+        var pending = await UpsertAsync(Assistant, "http://10.0.0.7:8989/ping");
+        Directory.CreateDirectory(Path.Combine(_folder, "catalog.pending.json.tmp")); // the list cannot be rewritten
+
+        var result = await _subject.ApproveAsync(pending.PendingId!, Person, Token);
+
+        result.Status.Should().Be(CatalogEditStatus.Applied, "the catalog is written whatever happens to the list");
+        (await File.ReadAllTextAsync(CatalogFile, Token)).Should().Contain("http://10.0.0.7:8989/ping");
+        Directory.Delete(Path.Combine(_folder, "catalog.pending.json.tmp"));
+        (await _subject.ApproveAsync(pending.PendingId!, Person, Token)).Status.Should().Be(CatalogEditStatus.Unchanged, "approving it again changes nothing and clears it");
+        (await _subject.ListPendingAsync(true, Token)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task should_refuse_a_proposal_when_the_waiting_list_cannot_be_saved()
+    {
+        Directory.CreateDirectory(Path.Combine(_folder, "catalog.pending.json.tmp"));
+
+        var result = await UpsertAsync(Assistant, "http://10.0.0.7:8989/ping");
+
+        result.Status.Should().Be(CatalogEditStatus.Invalid);
+        result.Errors.Should().ContainSingle().Which.Should().Contain("could not be saved");
     }
 
     [Fact]
