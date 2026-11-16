@@ -165,7 +165,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
             needsApproval = touches && !edit.Actor.Reconfigure;
             next = ProtectedSettings.Apply(edit.Section, edit.Id, current, proposed, keys, allowChange: true);
             var guarded = ProtectedSettings.GuardedKeysOf(edit.Section, _parser.GetConnectorSections());
-            if (touches && ConnectionGuardrails.Check(next, ProtectedSettings.ChangedKeys(current, next, guarded)) is { Count: > 0 } problems)
+            if (ProtectedSettings.ChangedKeys(current, next, guarded) is { Count: > 0 } changedGuarded && ConnectionGuardrails.Check(next, changedGuarded) is { Count: > 0 } problems)
             {
                 return new CatalogEditResult(CatalogEditStatus.Invalid, version, [], problems);
             }

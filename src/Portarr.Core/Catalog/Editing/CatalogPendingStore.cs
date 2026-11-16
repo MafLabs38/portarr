@@ -69,8 +69,16 @@ public sealed partial class CatalogPendingStore
         catch (JsonException)
         {
             var aside = $"{_path}.corrupt-{_clock.GetUtcNow():yyyyMMddHHmmss}";
-            File.Move(_path, aside, overwrite: true);
-            LogUnreadable(aside);
+            try
+            {
+                File.Move(_path, aside, overwrite: true);
+                LogUnreadable(aside);
+            }
+            catch (IOException)
+            {
+                // Another reader moved it first (a read outside the write lock): the file is gone either way.
+            }
+
             return [];
         }
     }

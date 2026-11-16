@@ -40,7 +40,7 @@ public sealed class ProxmoxClient
     internal async Task<ProxmoxNode> GetNodeAsync(ProxmoxEndpoint endpoint, CancellationToken cancellationToken)
     {
         using var document = await GetAsync(endpoint, "nodes", cancellationToken);
-        var node = document.RootElement.GetProperty("data").EnumerateArray().FirstOrDefault(n => n.TryGetProperty("node", out var name) && name.GetString() == endpoint.Node);
+        var node = Data(document).FirstOrDefault(n => n.TryGetProperty("node", out var name) && name.GetString() == endpoint.Node);
         return node.ValueKind == JsonValueKind.Undefined
             ? throw new InvalidDataException($"Proxmox has no node '{endpoint.Node}'.")
             : new ProxmoxNode(endpoint.Node, Text(node, "status") == "online", Number(node, "maxcpu"), Number(node, "cpu"), (long)Number(node, "mem"), (long)Number(node, "maxmem"));
@@ -49,7 +49,15 @@ public sealed class ProxmoxClient
     internal async Task<IReadOnlyList<ProxmoxGuest>> ListContainersAsync(ProxmoxEndpoint endpoint, CancellationToken cancellationToken)
     {
         using var document = await GetAsync(endpoint, $"nodes/{endpoint.Node}/lxc", cancellationToken);
-        return document.RootElement.GetProperty("data").EnumerateArray().Select(ToGuest).ToList();
+        return Data(document).Select(ToGuest).ToList();
+    }
+
+    /// <summary>The <c>data</c> array of an answer; anything else (an error body, another shape) is one kind of failure.</summary>
+    private static IEnumerable<JsonElement> Data(JsonDocument document)
+    {
+        return document.RootElement.ValueKind == JsonValueKind.Object && document.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array
+            ? data.EnumerateArray()
+            : throw new InvalidDataException("Proxmox answered with something else than a list in 'data'.");
     }
 
     private static ProxmoxGuest ToGuest(JsonElement guest)

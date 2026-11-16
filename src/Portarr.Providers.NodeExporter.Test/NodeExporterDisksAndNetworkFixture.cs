@@ -48,17 +48,21 @@ public sealed class NodeExporterDisksAndNetworkFixture
     }
 
     [Fact]
-    public async Task should_count_a_zfs_pool_once_and_not_the_volumes_of_its_containers()
+    public async Task should_count_a_zfs_pool_once_from_what_its_datasets_reference()
     {
-        var text = Fs("rpool/ROOT/pve-1", "/", "zfs", 800e9, 700e9)
-            + Fs("rpool/data", "/rpool/data", "zfs", 800e9, 700e9)
+        // A 1 TB pool with 90 GB free: the root dataset references 10 GB, the data dataset 880 GB, and a container's volume
+        // 2 GB of its 8 GB quota. Each dataset's size is what it references plus the free space (or its quota).
+        var text = Fs("rpool/ROOT/pve-1", "/", "zfs", 100e9, 90e9)
+            + Fs("rpool", "/rpool", "zfs", 90.1e9, 90e9)
+            + Fs("rpool/data", "/rpool/data", "zfs", 970e9, 90e9)
             + Fs("rpool/data/subvol-101-disk-0", "/rpool/data/subvol-101-disk-0", "zfs", 8e9, 6e9)
-            + Fs("rpool/data/subvol-102-disk-0", "/rpool/data/subvol-102-disk-0", "zfs", 16e9, 1e9)
             + Fs("/dev/sdb1", "/mnt/backup", "ext4", 2000e9, 500e9);
 
         var disks = (await ReadAsync(new NodeExporterSampler(), text)).Disks!;
 
-        disks.Select(d => (d.Device, d.SizeBytes)).Should().Equal(("/dev/sdb1", 2_000_000_000_000), ("rpool", 800_000_000_000));
+        disks.Select(d => (d.Device, d.Mount, d.SizeBytes, d.UsedBytes)).Should().Equal(
+            ("/dev/sdb1", "/mnt/backup", 2_000_000_000_000, 1_500_000_000_000),
+            ("rpool", "/rpool", 982_100_000_000, 892_100_000_000));
     }
 
     [Fact]

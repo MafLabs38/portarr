@@ -18,6 +18,8 @@ public sealed class ProxmoxSourceFixture
 
     private readonly List<HttpRequestMessage> _requests = [];
     private readonly Dictionary<string, string?> _configuration = new() { ["PORTARR_PROXMOX_TOKEN"] = "the-secret" };
+    private HttpStatusCode _status = HttpStatusCode.OK;
+    private string? _bodyForEverything;
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 11, 16, 12, 0, 0, TimeSpan.Zero));
 
     private const string Nodes = """{ "data": [ { "node": "other", "status": "online", "maxcpu": 2, "cpu": 0.9 }, { "node": "hv", "status": "online", "maxcpu": 8, "cpu": 0.25, "mem": 8000000000, "maxmem": 32000000000 } ] }""";
@@ -93,6 +95,65 @@ public sealed class ProxmoxSourceFixture
         _requests.Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    public async Task should_fail_loudly_when_proxmox_refuses_or_breaks_without_leaking_the_token(HttpStatusCode status)
+    {
+        _status = status;
+
+        var act = () => Source().ListAsync(Environment, TestContext.Current.CancellationToken);
+
+        var failure = (await act.Should().ThrowAsync<HttpRequestException>()).Which;
+        failure.Message.Should().NotContain("the-secret");
+    }
+
+    [Theory]
+    [InlineData("""{ "errors": { "node": "no such node" } }""")]
+    [InlineData("""{ "data": "not a list" }""")]
+    [InlineData("[]")]
+    public async Task should_treat_any_answer_that_is_not_a_list_as_one_failure(string body)
+    {
+        _bodyForEverything = body;
+
+        var act = () => Source().ListAsync(Environment, TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<InvalidDataException>();
+    }
+
+    [Fact]
+    public async Task should_refuse_an_answer_past_the_size_cap()
+    {
+        _bodyForEverything = """{ "data": [""" + string.Join(',', Enumerable.Repeat("""{ "vmid": 1, "name": "x" }""", 200_000)) + "] }";
+
+        var act = () => Source().ListAsync(Environment, TestContext.Current.CancellationToken);
+
+        await act.Should().ThrowAsync<Exception>("a runaway answer is not a Proxmox node");
+    }
+
+    [Fact]
+    public async Task should_not_read_without_a_token_and_say_why()
+    {
+        _configuration["PORTARR_PROXMOX_TOKEN"] = string.Empty;
+
+        Source().GetConfigurationError(Environment).Should().Be(ReasonCodes.TokenMissing);
+        var act = () => Source().ListAsync(Environment, TestContext.Current.CancellationToken);
+        await act.Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task should_report_an_offline_node_as_not_ready_with_no_figures()
+    {
+        _bodyForEverything = """{ "data": [ { "node": "hv", "status": "offline" } ] }""";
+
+        var sample = await Source().SampleAsync(Environment, [], TestContext.Current.CancellationToken);
+
+        var machine = sample.Machines.Should().ContainSingle().Subject;
+        machine.CpuCapacityCores.Should().BeNull();
+        machine.MemoryCapacityBytes.Should().BeNull();
+    }
+
     [Fact]
     public void should_pin_the_certificate_by_its_sha256_whatever_the_case_of_the_fingerprint()
     {
@@ -123,7 +184,12 @@ public sealed class ProxmoxSourceFixture
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             owner._requests.Add(request);
-            var body = request.RequestUri!.AbsolutePath switch
+            if (owner._status != HttpStatusCode.OK)
+            {
+                return Task.FromResult(new HttpResponseMessage(owner._status) { Content = new StringContent("""{ "errors": "secret-detail" }""") });
+            }
+
+            var body = owner._bodyForEverything ?? request.RequestUri!.AbsolutePath switch
             {
                 "/api2/json/nodes" => Nodes,
                 "/api2/json/nodes/hv/lxc" => Containers,

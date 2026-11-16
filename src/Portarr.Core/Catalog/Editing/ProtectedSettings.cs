@@ -20,6 +20,9 @@ public static class ProtectedSettings
     public const string HttpKey = "http";
     public const string StdioKey = "stdio";
 
+    /// <summary>An app's links: not protected (they are content), but the address check of an app with no <c>check</c> fetches them, so they pass the guardrails.</summary>
+    public const string UrlsKey = "urls";
+
     /// <summary>The keys of a section's items that are protected; the connector sections are those the registered connectors own.</summary>
     public static IReadOnlyList<string> KeysOf(string section, IEnumerable<string> connectorSections) => section switch
     {
@@ -30,11 +33,17 @@ public static class ProtectedSettings
     };
 
     /// <summary>
-    /// The protected keys whose addresses <see cref="ConnectionGuardrails"/> checks: the ones Portarr itself calls. The arguments of a
+    /// The keys whose addresses <see cref="ConnectionGuardrails"/> checks: the ones Portarr itself calls (the protected ones, and
+    /// an app's links, which its default check fetches). The arguments of a
     /// local MCP program (<c>stdio</c>) may name a loopback address (a browser's debugging port): they wait for approval, no more.
     /// </summary>
     public static IReadOnlyList<string> GuardedKeysOf(string section, IEnumerable<string> connectorSections) =>
-        section == CatalogSections.McpServers ? [HttpKey] : KeysOf(section, connectorSections);
+        section switch
+        {
+            CatalogSections.McpServers => [HttpKey],
+            CatalogSections.Apps => [CheckKey, UrlsKey],
+            _ => KeysOf(section, connectorSections),
+        };
 
     /// <summary>Whether the edit sets, changes or removes a protected setting (a removed item is removed whole: that is an explicit act of its own).</summary>
     public static bool Touches(JsonObject? current, JsonObject? next, IReadOnlyList<string> keys) => ChangedKeys(current, next, keys).Count > 0;

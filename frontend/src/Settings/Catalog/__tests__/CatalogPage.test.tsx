@@ -171,7 +171,7 @@ describe('CatalogPage', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 
-  it('lets an administrator approve or reject a waiting change and shows what would change', async () => {
+  it('lets an administrator approve a waiting change and shows what would change', async () => {
     const user = userEvent.setup();
     arrange({ pending: [pendingChange] });
     let approved: string | undefined;
@@ -186,11 +186,51 @@ describe('CatalogPage', () => {
 
     expect(await screen.findByText('environments / server-2')).toBeInTheDocument();
     expect(screen.getByLabelText('After')).toHaveTextContent('http://10.0.0.30:2375');
-    expect(screen.getByRole('button', { name: 'Reject' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Approve' }));
 
     expect(approved).toBe('abc123');
+  });
+
+  it('lets an administrator reject a waiting change', async () => {
+    const user = userEvent.setup();
+    arrange({ pending: [pendingChange] });
+    let rejected: string | undefined;
+    server.use(
+      http.delete('/api/v1/catalog/pending/:id', ({ params }) => {
+        rejected = String(params.id);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderWithProviders(<CatalogPage />);
+    await user.click(await screen.findByRole('tab', { name: /Pending/ }));
+
+    await user.click(await screen.findByRole('button', { name: 'Reject' }));
+
+    expect(rejected).toBe('abc123');
+  });
+
+  it('tells the administrator why an approval was refused and keeps the change', async () => {
+    const user = userEvent.setup();
+    arrange({ pending: [pendingChange] });
+    server.use(
+      http.post('/api/v1/catalog/pending/:id/approve', () =>
+        HttpResponse.json(
+          {
+            title: 'Conflict',
+            detail: "environments 'server-2', docker, changed since this was asked for: reject it and ask again.",
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+    renderWithProviders(<CatalogPage />);
+    await user.click(await screen.findByRole('tab', { name: /Pending/ }));
+
+    await user.click(await screen.findByRole('button', { name: 'Approve' }));
+
+    expect(await screen.findByText(/changed since this was asked for/)).toBeInTheDocument();
+    expect(screen.getByText('environments / server-2')).toBeInTheDocument();
   });
 
   it('shows a waiting change but no decision buttons to someone who is not an administrator', async () => {

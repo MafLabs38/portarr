@@ -20,7 +20,7 @@ Change the three values marked `CHANGE` (the administrator's password, the host 
 - **`PORTARR__AUTH__COOKIESECURITY=Always`**: the session cookie is always `Secure`. Behind a proxy that ends TLS, Portarr only sees plain HTTP; this keeps the cookie from ever travelling in clear.
 - **The cluster itself** is declared in the catalog with `tokenEnv: PORTARR_K8S_TOKEN` (the variable the manifest fills from `portarr-token`) and `caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt` (mounted by Kubernetes). The catalog never holds a token ([catalog.md](catalog.md#secret-variables)).
 - **Reaching the other hosts** (Docker sockets, node_exporter, Backrest) is a matter of network: the pod must reach them, and a Docker host is read through a read-only [socket proxy](connectors/docker.md), never the socket itself.
-- **Credentials** for the connectors (`PORTARR_BACKREST_…`, `PORTARR_CLOUDFLARE_…`, `PORTARR_GITHUB_…`) go in a `Secret` read as environment variables, never in the catalog.
+- **Credentials** for the connectors (`PORTARR_BACKREST_…`, `PORTARR_CLOUDFLARE_…`, `PORTARR_GITHUB_…`, `PORTARR_PROXMOX_…`) go in a `Secret` read as environment variables, never in the catalog.
 
 ## Reaching the machines it watches
 

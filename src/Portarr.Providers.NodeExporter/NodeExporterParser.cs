@@ -195,24 +195,41 @@ internal static class NodeExporterParser
         }
 
         /// <summary>
-        /// The disks: one per device (its shortest mount) and one per ZFS pool (its largest dataset: every dataset is a device of its
-        /// own, and a container's volume is not a disk of the host), data filesystems only, the largest <see cref="MaxDisks"/>;
-        /// null when the exporter exposes none.
+        /// The disks: one per device (its shortest mount) and one per ZFS pool, data filesystems only, the largest
+        /// <see cref="MaxDisks"/>; null when the exporter exposes none.
         /// </summary>
         private List<HostDisk>? ToDisks()
         {
             var disks = _filesystems
                 .Where(f => f.Value.Size > 0 && DiskTypes.Contains(f.Value.FsType) && !IsSystemMount(f.Key.Mount))
                 .GroupBy(f => DiskName(f.Key.Device, f.Value.FsType), StringComparer.Ordinal)
-                .Select(group => (Name: group.Key, Entry: group.First().Value.FsType != "zfs"
-                    ? group.OrderBy(f => f.Key.Mount.Length).ThenBy(f => f.Key.Mount, StringComparer.Ordinal).First()
-                    : group.OrderByDescending(f => f.Value.Size).ThenBy(f => f.Key.Mount.Length).ThenBy(f => f.Key.Mount, StringComparer.Ordinal).First()))
-                .Select(g => new HostDisk(g.Entry.Key.Mount, g.Name, g.Entry.Value.FsType, (long)g.Entry.Value.Size, (long)Math.Clamp(g.Entry.Value.Avail, 0, g.Entry.Value.Size)))
+                .Select(group => group.First().Value.FsType == "zfs" ? ToPool(group.Key, group) : ToDisk(group.Key, group))
                 .OrderByDescending(d => d.SizeBytes)
                 .ThenBy(d => d.Mount, StringComparer.Ordinal)
                 .Take(MaxDisks)
                 .ToList();
             return disks.Count > 0 ? disks : null;
+        }
+
+        private static HostDisk ToDisk(string device, IEnumerable<KeyValuePair<(string Device, string Mount), (string FsType, double Size, double Avail)>> entries)
+        {
+            var entry = entries.OrderBy(f => f.Key.Mount.Length).ThenBy(f => f.Key.Mount, StringComparer.Ordinal).First();
+            return new HostDisk(entry.Key.Mount, device, entry.Value.FsType, (long)entry.Value.Size, (long)Math.Clamp(entry.Value.Avail, 0, entry.Value.Size));
+        }
+
+        /// <summary>
+        /// A ZFS pool as one disk. Every dataset is a filesystem of its own whose size is what it references plus the pool's free
+        /// space (or its quota), and whose available space is the pool's free space (or what is left of its quota): the pool's used
+        /// space is the sum of what the datasets reference, its free space the largest available. Volumes of virtual disks (zvols)
+        /// and snapshots are not filesystems, so the figure is a lower bound.
+        /// </summary>
+        private static HostDisk ToPool(string pool, IEnumerable<KeyValuePair<(string Device, string Mount), (string FsType, double Size, double Avail)>> entries)
+        {
+            var datasets = entries.GroupBy(f => f.Key.Device, StringComparer.Ordinal).Select(g => g.OrderBy(f => f.Key.Mount.Length).First()).ToList();
+            var used = datasets.Sum(f => Math.Max(f.Value.Size - f.Value.Avail, 0));
+            var avail = datasets.Max(f => Math.Clamp(f.Value.Avail, 0, f.Value.Size));
+            var root = datasets.FirstOrDefault(f => f.Key.Device == pool);
+            return new HostDisk(root.Key.Mount ?? pool, pool, "zfs", (long)(used + avail), (long)avail);
         }
 
         /// <summary>The device a disk is counted as: itself, or for ZFS the pool (<c>rpool/data/subvol-101-disk-0</c> is part of <c>rpool</c>).</summary>

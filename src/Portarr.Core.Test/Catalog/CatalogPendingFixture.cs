@@ -277,6 +277,33 @@ public sealed class CatalogPendingFixture : IDisposable
         result.Errors.Should().NotContain(error => error.Contains("scheme", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("http://127.0.0.1:8484/")]
+    [InlineData("http://169.254.169.254/latest")]
+    [InlineData("http://localhost:3000/")]
+    public async Task should_refuse_a_link_an_address_check_would_fetch_whoever_writes_it(string href)
+    {
+        var item = new JsonObject { ["name"] = "Sonarr", ["urls"] = new JsonArray(new JsonObject { ["label"] = "Public", ["href"] = href }) };
+
+        foreach (var actor in new[] { Person, Assistant })
+        {
+            var result = await _subject.EditAsync(new CatalogEdit("apps", "sonarr", "upsert", await _subject.GetVersionAsync(Token), actor, CatalogEdits.Upsert("sonarr", item)), Token);
+
+            result.Status.Should().Be(CatalogEditStatus.Invalid);
+            result.Errors.Should().ContainSingle().Which.Should().StartWith("urls[0].href");
+        }
+    }
+
+    [Fact]
+    public async Task should_write_a_link_to_a_public_or_lan_address_at_once_for_anyone()
+    {
+        var item = new JsonObject { ["name"] = "Sonarr", ["urls"] = new JsonArray(new JsonObject { ["label"] = "Public", ["href"] = "https://sonarr.homelab.example" }, new JsonObject { ["label"] = "LAN", ["href"] = "http://10.0.0.7:8989" }) };
+
+        var result = await _subject.EditAsync(new CatalogEdit("apps", "sonarr", "upsert", await _subject.GetVersionAsync(Token), Assistant, CatalogEdits.Upsert("sonarr", item)), Token);
+
+        result.Status.Should().Be(CatalogEditStatus.Applied, "a link is content, not a connection setting");
+    }
+
     [Fact]
     public async Task should_check_an_edit_without_writing_it()
     {

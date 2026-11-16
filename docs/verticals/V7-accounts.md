@@ -44,7 +44,7 @@ Login is required. Every page and every endpoint belongs to a permission; a role
 | `maintenance.view` | Maintenance, including the manual refresh |
 | `assistant.view` | The Assistant page (MCP state, knowledge base), the catalog audit |
 | `chat.use` | The built-in chat |
-| `catalog.write` | Reading catalog items; every catalog write, the portal identity; approving a chat change |
+| `catalog.write` | Reading catalog items; every catalog write, the portal identity; approving a chat change. A change to how a host is reached is written at once only with `settings.manage`, which also approves or rejects a waiting change and exports the file (D-123, D-124) |
 | `system.view` | System status, the log level, `/metrics` |
 | `settings.manage` | Changing the log level |
 | `users.manage` | Users, roles, activity |
