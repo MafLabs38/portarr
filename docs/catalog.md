@@ -20,8 +20,8 @@ environments:
     runtime: cloudflare               # Pages projects and Workers (connectors/cloudflare.md)
     cloudflare: { accountId: "0123456789abcdef0123456789abcdef", tokenEnv: CLOUDFLARE_API_TOKEN }   # the variable name, never the token
   - id: hypervisor
-    name: Proxmox hypervisor     # its LXC containers are its workloads: runtime: proxmox (connectors/proxmox.md, D-128)
-    runtime: machine                  # a host with no container engine to read: a hypervisor, a NAS (D-126)
+    name: NAS                         # a Proxmox node with its API token is runtime: proxmox (connectors/proxmox.md, D-128)
+    runtime: machine                  # a host with no container engine and no API to read: a NAS, a bare KVM host (D-126)
     address: 10.0.0.30
     hostMetrics: { nodeExporter: "http://10.0.0.30:9100/metrics" }   # its CPU, memory, system; add nvidiaGpu for its card
   - id: cluster
@@ -200,6 +200,7 @@ On the Infrastructure page, the host's card then splits its memory into **Contai
 Docker sees only its containers and metrics-server only refreshes a node every ~15 s. A **node_exporter** on a machine gives Portarr the machine as its kernel sees it, every second: overall load, I/O wait, load per core, memory, swap and CPU temperature (D-72, [connectors/node-exporter.md](connectors/node-exporter.md); installation in [companions.md](companions.md#node_exporter)).
 
 - `nvidiaGpu: { exporter: <URL> }` on a **Docker** environment (or a `runtime: machine` one): the `/metrics` URL of the NVIDIA GPU exporter of the machine's graphics card (`http` or `https`, no credentials in it): the card's load, memory, video encoder and decoder, temperature and power appear on the machine's card, with the containers that have the card attached (D-120, [the connector](connectors/gpu-exporter.md)).
+- `runtime: machine` (D-126) is a host with no container engine, measured by `hostMetrics` (and `nvidiaGpu`). `runtime: proxmox` with `proxmox: { url, node, tokenId, tokenEnv, fingerprint }` is a Proxmox VE node whose LXC containers are its workloads (D-128, [the connector](connectors/proxmox.md)).
 - `hostMetrics: { nodeExporter: <URL> }` on a **Docker** environment: the `/metrics` URL of the host's node_exporter (`http` or `https`, no credentials in it). `interval` (optional, `5s`, `1m`, from 1 second to 5 minutes, default every second) reads it less often, for a machine behind a slow link or a large fleet (D-107).
 - `kubernetes.nodeExporter:` on a Kubernetes environment, for every node:
   - `port` (default 9100): node_exporter's port at the node's InternalIP (a DaemonSet with `hostNetwork`).
@@ -437,7 +438,7 @@ curl -s -X PUT localhost:8484/api/v1/catalog/apps/blog/notes -H "X-Api-Key: $KEY
   -H 'Content-Type: application/json' -d '{"version":"3f2a…","notes":"Built by CI."}'
 ```
 
-- Endpoints: `GET|PUT|DELETE /api/v1/catalog/{section}/{id}`, `POST /api/v1/catalog/{section}`, `PUT /api/v1/catalog/{section}/{id}/notes`, `PUT|DELETE /api/v1/catalog/environments/{id}/machines/{name}`, `GET /api/v1/catalog/audit`, `GET /api/v1/catalog/{section}` (the items), `POST /api/v1/catalog/{section}/{id}/validate` (a dry run), `GET /api/v1/catalog/pending`, `POST /api/v1/catalog/pending/{id}/approve`, `DELETE /api/v1/catalog/pending/{id}`, `GET /api/v1/catalog/export`; the identity has its own ([Identity of the portal](#identity-of-the-portal)); sections `environments`, `stacks`, `apps`, `data`, `links`, `providers`. Items are JSON with the keys of the file. Reference at `/docs`.
+- Endpoints: `GET|PUT|DELETE /api/v1/catalog/{section}/{id}`, `POST /api/v1/catalog/{section}`, `PUT /api/v1/catalog/{section}/{id}/notes`, `PUT|DELETE /api/v1/catalog/environments/{id}/machines/{name}`, `GET /api/v1/catalog/audit`, `GET /api/v1/catalog/{section}` (the items), `POST /api/v1/catalog/{section}/{id}/validate` (a dry run), `GET /api/v1/catalog/pending`, `POST /api/v1/catalog/pending/{id}/approve`, `DELETE /api/v1/catalog/pending/{id}`, `GET /api/v1/catalog/export`; the identity has its own ([Identity of the portal](#identity-of-the-portal)); sections `environments`, `stacks`, `apps`, `data`, `links`, `providers`, `mcpServers`, `workstations`. Items are JSON with the keys of the file. Reference at `/docs`.
 - **Versions**: every write sends the version it read; if the file changed since (by hand, by another client), the write is refused with 409 and the current version. Writes are serialized.
 - **Validation**: the whole resulting file goes through the parser; an error is a 400 whose `errors` are keyed by field path (`apps[blog].check.url`) and the file is not touched.
 - **What changes in the file**: only what differs. A changed value is rewritten in place, a new key or item is added after the last one with the file's indentation and style (an item of a list written `- { … }` is written that way), a removed one loses its lines; comments and formatting elsewhere stay. Limits: a comment *inside* a rewritten node is lost (a flow item is rewritten whole; a list whose order changed is rewritten), and a comment line above a removed item stays.

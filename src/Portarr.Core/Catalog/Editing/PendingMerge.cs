@@ -5,7 +5,8 @@ namespace Portarr.Core.Catalog.Editing;
 /// <summary>
 /// What approving a waiting change writes: the keys the change touched, laid over the item as it is now, so a note edited
 /// since does not block an approval. It is a conflict only when a key the change touches was itself changed since it was asked
-/// for (the person then rejects it and asks again), or when the item appeared, vanished or was removed in the meantime.
+/// for to something else than what the change says (the person then rejects it and asks again), or when the item appeared,
+/// vanished or was removed in the meantime.
 /// </summary>
 public static class PendingMerge
 {
@@ -24,13 +25,22 @@ public static class PendingMerge
         var keys = before.Select(p => p.Key).Union(after.Select(p => p.Key), StringComparer.Ordinal).ToList();
         foreach (var key in keys.Where(k => YamlNodes.Canonical(before[k]) != YamlNodes.Canonical(after[k])))
         {
-            if (YamlNodes.Canonical(now[key]) != YamlNodes.Canonical(before[key]))
+            var current = YamlNodes.Canonical(now[key]);
+            if (current == YamlNodes.Canonical(after[key]))
+            {
+                continue; // somebody already made this very change: nothing to write, nothing to refuse
+            }
+
+            if (current != YamlNodes.Canonical(before[key]))
             {
                 throw Conflict(section, id, key);
             }
 
-            merged[key] = after[key]?.DeepClone();
-            if (after[key] is null)
+            if (after[key] is { } value)
+            {
+                merged[key] = value.DeepClone();
+            }
+            else
             {
                 merged.Remove(key);
             }

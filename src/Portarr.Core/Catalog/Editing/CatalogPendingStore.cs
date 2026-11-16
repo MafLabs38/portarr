@@ -40,9 +40,11 @@ public sealed partial class CatalogPendingStore
 
     private readonly string _path;
     private readonly ILogger _logger;
+    private readonly TimeProvider _clock;
 
-    public CatalogPendingStore(IOptions<PortarrOptions> options, ILogger<CatalogPendingStore>? logger = null)
+    public CatalogPendingStore(IOptions<PortarrOptions> options, ILogger<CatalogPendingStore>? logger = null, TimeProvider? clock = null)
     {
+        _clock = clock ?? TimeProvider.System;
         _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<CatalogPendingStore>.Instance;
         var catalog = Path.GetFullPath(options.Value.EffectiveCatalogFile);
         _path = Path.Combine(Path.GetDirectoryName(catalog)!, Path.GetFileNameWithoutExtension(catalog) + ".pending.json");
@@ -66,7 +68,7 @@ public sealed partial class CatalogPendingStore
         }
         catch (JsonException)
         {
-            var aside = $"{_path}.corrupt-{DateTime.UtcNow:yyyyMMddHHmmss}";
+            var aside = $"{_path}.corrupt-{_clock.GetUtcNow():yyyyMMddHHmmss}";
             File.Move(_path, aside, overwrite: true);
             LogUnreadable(aside);
             return [];

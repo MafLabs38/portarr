@@ -104,7 +104,7 @@ public sealed class ProxmoxSourceFixture
 
         ProxmoxHttpClientFactory.Matches(certificate, fingerprint).Should().BeTrue();
         ProxmoxHttpClientFactory.Matches(certificate, fingerprint.ToLowerInvariant()).Should().BeTrue();
-        ProxmoxHttpClientFactory.Matches(certificate, new string('0', 2) + fingerprint[2..]).Should().BeFalse();
+        ProxmoxHttpClientFactory.Matches(certificate, (fingerprint[0] == 'A' ? 'B' : 'A') + fingerprint[1..]).Should().BeFalse("the first digit differs whatever the key");
         ProxmoxHttpClientFactory.Matches(null, fingerprint).Should().BeFalse();
     }
 

@@ -194,19 +194,31 @@ internal static class NodeExporterParser
             _filesystems[(device, mount)] = sample.Name == FilesystemSizeFamily ? (fsType, sample.Value, known.Avail) : (fsType, known.Size, sample.Value);
         }
 
-        /// <summary>The disks: one per device (its shortest mount), data filesystems only, the largest <see cref="MaxDisks"/>; null when the exporter exposes none.</summary>
+        /// <summary>
+        /// The disks: one per device (its shortest mount) and one per ZFS pool (its largest dataset: every dataset is a device of its
+        /// own, and a container's volume is not a disk of the host), data filesystems only, the largest <see cref="MaxDisks"/>;
+        /// null when the exporter exposes none.
+        /// </summary>
         private List<HostDisk>? ToDisks()
         {
             var disks = _filesystems
                 .Where(f => f.Value.Size > 0 && DiskTypes.Contains(f.Value.FsType) && !IsSystemMount(f.Key.Mount))
-                .GroupBy(f => f.Key.Device, StringComparer.Ordinal)
-                .Select(group => group.OrderBy(f => f.Key.Mount.Length).ThenBy(f => f.Key.Mount, StringComparer.Ordinal).First())
-                .Select(f => new HostDisk(f.Key.Mount, f.Key.Device, f.Value.FsType, (long)f.Value.Size, (long)Math.Clamp(f.Value.Avail, 0, f.Value.Size)))
+                .GroupBy(f => DiskName(f.Key.Device, f.Value.FsType), StringComparer.Ordinal)
+                .Select(group => (Name: group.Key, Entry: group.First().Value.FsType != "zfs"
+                    ? group.OrderBy(f => f.Key.Mount.Length).ThenBy(f => f.Key.Mount, StringComparer.Ordinal).First()
+                    : group.OrderByDescending(f => f.Value.Size).ThenBy(f => f.Key.Mount.Length).ThenBy(f => f.Key.Mount, StringComparer.Ordinal).First()))
+                .Select(g => new HostDisk(g.Entry.Key.Mount, g.Name, g.Entry.Value.FsType, (long)g.Entry.Value.Size, (long)Math.Clamp(g.Entry.Value.Avail, 0, g.Entry.Value.Size)))
                 .OrderByDescending(d => d.SizeBytes)
                 .ThenBy(d => d.Mount, StringComparer.Ordinal)
                 .Take(MaxDisks)
                 .ToList();
             return disks.Count > 0 ? disks : null;
+        }
+
+        /// <summary>The device a disk is counted as: itself, or for ZFS the pool (<c>rpool/data/subvol-101-disk-0</c> is part of <c>rpool</c>).</summary>
+        private static string DiskName(string device, string fsType)
+        {
+            return fsType == "zfs" && device.IndexOf('/', StringComparison.Ordinal) is var slash and > 0 ? device[..slash] : device;
         }
 
         private static bool IsSystemMount(string mount)

@@ -7,9 +7,9 @@ Portarr is one container (`ghcr.io/<owner>/portarr`) and a data folder. This pag
 | Object | What it is for |
 |---|---|
 | `Namespace`, `ServiceAccount`, `Secret portarr-token`, `ClusterRole`, `ClusterRoleBinding` | read-only access to the cluster: nodes, namespaces, pods, workloads, metrics-server, CronJobs and K8up. No write verb, no Secret, no logs |
-| `ConfigMap portarr-catalog` | the [catalog](catalog.md): what Portarr knows of your fleet. Read-only in the pod (`PORTARR__CATALOG__WRITABLE=false`): the ConfigMap is the source of truth |
+| `ConfigMap portarr-catalog` | the [catalog](catalog.md) as it is first seeded: what Portarr knows of your fleet. An init container copies it into the data volume (`/config/catalog`) once, and never overwrites it: the live catalog is the file on the volume, which Portarr writes (`PORTARR__CATALOG__WRITABLE=true`, D-124) |
 | `Secret portarr-admin` | the password of the first administrator, created once while no user exists |
-| `PersistentVolumeClaim portarr-data` | the data folder (`/config`): the SQLite database, the keys that protect the sessions, uploads |
+| `PersistentVolumeClaim portarr-data` | the data folder (`/config`): the SQLite database, the keys that protect the sessions, uploads, and the live catalog with its backups, audit trail and waiting changes (`/config/catalog`) |
 | `Deployment` | one replica, `Recreate` (a SQLite file on a `ReadWriteOnce` volume: never two pods), non-root, read-only root file system, no capability, resource limits |
 | `Service`, `Ingress` | port 8484, and a host name for Traefik (any ingress controller works) |
 

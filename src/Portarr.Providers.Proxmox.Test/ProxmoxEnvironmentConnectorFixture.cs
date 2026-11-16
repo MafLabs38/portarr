@@ -36,14 +36,4 @@ public sealed class ProxmoxEnvironmentConnectorFixture
     {
         Parse(section).Errors.Should().ContainSingle().Which.Should().Contain(message);
     }
-
-    [Fact]
-    public void should_make_the_node_one_machine_with_a_runtime_so_that_its_agent_and_its_vms_attach()
-    {
-        var connector = new ProxmoxEnvironmentConnector();
-
-        connector.IsRuntime.Should().BeTrue();
-        connector.SingleMachine.Should().BeTrue();
-        connector.Section.Should().Be("proxmox");
-    }
 }

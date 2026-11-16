@@ -54,6 +54,26 @@ public sealed class PendingMergeFixture
     }
 
     [Fact]
+    public void should_accept_a_key_somebody_already_set_to_the_requested_value()
+    {
+        var merged = PendingMerge.Apply("apps", "sonarr", Item("Sonarr"), Item("Sonarr", "http://10.0.0.7/"), Item("Sonarr", "http://10.0.0.7/"))!;
+
+        merged["check"]!["url"]!.ToString().Should().Be("http://10.0.0.7/");
+    }
+
+    [Fact]
+    public void should_refuse_a_change_of_two_keys_when_only_one_of_them_clashes()
+    {
+        var before = Item("Sonarr", "http://10.0.0.7/");
+        var after = Item("Sonarr TV", "http://10.0.0.8/");
+        var now = Item("Sonarr", "http://10.0.0.9/");
+
+        var act = () => PendingMerge.Apply("apps", "sonarr", before, after, now);
+
+        act.Should().Throw<CatalogEditException>().Which.Message.Should().Contain("check");
+    }
+
+    [Fact]
     public void should_apply_a_removed_key_and_keep_the_other_edits()
     {
         var merged = PendingMerge.Apply("apps", "sonarr", Item("Sonarr", "http://10.0.0.7/"), Item("Sonarr"), Item("Sonarr TV", "http://10.0.0.7/"))!;

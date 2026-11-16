@@ -282,7 +282,7 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
         return [.. all.Select(p =>
         {
             var keys = ProtectedSettings.KeysOf(p.Section, connectors);
-            var changes = p.Changes.Where(line => !keys.Any(key => line.StartsWith(key, StringComparison.Ordinal))).ToList();
+            var changes = p.Changes.Where(line => !keys.Any(key => line.StartsWith(key + ":", StringComparison.Ordinal))).ToList();
             return p with
             {
                 Before = p.Before is null ? null : ProtectedSettings.Redact(p.Before, keys),

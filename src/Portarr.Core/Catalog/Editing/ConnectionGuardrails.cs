@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Portarr.Core.Net;
 
 namespace Portarr.Core.Catalog.Editing;
@@ -14,7 +15,7 @@ namespace Portarr.Core.Catalog.Editing;
 /// them (<c>localhost</c>, a cloud metadata name). Other host names are not resolved here: the catalog is edited offline, the
 /// connectors confine the credential variables they accept, and an administrator's approval is the control.
 /// </summary>
-public static class ConnectionGuardrails
+public static partial class ConnectionGuardrails
 {
     private static readonly string[] Schemes = ["http", "https", "tcp", "unix"];
 
@@ -60,7 +61,7 @@ public static class ConnectionGuardrails
 
                 break;
             default:
-                if (node is JsonValue value && value.TryGetValue<string>(out var text) && text.Contains("://", StringComparison.Ordinal))
+                if (node is JsonValue value && value.TryGetValue<string>(out var text) && LooksLikeAddress(text))
                 {
                     CheckAddress(text, path, problems);
                 }
@@ -68,6 +69,12 @@ public static class ConnectionGuardrails
                 break;
         }
     }
+
+    /// <summary>A scheme followed by two slashes or two backslashes (.NET reads <c>http:\\host</c> as an address too); a Windows path is not one.</summary>
+    private static bool LooksLikeAddress(string text) => AddressStart().IsMatch(text);
+
+    [GeneratedRegex(@"^[A-Za-z][A-Za-z0-9+.\-]*:[/\\]{2}")]
+    private static partial Regex AddressStart();
 
     private static void CheckAddress(string text, string path, List<string> problems)
     {

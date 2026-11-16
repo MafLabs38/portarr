@@ -48,6 +48,20 @@ public sealed class NodeExporterDisksAndNetworkFixture
     }
 
     [Fact]
+    public async Task should_count_a_zfs_pool_once_and_not_the_volumes_of_its_containers()
+    {
+        var text = Fs("rpool/ROOT/pve-1", "/", "zfs", 800e9, 700e9)
+            + Fs("rpool/data", "/rpool/data", "zfs", 800e9, 700e9)
+            + Fs("rpool/data/subvol-101-disk-0", "/rpool/data/subvol-101-disk-0", "zfs", 8e9, 6e9)
+            + Fs("rpool/data/subvol-102-disk-0", "/rpool/data/subvol-102-disk-0", "zfs", 16e9, 1e9)
+            + Fs("/dev/sdb1", "/mnt/backup", "ext4", 2000e9, 500e9);
+
+        var disks = (await ReadAsync(new NodeExporterSampler(), text)).Disks!;
+
+        disks.Select(d => (d.Device, d.SizeBytes)).Should().Equal(("/dev/sdb1", 2_000_000_000_000), ("rpool", 800_000_000_000));
+    }
+
+    [Fact]
     public async Task should_keep_only_the_largest_disks()
     {
         var text = string.Concat(Enumerable.Range(1, 12).Select(i => Fs($"/dev/sd{i}", $"/mnt/disk{i}", "xfs", i * 1e9, 0)));

@@ -1,5 +1,6 @@
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
+using Portarr.Core.Net;
 
 namespace Portarr.Providers.Proxmox;
 
@@ -58,7 +59,7 @@ public sealed class ProxmoxHttpClientFactory : IDisposable
 
     private static HttpClient Create(ProxmoxEndpoint endpoint)
     {
-        var handler = new SocketsHttpHandler { MaxConnectionsPerServer = 4, AllowAutoRedirect = false };
+        var handler = new SocketsHttpHandler { MaxConnectionsPerServer = 4, AllowAutoRedirect = false, ConnectCallback = OutboundAddressPolicy.ConnectAsync };
         if (endpoint.Fingerprint is { } pinned)
         {
             handler.SslOptions.RemoteCertificateValidationCallback = (_, certificate, _, _) => Matches(certificate, pinned);

@@ -181,6 +181,12 @@ public sealed class CatalogPendingFixture : IDisposable
     [InlineData("http://metadata.google.internal/")]
     [InlineData("http://[::1]:9/")]
     [InlineData("http://0.0.0.0/")]
+    [InlineData("http://[::ffff:127.0.0.1]/")]
+    [InlineData("http://[::ffff:169.254.169.254]/")]
+    [InlineData("http://2130706433/")]
+    [InlineData("http://localhost./")]
+    [InlineData("http://app.localhost/")]
+    [InlineData("http:\\\\169.254.169.254:2375")]
     public async Task should_refuse_an_address_Portarr_must_not_call_whoever_asks(string url)
     {
         (await UpsertAsync(Person, url)).Status.Should().Be(CatalogEditStatus.Invalid);
