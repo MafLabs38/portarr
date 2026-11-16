@@ -29,7 +29,18 @@ public static partial class ConnectionGuardrails
         {
             if (item?[key] is { } node)
             {
-                Walk(node, key, problems);
+                if (key == ProtectedSettings.AddressKey)
+                {
+                    // An environment's address is a bare host (an app with no link of its own is probed there).
+                    if (node is JsonValue host && host.TryGetValue<string>(out var text))
+                    {
+                        CheckHost(text.Trim(), key, problems);
+                    }
+                }
+                else
+                {
+                    Walk(node, key, problems);
+                }
             }
         }
 
@@ -94,14 +105,23 @@ public static partial class ConnectionGuardrails
             problems.Add($"{path}: an address never carries a user or password; name an environment variable for the credential instead.");
         }
 
-        if (!uri.Scheme.Equals("unix", StringComparison.OrdinalIgnoreCase) && IsForbiddenName(uri.Host))
+        if (!uri.Scheme.Equals("unix", StringComparison.OrdinalIgnoreCase))
         {
-            problems.Add($"{path}: {uri.Host} always means this host or a metadata service: Portarr does not call it.");
+            CheckHost(uri.Host, path, problems);
+        }
+    }
+
+    /// <summary>A host Portarr will call: not a name that always means this host or a metadata service, nor an address literal the outbound policy refuses.</summary>
+    private static void CheckHost(string host, string path, List<string> problems)
+    {
+        if (IsForbiddenName(host))
+        {
+            problems.Add($"{path}: {host} always means this host or a metadata service: Portarr does not call it.");
         }
 
-        if (!uri.Scheme.Equals("unix", StringComparison.OrdinalIgnoreCase) && IPAddress.TryParse(uri.Host.Trim('[', ']'), out var address) && !OutboundAddressPolicy.IsAllowed(address))
+        if (IPAddress.TryParse(host.Trim('[', ']'), out var address) && !OutboundAddressPolicy.IsAllowed(address))
         {
-            problems.Add($"{path}: {uri.Host} is a loopback, link-local or unspecified address: Portarr does not call it.");
+            problems.Add($"{path}: {host} is a loopback, link-local or unspecified address: Portarr does not call it.");
         }
     }
 

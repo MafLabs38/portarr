@@ -333,6 +333,51 @@ public sealed class CatalogPendingFixture : IDisposable
         result.Status.Should().Be(CatalogEditStatus.Applied, "a link is content, not a connection setting");
     }
 
+    [Theory]
+    [InlineData("127.0.0.1")]
+    [InlineData("169.254.169.254")]
+    [InlineData("localhost")]
+    [InlineData("metadata.google.internal")]
+    public async Task should_refuse_an_environment_address_that_means_this_host_or_a_metadata_service(string address)
+    {
+        var item = new JsonObject { ["name"] = "Host 1", ["address"] = address };
+
+        foreach (var actor in new[] { Person, Assistant })
+        {
+            var result = await _subject.EditAsync(new CatalogEdit("environments", "host-1", "upsert", await _subject.GetVersionAsync(Token), actor, CatalogEdits.Upsert("host-1", item)), Token);
+
+            result.Status.Should().Be(CatalogEditStatus.Invalid);
+            result.Errors.Should().ContainSingle().Which.Should().StartWith("address");
+        }
+    }
+
+    [Fact]
+    public async Task should_keep_the_removal_of_an_item_that_holds_a_connection_for_approval_unless_its_author_may_reconfigure()
+    {
+        await File.WriteAllTextAsync(CatalogFile, "apps:\n  - { id: sonarr, name: Sonarr, check: { url: 'http://10.0.0.7:8989/ping' } }\n  - { id: radarr, name: Radarr }\n", Token);
+        async Task<CatalogEditResult> RemoveAsync(string id, CatalogActor actor) =>
+            await _subject.EditAsync(new CatalogEdit("apps", id, "remove", await _subject.GetVersionAsync(Token), actor, CatalogEdits.Remove("apps", id)), Token);
+
+        var plain = await RemoveAsync("radarr", Assistant);
+        var held = await RemoveAsync("sonarr", Assistant);
+
+        plain.Status.Should().Be(CatalogEditStatus.Applied, "nothing about a connection goes with it");
+        held.Status.Should().Be(CatalogEditStatus.Pending);
+        (await File.ReadAllTextAsync(CatalogFile, Token)).Should().Contain("sonarr");
+        (await _subject.ApproveAsync(held.PendingId!, Person, Token)).Status.Should().Be(CatalogEditStatus.Applied);
+        (await File.ReadAllTextAsync(CatalogFile, Token)).Should().NotContain("sonarr");
+    }
+
+    [Fact]
+    public async Task should_remove_an_item_that_holds_a_connection_at_once_for_an_author_who_may_reconfigure()
+    {
+        await File.WriteAllTextAsync(CatalogFile, "apps:\n  - { id: sonarr, name: Sonarr, check: { url: 'http://10.0.0.7:8989/ping' } }\n", Token);
+
+        var result = await _subject.EditAsync(new CatalogEdit("apps", "sonarr", "remove", await _subject.GetVersionAsync(Token), Person, CatalogEdits.Remove("apps", "sonarr")), Token);
+
+        result.Status.Should().Be(CatalogEditStatus.Applied);
+    }
+
     [Fact]
     public async Task should_check_an_edit_without_writing_it()
     {

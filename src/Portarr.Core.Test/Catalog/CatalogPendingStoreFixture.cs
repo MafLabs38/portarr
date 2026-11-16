@@ -36,6 +36,25 @@ public sealed class CatalogPendingStoreFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_not_remove_what_does_not_wait()
+    {
+        await _subject.AddAsync(Change("a1", "sonarr"), Token);
+
+        (await _subject.RemoveAsync("unknown", Token)).Should().BeFalse();
+        (await _subject.RemoveAsync("a1", Token)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task should_treat_a_caller_with_no_user_as_one_author_per_channel()
+    {
+        await _subject.AddAsync(Change("a1", "sonarr", user: null), Token);
+        await _subject.AddAsync(Change("a2", "sonarr", user: null), Token);
+        await _subject.AddAsync(Change("a3", "sonarr", user: null, channel: "api"), Token);
+
+        (await _subject.ListAsync(Token)).Select(p => p.Id).Should().Equal("a2", "a3");
+    }
+
+    [Fact]
     public async Task should_keep_one_change_per_item_and_author_the_newer_replacing_the_older()
     {
         await _subject.AddAsync(Change("a1", "sonarr"), Token);

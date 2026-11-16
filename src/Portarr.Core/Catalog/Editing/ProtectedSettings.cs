@@ -23,6 +23,9 @@ public static class ProtectedSettings
     /// <summary>An app's links: not protected (they are content), but the address check of an app with no <c>check</c> fetches them, so they pass the guardrails.</summary>
     public const string UrlsKey = "urls";
 
+    /// <summary>An environment's address: not protected (it is how a person reads the host), but an app with no link of its own is probed there, so it passes the guardrails.</summary>
+    public const string AddressKey = "address";
+
     /// <summary>The keys of a section's items that are protected; the connector sections are those the registered connectors own.</summary>
     public static IReadOnlyList<string> KeysOf(string section, IEnumerable<string> connectorSections) => section switch
     {
@@ -42,11 +45,16 @@ public static class ProtectedSettings
         {
             CatalogSections.McpServers => [HttpKey],
             CatalogSections.Apps => [CheckKey, UrlsKey],
+            CatalogSections.Environments => [.. KeysOf(section, connectorSections), AddressKey],
             _ => KeysOf(section, connectorSections),
         };
 
-    /// <summary>Whether the edit sets, changes or removes a protected setting (a removed item is removed whole: that is an explicit act of its own).</summary>
-    public static bool Touches(JsonObject? current, JsonObject? next, IReadOnlyList<string> keys) => ChangedKeys(current, next, keys).Count > 0;
+    /// <summary>Whether the edit sets, changes or removes a protected setting (removing an item that holds one counts).</summary>
+    public static bool Touches(JsonObject? current, JsonObject? next, IReadOnlyList<string> keys)
+    {
+        // Removing an item that holds a connection setting removes that connection: it waits for approval like its addition did.
+        return next is null ? keys.Any(key => current?[key] is not null) : ChangedKeys(current, next, keys).Count > 0;
+    }
 
     /// <summary>The protected keys the edit sets, changes or removes: the guardrails check these, not what the item already held.</summary>
     public static IReadOnlyList<string> ChangedKeys(JsonObject? current, JsonObject? next, IReadOnlyList<string> keys)
