@@ -32,6 +32,12 @@ public sealed class PendingMergeFixture
     }
 
     [Fact]
+    public void should_accept_an_item_somebody_already_added_exactly_as_asked()
+    {
+        PendingMerge.Apply("apps", "sonarr", null, Item("Sonarr"), Item("Sonarr"))!["name"]!.ToString().Should().Be("Sonarr");
+    }
+
+    [Fact]
     public void should_remove_an_item_that_is_unchanged()
     {
         PendingMerge.Apply("apps", "sonarr", Item("Sonarr"), null, Item("Sonarr")).Should().BeNull();

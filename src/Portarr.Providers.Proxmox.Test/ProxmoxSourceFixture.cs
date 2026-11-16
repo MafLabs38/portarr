@@ -125,7 +125,7 @@ public sealed class ProxmoxSourceFixture
     [Fact]
     public async Task should_refuse_an_answer_past_the_size_cap()
     {
-        _bodyForEverything = """{ "data": [""" + string.Join(',', Enumerable.Repeat("""{ "vmid": 1, "name": "x" }""", 200_000)) + "] }";
+        _bodyForEverything = "{ \"data\": [\"" + new string('x', 5 * 1024 * 1024) + "\"] }";
 
         var act = () => Source().ListAsync(Environment, TestContext.Current.CancellationToken);
 
@@ -143,6 +143,16 @@ public sealed class ProxmoxSourceFixture
     }
 
     [Fact]
+    public async Task should_say_so_when_the_node_is_not_among_the_nodes_proxmox_lists()
+    {
+        _bodyForEverything = """{ "data": [ { "node": "somewhere-else", "status": "online" } ] }""";
+
+        var act = () => Source().SampleAsync(Environment, [], TestContext.Current.CancellationToken);
+
+        (await act.Should().ThrowAsync<InvalidDataException>()).Which.Message.Should().Contain("hv");
+    }
+
+    [Fact]
     public async Task should_report_an_offline_node_as_not_ready_with_no_figures()
     {
         _bodyForEverything = """{ "data": [ { "node": "hv", "status": "offline" } ] }""";
@@ -157,9 +167,9 @@ public sealed class ProxmoxSourceFixture
     [Fact]
     public void should_pin_the_certificate_by_its_sha256_whatever_the_case_of_the_fingerprint()
     {
-        using var key = RSA.Create(2048);
-        var request = new CertificateRequest("CN=pve", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-        using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var request = new CertificateRequest("CN=pve", key, HashAlgorithmName.SHA256);
+        using var certificate = request.CreateSelfSigned(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2027, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var hash = Convert.ToHexString(certificate.GetCertHash(HashAlgorithmName.SHA256));
         var fingerprint = string.Join(':', Enumerable.Range(0, hash.Length / 2).Select(i => hash.Substring(i * 2, 2)));
 

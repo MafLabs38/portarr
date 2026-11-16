@@ -15,8 +15,8 @@ public static class PendingMerge
     {
         if (before is null || after is null || now is null)
         {
-            // Added, removed, or gone: nothing to merge key by key, the item must still be what it was.
-            return YamlNodes.Canonical(now) == YamlNodes.Canonical(before)
+            // Added, removed, or gone: nothing to merge key by key, the item must still be what it was (or already be what is asked).
+            return YamlNodes.Canonical(now) == YamlNodes.Canonical(before) || YamlNodes.Canonical(now) == YamlNodes.Canonical(after)
                 ? after?.DeepClone().AsObject()
                 : throw Conflict(section, id);
         }

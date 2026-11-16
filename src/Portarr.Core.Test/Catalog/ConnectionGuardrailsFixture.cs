@@ -44,6 +44,17 @@ public sealed class ConnectionGuardrailsFixture
         Check("kubernetes", value).Should().ContainSingle().Which.Should().StartWith("kubernetes.nodes[0].url");
     }
 
+    [Theory]
+    [InlineData("http://user:secret@10.0.0.7/ping", "user or password")]
+    [InlineData("http://localhost:8484/", "metadata service")]
+    [InlineData("http://app.localhost/", "metadata service")]
+    [InlineData("http://metadata.google.internal/", "metadata service")]
+    [InlineData("http://[::ffff:127.0.0.1]/", "loopback, link-local")]
+    public void should_refuse_what_a_connector_must_never_call(string url, string reason)
+    {
+        Check("docker", new JsonObject { ["url"] = url }).Should().ContainSingle().Which.Should().Contain(reason);
+    }
+
     [Fact]
     public void should_refuse_a_scheme_a_connector_does_not_speak()
     {

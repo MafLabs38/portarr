@@ -26,6 +26,16 @@ public sealed class CatalogPendingStoreFixture : IDisposable
     }
 
     [Fact]
+    public async Task should_keep_the_waiting_changes_across_a_restart()
+    {
+        await _subject.AddAsync(Change("a1", "sonarr"), Token);
+
+        var afterRestart = new CatalogPendingStore(Options.Create(new PortarrOptions { DataFolder = _folder }));
+
+        (await afterRestart.ListAsync(Token)).Select(p => p.Id).Should().Equal("a1");
+    }
+
+    [Fact]
     public async Task should_keep_one_change_per_item_and_author_the_newer_replacing_the_older()
     {
         await _subject.AddAsync(Change("a1", "sonarr"), Token);
