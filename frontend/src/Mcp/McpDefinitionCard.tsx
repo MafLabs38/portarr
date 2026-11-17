@@ -23,7 +23,7 @@ function describeValues(server: McpServer): string {
     .join('\n');
 }
 
-/** What the catalog says about a server, and how it is doing. Read-only: the definition is edited in the catalog file (D-112). */
+/** What the catalog says about a server, and how it is doing. Edited in Settings, Catalog, the API or the assistant (D-125). */
 export default function McpDefinitionCard({ server }: Readonly<McpDefinitionCardProps>) {
   const { detail } = describeMcpHealth(server);
   const local = server.transport === 'stdio';

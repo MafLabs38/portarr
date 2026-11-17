@@ -40,6 +40,18 @@
   background-color: var(--warningColor);
 }
 
+.disk {
+  background-color: var(--secondary);
+}
+
+.warning {
+  background-color: var(--warningColor);
+}
+
+.danger {
+  background-color: var(--dangerColor);
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .bar {
     transition: width 0.4s ease;

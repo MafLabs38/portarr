@@ -421,7 +421,22 @@ public sealed class FleetDigest
                     return new ConsumerLine(view?.Workload.Name ?? w.Id, view?.AppIds ?? [], Round(w.CpuCores, 3), GiB(w.MemoryBytes));
                 })
                 .ToList(),
-            host is null ? null : new HostAgentLine(host.IowaitPercent, host.CorePercents, host.Load1, host.TemperatureCelsius, GiB(host.SwapUsedBytes), GiB(host.SwapTotalBytes)));
+            host is null ? null : ToHostAgentLine(host));
+    }
+
+    private static HostAgentLine ToHostAgentLine(HostMetricsResource host)
+    {
+        var disks = host.Disks.Select(d => new DiskLine(d.Mount, GiB(d.UsedBytes) ?? 0, GiB(d.SizeBytes) ?? 0)).ToList();
+        return new HostAgentLine(
+            host.IowaitPercent,
+            host.CorePercents,
+            host.Load1,
+            host.TemperatureCelsius,
+            GiB(host.SwapUsedBytes),
+            GiB(host.SwapTotalBytes),
+            disks.Count == 0 ? null : disks,
+            Round(host.NetworkReceiveBytesPerSecond / 1024, 1),
+            Round(host.NetworkTransmitBytesPerSecond / 1024, 1));
     }
 
     /// <summary>A machine's CPU as its connector reports it (metrics-server, the sum of its containers), with the lowest and highest of the live window.</summary>

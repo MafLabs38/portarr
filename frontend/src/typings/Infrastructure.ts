@@ -7,6 +7,15 @@ export interface MachinePoint {
   guestCpuCores: number | null;
 }
 
+/** A filesystem of a machine, as its host agent sees it (D-127). */
+export interface HostDisk {
+  mount: string;
+  device: string;
+  fsType: string;
+  sizeBytes: number;
+  usedBytes: number;
+}
+
 /** A point of a machine's host chart, one per second (D-72). */
 export interface HostPoint {
   at: string;
@@ -42,6 +51,11 @@ export interface HostMetrics {
   memoryFreeBytes: number | null;
   swapTotalBytes: number | null;
   swapUsedBytes: number | null;
+  /** The filesystems that hold data, the largest first (one per device). */
+  disks: HostDisk[];
+  /** What the physical network interfaces carried per second since the previous read; null until two reads. */
+  networkReceiveBytesPerSecond: number | null;
+  networkTransmitBytesPerSecond: number | null;
   /** Oldest first; empty on the live stream. */
   history: HostPoint[];
 }

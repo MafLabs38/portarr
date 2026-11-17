@@ -6,6 +6,7 @@ import formatBytes from 'Utilities/Number/formatBytes';
 import translate from 'Utilities/String/translate';
 
 import CoreBars from './CoreBars';
+import DiskBars from './DiskBars';
 import styles from './MachineCard.module.css';
 import { consumerMemory, type GuestTotals, type HostMemoryPart, hostMemoryParts, percent, share } from './machineUsage';
 import MemoryDonut, { type MemorySegment } from './MemoryDonut';
@@ -124,6 +125,10 @@ export default function HostGauges({ machine, host, guests, chart }: Readonly<Ho
         </div>
       </section>
 
+      <DiskBars disks={host.disks} machine={machine} />
+
+      <NetworkRate host={host} />
+
       <div className={styles.swap}>
         <span className={styles.figureLabel}>{translate('Swap')}</span>
         {swapTotal > 0 ? (
@@ -141,6 +146,24 @@ export default function HostGauges({ machine, host, guests, chart }: Readonly<Ho
         )}
       </div>
     </>
+  );
+}
+
+/** The traffic of the physical interfaces since the previous read: what a machine uploads or downloads right now. */
+function NetworkRate({ host }: Readonly<{ host: HostMetrics }>) {
+  const receive = host.networkReceiveBytesPerSecond;
+  const transmit = host.networkTransmitBytesPerSecond;
+  if (receive === null || transmit === null) {
+    return null;
+  }
+  return (
+    <div className={styles.swap}>
+      <span className={styles.figureLabel}>{translate('Network')}</span>
+      <span />
+      <span className={styles.swapValue}>
+        {translate('NetworkRate', { receive: formatBytes(receive), transmit: formatBytes(transmit) })}
+      </span>
+    </div>
   );
 }
 

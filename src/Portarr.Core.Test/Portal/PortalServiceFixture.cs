@@ -26,7 +26,7 @@ public sealed class PortalServiceFixture : IDisposable
         var options = Options.Create(_options);
         _catalogService = new CatalogService(options, new CatalogParserService([]), _clock, NullLogger<CatalogService>.Instance);
         var audit = new CatalogAuditLog(options);
-        _editor = new CatalogEditor(options, _catalogService, new CatalogParserService([]), audit, _clock, NullLogger<CatalogEditor>.Instance);
+        _editor = new CatalogEditor(options, _catalogService, new CatalogParserService([]), audit, new CatalogPendingStore(options), _clock, NullLogger<CatalogEditor>.Instance);
         _subject = new PortalService(options, _catalogService, _editor, audit, _clock, NullLogger<PortalService>.Instance);
         File.WriteAllText(CatalogFile, "# Mine.\napps:\n  - { id: blog, name: Blog }\n");
     }

@@ -80,7 +80,7 @@ Settings come from `appsettings.json`, overridden by `PORTARR__*` environment va
 | `PORTARR__DATAFOLDER` | `/config` in the image, the user's local data folder otherwise | SQLite database and future backups |
 | `PORTARR__DATABASE__TYPE` | `Sqlite` | `Sqlite` or `Postgres` |
 | `PORTARR__DATABASE__CONNECTIONSTRING` | — | Required for PostgreSQL, e.g. `Host=db;Database=portarr;Username=portarr;Password=…` |
-| `PORTARR__CATALOGFILE` | `<data folder>/catalog.yaml` | The [catalog](docs/catalog.md) of environments, stacks, apps, data, knowledge, and the [MCP servers and workstations](docs/verticals/mcp-servers.md); your own icons go in `icons/` next to it |
+| `PORTARR__CATALOGFILE` | `<data folder>/catalog.yaml` | The [catalog](docs/catalog.md) of environments, stacks, apps, data, knowledge, and the [MCP servers and workstations](docs/verticals/mcp-servers.md); your own icons go in `icons/` next to it. It can be edited from Settings, Catalog (it needs `PORTARR__CATALOG__WRITABLE=true`, a folder Portarr can write and the `catalog.write` permission); download it with `GET /api/v1/catalog/export` (it needs `settings.manage`) and commit it back: git is a backup, not a requirement (D-124) |
 | `PORTARR__LOGSOFALLWORKLOADS` | `false` | Serve live logs and usage of containers no app declares |
 | `PORTARR__PLATFORMUPDATES` | `true` | Ask `update.k3s.io` and `endoflife.date` about the platforms the machines run (Maintenance → Platforms). `false` for an air-gapped homelab: the versions are shown with no newer version and no support date |
 | `PORTARR__IMAGEUPDATES` | `true` | Ask the registries about the images that run (Maintenance). `false` for an air-gapped homelab, where every lookup would only fail |
@@ -91,7 +91,7 @@ Settings come from `appsettings.json`, overridden by `PORTARR__*` environment va
 | `PORTARR__AUTH__REQUIRESETUPCODE` | `true` | Ask for the one-time setup code on a fresh install |
 | `PORTARR__TRUSTEDPROXIES` | — (none) | Reverse proxies allowed to set `X-Forwarded-For` / `X-Forwarded-Proto`: comma-separated IPs or CIDR networks, e.g. `10.0.0.2,10.0.1.0/24`. Empty: these headers are ignored |
 
-Connectors: [Docker](docs/connectors/docker.md), [Kubernetes](docs/connectors/kubernetes.md), [node_exporter](docs/connectors/node-exporter.md), [NVIDIA GPU exporter](docs/connectors/gpu-exporter.md), [platform versions](docs/connectors/platforms.md).
+Connectors: [Docker](docs/connectors/docker.md), [Kubernetes](docs/connectors/kubernetes.md), [node_exporter](docs/connectors/node-exporter.md), [NVIDIA GPU exporter](docs/connectors/gpu-exporter.md), [platform versions](docs/connectors/platforms.md), [Proxmox VE](docs/connectors/proxmox.md).
 
 Prometheus: `GET /metrics` needs the `system.view` permission, so a scrape sends a per-user API key (create it in your profile, scope `read`; the user's role must hold `system.view`, as Observer, Operator and Admin do):
 

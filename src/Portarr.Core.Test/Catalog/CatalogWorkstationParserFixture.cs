@@ -98,8 +98,9 @@ public sealed class CatalogWorkstationParserFixture
     }
 
     [Fact]
-    public void should_keep_workstations_out_of_the_sections_an_api_key_or_the_chat_can_edit()
+    public void should_let_the_editor_change_workstations_which_define_no_command()
     {
-        Portarr.Core.Catalog.Editing.CatalogSections.All.Should().NotContain("workstations");
+        Portarr.Core.Catalog.Editing.CatalogSections.All.Should().Contain("workstations");
+        Portarr.Core.Catalog.Editing.ProtectedSettings.KeysOf("workstations", []).Should().BeEmpty("a workstation names servers, it defines none (D-125)");
     }
 }

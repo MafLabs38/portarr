@@ -9,6 +9,7 @@ import styles from './SettingsNav.module.css';
 /** The pages of Settings, in the order they are offered; a role sees the ones it may open. */
 export const settingsPages: { to: string; label: string; permission: PermissionOrAny }[] = [
   { to: '/settings/general', label: 'General', permission: CATALOG_WRITE },
+  { to: '/settings/catalog', label: 'Catalog', permission: CATALOG_WRITE },
   { to: '/settings/users', label: 'UsersAndAuth', permission: USERS_MANAGE },
 ];
 

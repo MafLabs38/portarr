@@ -1,0 +1,43 @@
+.disks {
+  display: grid;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hairline);
+}
+
+.heading {
+  color: var(--inkSoft);
+  font-size: var(--fontSizeMeta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(60px, 120px) minmax(40px, 1fr);
+  grid-template-areas:
+    'mount bar'
+    'value value';
+  align-items: center;
+  gap: 2px 8px;
+}
+
+.mount {
+  overflow: hidden;
+  grid-area: mount;
+  font-family: var(--monoSpaceFontFamily);
+  font-size: var(--fontSizeMeta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row > [role='progressbar'] {
+  grid-area: bar;
+}
+
+.value {
+  grid-area: value;
+  color: var(--inkSoft);
+  font-family: var(--monoSpaceFontFamily);
+  font-size: var(--fontSizeMeta);
+}

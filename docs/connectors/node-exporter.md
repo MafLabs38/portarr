@@ -15,7 +15,13 @@ One `GET` of the `/metrics` URL per machine and second, `Accept-Encoding: gzip`,
 | `node_load1` | Load average |
 | `node_os_info{id,pretty_name,version_id}` | The operating system (D-118): `id` is `/etc/os-release`'s `ID` (the key of the support dates), `pretty_name` the text shown, `version_id` the version. Present when node_exporter sees the host's `/etc/os-release` (a container needs `--path.rootfs` on the host root) |
 | `node_uname_info{release}` | The kernel release (D-118) |
+| `node_filesystem_size_bytes`, `node_filesystem_avail_bytes{device,fstype,mountpoint}` | The disks (D-127): one gauge per device (its shortest mount) and one per ZFS pool (the sum of what its datasets reference plus the pool's free space; zvols and snapshots are not seen by the exporter, so it is a lower bound), for the filesystems that hold data (ext2/3/4, xfs, btrfs, zfs, f2fs, vfat, exfat, ntfs, ntfs3, fuseblk); tmpfs, overlay, snaps, network shares, `/run`, `/boot/efi` and the container engines' mounts are left out; the 8 largest. Used = size − available. The gauge turns orange from 90 % and red from 95 % |
+| `node_network_receive_bytes_total`, `node_network_transmit_bytes_total{device}`, `node_time_seconds` | The traffic (D-127): bytes per second between two reads by the exporter's own clock, summed over the physical cards; loopback, bridges, VM and container interfaces, tunnels and bonds are left out (a bridge carries what its card already counted). A card is whatever remains, so Proxmox's `nic0` counts |
 | `node_hwmon_temp_celsius{chip}` | CPU temperature: the hottest sensor of a CPU chip (`coretemp`, `k10temp`, `zenpower`, `cpu_thermal`); disks and boards are ignored |
+
+What the exporter exposes is what Portarr shows: tune the filesystems and interfaces with the exporter's own flags (`--collector.filesystem.*`, `--collector.netdev.*`); Portarr only leaves out the engines' mounts, virtual interfaces and the like, and keeps the 8 largest disks. The traffic is a best-effort sum of the physical cards.
+
+**Debian and Ubuntu packages hide `/mnt` and `/media`** (their default `--collector.filesystem.mount-points-exclude` includes them): a data disk mounted there does not exist for Portarr. Set `ARGS="--collector.filesystem.mount-points-exclude=^/(dev|proc|run|sys|var/lib/docker/.+|var/lib/containers/storage/.+)($|/)"` in `/etc/default/prometheus-node-exporter` and restart the service.
 
 A Kubernetes node is read at `http://<InternalIP>:<port>/metrics`, or through the API server's **pod proxy** (`/api/v1/namespaces/<namespace>/pods/<pod>:<port>/proxy/metrics`, with the cluster's token). The pod is the running node_exporter pod on that node, found by listing the pods of `kubernetes.nodeExporter.namespace` that match `selector` with the field selector `spec.nodeName` (listing pods is already allowed), and remembered per node (looked up again on a 404 or 503 and every 5 minutes). It needs `get` on `pods/proxy` in that namespace only: the node proxy (`nodes/proxy`) reaches any port of any node, kubelet included, and Portarr does not use it. A refused read (`http-403`) shows as "access refused" and the node keeps metrics-server's values.
 
@@ -59,5 +65,5 @@ The browser gets the snapshot (`GET /api/v1/infrastructure`, `hostMetrics` per m
 ## Limits
 
 - No authentication on node_exporter: restrict port 9100 to Portarr's host.
-- `hostMetrics` is for Docker environments (the only single machine with a card); a launcher-only environment cannot carry it yet.
-- Disks, filesystems and network are not shown yet; long history is Prometheus' job (V8).
+- `hostMetrics` belongs to an environment that is one machine: a Docker host, a `runtime: machine` host (D-126) or a Proxmox node (D-128); a cluster cannot carry it.
+- Only the 8 largest data disks are shown (and a ZFS pool counts once); long history is Prometheus' job (V8).

@@ -3,7 +3,7 @@ using Portarr.Core.Catalog.Editing;
 
 namespace Portarr.Core.Test.Catalog;
 
-/// <summary>How hosts are reached (connector sections, runtime, check) is never changed by an edit (17-1).</summary>
+/// <summary>How hosts are reached (connector sections, runtime, check) is protected (17-1, amended by D-123): an edit that leaves them out keeps them, and one that sets or changes them waits for approval unless its author may reconfigure.</summary>
 public sealed class ProtectedSettingsFixture
 {
     private static readonly string[] Connectors = ["docker", "kubernetes", "cloudflare", "backrest", "hostMetrics"];
@@ -53,7 +53,7 @@ public sealed class ProtectedSettingsFixture
     {
         var edit = () => ProtectedSettings.Apply(CatalogSections.Environments, "server-1", Environment(), JsonNode.Parse(sent)!.AsObject(), EnvironmentKeys);
 
-        edit.Should().Throw<CatalogEditException>().Which.Message.Should().Contain(key).And.Contain("catalog file");
+        edit.Should().Throw<CatalogEditException>().Which.Message.Should().Contain(key).And.Contain("approval");
     }
 
     [Fact]

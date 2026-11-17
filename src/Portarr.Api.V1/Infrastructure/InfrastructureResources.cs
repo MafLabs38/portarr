@@ -51,7 +51,13 @@ public sealed record HostMetricsResource(
     long? MemoryFreeBytes,
     long? SwapTotalBytes,
     long? SwapUsedBytes,
+    IReadOnlyList<HostDiskResource> Disks,
+    double? NetworkReceiveBytesPerSecond,
+    double? NetworkTransmitBytesPerSecond,
     IReadOnlyList<HostPointResource> History);
+
+/// <summary>A filesystem of a machine (its host agent's view): where it is mounted, its type, its size and what is used of it.</summary>
+public sealed record HostDiskResource(string Mount, string Device, string FsType, long SizeBytes, long UsedBytes);
 
 /// <summary>Usage of a workload on its machine; <c>CpuCores</c> is null until two samples were taken.</summary>
 public sealed record MachineWorkloadResource(string Id, double? CpuCores, long? MemoryBytes);
@@ -189,6 +195,9 @@ public static class InfrastructureResourceMapper
             memory?.FreeBytes,
             memory?.SwapTotalBytes,
             memory?.SwapUsedBytes,
+            (latest?.Disks ?? []).Select(d => new HostDiskResource(d.Mount, d.Device, d.FsType, d.SizeBytes, d.UsedBytes)).ToList(),
+            latest?.Network?.ReceiveBytesPerSecond,
+            latest?.Network?.TransmitBytesPerSecond,
             withHistory ? view.History.Select(p => new HostPointResource(p.At, p.CpuPercent, p.IowaitPercent, p.MemoryUsedBytes, p.SwapUsedBytes)).ToList() : []);
     }
 }
