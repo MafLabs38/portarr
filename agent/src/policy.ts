@@ -33,6 +33,7 @@ export const knownReadTools = [
   'get_maintenance',
   'get_environment_knowledge',
   'get_catalog_item',
+  'get_catalog_item_check',
   'get_portal',
   'list_mcp_servers',
   'get_mcp_server',

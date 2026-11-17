@@ -25,7 +25,7 @@ describe('McpServerDetail', () => {
     expect(within(definition).getByText('https://memory.homelab.example/mcp')).toBeInTheDocument();
     expect(within(definition).getByText(/^X-Api-Key ← \$MEMORY_MCP_KEY/)).toBeInTheDocument();
     expect(within(definition).getByText('Long-term memory.')).toBeInTheDocument();
-    expect(within(definition).getByText(/edited in the catalog file/)).toBeInTheDocument();
+    expect(within(definition).getByText(/Edit it in Settings, Catalog/)).toBeInTheDocument();
   });
 
   it('gives the command and the file entry of each client, with a copy button, and the variable to provide', async () => {

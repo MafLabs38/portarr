@@ -13,7 +13,12 @@ internal sealed record NodeExporterCounters(
     IReadOnlyDictionary<string, double> Memory,
     double? Load1,
     double? CpuTemperatureCelsius,
-    MachineSystem? System = null);
+    MachineSystem? System = null,
+    IReadOnlyList<HostDisk>? Disks = null,
+    NetworkTotals? Network = null);
+
+/// <summary>The cumulative bytes the physical interfaces received and transmitted, and the exporter's own clock when it was read (seconds), to turn two scrapes into a rate.</summary>
+internal sealed record NetworkTotals(double ReceiveBytes, double TransmitBytes, double? Seconds);
 
 /// <summary>
 /// Reads the Prometheus text exposition format (version 0.0.4) line by line, keeping only the families the
@@ -30,6 +35,29 @@ internal static class NodeExporterParser
     public const string TemperatureFamily = "node_hwmon_temp_celsius";
     public const string OsInfoFamily = "node_os_info";
     public const string UnameFamily = "node_uname_info";
+    public const string FilesystemSizeFamily = "node_filesystem_size_bytes";
+    public const string FilesystemAvailFamily = "node_filesystem_avail_bytes";
+    public const string NetworkReceiveFamily = "node_network_receive_bytes_total";
+    public const string NetworkTransmitFamily = "node_network_transmit_bytes_total";
+    public const string TimeFamily = "node_time_seconds";
+
+    /// <summary>How many disks a machine's card lists at most: the largest ones (an Unraid array has many, a VM has one).</summary>
+    public const int MaxDisks = 8;
+
+    /// <summary>The filesystems that hold data a person cares about; tmpfs, overlay, squashfs (snaps), proc and the like are not disks.</summary>
+    private static readonly IReadOnlySet<string> DiskTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "ext2", "ext3", "ext4", "xfs", "btrfs", "zfs", "f2fs", "vfat", "exfat", "ntfs", "ntfs3", "fuseblk",
+    };
+
+    /// <summary>Interfaces that carry traffic a real card has already counted (bridges, VM and container interfaces, tunnels): left out of the traffic. Proxmox names its card <c>nic0</c>, so the physical ones are what remains.</summary>
+    private static readonly string[] VirtualInterfaces =
+    [
+        "lo", "veth", "docker", "br", "vmbr", "virbr", "tap", "fwbr", "fwln", "fwpr", "vnet", "vhost", "shim", "cni", "flannel", "cali", "cilium", "lxc", "tun", "wg", "kube", "dummy", "ifb", "vxlan", "bond", "tailscale", "zt", "podman", "nebula",
+    ];
+
+    /// <summary>Mounts that belong to the container engines or the system itself, not to the machine's storage.</summary>
+    private static readonly string[] SystemMounts = ["/var/lib/docker", "/var/lib/kubelet", "/var/lib/containers", "/var/lib/rancher", "/run", "/sys", "/proc", "/dev", "/snap", "/boot/efi"];
 
     /// <summary>The /proc/meminfo fields read, as node_exporter names them (node_memory_&lt;field&gt;_bytes).</summary>
     public static readonly IReadOnlySet<string> MemoryFields = new HashSet<string>(StringComparer.Ordinal)
@@ -42,7 +70,7 @@ internal static class NodeExporterParser
 
     private static bool IsWanted(string name)
     {
-        return name is CpuFamily or Load1Family or TemperatureFamily or OsInfoFamily or UnameFamily || name.StartsWith(MemoryPrefix, StringComparison.Ordinal);
+        return name is CpuFamily or Load1Family or TemperatureFamily or OsInfoFamily or UnameFamily or FilesystemSizeFamily or FilesystemAvailFamily or NetworkReceiveFamily or NetworkTransmitFamily or TimeFamily || name.StartsWith(MemoryPrefix, StringComparison.Ordinal);
     }
 
     public static async Task<NodeExporterCounters> ParseAsync(TextReader reader, long maxCharacters, CancellationToken cancellationToken)
@@ -76,6 +104,10 @@ internal static class NodeExporterParser
         private double? _temperature;
         private Sample? _osInfo;
         private Sample? _uname;
+        private readonly Dictionary<(string Device, string Mount), (string FsType, double Size, double Avail)> _filesystems = new();
+        private double? _receive;
+        private double? _transmit;
+        private double? _seconds;
 
         public void Add(Sample sample)
         {
@@ -96,6 +128,15 @@ internal static class NodeExporterParser
                 case UnameFamily:
                     _uname = sample;
                     break;
+                case FilesystemSizeFamily or FilesystemAvailFamily:
+                    AddFilesystem(sample);
+                    break;
+                case NetworkReceiveFamily or NetworkTransmitFamily:
+                    AddNetwork(sample);
+                    break;
+                case TimeFamily:
+                    _seconds = sample.Value;
+                    break;
                 default:
                     if (MemoryField(sample.Name) is { } field)
                     {
@@ -113,7 +154,93 @@ internal static class NodeExporterParser
                 _memory,
                 _load1,
                 _temperature,
-                ToSystem());
+                ToSystem(),
+                ToDisks(),
+                _receive is { } received && _transmit is { } transmitted ? new NetworkTotals(received, transmitted, _seconds) : null);
+        }
+
+        /// <summary>Only real network cards count: bridges, taps, veth pairs and tunnels carry traffic that a card has already counted (a bond is counted through its slaves).</summary>
+        private void AddNetwork(Sample sample)
+        {
+            if (sample.Label("device") is not { } device || !IsPhysicalInterface(device) || !double.IsFinite(sample.Value) || sample.Value < 0)
+            {
+                return;
+            }
+
+            if (sample.Name == NetworkReceiveFamily)
+            {
+                _receive = (_receive ?? 0) + sample.Value;
+            }
+            else
+            {
+                _transmit = (_transmit ?? 0) + sample.Value;
+            }
+        }
+
+        private static bool IsPhysicalInterface(string device)
+        {
+            return !VirtualInterfaces.Any(prefix => device.StartsWith(prefix, StringComparison.Ordinal));
+        }
+
+        private void AddFilesystem(Sample sample)
+        {
+            if (sample.Label("device") is not { Length: > 0 } device || sample.Label("mountpoint") is not { Length: > 0 } mount
+                || sample.Label("fstype") is not { } fsType || !double.IsFinite(sample.Value))
+            {
+                return;
+            }
+
+            var known = _filesystems.GetValueOrDefault((device, mount), (fsType, 0, 0));
+            _filesystems[(device, mount)] = sample.Name == FilesystemSizeFamily ? (fsType, sample.Value, known.Avail) : (fsType, known.Size, sample.Value);
+        }
+
+        /// <summary>
+        /// The disks: one per device (its shortest mount) and one per ZFS pool, data filesystems only, the largest
+        /// <see cref="MaxDisks"/>; null when the exporter exposes none.
+        /// </summary>
+        private List<HostDisk>? ToDisks()
+        {
+            var disks = _filesystems
+                .Where(f => f.Value.Size > 0 && DiskTypes.Contains(f.Value.FsType) && !IsSystemMount(f.Key.Mount))
+                .GroupBy(f => DiskName(f.Key.Device, f.Value.FsType), StringComparer.Ordinal)
+                .Select(group => group.First().Value.FsType == "zfs" ? ToPool(group.Key, group) : ToDisk(group.Key, group))
+                .OrderByDescending(d => d.SizeBytes)
+                .ThenBy(d => d.Mount, StringComparer.Ordinal)
+                .Take(MaxDisks)
+                .ToList();
+            return disks.Count > 0 ? disks : null;
+        }
+
+        private static HostDisk ToDisk(string device, IEnumerable<KeyValuePair<(string Device, string Mount), (string FsType, double Size, double Avail)>> entries)
+        {
+            var entry = entries.OrderBy(f => f.Key.Mount.Length).ThenBy(f => f.Key.Mount, StringComparer.Ordinal).First();
+            return new HostDisk(entry.Key.Mount, device, entry.Value.FsType, (long)entry.Value.Size, (long)Math.Clamp(entry.Value.Avail, 0, entry.Value.Size));
+        }
+
+        /// <summary>
+        /// A ZFS pool as one disk. Every dataset is a filesystem of its own whose size is what it references plus the pool's free
+        /// space (or its quota), and whose available space is the pool's free space (or what is left of its quota): the pool's used
+        /// space is the sum of what the datasets reference, its free space the largest available. Volumes of virtual disks (zvols)
+        /// and snapshots are not filesystems, so the figure is a lower bound.
+        /// </summary>
+        private static HostDisk ToPool(string pool, IEnumerable<KeyValuePair<(string Device, string Mount), (string FsType, double Size, double Avail)>> entries)
+        {
+            var datasets = entries.GroupBy(f => f.Key.Device, StringComparer.Ordinal).Select(g => g.OrderBy(f => f.Key.Mount.Length).First()).ToList();
+            var used = datasets.Sum(f => Math.Max(f.Value.Size - f.Value.Avail, 0));
+            var avail = datasets.Max(f => Math.Clamp(f.Value.Avail, 0, f.Value.Size));
+            var root = datasets.FirstOrDefault(f => f.Key.Device == pool);
+            return new HostDisk(root.Key.Mount ?? pool, pool, "zfs", (long)(used + avail), (long)avail);
+        }
+
+        /// <summary>The device a disk is counted as: itself, or for ZFS the pool (<c>rpool/data/subvol-101-disk-0</c> is part of <c>rpool</c>).</summary>
+        private static string DiskName(string device, string fsType)
+        {
+            return fsType == "zfs" && device.IndexOf('/', StringComparison.Ordinal) is var slash and > 0 ? device[..slash] : device;
+        }
+
+        private static bool IsSystemMount(string mount)
+        {
+            return SystemMounts.Any(prefix => mount == prefix || mount.StartsWith(prefix + "/", StringComparison.Ordinal));
         }
 
         /// <summary>The system the two info families describe; null when neither is there or they say nothing.</summary>

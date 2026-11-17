@@ -16,6 +16,7 @@ using Portarr.Providers.Kubernetes;
 using Portarr.Providers.McpClients;
 using Portarr.Providers.NodeExporter;
 using Portarr.Providers.Platforms;
+using Portarr.Providers.Proxmox;
 using Portarr.Providers.Registries;
 
 // The content root is the binary's folder, whatever the working directory (like the *arr apps).
@@ -35,6 +36,7 @@ builder.Services.AddCloudflareProvider();
 builder.Services.AddKubernetesProvider();
 builder.Services.AddBackrestProvider();
 builder.Services.AddNodeExporterProvider();
+builder.Services.AddProxmoxProvider();
 builder.Services.AddGpuExporterProvider();
 builder.Services.AddGitHubProvider();
 builder.Services.AddRegistriesProvider();

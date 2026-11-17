@@ -20,6 +20,8 @@ public sealed class OutboundAddressPolicyFixture
     [InlineData("ff02::1")]
     [InlineData("::ffff:127.0.0.1")]
     [InlineData("::ffff:169.254.169.254")]
+    [InlineData("fd00:ec2::254")]
+    [InlineData("100.100.100.200")]
     public void should_refuse_loopback_link_local_unspecified_and_multicast_addresses(string address)
     {
         OutboundAddressPolicy.IsAllowed(IPAddress.Parse(address)).Should().BeFalse();

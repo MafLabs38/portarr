@@ -1,6 +1,6 @@
 # MCP servers and workstations
 
-> Status: **built, in review** (reworked around one principle: Portarr is the master). The maintainer's acceptance remains. Features: F-MCP-01 to F-MCP-07. Decisions: D-110 to D-116, all proposed (🟡) until the maintainer merges: freezing a decision is his. Builds on [V5](V5-ai-mcp.md) (Portarr's own MCP server, D-68 to D-71, D-86), [V7](V7-accounts.md) (accounts, per-user keys, permissions), the checks (D-50, D-51) and the catalog ([catalog.md](../catalog.md)).
+> Status: **built, in review** (reworked around one principle: Portarr is the master). The maintainer's acceptance remains. Features: F-MCP-01 to F-MCP-07. Decisions: D-110 to D-116 (D-112 amended by D-125), all proposed (🟡) until the maintainer merges: freezing a decision is his. Builds on [V5](V5-ai-mcp.md) (Portarr's own MCP server, D-68 to D-71, D-86), [V7](V7-accounts.md) (accounts, per-user keys, permissions), the checks (D-50, D-51) and the catalog ([catalog.md](../catalog.md)).
 
 ## The principle
 
@@ -44,7 +44,7 @@ The catalog describes the MCP servers the operator uses and the workstations whe
 | A menu entry **MCP**: Servers and Workstations | Portarr writing to a workstation, running a command on it, or reaching it at all; any state about a machine (D-110) |
 | Rendering a server for each supported client and scope: command and/or file change | An agent, a daemon or a periodic check on workstations |
 | Health of remote servers, with "last healthy" kept across restarts (D-114) | Probing with credentials; local (`stdio`) servers are not checked |
-| The plan of a workstation: what to install, what to remove | An assistant defining or changing servers (D-112) |
+| The plan of a workstation: what to install, what to remove | An assistant installing or changing a server on a machine by itself (D-112): it can only propose a definition, which an administrator approves (D-125) |
 | Secret references to the operator's vault, with the command each workstation runs to read them (D-116) | Storing, reading, or handing out a secret value: Portarr holds none |
 
 ## Design
@@ -93,7 +93,7 @@ secretStore:                          # optional, see "Secrets"
   prefix: kv/mcp                      # where the MCP secrets live
 ```
 
-- This file is the **only place** where a server or a workstation is defined (D-112). It is edited by the operator, like every other section.
+- The catalog is the **only place** where a server or a workstation is defined. It is edited like every other section: by hand, from Settings, Catalog, through the API or through the MCP tools (D-125, which amends D-112); how a server is reached or launched waits for an administrator's approval.
 - A value is a harmless literal or `{ env: NAME }`. A header or variable whose name suggests a credential (authorization, key, token, secret, password…) accepts only the second form. A literal that looks like a secret is refused by the heuristic of D-84 (private keys, token formats, `password=…`, credentials in URLs, long random strings), naming the field, never the value.
 - `{ env: NAME }` is a variable **on the workstation**, read by the client. Portarr never reads it (unlike a connector's `tokenEnv`; D-108's namespaces do not apply). `secret:` is the key, under the store's `prefix`, whose value the workstation puts in that variable; it needs a `secretStore`.
 - The clients a workstation may name, and the kinds of secret store, are those of the implementations that registered (D-113, D-116): the parser asks for them, it holds no list.
@@ -153,10 +153,10 @@ Portarr holds no secret and hands none out. The secrets live in the operator's v
 - Without a `secretStore`, only `{ env: NAME }` exists and the operator provisions the variables as they like.
 - One provisioner per store kind behind one contract (`IMcpSecretStoreProvisioner`, rule 8), in the same implementation library as the renderers, written from the vault's CLI documentation and tested against golden outputs.
 
-### Security (D-112)
+### Security (D-112, amended by D-125)
 
-- **A server definition is instructions an assistant will execute**: a `stdio` command runs code on a workstation, an `http` URL receives its headers. So a definition exists only in **the catalog file**, edited by a person. The catalog edit API, the MCP tools and the chat cannot create, change or remove `mcpServers`, `workstations` or `secretStore`, and `get_catalog_item` leaves them out (the same principle as 17-1 in D-86). An assistant can only **read** what the catalog says.
-- The four MCP tools of this vertical are read-only, and nothing in this vertical writes to the catalog. The catalog write tools of V5 (D-86, off by default) refuse `mcpServers`, `workstations` and `secretStore`.
+- **A server definition is instructions an assistant will execute**: a `stdio` command runs code on a workstation, an `http` URL receives its headers. So `http` and `stdio` are **protected settings** (D-123, D-125): a person holding `settings.manage` writes them at once, anyone else (an assistant, a key that only edits the catalog) leaves a **pending change** that an administrator approves in Settings, Catalog, and every address passes the connection guardrails. The rest of a server (its name, notes) and the workstations are written like any other item. A read for an assistant leaves `http` and `stdio` out. `secretStore` stays in the file: nothing writes it.
+- The four MCP tools of this vertical are read-only. The catalog write tools (D-86, off by default) include `upsert_mcp_server` and `upsert_workstation` (D-125); they refuse `secretStore`.
 - Portarr cannot make a client ask permission. The guards are the instruction to the assistant and the client's own prompts for file edits and commands. The page says so.
 - `http://` needs `allowInsecure: true` on the server (D-103). A `stdio` command is a program and its arguments, never a shell line. An unpinned `npx` or `uvx` package is flagged on the server's page.
 - Commands are written for a POSIX shell, or for PowerShell on Windows (a note says so). A text that would break the quoting is refused when the catalog is read, or the operator is sent to the file operation.
@@ -210,7 +210,7 @@ One vertical, three steps, developed in the sandbox and delivered in one pull re
 - [x] For each supported client, the rendering of an `http` and a `stdio` server matches its golden file and contains no secret value; a quote character that would escape the quoting is never written inside a command
 - [x] A healthy fixture server, a 401 one, a dead one, a non-MCP one and a probe that failed give Healthy, Healthy asking for credentials, Down (twice) and Unknown; the last healthy time and the down-since survive a restart on SQLite and PostgreSQL; nothing probes a workstation
 - [x] `mcp.use` is held by Admin and Operator and by neither Observer nor Guest; role × endpoint and role × tool matrices
-- [x] The catalog edit API, the MCP tools and the chat cannot touch `mcpServers`, `workstations` or `secretStore`; the item endpoint leaves them out; the four MCP tools are read-only, and the catalog write tools refuse these sections
+- [x] A server's `http` and `stdio` are protected settings: an assistant leaves a pending change for approval (D-125), the read for an assistant leaves them out, `secretStore` is never written; the four MCP tools of this vertical are read-only
 - [x] Adding a client is a new class and its registration: no other file of Core changes (a test registers a stand-in client)
 - [ ] (the maintainer, on the preview) An assistant connected to the sandbox obtains the exact command to add a server at user scope for its client, and a workstation's plan with what to install and what to remove
 - [x] A Down server appears in `get_overview` with the time since, for a caller with `mcp.use` only

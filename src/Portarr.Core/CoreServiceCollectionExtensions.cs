@@ -50,6 +50,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<ICatalogService>(provider => provider.GetRequiredService<CatalogService>());
         services.AddHostedService(provider => provider.GetRequiredService<CatalogService>());
         services.AddSingleton<ICatalogAuditLog, CatalogAuditLog>();
+        services.AddSingleton<CatalogPendingStore>();
         services.AddSingleton<ICatalogEditor, CatalogEditor>();
         services.AddSingleton<WorkloadInventory>();
         services.AddSingleton<IWorkloadInventory>(provider => provider.GetRequiredService<WorkloadInventory>());

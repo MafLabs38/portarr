@@ -136,8 +136,11 @@ public sealed record MachineLine(
     IReadOnlyList<ConsumerLine> TopConsumers,
     HostAgentLine? HostAgent = null);
 
-/// <summary>What a machine's host agent adds (D-72): I/O wait and per-core load in %, load average, CPU temperature, swap in GiB.</summary>
-public sealed record HostAgentLine(double? IowaitPercent, IReadOnlyList<double> CorePercents, double? Load1, double? TemperatureCelsius, double? SwapUsedGiB, double? SwapTotalGiB);
+/// <summary>What a machine's host agent adds (D-72): I/O wait and per-core load in %, load average, CPU temperature, swap in GiB, filesystems, and the network traffic of its physical interfaces in KiB/s.</summary>
+public sealed record HostAgentLine(double? IowaitPercent, IReadOnlyList<double> CorePercents, double? Load1, double? TemperatureCelsius, double? SwapUsedGiB, double? SwapTotalGiB, IReadOnlyList<DiskLine>? Disks = null, double? NetworkReceiveKiBPerSecond = null, double? NetworkTransmitKiBPerSecond = null);
+
+/// <summary>A filesystem of a machine: where it is mounted, how much of it is used and its size, in GiB.</summary>
+public sealed record DiskLine(string Mount, double UsedGiB, double TotalGiB);
 
 /// <summary>An environment with its machines; <c>Error</c> is a reason code; <c>Unplaced</c>: workloads on no known machine.</summary>
 public sealed record InfrastructureLine(string Id, string Name, string Runtime, DateTimeOffset? SampledAt, string? Error, IReadOnlyList<MachineLine> Machines, IReadOnlyList<string> Unplaced);

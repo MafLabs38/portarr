@@ -7,11 +7,13 @@ Portarr is one container (`ghcr.io/<owner>/portarr`) and a data folder. This pag
 | Object | What it is for |
 |---|---|
 | `Namespace`, `ServiceAccount`, `Secret portarr-token`, `ClusterRole`, `ClusterRoleBinding` | read-only access to the cluster: nodes, namespaces, pods, workloads, metrics-server, CronJobs and K8up. No write verb, no Secret, no logs |
-| `ConfigMap portarr-catalog` | the [catalog](catalog.md): what Portarr knows of your fleet. Read-only in the pod (`PORTARR__CATALOG__WRITABLE=false`): the ConfigMap is the source of truth |
+| `ConfigMap portarr-catalog` | the [catalog](catalog.md) as it is first seeded: what Portarr knows of your fleet. An init container copies it into the data volume (`/config/catalog`) once, and never overwrites it: the live catalog is the file on the volume, which Portarr writes (`PORTARR__CATALOG__WRITABLE=true`, D-124) |
 | `Secret portarr-admin` | the password of the first administrator, created once while no user exists |
-| `PersistentVolumeClaim portarr-data` | the data folder (`/config`): the SQLite database, the keys that protect the sessions, uploads |
+| `PersistentVolumeClaim portarr-data` | the data folder (`/config`): the SQLite database, the keys that protect the sessions, uploads, and the live catalog with its backups, audit trail and waiting changes (`/config/catalog`) |
 | `Deployment` | one replica, `Recreate` (a SQLite file on a `ReadWriteOnce` volume: never two pods), non-root, read-only root file system, no capability, resource limits |
 | `Service`, `Ingress` | port 8484, and a host name for Traefik (any ingress controller works) |
+
+Your own icons go in `/config/catalog/icons` on the data volume (a ConfigMap cannot hold a folder).
 
 Change the three values marked `CHANGE` (the administrator's password, the host name, and the version of the image), then `kubectl apply -f deploy/kubernetes/portarr.yaml`.
 
@@ -20,7 +22,7 @@ Change the three values marked `CHANGE` (the administrator's password, the host 
 - **`PORTARR__AUTH__COOKIESECURITY=Always`**: the session cookie is always `Secure`. Behind a proxy that ends TLS, Portarr only sees plain HTTP; this keeps the cookie from ever travelling in clear.
 - **The cluster itself** is declared in the catalog with `tokenEnv: PORTARR_K8S_TOKEN` (the variable the manifest fills from `portarr-token`) and `caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt` (mounted by Kubernetes). The catalog never holds a token ([catalog.md](catalog.md#secret-variables)).
 - **Reaching the other hosts** (Docker sockets, node_exporter, Backrest) is a matter of network: the pod must reach them, and a Docker host is read through a read-only [socket proxy](connectors/docker.md), never the socket itself.
-- **Credentials** for the connectors (`PORTARR_BACKREST_…`, `PORTARR_CLOUDFLARE_…`, `PORTARR_GITHUB_…`) go in a `Secret` read as environment variables, never in the catalog.
+- **Credentials** for the connectors (`PORTARR_BACKREST_…`, `PORTARR_CLOUDFLARE_…`, `PORTARR_GITHUB_…`, `PORTARR_PROXMOX_…`) go in a `Secret` read as environment variables, never in the catalog.
 
 ## Reaching the machines it watches
 

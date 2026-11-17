@@ -118,7 +118,7 @@ public sealed class CatalogOptions
 
     /// <summary>
     /// Environment variables, besides each connector's own namespace (<c>PORTARR_K8S_</c>, <c>PORTARR_BACKREST_</c>, <c>PORTARR_CLOUDFLARE_</c>,
-    /// <c>PORTARR_GITHUB_</c>) and default name, that a catalog may name as a secret (comma separated): <c>PORTARR__CATALOG__SECRETVARIABLES</c>.
+    /// <c>PORTARR_GITHUB_</c>, <c>PORTARR_PROXMOX_</c>) and default name, that a catalog may name as a secret (comma separated): <c>PORTARR__CATALOG__SECRETVARIABLES</c>.
     /// Set by whoever runs Portarr, never by the catalog: it is how an existing setup keeps its variable names.
     /// </summary>
     public string? SecretVariables { get; set; }

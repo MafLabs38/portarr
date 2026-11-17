@@ -25,6 +25,7 @@ public sealed class NodeExporterSampler
     private static readonly (double? Cpu, double? Iowait, IReadOnlyList<double>? Cores) NoRates = (null, null, null);
 
     private readonly ConcurrentDictionary<HostMachineKey, Baseline> _previous = new();
+    private readonly ConcurrentDictionary<HostMachineKey, NetworkTotals> _previousNetwork = new();
 
     /// <summary>Parses a scrape of <paramref name="key"/> (streamed, never buffered whole) and measures it against the previous one.</summary>
     public async Task<HostReading> ReadAsync(HostMachineKey key, Stream metrics, CancellationToken cancellationToken)
@@ -37,15 +38,44 @@ public sealed class NodeExporterSampler
 
     internal HostReading Next(HostMachineKey key, NodeExporterCounters counters)
     {
+        var network = NetworkRate(key, counters.Network);
         var baseline = _previous.GetValueOrDefault(key);
         if (baseline is not null && SameCounters(baseline.Counters.Cpus, counters.Cpus))
         {
-            return ToReading(counters, baseline.Rates);
+            return ToReading(counters, baseline.Rates, network);
         }
 
         var rates = baseline is null ? NoRates : CpuDelta(baseline.Counters.Cpus, counters.Cpus);
         _previous[key] = new Baseline(counters, rates);
-        return ToReading(counters, rates);
+        return ToReading(counters, rates, network);
+    }
+
+    /// <summary>
+    /// Bytes per second between this scrape and the last one, by the exporter's own clock (node_time_seconds): null at the first read, when the
+    /// exporter says no time, when time did not advance, or when a counter went backwards (a reboot, an interface reset).
+    /// </summary>
+    private HostNetwork? NetworkRate(HostMachineKey key, NetworkTotals? current)
+    {
+        if (current is null)
+        {
+            return null;
+        }
+
+        var previous = _previousNetwork.GetValueOrDefault(key);
+        _previousNetwork[key] = current;
+        return previous is null ? null : RateBetween(previous, current);
+    }
+
+    internal static HostNetwork? RateBetween(NetworkTotals previous, NetworkTotals current)
+    {
+        if (previous.Seconds is not { } before || current.Seconds is not { } now || now <= before)
+        {
+            return null;
+        }
+
+        var received = current.ReceiveBytes - previous.ReceiveBytes;
+        var transmitted = current.TransmitBytes - previous.TransmitBytes;
+        return received < 0 || transmitted < 0 ? null : new HostNetwork(Math.Round(received / (now - before)), Math.Round(transmitted / (now - before)));
     }
 
     internal static HostReading ToReading(NodeExporterCounters? previous, NodeExporterCounters current)
@@ -53,7 +83,7 @@ public sealed class NodeExporterSampler
         return ToReading(current, previous is null ? NoRates : CpuDelta(previous.Cpus, current.Cpus));
     }
 
-    private static HostReading ToReading(NodeExporterCounters current, (double? Cpu, double? Iowait, IReadOnlyList<double>? Cores) rates)
+    private static HostReading ToReading(NodeExporterCounters current, (double? Cpu, double? Iowait, IReadOnlyList<double>? Cores) rates, HostNetwork? network = null)
     {
         var memory = current.Memory;
         long Bytes(string field) => memory.TryGetValue(field, out var value) && double.IsFinite(value) ? (long)value : 0;
@@ -77,7 +107,9 @@ public sealed class NodeExporterSampler
                 Bytes("SwapFree")),
             current.Load1 is { } load && double.IsFinite(load) ? Math.Round(load, 2) : null,
             current.CpuTemperatureCelsius is { } celsius ? Math.Round(celsius, 1) : null,
-            current.System);
+            current.System,
+            current.Disks,
+            network);
     }
 
     /// <summary>Whether no counter moved between two scrapes (the same cores, each with the same times).</summary>

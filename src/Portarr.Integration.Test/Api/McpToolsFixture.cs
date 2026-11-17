@@ -13,7 +13,7 @@ public sealed class McpToolsHosts : IAsyncLifetime
     public const string Catalog = """
         # The catalog of the test fleet.
         environments:
-          - { id: server-1, name: Server 1, docker: { url: "http://socket-proxy:2375" } }
+          - { id: server-1, name: Server 1, docker: { url: "http://127.0.0.1:1" } }
         apps:
           - id: jellyfin   # media
             name: Jellyfin
@@ -100,7 +100,7 @@ public sealed class McpToolsFixture : IClassFixture<McpToolsHosts>
 
         // The shared key is a view-only principal: the operator's MCP servers need mcp.use (D-115), which only a user's role grants.
         readOnly.Should().NotContain(["list_mcp_servers", "get_mcp_server"]);
-        writable.Should().Contain(["get_catalog_item", "get_portal", "upsert_app", "remove_app", "upsert_stack", "set_portal", "set_notes"]);
+        writable.Should().Contain(["get_catalog_item", "get_portal", "upsert_app", "remove_app", "upsert_stack", "set_portal", "set_notes", "upsert_mcp_server", "upsert_workstation", "get_catalog_item_check"]);
     }
 
     // Each tool answers with a fact only it can say about the seeded fleet (one app, one unreachable Docker host).
@@ -117,11 +117,12 @@ public sealed class McpToolsFixture : IClassFixture<McpToolsHosts>
     {
         var text = await CallAsync(ReadOnly, tool, arguments);
 
-        // The fleet is read in the background: until its first reading is in, a tool answers with what it has. Wait for it, at most 30 s (the first sampling of an
-        // unreachable environment can take longer than ten on a loaded runner, and this test failed on that alone).
-        for (var attempt = 0; attempt < 150 && !text.Contains(expected, StringComparison.Ordinal); attempt++)
+        // The fleet is read in the background: until its first reading is in, a tool answers with what it has. Wait for it, at most 35 s (the first sampling of an
+        // unreachable environment can take longer than ten on a loaded runner). One poll a second: five a second spent the MCP limit of 120 requests a minute
+        // while a slow name lookup was pending, and the next rows were answered 429.
+        for (var attempt = 0; attempt < 35 && !text.Contains(expected, StringComparison.Ordinal); attempt++)
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken);
+            await Task.Delay(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
             text = await CallAsync(ReadOnly, tool, arguments);
         }
 

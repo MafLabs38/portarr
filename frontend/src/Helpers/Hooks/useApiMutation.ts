@@ -64,8 +64,16 @@ export default function useApiMutation<TBody, TResult>({
       });
 
       if (!response.ok) {
-        const problem = (await response.json().catch(() => null)) as { detail?: unknown } | null;
-        throw new ApiError(response.status, target, typeof problem?.detail === 'string' ? problem.detail : undefined);
+        const problem = (await response.json().catch(() => null)) as {
+          detail?: unknown;
+          errors?: Record<string, string[]>;
+        } | null;
+        throw new ApiError(
+          response.status,
+          target,
+          typeof problem?.detail === 'string' ? problem.detail : undefined,
+          problem?.errors && typeof problem.errors === 'object' ? problem.errors : undefined,
+        );
       }
 
       const text = await response.text();

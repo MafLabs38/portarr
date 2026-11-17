@@ -1,7 +1,7 @@
 # Portarr on Kubernetes: a reference manifest (docs/deployment.md). Edit the three values marked CHANGE, then
 #   kubectl apply -f portarr.yaml
-# One replica (the data is a SQLite file on a volume), read-only access to the cluster through a ServiceAccount, the catalog in a
-# ConfigMap, the first administrator created from a Secret.
+# One replica (the data is a SQLite file on a volume), read-only access to the cluster through a ServiceAccount, the catalog seeded
+# once from a ConfigMap into the data volume (Portarr then writes it, D-124), the first administrator created from a Secret.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -59,7 +59,8 @@ subjects:
     name: portarr
     namespace: portarr
 ---
-# The catalog (docs/catalog.md). It is read-only here: the cluster's source of truth is this ConfigMap.
+# The catalog (docs/catalog.md), as it is first seeded. The live catalog is the file on the data volume (/config/catalog), which Portarr
+# edits (Settings, Catalog, the API, the MCP): this ConfigMap is only copied there when the volume has none (D-124).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -124,6 +125,22 @@ spec:
         fsGroup: 1654
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        # Copies the catalog into the data volume once (and creates its icons folder): cp -n never overwrites what Portarr has written since.
+        - name: seed-catalog
+          image: busybox:1.37.0@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
+          command: ["sh", "-c", "mkdir -p /config/catalog/icons && cp -n /seed/catalog.yaml /config/catalog/"]
+          volumeMounts:
+            - { name: seed, mountPath: /seed, readOnly: true }
+            - { name: data, mountPath: /config }
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 64Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
       containers:
         - name: portarr
           image: ghcr.io/maflabs38/portarr:0.1.0 # a version, never latest: the cluster then changes version only when you do (docs/deployment.md)
@@ -134,8 +151,10 @@ spec:
             # Plain HTTP inside the pod on purpose: TLS ends at the ingress, and nothing leaves the pod network in clear.
             - { name: PORTARR__URLS, value: "http://+:8484" }
             - { name: PORTARR__DATAFOLDER, value: /config }
-            - { name: PORTARR__CATALOGFILE, value: /catalog/catalog.yaml }
-            - { name: PORTARR__CATALOG__WRITABLE, value: "false" }
+            # The catalog lives in the data volume and Portarr writes it. A change to how a host is reached, asked by an assistant, waits
+            # for an administrator's approval in Settings, Catalog. Export it (Settings, Catalog) to keep a copy in git.
+            - { name: PORTARR__CATALOGFILE, value: /config/catalog/catalog.yaml }
+            - { name: PORTARR__CATALOG__WRITABLE, value: "true" }
             # Behind a TLS-terminating proxy that Portarr does not see as trusted: the session cookie is always Secure.
             - { name: PORTARR__AUTH__COOKIESECURITY, value: Always }
             - { name: PORTARR__AUTH__ADMINUSER, value: admin }
@@ -145,7 +164,6 @@ spec:
                 secretKeyRef: { name: portarr-token, key: token }
           volumeMounts:
             - { name: data, mountPath: /config }
-            - { name: catalog, mountPath: /catalog, readOnly: true }
             - { name: admin, mountPath: /run/portarr/admin, readOnly: true }
             - { name: tmp, mountPath: /tmp }
           readinessProbe:
@@ -166,7 +184,7 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim: { claimName: portarr-data }
-        - name: catalog
+        - name: seed
           configMap: { name: portarr-catalog }
         - name: admin
           secret: { secretName: portarr-admin }

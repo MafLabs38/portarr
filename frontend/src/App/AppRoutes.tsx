@@ -22,6 +22,7 @@ import {
   SYSTEM_VIEW,
   USERS_MANAGE,
 } from 'Helpers/Props/permissions';
+import CatalogPage from 'Settings/Catalog/CatalogPage';
 import GeneralPage from 'Settings/General/GeneralPage';
 import SettingsHome from 'Settings/SettingsHome';
 import UsersAuthPage from 'Settings/UsersAuth/UsersAuthPage';
@@ -135,6 +136,14 @@ export default function AppRoutes() {
           </RequirePermission>
         }
         path="/settings/general"
+      />
+      <Route
+        element={
+          <RequirePermission permission={CATALOG_WRITE}>
+            <CatalogPage />
+          </RequirePermission>
+        }
+        path="/settings/catalog"
       />
       <Route
         element={
