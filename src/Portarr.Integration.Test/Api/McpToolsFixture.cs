@@ -13,7 +13,7 @@ public sealed class McpToolsHosts : IAsyncLifetime
     public const string Catalog = """
         # The catalog of the test fleet.
         environments:
-          - { id: server-1, name: Server 1, docker: { url: "http://socket-proxy:2375" } }
+          - { id: server-1, name: Server 1, docker: { url: "http://127.0.0.1:1" } }
         apps:
           - id: jellyfin   # media
             name: Jellyfin
