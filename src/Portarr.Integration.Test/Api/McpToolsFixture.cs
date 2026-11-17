@@ -117,11 +117,12 @@ public sealed class McpToolsFixture : IClassFixture<McpToolsHosts>
     {
         var text = await CallAsync(ReadOnly, tool, arguments);
 
-        // The fleet is read in the background: until its first reading is in, a tool answers with what it has. Wait for it, at most 30 s (the first sampling of an
-        // unreachable environment can take longer than ten on a loaded runner, and this test failed on that alone).
-        for (var attempt = 0; attempt < 150 && !text.Contains(expected, StringComparison.Ordinal); attempt++)
+        // The fleet is read in the background: until its first reading is in, a tool answers with what it has. Wait for it, at most 35 s (the first sampling of an
+        // unreachable environment can take longer than ten on a loaded runner). One poll a second: five a second spent the MCP limit of 120 requests a minute
+        // while a slow name lookup was pending, and the next rows were answered 429.
+        for (var attempt = 0; attempt < 35 && !text.Contains(expected, StringComparison.Ordinal); attempt++)
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(200), TestContext.Current.CancellationToken);
+            await Task.Delay(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
             text = await CallAsync(ReadOnly, tool, arguments);
         }
 

@@ -71,11 +71,7 @@ function failureOf(error: unknown): Outcome {
 
 function OutcomeNotice({ outcome }: Readonly<{ outcome: Outcome }>) {
   if (outcome.kind === 'success') {
-    return (
-      <p className={`${form.saved} ${styles.outcome}`} role="status">
-        {outcome.message}
-      </p>
-    );
+    return <output className={`${form.saved} ${styles.outcome}`}>{outcome.message}</output>;
   }
   return (
     <div className={styles.outcome}>
