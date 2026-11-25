@@ -16,6 +16,16 @@ export function hasAlertDetails(repository: Repository): boolean {
   return scansOf(repository).some((scan) => scan.alerts.length > 0);
 }
 
+const severityRank: Record<string, number> = { critical: 0, high: 2, medium: 3, low: 4 };
+
+/** Worst first across the three features: critical, an open secret, high, medium, low, then the quality rules. */
+function rank(alert: Alert): number {
+  if (alert.severity) {
+    return severityRank[alert.severity] ?? 5;
+  }
+  return alert.source === 'secret-scanning' ? 1 : 5;
+}
+
 function severityName(alert: Alert): string {
   if (alert.severity) {
     return translate(`SeverityName_${alert.severity}`);
@@ -56,7 +66,9 @@ export const alertsPanelId = (repository: Repository) => `alerts-${repository.fu
  * links to its page on the code host. When a feature has more alerts than are described, the line says how many.
  */
 export default function RepositoryAlerts({ repository }: Readonly<RepositoryAlertsProps>) {
-  const alerts = scansOf(repository).flatMap((scan) => scan.alerts);
+  const alerts = scansOf(repository)
+    .flatMap((scan) => scan.alerts)
+    .sort((a, b) => rank(a) - rank(b));
   const hidden = scansOf(repository).reduce((sum, scan) => sum + Math.max(0, scan.total - scan.alerts.length), 0);
 
   return (

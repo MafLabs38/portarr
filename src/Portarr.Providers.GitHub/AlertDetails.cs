@@ -91,8 +91,13 @@ internal static class AlertDetails
         return text.Length <= MaxText ? text : text[..MaxText] + "…";
     }
 
-    // U+202A–U+202E and U+2066–U+2069 reorder the text around them: they can make a title read as something else.
-    private static bool IsBidiControl(char c) => c is >= '\u202A' and <= '\u202E' or >= '\u2066' and <= '\u2069';
+    // Characters that reorder, hide or split text: bidi embeddings and overrides (U+202A–202E, U+2066–2069), marks
+    // and zero-width characters (U+061C, U+200B–200F, U+2060, U+FEFF) and the line and paragraph separators.
+    private static bool IsBidiControl(char c) =>
+        c is '\u061C' or '\u2028' or '\u2029' or '\u2060' or '\uFEFF'
+            or >= '\u200B' and <= '\u200F'
+            or >= '\u202A' and <= '\u202E'
+            or >= '\u2066' and <= '\u2069';
 
     private static Uri? Link(string? value) =>
         Uri.TryCreate(value, UriKind.Absolute, out var url) && url.Scheme == Uri.UriSchemeHttps ? url : null;
