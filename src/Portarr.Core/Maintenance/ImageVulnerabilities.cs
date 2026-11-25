@@ -192,7 +192,7 @@ public sealed class ImageScannerUnavailableException : Exception
     public ImageScannerUnavailableException(string reason)
         : base(reason)
     {
-        Reason = reason;
+        Reason = ClosedCode(reason);
     }
 
     public ImageScannerUnavailableException()

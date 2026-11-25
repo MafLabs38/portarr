@@ -415,6 +415,7 @@ volumes:
 | `PORTARR_SCANNER_TIMEOUT_MINUTES` | `10` | One scan stops after this long and is reported as `timeout` |
 | `PORTARR_SCANNER_RESCAN_HOURS` | `24` | An image is scanned again when Portarr names it after this long |
 | `PORTARR_SCANNER_FORGET_DAYS` | `7` | An image Portarr has not named for this long is forgotten |
+| `PORTARR_SCANNER_MAX_IMAGES` | `2000` | References tracked at most (10 to 10000); a new one beyond it is ignored |
 | `TRIVY_BIN` | `trivy` | The Trivy executable |
 
 Secrets are never logged and never returned.
