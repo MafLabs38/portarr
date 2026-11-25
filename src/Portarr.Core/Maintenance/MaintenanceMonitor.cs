@@ -7,10 +7,13 @@ using Portarr.Core.Workloads;
 
 namespace Portarr.Core.Maintenance;
 
-/// <summary>The last scan of the code sources and the registry lookups, per repository key. In memory only.</summary>
-public sealed record MaintenanceState(RepositoryScan Repositories, IReadOnlyDictionary<string, RegistryLookup> Registries)
+/// <summary>The last scan of the code sources, the registry lookups per repository key and the image scanner's report. In memory only.</summary>
+public sealed record MaintenanceState(RepositoryScan Repositories, IReadOnlyDictionary<string, RegistryLookup> Registries, ImageScanSnapshot? ImageScans = null)
 {
     public static MaintenanceState Empty { get; } = new(RepositoryScan.NotConfigured, new Dictionary<string, RegistryLookup>());
+
+    /// <summary>What the image scanner said at the last read (<see cref="ImageScanSnapshot.Off"/> when none is declared).</summary>
+    public ImageScanSnapshot Scans => ImageScans ?? ImageScanSnapshot.Off;
 }
 
 /// <summary>
@@ -63,6 +66,12 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
     public static readonly TimeSpan RegistryInterval = TimeSpan.FromHours(6);
     public static readonly TimeSpan RegistryRetryInterval = TimeSpan.FromHours(1);
 
+    /// <summary>The image scanner is told the running images and read at most this often (it scans each image once a day on its own).</summary>
+    public static readonly TimeSpan ScannerInterval = TimeSpan.FromMinutes(30);
+
+    /// <summary>The image scanner is asked again this soon after a failure.</summary>
+    public static readonly TimeSpan ScannerRetryInterval = TimeSpan.FromMinutes(5);
+
     /// <summary>A manual refresh is accepted at most this often: GitHub's and the registries' limits matter more than impatience.</summary>
     public static readonly TimeSpan RefreshCooldown = TimeSpan.FromSeconds(60);
 
@@ -79,6 +88,7 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
     private readonly IWorkloadInventory _inventory;
     private readonly IEnumerable<ICodeRepositorySource> _codeSources;
     private readonly IEnumerable<IImageRegistry> _registries;
+    private readonly IEnumerable<IImageScanner> _scanners;
     private readonly bool _imageUpdates;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<MaintenanceMonitor> _logger;
@@ -86,6 +96,7 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
     private readonly Lock _requestLock = new();
     private volatile MaintenanceState _current = MaintenanceState.Empty;
     private volatile string? _scannedKey;
+    private volatile string? _scannerKey;
 
     // Manual refresh: when it was last accepted, and which request the last finished pass answered.
     private DateTimeOffset? _requestedAt;
@@ -97,6 +108,7 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
         IWorkloadInventory inventory,
         IEnumerable<ICodeRepositorySource> codeSources,
         IEnumerable<IImageRegistry> registries,
+        IEnumerable<IImageScanner> scanners,
         IOptions<PortarrOptions> options,
         TimeProvider timeProvider,
         ILogger<MaintenanceMonitor> logger)
@@ -105,6 +117,7 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
         _inventory = inventory;
         _codeSources = codeSources;
         _registries = registries;
+        _scanners = scanners;
         _imageUpdates = options.Value.ImageUpdates;
         _timeProvider = timeProvider;
         _logger = logger;
@@ -179,6 +192,9 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
 
                 var registries = await LookUpImagesAsync(_current.Registries, forced, cancellationToken);
                 _current = _current with { Registries = registries };
+
+                var scans = await ReadScannerAsync(_current.Scans, forced, cancellationToken);
+                _current = _current with { ImageScans = scans };
             }
             finally
             {
@@ -344,6 +360,54 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
             .ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal);
     }
 
+    /// <summary>
+    /// The image scanner (D-131), when the catalog declares one: told the images that run and read, at most every 30 minutes (5 after a
+    /// failure). A scanner that cannot be reached keeps the previous results, with the error next to them; one that is not declared is off.
+    /// </summary>
+    private async Task<ImageScanSnapshot> ReadScannerAsync(ImageScanSnapshot previous, DateTimeOffset? forced, CancellationToken cancellationToken)
+    {
+        var source = _catalogService.Current.Catalog.ImageScanner;
+        var scanner = _scanners.FirstOrDefault();
+        if (source is null || scanner is null)
+        {
+            _scannerKey = null;
+            return ImageScanSnapshot.Off;
+        }
+
+        var now = _timeProvider.GetUtcNow();
+        var sameSource = _scannerKey == source.Fingerprint;
+        if (sameSource && previous.At is { } at && now - at < (previous.Error is null ? ScannerInterval : ScannerRetryInterval) && !(forced is { } asked && at < asked))
+        {
+            return previous;
+        }
+
+        _scannerKey = source.Fingerprint;
+        // Another scanner (its address changed) knows nothing of what the previous one said.
+        var kept = sameSource ? previous : ImageScanSnapshot.Off;
+        var images = RunningImages(_inventory.Current)
+            .Where(pair => !pair.Image.IsImageId)
+            .Select(pair => pair.Image.ScanReference)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+        try
+        {
+            if (images.Count > 0)
+            {
+                await scanner.RequestAsync(images, cancellationToken);
+            }
+
+            var report = await scanner.ReadAsync(cancellationToken);
+            return new ImageScanSnapshot(report.Normalised().Images.Where(i => i.Kind == ScanTargetKinds.Image).ToDictionary(i => i.Image, StringComparer.Ordinal), now, null, report.DatabaseUpdatedAt);
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            var reason = exception is ImageScannerUnavailableException unavailable ? unavailable.Reason : ReasonCodes.From(exception);
+            LogScannerFailed(reason);
+            return kept with { At = now, Error = reason };
+        }
+    }
+
     private async Task<RegistryLookup> LookUpAsync(IImageRegistry registry, IReadOnlyList<(Workload Workload, ImageReference Image)> users, CancellationToken cancellationToken)
     {
         var image = users[0].Image;
@@ -409,6 +473,9 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Code repositories could not be scanned: {Reason}")]
     private partial void LogScanFailed(string reason);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The image scanner could not be read: {Reason}")]
+    private partial void LogScannerFailed(string reason);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Registry lookup of {Repository} failed: {Reason}")]
     private partial void LogLookupFailed(string repository, string reason);

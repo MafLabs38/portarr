@@ -37,6 +37,11 @@ public sealed class PortarrOptionsValidator : IValidateOptions<PortarrOptions>
             failures.Add("Catalog:Backups must be between 0 and 1000 (PORTARR__CATALOG__BACKUPS).");
         }
 
+        if (!VulnerabilityOptions.Severities.Contains(options.Vulnerabilities.MinSeverity?.Trim().ToLowerInvariant() ?? string.Empty))
+        {
+            failures.Add($"Vulnerabilities:MinSeverity must be one of {string.Join(", ", VulnerabilityOptions.Severities)} (PORTARR__VULNERABILITIES__MINSEVERITY).");
+        }
+
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
 }

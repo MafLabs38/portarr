@@ -53,7 +53,7 @@ export default function MaintenanceIndex() {
 
             <MaintenanceFreshness refresh={report.refresh} source={source} />
 
-            <MaintenanceSummaryBar filter={filter} summary={report.summary} tab={tab} />
+            <MaintenanceSummaryBar filter={filter} scanner={report.imageScanner} summary={report.summary} tab={tab} />
 
             <section aria-labelledby="needs-attention" className={styles.section}>
               <h2 className={styles.heading} id="needs-attention">

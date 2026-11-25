@@ -84,6 +84,7 @@ Settings come from `appsettings.json`, overridden by `PORTARR__*` environment va
 | `PORTARR__LOGSOFALLWORKLOADS` | `false` | Serve live logs and usage of containers no app declares |
 | `PORTARR__PLATFORMUPDATES` | `true` | Ask `update.k3s.io` and `endoflife.date` about the platforms the machines run (Maintenance → Platforms). `false` for an air-gapped homelab: the versions are shown with no newer version and no support date |
 | `PORTARR__IMAGEUPDATES` | `true` | Ask the registries about the images that run (Maintenance). `false` for an air-gapped homelab, where every lookup would only fail |
+| `PORTARR__VULNERABILITIES__MINSEVERITY` | `high` | With an [image scanner](docs/connectors/trivy.md) declared (`imageScanner:` in the catalog), the lowest severity (`critical`, `high`, `medium`, `low`) of the findings shown for the images that run and raised as attention. The counts stay whole |
 | `PORTARR__AGENT__URL` | — (chat off) | The optional [agent runner](docs/companions.md#agent-runner) (`portarr-agent`) behind the built-in chat, e.g. `http://portarr-agent:8488`. Without it the chat icon is hidden |
 | `PORTARR__AGENT__SECRET` | — | Shared with the runner (32 characters at least, `openssl rand -hex 32`); required with `PORTARR__AGENT__URL` |
 | `PORTARR__AUTH__SESSIONDAYS` | `7` | Sliding length of a session |

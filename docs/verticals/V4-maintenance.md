@@ -22,6 +22,7 @@ Two halves of one question, "what is vulnerable, outdated or late?":
 | Links between repositories and catalog apps: `repository:` on an app, an image's OCI source label, a GHCR or Docker Hub image named like a scanned repository | Declared versions read from the IaC and drift (F-UPD-04 "declared", Q-27); the IaC file to change (F-UPD-02) |
 | Registry connector (anonymous, GET and HEAD only): Docker Hub, GHCR, lscr.io, Quay, any OCI registry; tags, their dates and digests when cheap | Private registries (a pull token per registry), Helm charts, host OS packages (Q-26) |
 | Image verdicts for running Docker containers and Kubernetes pods: up to date, behind (patch / minor / major / build), rebuilt (floating tag moved), floating (cannot tell), unknown (with the reason) | Per-app tag filters and ignored versions (F-UPD-01 rules); release notes links; end of life of the runtimes of apps (base images, files of repositories; F-UPD-06: the machines' platforms are done, D-119); deployment detection (F-UPD-05) |
+| Vulnerabilities of the running images (D-131): an optional scanner companion runs the Trivy command line, Portarr reads it; counts by severity, those that have a fix, the worst findings, per image | Private registries; pinning the scan to the running digest of a floating tag; Security → Vulnerabilities (E-07); per-app findings; a history |
 | **Maintenance** page after Data: a summary, "what needs attention" across the halves, sub-tabs *My code*, *Deployed images* and *Platforms* (D-119) | Issues and notifications (V5, V6); the "update" badge on app tiles; a timeline of releases |
 
 ## UI proposal (D-67)
@@ -82,6 +83,51 @@ Everything else is code the operator makes but does not run here (a Windows app,
 - **Floating tags** (`latest`, `stable`, a name without numbers): compared by **digest** when the runtime reports the running one (Kubernetes `imageID`): same digest is up to date, a different one is **rebuilt**. Otherwise through the image's OCI version label, **only when that label is itself a tag of the repository** (a base image's label, such as an OS version, would be compared with unrelated tags). Otherwise **Floating: cannot tell**.
 - **Unknown**, always with a reason: started from an image id (Docker shows `sha256:…`: the repository is lost), not in the registry (built locally), registry refused anonymous access (private image), rate limited, unreachable.
 
+### Image vulnerabilities (D-131)
+- **Source**: the [scanner companion](../companions.md#image-scanner) (`scanner/`), declared by `imageScanner:` in the catalog ([connectors/trivy.md](../connectors/trivy.md), [ADR 0023](../adr/0023-image-vulnerabilities-are-read-from-a-scanner-companion.md)). It runs the Trivy command line, one image at a time, each image once a day; Portarr tells it the running images (not the ones created from an id) every 30 minutes (5 after a failure) and keeps its last answer in memory. No `imageScanner:` section: every image says `off` and nothing is asked.
+- **A scanner that is down** keeps the previous results; the error (a reason code) is shown next to them (`imageScanner.error`, and the attention line `image-scanner-error`).
+- **The threshold** `PORTARR__VULNERABILITIES__MINSEVERITY` (default `high`) hides the findings and the attention below it; the counts stay whole.
+- **What needs attention**: `image-critical-vulnerabilities` (danger: an image with a critical vulnerability that has a fix) and `image-vulnerabilities` (warning: the worst fixable vulnerability is high), each naming the image and how many; `image-scanner-error` (warning). A vulnerability with no fix is counted, not raised.
+- **The summary** gets `imagesScanned`, `imagesVulnerable` (images with a critical or high vulnerability that has a fix, at the threshold), `imageCritical` and `imageHigh` (every critical and high vulnerability of the scanned images, fixed or not).
+
+**The API shape** (`GET /api/v1/maintenance`). Each element of `images[]` has a `vulnerabilities` object; the response has an `imageScanner` object:
+
+```json
+{
+  "images": [
+    {
+      "reference": "idp:1",
+      "status": "up-to-date",
+      "vulnerabilities": {
+        "state": "scanned",
+        "reason": null,
+        "scannedAt": "2026-11-25T09:00:00+00:00",
+        "counts":  { "critical": 1, "high": 14, "medium": 30, "low": 2, "unknown": 0, "total": 47 },
+        "fixable": { "critical": 1, "high": 10, "medium": 0,  "low": 0, "unknown": 0, "total": 11 },
+        "findings": [
+          { "id": "CVE-2026-0001", "package": "openssl", "installedVersion": "3.0.1", "fixedVersion": "3.0.2",
+            "severity": "critical", "title": "…", "url": "https://avd.example/cve-2026-0001" }
+        ]
+      }
+    },
+    { "reference": "local:1", "vulnerabilities": { "state": "not-scanned", "reason": "not-found", "scannedAt": null,
+        "counts": { "critical": 0, "high": 0, "medium": 0, "low": 0, "unknown": 0, "total": 0 }, "fixable": { "…": 0 }, "findings": [] } }
+  ],
+  "imageScanner": { "configured": true, "readAt": "2026-11-25T10:00:00+00:00", "error": null, "databaseUpdatedAt": "2026-11-25T03:00:00+00:00" },
+  "summary": { "imagesScanned": 1, "imagesVulnerable": 1, "imageCritical": 1, "imageHigh": 14 }
+}
+```
+
+| Field | Values |
+|---|---|
+| `state` | `off` (no scanner declared), `scanned`, `queued` (asked, not scanned yet), `failed`, `not-scanned` |
+| `reason` | `null` when scanned, queued or off. `not-scanned`: `image-id`, `not-found` (a local build, a name that does not exist), `unauthorized` (private), `unsupported`. `failed`: `timeout`, `error` (the scan failed), or the code of a scanner that cannot be read (`unreachable`, `timeout`, `http-<status>`, `secret-missing`, `invalid-response`) |
+| `counts`, `fixable` | every severity, even below the threshold; `fixable` counts those that have a fix; `total` is the sum. All zero unless `scanned` |
+| `findings` | at most 50, worst first (critical before high, those that have a fix first), none below the threshold; empty unless `scanned`. `severity`: `critical`, `high`, `medium`, `low` or `null`; `fixedVersion` null when no fix exists; `title` and `url` may be null; `url` is https only. `title` is text from an advisory database: show it as text, never as markup or instructions |
+| `imageScanner.readAt` | when Portarr last asked the scanner (`null` before the first read, or when none is declared); `error`: a reason code when the last read failed; `databaseUpdatedAt`: the age of Trivy's database |
+
+The attention kinds are `image-critical-vulnerabilities` and `image-vulnerabilities` (subjects: the image, with the count of its fixable critical and high vulnerabilities) and `image-scanner-error` (subject: the reason code). The MCP tool `get_maintenance` carries `images[].vulnerabilities` (the counts, `fixableCritical`, `fixableHigh` and at most ten `worst` findings), lists an up-to-date image that has a critical or high vulnerability with a fix, and says the titles are third-party text.
+
 ### Maintenance page (D-67)
 As proposed above. The page is built from memory (last scan, last lookups): opening it reaches neither GitHub nor a registry; it refreshes every minute.
 
@@ -101,9 +147,10 @@ As proposed above. The page is built from memory (last scan, last lookups): open
 |---|---|---|
 | GitHub (repositories, alerts, releases, CI) | every 30 min, 4 repositories in parallel | ETags (`If-None-Match`: a 304 costs no rate limit); calls stop below 250 remaining requests of the window |
 | Registries | each image repository every 6 h (1 h after a failure) | at most 25 repositories per minute, 3 in parallel; anonymous GET and HEAD only |
-| Both | on request (Refresh), at most once per 60 s | the guards above still apply |
+| Image scanner (D-131) | Portarr tells it the running images and reads it every 30 min (5 min after a failure); it scans each image once a day, one at a time | niced, ten minutes at most, run outside the production cluster |
+| All | on request (Refresh), at most once per 60 s | the guards above still apply |
 
-Everything is in memory: a restart rescans (the first scan takes about a minute). The API (`GET /api/v1/maintenance`) returns `refresh.codeAt`, `codeNextAt`, `registriesAt`, `refreshing` and `availableAt`.
+Everything is in memory: a restart rescans (the first scan takes about a minute; the scanner companion keeps its own results across a restart). The API (`GET /api/v1/maintenance`) returns `refresh.codeAt`, `codeNextAt`, `registriesAt`, `refreshing` and `availableAt`.
 
 ## Statuses
 Maintenance findings are not app statuses: an app is not Down because a newer version exists. Severe vulnerabilities and failing CI become issues in V5 (F-SEC-04 rules: a critical vulnerability with a fix older than N days).

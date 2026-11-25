@@ -7,6 +7,7 @@ import translate from 'Utilities/String/translate';
 
 import styles from './ImageRow.module.css';
 import ImageStatusLabel from './ImageStatusLabel';
+import ImageVulnerabilityCell from './ImageVulnerabilityCell';
 
 interface ImageRowProps {
   image: DeployedImage;
@@ -98,6 +99,8 @@ export default function ImageRow({ image, apps }: Readonly<ImageRowProps>) {
         ) : null}
         <span className={styles.environment}>{environments}</span>
       </div>
+
+      <ImageVulnerabilityCell image={image} />
     </li>
   );
 }

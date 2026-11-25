@@ -1,0 +1,24 @@
+# The image scanner (D-131): one container that runs the Trivy command line on the images Portarr names, one at a time.
+# See docs/companions.md#image-scanner. Run it on a staging machine, outside the production cluster. Pin a version.
+# It only pulls image layers from registries: nothing runs on your machines.
+services:
+  portarr-scanner:
+    image: ghcr.io/<owner>/portarr-scanner:<tag>
+    restart: unless-stopped
+    environment:
+      PORTARR_SCANNER_SECRET: ${SCANNER_SECRET}          # 32 characters or more: openssl rand -hex 32; the same value in Portarr's PORTARR_SCANNER_SECRET
+      # PORTARR_SCANNER_TIMEOUT_MINUTES: 10              # one scan stops after this long (reported as "timeout")
+      # PORTARR_SCANNER_RESCAN_HOURS: 24                 # an image is scanned again after this long
+      # PORTARR_SCANNER_FORGET_DAYS: 7                   # an image Portarr stopped naming is forgotten after this long
+    # Only Portarr talks to it: publish the port only on an address your Portarr reaches, never on the Internet.
+    ports:
+      - "10.0.0.20:8489:8489"                            # staging machine (server-1) address; or drop it and share a Docker network with Portarr
+    volumes:
+      - scanner-data:/data                               # results.json and Trivy's database and cache
+    cpus: 2                                              # a scan reads every layer of an image: keep it small
+    mem_limit: 2g
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+volumes:
+  scanner-data:

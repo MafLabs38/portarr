@@ -14,6 +14,12 @@ public sealed partial record ImageReference(string Registry, string Repository, 
     /// <summary>Registry and repository: the key of a registry lookup (<c>docker.io/library/postgres</c>).</summary>
     public string RepositoryKey => $"{Registry}/{Repository}";
 
+    /// <summary>
+    /// The reference as a scanner is asked to read it (<c>docker.io/library/postgres:16</c>): registry, repository, tag and digest, nothing
+    /// shortened. It is also the key under which the scanner's result is kept.
+    /// </summary>
+    public string ScanReference => RepositoryKey + (Tag is null ? string.Empty : $":{Tag}") + (Digest is null ? string.Empty : $"@{Digest}");
+
     /// <summary>The reference as people write it: Docker Hub's prefixes are dropped (<c>postgres:16</c>, <c>grafana/grafana:latest</c>).</summary>
     public string Display
     {

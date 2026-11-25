@@ -87,6 +87,55 @@ export interface ImageUser {
   appIds: string[];
 }
 
+/** `off`: no scanner declared; `queued`: asked, not scanned yet; `not-scanned`: an image the scanner cannot read (see the reason). */
+export type VulnerabilityState = 'off' | 'scanned' | 'queued' | 'failed' | 'not-scanned';
+
+/** `critical`, `high`, `medium`, `low`; null when the database did not rate the vulnerability. */
+export type FindingSeverity = 'critical' | 'high' | 'medium' | 'low';
+
+export interface VulnerabilityCounts {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  unknown: number;
+  total: number;
+}
+
+/** One of the worst vulnerabilities of an image. `title` is third-party text: render it as plain text only. */
+export interface ImageFinding {
+  id: string;
+  package: string;
+  installedVersion: string;
+  /** Null: no fix exists yet. */
+  fixedVersion: string | null;
+  severity: FindingSeverity | null;
+  title: string | null;
+  /** An https address, or null. */
+  url: string | null;
+}
+
+export interface ImageVulnerabilities {
+  state: VulnerabilityState;
+  /** `not-scanned`: image-id, not-found, unauthorized, unsupported. `failed`: timeout, error, or the code of an unreadable scanner. */
+  reason: string | null;
+  scannedAt: string | null;
+  /** Every severity, even below the threshold. */
+  counts: VulnerabilityCounts;
+  /** The ones that have a fix. */
+  fixable: VulnerabilityCounts;
+  /** At most 50, worst first, none below the threshold. */
+  findings: ImageFinding[];
+}
+
+/** The image scanner companion (D-131): declared in the catalog or not, when it was read, its error code, its database's age. */
+export interface ImageScanner {
+  configured: boolean;
+  readAt: string | null;
+  error: string | null;
+  databaseUpdatedAt: string | null;
+}
+
 export interface DeployedImage {
   reference: string;
   registry: string;
@@ -103,6 +152,7 @@ export interface DeployedImage {
   fromLabel: boolean;
   users: ImageUser[];
   repositoryFullName: string | null;
+  vulnerabilities: ImageVulnerabilities;
 }
 
 export type AttentionLevel = 'danger' | 'warning' | 'info';
@@ -146,6 +196,14 @@ export interface MaintenanceSummary {
   imagesMajor: number;
   imagesFloating: number;
   imagesUnknown: number;
+  /** Images with a scan result. */
+  imagesScanned: number;
+  /** Images with a critical or high vulnerability that has a fix. */
+  imagesVulnerable: number;
+  /** Every critical vulnerability of the scanned images, fixed or not. */
+  imageCritical: number;
+  /** Every high vulnerability of the scanned images, fixed or not. */
+  imageHigh: number;
 }
 
 /** When the data was read and when it is read next (D-64, D-66), and the state of a manual refresh. */
@@ -190,4 +248,5 @@ export default interface MaintenanceReport {
   images: DeployedImage[];
   refresh: MaintenanceRefresh;
   platforms: Platform[];
+  imageScanner: ImageScanner;
 }
