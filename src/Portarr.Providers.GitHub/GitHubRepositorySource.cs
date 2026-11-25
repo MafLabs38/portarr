@@ -184,9 +184,9 @@ public sealed partial class GitHubRepositorySource : ICodeRepositorySource
         var path = $"repos/{repository.FullName}";
         var branch = repository.DefaultBranch ?? "main";
 
-        var dependabot = await ScanAsync(session, $"{path}/dependabot/alerts?state=open&per_page=100", GitHubJsonContext.Default.ListDependabotAlert, alerts => alerts.Select(a => a.SecurityAdvisory?.Severity), cancellationToken);
-        var codeScanning = await ScanAsync(session, $"{path}/code-scanning/alerts?state=open&per_page=100", GitHubJsonContext.Default.ListCodeScanningAlert, alerts => alerts.Select(a => a.Rule?.SecuritySeverityLevel), cancellationToken);
-        var secrets = await ScanAsync(session, $"{path}/secret-scanning/alerts?state=open&per_page=100&hide_secret=true", GitHubJsonContext.Default.ListSecretScanningAlert, alerts => alerts.Select(_ => (string?)null), cancellationToken);
+        var dependabot = await ScanAsync(session, $"{path}/dependabot/alerts?state=open&per_page=100", GitHubJsonContext.Default.ListDependabotAlert, AlertDetails.Dependabot, cancellationToken);
+        var codeScanning = await ScanAsync(session, $"{path}/code-scanning/alerts?state=open&per_page=100", GitHubJsonContext.Default.ListCodeScanningAlert, AlertDetails.CodeScanning, cancellationToken);
+        var secrets = await ScanAsync(session, $"{path}/secret-scanning/alerts?state=open&per_page=100&hide_secret=true", GitHubJsonContext.Default.ListSecretScanningAlert, AlertDetails.Secrets, cancellationToken);
 
         return new CodeRepository(
             repository.Owner.Login,
@@ -212,7 +212,7 @@ public sealed partial class GitHubRepositorySource : ICodeRepositorySource
     /// One security feature: its open alerts by severity, <c>Off</c> when GitHub says it is disabled or was
     /// never set up (no analysis), <c>Unknown</c> when the token may not read it.
     /// </summary>
-    private static async Task<AlertScan> ScanAsync<T>(Session session, string path, JsonTypeInfo<List<T>> type, Func<List<T>, IEnumerable<string?>> severities, CancellationToken cancellationToken)
+    private static async Task<AlertScan> ScanAsync<T>(Session session, string path, JsonTypeInfo<List<T>> type, Func<List<T>, List<AlertDetail>> describe, CancellationToken cancellationToken)
     {
         try
         {
@@ -223,7 +223,7 @@ public sealed partial class GitHubRepositorySource : ICodeRepositorySource
             }
 
             var alerts = await session.ListAsync(first, type, cancellationToken);
-            return AlertScan.On(AlertCounts.From(severities(alerts)));
+            return AlertScan.On(describe(alerts));
         }
         catch (HttpRequestException exception) when (!cancellationToken.IsCancellationRequested)
         {

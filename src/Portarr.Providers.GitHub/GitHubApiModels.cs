@@ -24,18 +24,61 @@ internal sealed record GitHubRepository(
 
 internal sealed record GitHubError([property: JsonPropertyName("message")] string? Message);
 
-internal sealed record DependabotAlert([property: JsonPropertyName("security_advisory")] SecurityAdvisory? SecurityAdvisory);
+internal sealed record DependabotAlert(
+    [property: JsonPropertyName("number")] int Number,
+    [property: JsonPropertyName("html_url")] string? HtmlUrl,
+    [property: JsonPropertyName("created_at")] DateTimeOffset? CreatedAt,
+    [property: JsonPropertyName("dependency")] DependabotDependency? Dependency,
+    [property: JsonPropertyName("security_advisory")] SecurityAdvisory? SecurityAdvisory,
+    [property: JsonPropertyName("security_vulnerability")] SecurityVulnerability? SecurityVulnerability);
 
-internal sealed record SecurityAdvisory([property: JsonPropertyName("severity")] string? Severity);
+internal sealed record DependabotDependency(
+    [property: JsonPropertyName("package")] AdvisoryPackage? Package,
+    [property: JsonPropertyName("manifest_path")] string? ManifestPath);
 
-internal sealed record CodeScanningAlert([property: JsonPropertyName("rule")] CodeScanningRule? Rule);
+internal sealed record AdvisoryPackage(
+    [property: JsonPropertyName("ecosystem")] string? Ecosystem,
+    [property: JsonPropertyName("name")] string? Name);
+
+internal sealed record SecurityAdvisory(
+    [property: JsonPropertyName("severity")] string? Severity,
+    [property: JsonPropertyName("ghsa_id")] string? GhsaId,
+    [property: JsonPropertyName("cve_id")] string? CveId,
+    [property: JsonPropertyName("summary")] string? Summary);
+
+internal sealed record SecurityVulnerability(
+    [property: JsonPropertyName("package")] AdvisoryPackage? Package,
+    [property: JsonPropertyName("vulnerable_version_range")] string? VulnerableVersionRange,
+    [property: JsonPropertyName("first_patched_version")] PatchedVersion? FirstPatchedVersion);
+
+internal sealed record PatchedVersion([property: JsonPropertyName("identifier")] string? Identifier);
+
+internal sealed record CodeScanningAlert(
+    [property: JsonPropertyName("number")] int Number,
+    [property: JsonPropertyName("html_url")] string? HtmlUrl,
+    [property: JsonPropertyName("created_at")] DateTimeOffset? CreatedAt,
+    [property: JsonPropertyName("rule")] CodeScanningRule? Rule,
+    [property: JsonPropertyName("most_recent_instance")] CodeScanningInstance? MostRecentInstance);
 
 /// <summary><c>security_severity_level</c> is set for security rules only; quality rules have a plain <c>severity</c>.</summary>
 internal sealed record CodeScanningRule(
     [property: JsonPropertyName("security_severity_level")] string? SecuritySeverityLevel,
-    [property: JsonPropertyName("severity")] string? Severity);
+    [property: JsonPropertyName("severity")] string? Severity,
+    [property: JsonPropertyName("id")] string? Id,
+    [property: JsonPropertyName("description")] string? Description);
 
-internal sealed record SecretScanningAlert([property: JsonPropertyName("number")] int Number);
+internal sealed record CodeScanningInstance([property: JsonPropertyName("location")] CodeScanningLocation? Location);
+
+internal sealed record CodeScanningLocation(
+    [property: JsonPropertyName("path")] string? Path,
+    [property: JsonPropertyName("start_line")] int? StartLine);
+
+/// <summary>The secret itself is never read: the request asks GitHub to hide it, and no field of it is mapped.</summary>
+internal sealed record SecretScanningAlert(
+    [property: JsonPropertyName("number")] int Number,
+    [property: JsonPropertyName("html_url")] string? HtmlUrl,
+    [property: JsonPropertyName("created_at")] DateTimeOffset? CreatedAt,
+    [property: JsonPropertyName("secret_type_display_name")] string? SecretTypeDisplayName);
 
 internal sealed record GitHubRelease(
     [property: JsonPropertyName("tag_name")] string TagName,

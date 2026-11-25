@@ -36,7 +36,13 @@ public sealed class MaintenanceScan : IAsyncLifetime
             .Serve("GET", "/user", """{ "login": "someone" }""")
             .Serve("GET", "/users/example-org", """{ "login": "example-org", "type": "Organization" }""")
             .Serve("GET", "/orgs/example-org/repos", $"[{Repo("shop")}, {Repo("tool")}]")
-            .Serve("GET", "/repos/example-org/shop/dependabot/alerts", """[{ "security_advisory": { "severity": "critical" } }, { "security_advisory": { "severity": "medium" } }]""")
+            .Serve("GET", "/repos/example-org/shop/dependabot/alerts", """
+                [{ "number": 1, "html_url": "https://github.com/example-org/shop/security/dependabot/1",
+                   "dependency": { "package": { "ecosystem": "npm", "name": "minimist" } },
+                   "security_advisory": { "severity": "critical", "ghsa_id": "GHSA-vh95-rmgr-6w4m", "cve_id": "CVE-2020-7598", "summary": "Prototype pollution" },
+                   "security_vulnerability": { "vulnerable_version_range": "< 0.2.1", "first_patched_version": { "identifier": "0.2.1" } } },
+                 { "number": 2, "security_advisory": { "severity": "medium" } }]
+                """)
             .Serve("GET", "/repos/example-org/tool/dependabot/alerts", """{ "message": "Dependabot alerts are disabled for this repository." }""", status: 403)
             .Serve("GET", "/repos/example-org/shop/pulls", """[{ "user": { "login": "dependabot[bot]" } }]""")
             .Serve("GET", "/repos/example-org/shop/actions/runs", """{ "workflow_runs": [{ "name": "CI", "status": "completed", "conclusion": "failure" }] }""");
@@ -99,6 +105,11 @@ public sealed class MaintenanceToolsFixture : IClassFixture<MaintenanceScan>
         shop.GetProperty("deployed").GetBoolean().Should().BeTrue("the app declares this repository");
         shop.GetProperty("appIds").EnumerateArray().Select(a => a.GetString()).Should().Equal("shop");
         shop.GetProperty("dependabot").GetProperty("critical").GetInt32().Should().Be(1);
+        var worst = shop.GetProperty("dependabot").GetProperty("alerts")[0];
+        worst.GetProperty("severity").GetString().Should().Be("critical");
+        worst.GetProperty("fixedVersion").GetString().Should().Be("0.2.1");
+        shop.GetProperty("dependabot").GetProperty("alerts").GetArrayLength().Should().Be(2);
+        repositories["example-org/tool"].GetProperty("dependabot").GetProperty("alerts").GetArrayLength().Should().Be(0, "a feature that is off describes nothing");
         shop.GetProperty("dependabotPullRequests").GetInt32().Should().Be(1);
         shop.GetProperty("ci").GetProperty("failed").GetBoolean().Should().BeTrue();
         repositories["example-org/tool"].GetProperty("deployed").GetBoolean().Should().BeFalse();

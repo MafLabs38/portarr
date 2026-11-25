@@ -4,8 +4,31 @@ using Portarr.Core.Platforms;
 
 namespace Portarr.Api.V1.Maintenance;
 
-/// <summary>A security feature of a repository. <c>State</c>: on, off or unknown (<c>Reason</c>: a reason code).</summary>
-public sealed record AlertScanResource(string State, int Critical, int High, int Medium, int Low, int Other, int Total, string? Reason);
+/// <summary>
+/// One open alert (D-130): <c>source</c> is dependabot, code-scanning or secret-scanning; <c>severity</c> is null for a secret or a
+/// quality rule; <c>package</c>, <c>vulnerableRange</c> and <c>fixedVersion</c> say what is wrong and what mends it; <c>advisoryId</c> and
+/// <c>cveId</c> name the flaw; <c>location</c> is the file (and line) a code alert points at. A secret's value is never carried.
+/// </summary>
+public sealed record AlertResource(
+    string Source,
+    string Id,
+    string? Severity,
+    string Title,
+    string? Package,
+    string? Ecosystem,
+    string? VulnerableRange,
+    string? FixedVersion,
+    string? AdvisoryId,
+    string? CveId,
+    string? Location,
+    Uri? Url,
+    DateTimeOffset? CreatedAt);
+
+/// <summary>
+/// A security feature of a repository. <c>State</c>: on, off or unknown (<c>Reason</c>: a reason code). The counts cover every open
+/// alert; <c>Alerts</c> describes the worst of them (at most 50, worst first): when <c>Total</c> is larger, the rest is on the host.
+/// </summary>
+public sealed record AlertScanResource(string State, int Critical, int High, int Medium, int Low, int Other, int Total, string? Reason, IReadOnlyList<AlertResource> Alerts);
 
 public sealed record ReleaseResource(string Tag, DateTimeOffset? PublishedAt, Uri? Url, bool TagOnly);
 
@@ -206,7 +229,9 @@ public static class MaintenanceResourceMapper
     private static AlertScanResource ToResource(AlertScan scan)
     {
         var c = scan.Counts;
-        return new AlertScanResource(scan.State.ToString().ToLowerInvariant(), c.Critical, c.High, c.Medium, c.Low, c.Other, c.Total, scan.Reason);
+        var alerts = scan.Alerts.Select(a => new AlertResource(
+            a.Source, a.Id, a.Severity, a.Title, a.Package, a.Ecosystem, a.VulnerableRange, a.FixedVersion, a.AdvisoryId, a.CveId, a.Location, a.Url, a.CreatedAt)).ToList();
+        return new AlertScanResource(scan.State.ToString().ToLowerInvariant(), c.Critical, c.High, c.Medium, c.Low, c.Other, c.Total, scan.Reason, alerts);
     }
 
     private static DeployedImageResource ToResource(DeployedImageView view, Dictionary<string, string> environments)

@@ -120,3 +120,18 @@ a.meta:hover,
     text-align: left;
   }
 }
+
+.toggle {
+  padding: 0 8px;
+  border: var(--borderWidth) solid var(--hairlineStrong);
+  border-radius: var(--radiusPill);
+  background: none;
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.toggle:hover {
+  color: var(--ink);
+}
