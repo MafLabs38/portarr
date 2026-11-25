@@ -19,11 +19,13 @@ import {
   INFRASTRUCTURE_VIEW,
   MAINTENANCE_VIEW,
   MCP_USE,
+  SETTINGS_MANAGE,
   SYSTEM_VIEW,
   USERS_MANAGE,
 } from 'Helpers/Props/permissions';
 import CatalogPage from 'Settings/Catalog/CatalogPage';
 import GeneralPage from 'Settings/General/GeneralPage';
+import NotificationsPage from 'Settings/Notifications/NotificationsPage';
 import SettingsHome from 'Settings/SettingsHome';
 import UsersAuthPage from 'Settings/UsersAuth/UsersAuthPage';
 import Status from 'System/Status/Status';
@@ -123,7 +125,7 @@ export default function AppRoutes() {
       />
       <Route
         element={
-          <RequirePermission permission={[USERS_MANAGE, CATALOG_WRITE]}>
+          <RequirePermission permission={[USERS_MANAGE, CATALOG_WRITE, SETTINGS_MANAGE]}>
             <SettingsHome />
           </RequirePermission>
         }
@@ -152,6 +154,14 @@ export default function AppRoutes() {
           </RequirePermission>
         }
         path="/settings/users"
+      />
+      <Route
+        element={
+          <RequirePermission permission={SETTINGS_MANAGE}>
+            <NotificationsPage />
+          </RequirePermission>
+        }
+        path="/settings/notifications"
       />
       <Route element={<Navigate replace to="/account/profile" />} path="/account" />
       <Route element={<AccountPage tab="profile" />} path="/account/profile" />

@@ -30,12 +30,12 @@ export const menuEntries: MenuEntry[] = [
   // Its own entry while the sidebar has no second level (C3): the same questions, asked from an AI (V5).
   { to: '/assistant', label: 'Assistant', icon: icons.ASSISTANT, permission: permissions.ASSISTANT_VIEW },
   { to: '/system/status', label: 'System', icon: icons.SYSTEM, permission: permissions.SYSTEM_VIEW },
-  // General (the portal's identity: catalog.write) and Users & Auth (users.manage): /settings opens the first one the role may.
+  // General (the portal's identity: catalog.write), Users & Auth (users.manage) and Notifications (settings.manage): /settings opens the first one the role may.
   {
     to: '/settings',
     label: 'Settings',
     icon: icons.SETTINGS,
-    permission: [permissions.USERS_MANAGE, permissions.CATALOG_WRITE],
+    permission: [permissions.USERS_MANAGE, permissions.CATALOG_WRITE, permissions.SETTINGS_MANAGE],
   },
 ];
 

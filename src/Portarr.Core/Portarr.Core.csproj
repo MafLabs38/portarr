@@ -4,6 +4,7 @@
     <PackageReference Include="FluentMigrator.Runner.Core" />
     <PackageReference Include="FluentMigrator.Runner.Postgres" />
     <PackageReference Include="FluentMigrator.Runner.SQLite" />
+    <PackageReference Include="MafLabs.Notifications" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" />

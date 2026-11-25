@@ -23,6 +23,26 @@ Change the three values marked `CHANGE` (the administrator's password, the host 
 - **The cluster itself** is declared in the catalog with `tokenEnv: PORTARR_K8S_TOKEN` (the variable the manifest fills from `portarr-token`) and `caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt` (mounted by Kubernetes). The catalog never holds a token ([catalog.md](catalog.md#secret-variables)).
 - **Reaching the other hosts** (Docker sockets, node_exporter, Backrest) is a matter of network: the pod must reach them, and a Docker host is read through a read-only [socket proxy](connectors/docker.md), never the socket itself.
 - **Credentials** for the connectors (`PORTARR_BACKREST_…`, `PORTARR_CLOUDFLARE_…`, `PORTARR_GITHUB_…`, `PORTARR_PROXMOX_…`) go in a `Secret` read as environment variables, never in the catalog.
+- **Mail to the operator** (off by default, [notifications](verticals/notifications.md)): Portarr writes mail when something needs attention (one mail per category: apps, infrastructure, data, maintenance), through an SMTP server with STARTTLS (port 587; the implicit TLS of port 465 is not supported).
+  The connection is set where Portarr is deployed, never from the page:
+
+  | Variable | Meaning |
+  |---|---|
+  | `PORTARR__NOTIFICATIONS__SMTP__HOST` | The mail server (`smtp.homelab.example`). Needed to turn notifications on. |
+  | `PORTARR__NOTIFICATIONS__SMTP__PORT` | `587` by default. |
+  | `PORTARR__NOTIFICATIONS__SMTP__USERNAME` | The account that sends. Goes with the password file. |
+  | `PORTARR__NOTIFICATIONS__SMTP__PASSWORDFILE` | **A file** that holds the password (a `Secret` mounted as a file, for example `/run/secrets/smtp-password`), read at each send so that it can be rotated. Never an environment variable; the API never returns it, only whether a file is set. |
+  | `PORTARR__NOTIFICATIONS__SMTP__STARTTLS` | `true` by default. May be `false` only for a server without a password, such as a mail catcher on a test machine. |
+  | `PORTARR__NOTIFICATIONS__ENABLED`, `…__RECIPIENT`, `…__FROM` | The starting values of what the page changes: whether Portarr writes, to whom, from which address. What is saved from Settings, Notifications wins over them. |
+  | `PORTARR__NOTIFICATIONS__PASSSECONDS` | One look at what needs attention every 60 seconds by default (10 to 3600). Deployment only. |
+  | `PORTARR__NOTIFICATIONS__POLICY__CONFIRMMINUTES` | A category must have had a qualifying finding for this long before its first mail: `5` by default (0 to 1440). A blip is not a mail. Deployment only. |
+  | `PORTARR__NOTIFICATIONS__POLICY__CLEARMINUTES` | A category that was mailed must have been clear for this long before its episode ends: `15` by default (1 to 1440). A tool that is slow to answer after a restart does not start a new episode. Deployment only. |
+  | `PORTARR__NOTIFICATIONS__POLICY__RETRYMINUTES` | A mail that could not be sent is tried again after this long: `15` by default (1 to 1440). Deployment only. |
+  | `PORTARR__NOTIFICATIONS__POLICY__MAXPERDAY` | The most mails tried in 24 hours, all categories together: `10` by default (1 to 1000). The starting value of the overall cap the page changes. |
+
+  What each category does (enabled, minimum level, reminder every N hours, maximum reminders, maximum mails a day) is not an environment variable: the operator sets it from Settings, Notifications, and the defaults are declared by Portarr (apps, infrastructure and data on, maintenance off). The policy keys are the shared package's `Notifications:Policy` section, validated at startup: a value out of range stops Portarr from starting, with the setting named.
+
+  For a Google account: `smtp.gmail.com`, port 587, an application password in the file.
 
 ## Reaching the machines it watches
 

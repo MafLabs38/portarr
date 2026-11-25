@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router';
 
 import usePermissions from 'Auth/usePermissions';
-import { CATALOG_WRITE, type PermissionOrAny, USERS_MANAGE } from 'Helpers/Props/permissions';
+import { CATALOG_WRITE, type PermissionOrAny, SETTINGS_MANAGE, USERS_MANAGE } from 'Helpers/Props/permissions';
 import translate from 'Utilities/String/translate';
 
 import styles from './SettingsNav.module.css';
@@ -11,6 +11,7 @@ export const settingsPages: { to: string; label: string; permission: PermissionO
   { to: '/settings/general', label: 'General', permission: CATALOG_WRITE },
   { to: '/settings/catalog', label: 'Catalog', permission: CATALOG_WRITE },
   { to: '/settings/users', label: 'UsersAndAuth', permission: USERS_MANAGE },
+  { to: '/settings/notifications', label: 'Notifications', permission: SETTINGS_MANAGE },
 ];
 
 /** Links between the pages of Settings while the sidebar has no second level. */
