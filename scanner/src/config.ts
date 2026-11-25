@@ -13,9 +13,14 @@ export interface ScannerConfig {
   rescanAfterMs: number;
   /** An image Portarr has not named for this long is forgotten. */
   forgetAfterMs: number;
+  /** The most image references tracked at once; a new one beyond it is ignored. */
+  maxImages: number;
 }
 
 export const minimumSecretLength = 32;
+
+/** The most references the scanner tracks unless PORTARR_SCANNER_MAX_IMAGES says otherwise: far above a homelab's images, far below a flood. */
+export const defaultMaxImages = 2000;
 
 function integer(name: string, value: string | undefined, fallback: number, min: number, max: number): number {
   const parsed = value ? Number.parseInt(value, 10) : fallback;
@@ -42,5 +47,6 @@ export function loadConfig(env: NodeJS.ProcessEnv): ScannerConfig {
     rescanAfterMs:
       integer('PORTARR_SCANNER_RESCAN_HOURS', env.PORTARR_SCANNER_RESCAN_HOURS, 24, 1, 24 * 30) * 3_600_000,
     forgetAfterMs: integer('PORTARR_SCANNER_FORGET_DAYS', env.PORTARR_SCANNER_FORGET_DAYS, 7, 1, 365) * 86_400_000,
+    maxImages: integer('PORTARR_SCANNER_MAX_IMAGES', env.PORTARR_SCANNER_MAX_IMAGES, defaultMaxImages, 10, 10_000),
   };
 }

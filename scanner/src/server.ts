@@ -1,5 +1,5 @@
 // The scanner's HTTP API, for Portarr only: a bearer shared secret on every route but /healthz, JSON in and out.
-// It listens inside the Compose network; no port is published.
+// Publish its port only on an address Portarr reaches (or share a Docker network): the secret is the only gate.
 
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
@@ -78,7 +78,7 @@ async function route(
     if ('error' in parsed) {
       throw new HttpError(400, parsed.error);
     }
-    send(response, 202, { queued: scanner.request(parsed.targets.map((target) => target.ref)) });
+    send(response, 202, scanner.request(parsed.targets.map((target) => target.ref)));
     return;
   }
   throw new HttpError(404, 'Not found.');

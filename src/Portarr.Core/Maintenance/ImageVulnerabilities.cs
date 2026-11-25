@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Portarr.Core.Workloads;
 
 namespace Portarr.Core.Maintenance;
 
@@ -199,13 +200,23 @@ public sealed class ImageScannerUnavailableException : Exception
     {
     }
 
-    public ImageScannerUnavailableException(string message, Exception innerException)
-        : base(message, innerException)
+    /// <summary>The reason is a closed code (the scan reasons, <c>secret-missing</c>, <c>unavailable</c>, the reason codes of a call, <c>http-NNN</c>); any other text, free text included, is <c>error</c>.</summary>
+    public ImageScannerUnavailableException(string reason, Exception innerException)
+        : base(reason, innerException)
     {
-        Reason = message;
+        Reason = ClosedCode(reason);
     }
 
     public string Reason { get; }
+
+    private static string ClosedCode(string? reason)
+    {
+        var code = reason?.Trim().ToLowerInvariant() ?? string.Empty;
+        var isHttp = code.Length == 8 && code.StartsWith("http-", StringComparison.Ordinal) && code[5..].All(char.IsAsciiDigit);
+        return isHttp || code is SecretMissing or "unavailable" or ReasonCodes.Unreachable or ReasonCodes.InvalidResponse
+            ? code
+            : ImageScanReasons.Normalise(code);
+    }
 }
 
 /// <summary>The cleaning every text from a scanner goes through: it comes from advisory databases, written by third parties.</summary>

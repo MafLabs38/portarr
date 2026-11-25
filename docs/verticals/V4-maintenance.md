@@ -2,7 +2,7 @@
 
 > **Naming:** this page is called V4 because it was the fourth vertical built in the sandbox order; the implementation plan calls the same work **V12 Maintenance**. The page keeps its name so existing links hold.
 
-> Status: **in progress** (sandbox, phase 1). Pulls forward plan entry V12 Maintenance ("Maintainer priorities (2026-10-30)"); the plan entry V4 Kubernetes keeps its row (its connector already shipped with V2). Features: F-SEC-04 (Dependabot and code scanning alerts), F-UPD-01 (outdated images, partial), F-UPD-04 (version inventory, deployed and available only), F-UPD-07 (first step: Dependabot pull requests waiting). Decisions: D-64 to D-67, D-75, D-130. Screen: E-06, first slice.
+> Status: **in progress** (sandbox, phase 1). Pulls forward plan entry V12 Maintenance ("Maintainer priorities (2026-10-30)"); the plan entry V4 Kubernetes keeps its row (its connector already shipped with V2). Features: F-SEC-04 (Dependabot and code scanning alerts), F-UPD-01 (outdated images, partial), F-UPD-04 (version inventory, deployed and available only), F-UPD-07 (first step: Dependabot pull requests waiting). Decisions: D-64 to D-67, D-75, D-130, D-131. F-SEC-01 (first slice: image vulnerabilities). Screen: E-06, first slice.
 
 ## Need
 

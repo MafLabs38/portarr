@@ -9,7 +9,7 @@ import { harness, hours, report, vulnerability } from './fakes.ts';
 test('an image named is queued, scanned and answered with its counts', async () => {
   const { scanner } = await harness();
 
-  assert.equal(scanner.request(['app:1']), 1);
+  assert.equal(scanner.request(['app:1']).queued, 1);
   assert.equal(scanner.results().images[0].state, 'scanning');
   await scanner.idle();
 
@@ -28,9 +28,9 @@ test('an image scanned less than 24 hours ago is not scanned again, a day later 
   await scanner.idle();
 
   clock.now += hours(23);
-  assert.equal(scanner.request(['app:1']), 0);
+  assert.equal(scanner.request(['app:1']).queued, 0);
   clock.now += hours(2);
-  assert.equal(scanner.request(['app:1']), 1);
+  assert.equal(scanner.request(['app:1']).queued, 1);
   await scanner.idle();
 
   assert.deepEqual(trivy.scanned, ['app:1', 'app:1']);
@@ -40,8 +40,8 @@ test('the same image named twice in a request, or while it is queued, is queued 
   const { scanner, trivy } = await harness();
   trivy.gate = new Promise(() => undefined);
 
-  assert.equal(scanner.request(['a:1', 'a:1', 'b:1']), 2);
-  assert.equal(scanner.request(['a:1', 'b:1']), 0);
+  assert.equal(scanner.request(['a:1', 'a:1', 'b:1']).queued, 2);
+  assert.equal(scanner.request(['a:1', 'b:1']).queued, 0);
   assert.deepEqual(
     scanner.results().images.map((image) => [image.ref, image.state]),
     [
@@ -96,12 +96,12 @@ test('a failure that may pass (a timeout) is tried again after an hour, one that
   await scanner.idle();
 
   clock.now += hours(2);
-  assert.equal(scanner.request(['slow:1', 'gone:1']), 1);
+  assert.equal(scanner.request(['slow:1', 'gone:1']).queued, 1);
   await scanner.idle();
   assert.deepEqual(trivy.scanned, ['slow:1', 'gone:1', 'slow:1']);
 
   clock.now += hours(23);
-  assert.equal(scanner.request(['gone:1']), 1);
+  assert.equal(scanner.request(['gone:1']).queued, 1);
 });
 
 test('an error that is not a scan failure is an error, and the cache is cleaned after every scan', async () => {
@@ -164,4 +164,16 @@ test('a results file that cannot be read starts empty', async () => {
   const again = await harness(dir);
 
   assert.deepEqual(again.scanner.results().images, []);
+});
+
+test('beyond the maximum of tracked images a new reference is ignored and counted, a known one is still served', async () => {
+  const { scanner } = await harness(undefined, 2);
+
+  assert.deepEqual(scanner.request(['a:1', 'b:1', 'c:1']), { queued: 2, ignored: 1 });
+  await scanner.idle();
+  assert.deepEqual(scanner.request(['a:1', 'd:1']), { queued: 0, ignored: 1 });
+  assert.deepEqual(
+    scanner.results().images.map((image) => image.ref),
+    ['a:1', 'b:1'],
+  );
 });

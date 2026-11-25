@@ -97,13 +97,25 @@ public sealed class MaintenanceScannerFixture
     public async Task should_name_the_reason_of_a_scanner_that_cannot_be_called()
     {
         _scanner.RequestAsync(Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>()).Returns(_ => throw new ImageScannerUnavailableException(ImageScannerUnavailableException.SecretMissing));
+        _scanner.ReadAsync(Arg.Any<CancellationToken>()).Returns<ScannerReport>(_ => throw new ImageScannerUnavailableException(ImageScannerUnavailableException.SecretMissing));
         var monitor = Monitor();
 
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
 
         monitor.Current.Scans.Error.Should().Be("secret-missing");
         monitor.Current.Scans.Results.Should().BeEmpty();
-        await _scanner.DidNotReceive().ReadAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task should_read_what_the_scanner_knows_even_when_asking_it_to_scan_failed()
+    {
+        _scanner.RequestAsync(Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>()).Returns(_ => throw new HttpRequestException("busy", null, System.Net.HttpStatusCode.BadGateway));
+        var monitor = Monitor();
+
+        await monitor.RefreshAsync(TestContext.Current.CancellationToken);
+
+        monitor.Current.Scans.Error.Should().BeNull("the read is the source of truth");
+        monitor.Current.Scans.Results.Should().ContainKey("docker.io/library/proxy:1");
     }
 
     [Fact]
@@ -163,17 +175,6 @@ public sealed class MaintenanceScannerFixture
 
         await _scanner.DidNotReceiveWithAnyArgs().RequestAsync(default!, TestContext.Current.CancellationToken);
         await _scanner.Received(1).ReadAsync(Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task should_apply_the_core_safety_rules_to_what_a_careless_connector_returns()
-    {
-        _scanner.ReadAsync(Arg.Any<CancellationToken>()).Returns(_ => Task.FromResult(new ScannerReport(_clock.GetUtcNow(), null, [Scanned("docker.io/library/proxy:1") with { Findings = [new ImageFinding("CVE-1", "openssl", "1", null, "MODERATE", "x", new Uri("http://insecure.example"))] }])));
-        var monitor = Monitor();
-
-        await monitor.RefreshAsync(TestContext.Current.CancellationToken);
-
-        monitor.Current.Scans.Results["docker.io/library/proxy:1"].Findings.Should().ContainSingle().Which.Should().Match<ImageFinding>(f => f.Severity == "medium" && f.Url == null);
     }
 
     private void UseCatalog(string yaml) => _catalog.Current.Returns(new CatalogState(TestCatalog.Parse(yaml).Catalog, "catalog.yaml", true, [], null));

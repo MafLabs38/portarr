@@ -23,7 +23,7 @@ imageScanner:
 
 | Request | Reading |
 |---|---|
-| `POST /v1/scans` `{ "targets": [{ "kind": "image", "ref": "docker.io/library/postgres:16" }, …] }` | the images that run (`image` is the only kind for now; another is refused), by their full reference (registry, repository, tag and digest), 200 at a time, plain references only; answers `202` and how many were queued (the companion skips an image it scanned less than 24 hours ago) |
+| `POST /v1/scans` `{ "targets": [{ "kind": "image", "ref": "docker.io/library/postgres:16" }, …] }` | the images that run (`image` is the only kind for now; another is refused), by their full reference (registry, repository, tag and digest), 200 at a time, plain references only; answers `202` with `queued` (how many it will scan; it skips an image it scanned less than 24 hours ago) and `ignored` (new references beyond the 2000 it tracks at most, `PORTARR_SCANNER_MAX_IMAGES`) |
 | `GET /v1/results` | per target (`kind`, `ref`): `state` (`scanned`, `queued`, `scanning`, `failed`), `reason`, `scannedAt`, `counts` and `fixable` by severity, and the worst `findings`; and the date of the vulnerability database |
 
 Every request carries `Authorization: Bearer <secret>`. Portarr asks **every 30 minutes** (5 after a failure), and on a manual refresh of the Maintenance page. An image created from an id (`sha256:…`) cannot be scanned and is not sent.
@@ -40,7 +40,7 @@ For each image row (`vulnerabilities` in `GET /api/v1/maintenance`, see [V4](../
 | `not-scanned` | an image the scanner cannot read, with the reason: `not-found` (a local build, a name that does not exist), `unauthorized` (a private image: registry credentials are not supported yet), `unsupported` (nothing Trivy can read: from scratch, an unknown operating system), `image-id` (created from an id) |
 | `off` | no scanner declared |
 
-`PORTARR__VULNERABILITIES__MINSEVERITY` (`critical`, `high` by default, `medium` or `low`) hides the findings and the attention below it; the counts stay whole. The scanner describes high and critical findings only, so a value below `high` changes nothing in the findings.
+`PORTARR__VULNERABILITIES__MINSEVERITY` (`critical` or `high`, `high` by default) hides the findings and the attention below it; the counts stay whole. The scanner describes high and critical findings only, so these are the only two values.
 
 **What needs attention**: an image with a critical vulnerability that has a fix is a **danger**, one whose worst fixable vulnerability is high a **warning**; a vulnerability with no fix is counted, not raised. A scanner that cannot be read is a warning, and the page keeps the results of the last read next to its error.
 

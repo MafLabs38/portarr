@@ -39,6 +39,7 @@ A run on `main` that finds nothing worth releasing (only `chore`, `docs`…) pub
 |---|---|
 | `ghcr.io/<owner>/portarr` | the application |
 | `ghcr.io/<owner>/portarr-agent` | the chat's agent runner |
+| `ghcr.io/<owner>/portarr-scanner` | the image scanner companion (D-131) |
 
 Tags: `X.Y.Z`, `latest`, the branch (`develop`, `main`) and `sha-<commit>`.
 

@@ -9,6 +9,7 @@ services:
       PORTARR_SCANNER_SECRET: ${SCANNER_SECRET}          # 32 characters or more: openssl rand -hex 32; the same value in Portarr's PORTARR_SCANNER_SECRET
       # PORTARR_SCANNER_TIMEOUT_MINUTES: 10              # one scan stops after this long (reported as "timeout")
       # PORTARR_SCANNER_RESCAN_HOURS: 24                 # an image is scanned again after this long
+      # PORTARR_SCANNER_MAX_IMAGES: 2000                 # references tracked at most; a new one beyond it is ignored (the answer to POST says how many)
       # PORTARR_SCANNER_FORGET_DAYS: 7                   # an image Portarr stopped naming is forgotten after this long
     # Only Portarr talks to it: publish the port only on an address your Portarr reaches, never on the Internet.
     ports:
@@ -17,6 +18,9 @@ services:
       - scanner-data:/data                               # results.json and Trivy's database and cache
     cpus: 2                                              # a scan reads every layer of an image: keep it small
     mem_limit: 2g
+    read_only: true                                      # Trivy parses hostile layers: nothing to write but /data and /tmp
+    tmpfs:
+      - /tmp
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true

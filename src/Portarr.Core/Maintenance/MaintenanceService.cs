@@ -79,7 +79,8 @@ public sealed record MaintenanceReport(
     IReadOnlyList<DeployedImageView> Images,
     MaintenanceRefresh Refresh,
     IReadOnlyList<PlatformStatus> Platforms,
-    ImageScannerStatus? ImageScanner = null);
+    ImageScannerStatus? ImageScanner = null,
+    string? MinSeverity = null);
 
 public interface IMaintenanceService
 {
@@ -154,7 +155,8 @@ public sealed class MaintenanceService : IMaintenanceService
             images,
             refresh ?? MaintenanceRefresh.None,
             platforms ?? [],
-            catalog.ImageScanner is null ? ImageScannerStatus.NotConfigured : new ImageScannerStatus(true, state.Scans.At, state.Scans.Error, state.Scans.DatabaseUpdatedAt));
+            catalog.ImageScanner is null ? ImageScannerStatus.NotConfigured : new ImageScannerStatus(true, state.Scans.At, state.Scans.Error, state.Scans.DatabaseUpdatedAt),
+            minSeverity);
     }
 
     private static HashSet<string> Link(Dictionary<string, HashSet<string>> links, string repository)
@@ -275,7 +277,7 @@ public sealed class MaintenanceService : IMaintenanceService
             images.Count(i => i.Check.Status == ImageStatus.Floating),
             images.Count(i => i.Check.Status is ImageStatus.Unknown or ImageStatus.Pending),
             scanned.Count,
-            scanned.Count(i => ImageVulnerabilityAttention.SevereFixable(i.Vulnerabilities, thresholdRank) > 0),
+            scanned.Count(i => ImageVulnerabilityAttention.NeedsAttention(i.Vulnerabilities, thresholdRank)),
             scanned.Sum(i => i.Vulnerabilities.Counts.Critical),
             scanned.Sum(i => i.Vulnerabilities.Counts.High));
     }

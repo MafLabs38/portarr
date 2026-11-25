@@ -46,8 +46,9 @@ public sealed class PortarrOptionsValidatorFixture : CoreTest<PortarrOptionsVali
     [Theory]
     [InlineData("critical", true)]
     [InlineData("HIGH", true)]
-    [InlineData(" medium ", true)]
-    [InlineData("low", true)]
+    [InlineData(" high ", true)]
+    [InlineData("medium", false)]
+    [InlineData("low", false)]
     [InlineData("severe", false)]
     [InlineData("", false)]
     public void should_accept_only_a_known_minimum_severity_for_the_image_vulnerabilities(string severity, bool valid)

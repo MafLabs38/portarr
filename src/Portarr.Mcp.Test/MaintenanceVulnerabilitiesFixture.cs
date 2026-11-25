@@ -49,6 +49,19 @@ public sealed class MaintenanceVulnerabilitiesFixture
         digest.Summary.ImagesWithFixableVulnerabilities.Should().Be(0, "the stand-in summary counts none");
     }
 
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("high", true)]
+    [InlineData("critical", false)]
+    public void should_list_an_up_to_date_image_with_only_a_high_fix_when_the_threshold_reaches_high(string? threshold, bool listed)
+    {
+        var onlyHigh = Image("db:16", Scanned(new VulnerabilityCounts(0, 3, 0, 0, 0), new VulnerabilityCounts(0, 3, 0, 0, 0), []));
+
+        var digest = new FleetBuilder { Images = [onlyHigh], MinSeverity = threshold }.Digest.GetMaintenance("images");
+
+        digest.Images.Select(i => i.Reference).Should().Equal(listed ? ["db:16"] : []);
+    }
+
     [Fact]
     public void should_put_the_images_with_a_critical_fix_first()
     {

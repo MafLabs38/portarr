@@ -22,7 +22,7 @@ async function main(): Promise<void> {
   const scanner = new Scanner(
     new TrivyCli(config.trivyCommand, cacheDir, config.scanTimeoutMs),
     new ResultStore(config.dataDir),
-    { rescanAfterMs: config.rescanAfterMs, forgetAfterMs: config.forgetAfterMs, log },
+    { rescanAfterMs: config.rescanAfterMs, forgetAfterMs: config.forgetAfterMs, maxImages: config.maxImages, log },
   );
   await scanner.init();
 

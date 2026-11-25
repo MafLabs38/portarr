@@ -15,7 +15,7 @@ Generic deployment examples live in [`deploy/companions/`](../deploy/companions/
 
 The product ships no machine-side component (D-117): a machine is connected through the tools it runs, listed below.
 
-Companions are read and never changed by Portarr (D-31): GET only, except Backrest, whose API takes POST for the two read calls Portarr makes.
+Companions are read and never changed by Portarr (D-31): GET only, except Backrest, whose API takes POST for the two read calls Portarr makes, and the [image scanner](#image-scanner), which Portarr asks with a POST to scan the images it names (the scanner only pulls layers from registries and changes nothing on your machines).
 
 ## node_exporter
 
@@ -380,14 +380,14 @@ For each image that runs (Docker containers and Kubernetes pods, third-party one
 |---|---|
 | Pull the layers of the images Portarr names from their registries, read them with Trivy, keep the result | Run, start, stop or change anything on your machines (Portarr never acts on the infrastructure, D-16, D-31) |
 | One scan at a time, at the lowest priority, ten minutes at most, Trivy's scan cache dropped after each | Scan in parallel, or the same image twice in a day |
-| Answer Portarr behind a shared secret (every route but `/healthz`) | Publish a port: only Portarr, on the same network, talks to it |
+| Answer Portarr behind a shared secret (every route but `/healthz`) | Listen on the Internet: publish its port only on an address Portarr reaches (or share a Docker network); every route but `/healthz` needs the secret |
 | Report an image it cannot read with a reason (`not-found`, `unauthorized`, `timeout`, `unsupported`, `error`) | Read private registries (not supported yet), or pin the scan to the running digest of a floating tag |
 
 **Where to run it.** On a **staging machine, outside the production cluster**: a scan reads every layer of an image (network, disk, CPU). Give the container a CPU and memory limit (the example sets `cpus: 2` and `mem_limit: 2g`); the data volume holds Trivy's vulnerability database (a few hundred MB) and the results.
 
 ### Install
 
-The image is published with Portarr's: `ghcr.io/<owner>/portarr-scanner:<tag>`. A compose example is in [`deploy/companions/scanner/`](../deploy/companions/scanner/docker-compose.yml). To build it yourself: `docker build -t portarr-scanner scanner/` (`--build-arg TRIVY_VERSION=…` picks the Trivy release; pin it).
+The image is published with Portarr's: `ghcr.io/<owner>/portarr-scanner:<tag>`. A compose example is in [`deploy/companions/scanner/`](../deploy/companions/scanner/docker-compose.yml). To build it yourself: `docker build -t portarr-scanner scanner/` (the Trivy release and the Node base are pinned by version and digest in `scanner/Dockerfile`; Dependabot keeps them current).
 
 ```bash
 openssl rand -hex 32   # the shared secret, set on both sides

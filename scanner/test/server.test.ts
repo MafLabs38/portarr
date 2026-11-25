@@ -46,7 +46,7 @@ test('POST /v1/scans queues the images and says how many, GET /v1/results answer
     body: JSON.stringify({ targets: [target('app:1'), target('lscr.io/team/web:2')] }),
   });
   assert.equal(posted.status, 202);
-  assert.deepEqual(await posted.json(), { queued: 2 });
+  assert.deepEqual(await posted.json(), { queued: 2, ignored: 0 });
   await context.scanner.idle();
 
   const results = (await (await fetch(`${base}/v1/results`, { headers: auth })).json()) as {
@@ -69,7 +69,7 @@ test('POST /v1/scans queues the images and says how many, GET /v1/results answer
     headers: auth,
     body: JSON.stringify({ targets: [target('app:1')] }),
   });
-  assert.deepEqual(await again.json(), { queued: 0 });
+  assert.deepEqual(await again.json(), { queued: 0, ignored: 0 });
 });
 
 test('a request that is not a list of plain references is refused, nothing is queued', async () => {

@@ -28,3 +28,10 @@ test('the numbers are checked', () => {
     /PORTARR_SCANNER_TIMEOUT_MINUTES/,
   );
 });
+
+test('the number of tracked images defaults to 2000 and is bounded', () => {
+  assert.equal(loadConfig(base).maxImages, 2000);
+  assert.equal(loadConfig({ ...base, PORTARR_SCANNER_MAX_IMAGES: '50' }).maxImages, 50);
+  assert.throws(() => loadConfig({ ...base, PORTARR_SCANNER_MAX_IMAGES: '3' }), /PORTARR_SCANNER_MAX_IMAGES/);
+  assert.throws(() => loadConfig({ ...base, PORTARR_SCANNER_MAX_IMAGES: '1000000' }), /PORTARR_SCANNER_MAX_IMAGES/);
+});

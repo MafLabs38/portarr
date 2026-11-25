@@ -63,13 +63,14 @@ export interface Harness {
 
 const hour = 3_600_000;
 
-export async function harness(dir?: string): Promise<Harness> {
+export async function harness(dir?: string, maxImages?: number): Promise<Harness> {
   const folder = dir ?? (await mkdtemp(join(tmpdir(), 'portarr-scanner-')));
   const trivy = new FakeTrivy();
   const clock = { now: Date.parse('2026-11-25T10:00:00Z') };
   const scanner = new Scanner(trivy, new ResultStore(folder), {
     rescanAfterMs: 24 * hour,
     forgetAfterMs: 7 * 24 * hour,
+    ...(maxImages === undefined ? {} : { maxImages }),
     now: () => clock.now,
   });
   await scanner.init();

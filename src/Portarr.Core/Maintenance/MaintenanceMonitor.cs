@@ -392,21 +392,37 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
             .ToList();
         try
         {
-            if (images.Count > 0)
-            {
-                await scanner.RequestAsync(images, cancellationToken);
-            }
-
+            await RequestScansAsync(scanner, images, cancellationToken);
             var report = await scanner.ReadAsync(cancellationToken);
-            return new ImageScanSnapshot(report.Normalised().Images.Where(i => i.Kind == ScanTargetKinds.Image).ToDictionary(i => i.Image, StringComparer.Ordinal), now, null, report.DatabaseUpdatedAt);
+            return new ImageScanSnapshot(report.Images.Where(i => i.Kind == ScanTargetKinds.Image).ToDictionary(i => i.Image, StringComparer.Ordinal), now, null, report.DatabaseUpdatedAt);
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
-            var reason = exception is ImageScannerUnavailableException unavailable ? unavailable.Reason : ReasonCodes.From(exception);
+            var reason = ScannerReason(exception);
             LogScannerFailed(reason);
             return kept with { At = now, Error = reason };
         }
     }
+
+    // A request that fails does not stop the read: the read is the source of truth (the scanner may answer it while it refuses new work).
+    private async Task RequestScansAsync(IImageScanner scanner, List<string> images, CancellationToken cancellationToken)
+    {
+        if (images.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await scanner.RequestAsync(images, cancellationToken);
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            LogScannerRequestFailed(ScannerReason(exception));
+        }
+    }
+
+    private static string ScannerReason(Exception exception) => exception is ImageScannerUnavailableException unavailable ? unavailable.Reason : ReasonCodes.From(exception);
 
     private async Task<RegistryLookup> LookUpAsync(IImageRegistry registry, IReadOnlyList<(Workload Workload, ImageReference Image)> users, CancellationToken cancellationToken)
     {
@@ -476,6 +492,9 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The image scanner could not be read: {Reason}")]
     private partial void LogScannerFailed(string reason);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The image scanner could not be asked to scan: {Reason}")]
+    private partial void LogScannerRequestFailed(string reason);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Registry lookup of {Repository} failed: {Reason}")]
     private partial void LogLookupFailed(string repository, string reason);

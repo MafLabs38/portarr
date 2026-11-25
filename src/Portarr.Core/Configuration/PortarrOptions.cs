@@ -117,11 +117,11 @@ public sealed class VulnerabilityOptions
     public const string DefaultMinSeverity = "high";
 
     /// <summary>The values <see cref="MinSeverity"/> takes, worst first.</summary>
-    public static readonly IReadOnlyList<string> Severities = ["critical", "high", "medium", "low"];
+    public static readonly IReadOnlyList<string> Severities = ["critical", "high"];
 
     /// <summary>
-    /// The lowest severity shown and raised as attention: <c>critical</c>, <c>high</c> (the default), <c>medium</c> or <c>low</c>. The counts of an
-    /// image stay complete; the scanner describes high and critical findings only, so a lower value changes no finding.
+    /// The lowest severity shown and raised as attention: <c>critical</c> or <c>high</c> (the default). The counts of an
+    /// image stay complete; the scanner describes high and critical findings only, so no lower value is accepted.
     /// </summary>
     public string MinSeverity { get; set; } = DefaultMinSeverity;
 }

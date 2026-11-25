@@ -175,6 +175,16 @@ public sealed class ImageVulnerabilitiesFixture
         new ImageScannerUnavailableException(ImageScannerUnavailableException.SecretMissing).Reason.Should().Be("secret-missing");
         new ImageScannerUnavailableException().Reason.Should().Be("unavailable");
         new ImageScannerUnavailableException("unreachable", new IOException()).Reason.Should().Be("unreachable");
+        new ImageScannerUnavailableException("http-502", new IOException()).Reason.Should().Be("http-502");
+    }
+
+    [Theory]
+    [InlineData("connection refused by 10.0.0.1")]
+    [InlineData("http-5xx")]
+    [InlineData("")]
+    public void should_make_an_error_of_a_free_text_reason(string text)
+    {
+        new ImageScannerUnavailableException(text, new IOException()).Reason.Should().Be("error");
     }
 
     private static ImageFinding Finding(string id = "CVE-2026-0001", string package = "openssl", string? severity = "high", string? fixedVersion = "3.0.2", string? title = "A flaw", Uri? url = null) =>

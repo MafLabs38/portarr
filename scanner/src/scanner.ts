@@ -1,6 +1,7 @@
 // The queue and the worker: images Portarr names are scanned one at a time, the oldest request first, never twice in
 // a day. The results live in memory and in one file; the Trivy CLI is the only thing that touches the network.
 
+import { defaultMaxImages } from './config.ts';
 import { type Counts, emptyCounts, type Finding, hasResults, summarise } from './report.ts';
 import type { ResultStore, StoredImage } from './store.ts';
 import { type DatabaseInfo, type Reason, ScanFailure, type TrivyRunner } from './trivy.ts';
@@ -28,10 +29,19 @@ export interface ScanResults {
 export interface ScannerOptions {
   rescanAfterMs: number;
   forgetAfterMs: number;
+  /** At most this many references are tracked; a new one beyond it is ignored (the answer says how many). */
+  maxImages?: number;
   /** A scan that failed for no lasting reason (a timeout, an error) is tried again after this. */
   retryAfterMs?: number;
   now?: () => number;
   log?: (message: string) => void;
+}
+
+export interface RequestOutcome {
+  /** References that will be scanned now. */
+  queued: number;
+  /** New references refused because the scanner already tracks its maximum. */
+  ignored: number;
 }
 
 const lastingFailures: Reason[] = ['not-found', 'unauthorized', 'unsupported'];
@@ -52,6 +62,7 @@ export class Scanner {
     this.store = store;
     this.options = {
       retryAfterMs: 3_600_000,
+      maxImages: defaultMaxImages,
       now: () => Date.now(),
       log: () => undefined,
       ...options,
@@ -64,12 +75,22 @@ export class Scanner {
     this.records = new Map(stored.records.map((record) => [record.image, record]));
   }
 
-  /** Queues the images that are new or due; returns how many. Images Portarr names stay known for the forget delay. */
-  request(images: readonly string[]): number {
+  /**
+   * Queues the images that are new or due. Images Portarr names stay known for the forget delay; once the scanner tracks
+   * its maximum, a reference it does not know yet is ignored (and counted).
+   */
+  request(images: readonly string[]): RequestOutcome {
     const now = this.options.now();
+    this.forget(now);
     const due: { image: string; since: number }[] = [];
+    let ignored = 0;
     for (const image of new Set(images)) {
-      const record = this.records.get(image) ?? { image, requestedAt: now };
+      const known = this.records.get(image);
+      if (known === undefined && this.records.size >= this.options.maxImages) {
+        ignored++;
+        continue;
+      }
+      const record = known ?? { image, requestedAt: now };
       record.requestedAt = now;
       this.records.set(image, record);
       if (image !== this.current && !this.queue.includes(image) && this.isDue(record, now)) {
@@ -79,12 +100,11 @@ export class Scanner {
     // Images never scanned go first, then the ones scanned longest ago.
     due.sort((a, b) => a.since - b.since);
     this.queue.push(...due.map((entry) => entry.image));
-    this.forget(now);
     this.start();
     if (due.length === 0) {
       void this.persist();
     }
-    return due.length;
+    return { queued: due.length, ignored };
   }
 
   results(): ScanResults {
