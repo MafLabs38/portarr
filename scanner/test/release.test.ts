@@ -65,7 +65,11 @@ test('the SBOM asset is chosen CycloneDX first, then SPDX, then any sbom json, a
   assert.equal(names([download('app.spdx.json'), download('sbom.json'), download('app.cdx.json')]), 'app.cdx.json');
   assert.equal(names([download('sbom.json'), download('APP.SPDX.JSON')]), 'APP.SPDX.JSON');
   assert.equal(names([download('app.tar.gz'), download('my-sbom-1.0.json')]), 'my-sbom-1.0.json');
-  assert.equal(names([download('app.tar.gz'), download('checksums.txt'), download('sbom.xml')]), undefined);
+  assert.equal(names([download('app.tar.gz'), download('bom.json'), download('app.bom.json')]), 'bom.json');
+  assert.equal(
+    names([download('app.tar.gz'), download('checksums.txt'), download('sbom.xml'), download('bombe.json')]),
+    undefined,
+  );
   assert.equal(names([]), undefined);
   assert.equal(names('nope'), undefined);
   assert.equal(names([null, 3, { name: 4 }, { name: 'a.cdx.json' }]), undefined);

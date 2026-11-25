@@ -9,6 +9,8 @@ namespace Portarr.Core.Maintenance;
 /// </summary>
 public sealed class ReleaseTargets
 {
+    private const string GitHubHost = "github.com";
+
     private readonly Dictionary<string, string> _mapping;
     private readonly HashSet<string> _targets;
 
@@ -34,12 +36,14 @@ public sealed class ReleaseTargets
 
     /// <summary>
     /// The repository (<c>owner/name</c>) whose latest release is read for <paramref name="repository"/>, or null when none is. An archived repository
-    /// or a fork has none; a mapped one reads the repository it is mapped to, whether it publishes a release itself or not; a repository that is the
-    /// target of a mapping shows on its source, not for itself.
+    /// or a fork has none, nor has a repository that is not on github.com (the companion reads github.com only: a GitHub Enterprise Server's
+    /// <c>owner/name</c> could be another project's there); a mapped one reads the repository it is mapped to, whether it publishes a release itself or
+    /// not; a repository that is the target of a mapping shows on its source, not for itself; a private repository that is not mapped has none (its
+    /// release is not readable anonymously, and its name stays off the companion).
     /// </summary>
     public string? TargetOf(CodeRepository repository)
     {
-        if (repository.Archived || repository.Fork)
+        if (repository.Archived || repository.Fork || !string.Equals(repository.Url.Host, GitHubHost, StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
@@ -54,7 +58,7 @@ public sealed class ReleaseTargets
             return null;
         }
 
-        return repository.Release is { IsTagOnly: false } ? repository.FullName : null;
+        return repository.Release is { IsTagOnly: false } && string.Equals(repository.Visibility, "public", StringComparison.OrdinalIgnoreCase) ? repository.FullName : null;
     }
 
     /// <summary>The repositories whose latest release is to be scanned: one scan target of kind release each, once, in a stable order.</summary>

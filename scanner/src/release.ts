@@ -38,8 +38,8 @@ interface Asset {
   url: string;
 }
 
-// CycloneDX first, then SPDX, then anything named like an SBOM.
-const assetPreference = [/\.cdx\.json$/i, /\.spdx\.json$/i, /sbom.*\.json$/i];
+// CycloneDX first, then SPDX, then anything named like an SBOM or the tools' default `bom.json`.
+const assetPreference = [/\.cdx\.json$/i, /\.spdx\.json$/i, /sbom.*\.json$/i, /(^|[._-])bom\.json$/i];
 
 function isGithubDownload(value: string): boolean {
   try {

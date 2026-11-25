@@ -52,6 +52,21 @@ public sealed class MaintenanceReleaseScansFixture
     }
 
     [Fact]
+    public async Task should_not_ask_for_a_private_repository_unless_it_is_mapped_nor_for_a_repository_of_another_host()
+    {
+        UseCatalog(Scanner + "sources:\n  github: { owners: [example], releases: { example/private-mapped: example/public-builds } }\n");
+        Scan(
+            Repo("example", "private-app", release: Release("v1"), visibility: "private"),
+            Repo("example", "private-mapped", visibility: "private"),
+            Repo("example", "enterprise-app", release: Release("v2"), host: "github.corp.example"),
+            Repo("example", "open-app", release: Release("v3")));
+
+        await Monitor().RefreshAsync(TestContext.Current.CancellationToken);
+
+        _asked.Should().Equal(new ScanTarget("release", "example/open-app"), new ScanTarget("release", "example/public-builds"));
+    }
+
+    [Fact]
     public async Task should_read_the_release_of_the_mapped_repository_and_not_ask_for_the_releases_repository_itself()
     {
         UseCatalog(Scanner + "sources:\n  github: { owners: [example], releases: { example/app-source: example/app-releases } }\n");
@@ -130,6 +145,6 @@ public sealed class MaintenanceReleaseScansFixture
 
     private static ReleaseInfo Release(string tag, bool tagOnly = false) => new(tag, null, null, tagOnly);
 
-    internal static CodeRepository Repo(string owner, string name, ReleaseInfo? release = null, bool archived = false, bool fork = false, string visibility = "public") =>
-        new(owner, name, new Uri($"https://github.example/{owner}/{name}"), visibility, null, null, null, "main", archived, fork, AlertScan.Off, AlertScan.Off, AlertScan.Off, release, null, null);
+    internal static CodeRepository Repo(string owner, string name, ReleaseInfo? release = null, bool archived = false, bool fork = false, string visibility = "public", string host = "github.com") =>
+        new(owner, name, new Uri($"https://{host}/{owner}/{name}"), visibility, null, null, null, "main", archived, fork, AlertScan.Off, AlertScan.Off, AlertScan.Off, release, null, null);
 }

@@ -6,8 +6,12 @@ import renderWithProviders from '__mocks__/renderWithProviders';
 import { maintenanceReport } from '__mocks__/server';
 import type { ReleaseVulnerabilities, Repository } from 'typings/Maintenance';
 
-const shop = maintenanceReport.repositories.find((r) => r.releaseVulnerabilities !== null) as Repository;
-const scanned = shop.releaseVulnerabilities as ReleaseVulnerabilities;
+const found = maintenanceReport.repositories.find((r) => r.releaseVulnerabilities !== null);
+if (!found?.releaseVulnerabilities) {
+  throw new Error('The mock report needs a repository with a scanned release.');
+}
+const shop: Repository = found;
+const scanned: ReleaseVulnerabilities = found.releaseVulnerabilities;
 
 function render(release: ReleaseVulnerabilities | null, fullName = shop.fullName) {
   return renderWithProviders(
@@ -48,6 +52,24 @@ describe('vulnerabilities of the latest release (D-132)', () => {
 
     expect(screen.getByText('Latest release: no SBOM published')).toBeInTheDocument();
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['not-found', 'Latest release: none published, or not readable'],
+    ['unauthorized', 'Latest release: access refused'],
+  ])('says in release words why a release was not scanned (%s)', (reason, text) => {
+    render({ ...scanned, state: 'not-scanned', reason, version: null, findings: [] });
+
+    expect(screen.getByText(text)).toBeInTheDocument();
+  });
+
+  it.each([
+    ['not-found', 'Latest release: none published, or not readable'],
+    ['unauthorized', 'Latest release: access refused'],
+  ])('says in release words why a release was not scanned (%s)', (reason, text) => {
+    render({ ...scanned, state: 'not-scanned', reason, version: null, findings: [] });
+
+    expect(screen.getByText(text)).toBeInTheDocument();
   });
 
   it('shows nothing without a release to scan or a declared scanner', () => {

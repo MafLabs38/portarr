@@ -376,7 +376,7 @@ For each image that runs (Docker containers and Kubernetes pods, third-party one
 
 ### Releases and their SBOM (D-132, [ADR 0024](adr/0024-the-vulnerabilities-of-a-release-are-read-from-its-sbom.md))
 
-For software that is not an image (a desktop application, a tool), the companion scans the **SBOM published with the latest GitHub release**. The project's release workflow writes it: a CycloneDX file named `<name>.cdx.json`, uploaded as a release asset (for a .NET application, a few lines of PowerShell turn the publish output's `deps.json` into one, runtime pack included). Components no advisory database knows (a bundled FFmpeg) can be listed but are not matched. The scan describes the latest published release, not what the users have installed.
+For software that is not an image (a desktop application, a tool), the companion scans the **SBOM published with the latest GitHub release**. The project's release workflow writes it: a CycloneDX file named `<name>.cdx.json` (`*.spdx.json`, `sbom*.json` and the tools' default `bom.json` are read too), uploaded as a release asset (for a .NET application, a few lines of PowerShell turn the publish output's `deps.json` into one, runtime pack included). Components no advisory database knows (a bundled FFmpeg) can be listed but are not matched. The scan describes the latest published release, not what the users have installed.
 
 ### What it does and does not do
 
@@ -419,7 +419,8 @@ volumes:
 | `PORTARR_SCANNER_TIMEOUT_MINUTES` | `10` | One scan stops after this long and is reported as `timeout` |
 | `PORTARR_SCANNER_RESCAN_HOURS` | `24` | An image is scanned again when Portarr names it after this long |
 | `PORTARR_SCANNER_FORGET_DAYS` | `7` | An image Portarr has not named for this long is forgotten |
-| `PORTARR_SCANNER_MAX_IMAGES` | `2000` | References tracked at most (10 to 10000); a new one beyond it is ignored |
+| `PORTARR_SCANNER_MAX_IMAGES` | `2000` | Targets tracked at most, images and releases together (10 to 10000); a new one beyond it is ignored |
+| `PORTARR_SCANNER_GITHUB_TOKEN` | — (optional) | Only lifts GitHub's anonymous rate limit when the companion reads releases (D-132): a fine-grained token **with no repository permission**. It is never sent with the SBOM download; release scans are public repositories only |
 | `TRIVY_BIN` | `trivy` | The Trivy executable |
 
 Secrets are never logged and never returned.
