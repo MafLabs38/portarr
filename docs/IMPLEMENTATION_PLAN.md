@@ -183,7 +183,7 @@ Each row is a PR (or a stack). The listed tests come on top of the generic DoD.
 
 | Vertical | Content | Features | Integration | E2E |
 |---|---|---|---|---|
-| **V6 Notifications and heartbeats** | Notification providers (email first), per-trigger rules, toasts, Web Push (PWA); push-mode heartbeats; maintenance | F-NOT-01/02/04, F-HLT-06/08 | Mailpit receives the alert, then the recovery; missed heartbeat → `Down` | Receive a toast; declare a maintenance window |
+| **V6 Notifications and heartbeats** (first slice built: mail in categories, [verticals/notifications.md](verticals/notifications.md); the rest below is still to do) | Notification providers (email first), per-trigger rules, toasts, Web Push (PWA); push-mode heartbeats; maintenance | F-NOT-01/02/04, F-HLT-06/08 | Mailpit receives the alert, then the recovery; missed heartbeat → `Down` | Receive a toast; declare a maintenance window |
 | **V7 Hypervisor** | Unraid provider (D-40), outside view of VMs, environment hierarchy, basic capacity | D-11, F-INV-01, F-MET-02 (allocation) | Simulated hypervisor API (WireMock) | Hypervisor → VM → runtime tree |
 
 ### v0.4 — Resources and data

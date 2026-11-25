@@ -128,7 +128,7 @@ public sealed class NotificationSettingsUpdateValidator : AbstractValidator<Noti
             yield break;
         }
 
-        var prefix = $"categories.{category.Id}";
+        var prefix = $"categories.{(category.Id.Length > 40 ? category.Id[..40] + "…" : category.Id)}";
         if (category.Enabled is null)
         {
             yield return ($"{prefix}.enabled", "enabled is required.");

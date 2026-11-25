@@ -924,7 +924,7 @@ const en: Record<string, string> = {
   NotificationsTestMail: 'Test mail',
   NotificationsTestCallFailed: 'The test could not be started. Try again.',
   NotificationsTestHelp:
-    'Sends one mail to the saved recipient, to see that the settings work. It counts in the daily limit.',
+    'Sends one mail to the saved recipient, with the settings as last saved (not the changes you have not saved yet), to see that they work. It counts in the daily limit.',
   NotificationsTestNotSent: 'Not sent: {reason}',
   NotificationsTestSent: 'Sent. Look in the recipient mailbox.',
   NotificationsUnknownCategory: 'Unknown category',

@@ -202,6 +202,8 @@ public sealed partial class AttentionNotifier
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            // The recorded reason stays generic (no server text or secret reaches the API); the exception goes to the log.
+            LogSendThrew(ex);
             return NotificationResult.Failed("The mail could not be sent.");
         }
     }
@@ -225,6 +227,9 @@ public sealed partial class AttentionNotifier
 
     /// <summary>What one mail is made of: the category, its episode, the findings it lists, the worst level among them and the category's policy.</summary>
     private sealed record CategoryMail(NotificationCategory Category, NotificationEpisode Episode, List<AttentionFinding> Findings, NotificationLevel Level, CategoryPolicy Policy);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The notification sender threw instead of reporting a failure.")]
+    private partial void LogSendThrew(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Notifications are on but cannot work: {Problem}")]
     private partial void LogMisconfigured(string problem);

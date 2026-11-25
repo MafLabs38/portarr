@@ -1,6 +1,6 @@
 # Notifications
 
-> Status: **in progress** (sandbox). The backend (categories, per-category settings, HTML mails) is built; the Settings, Notifications page follows it. Decision: D-129, [ADR 0022](../adr/0022-portarr-writes-to-the-operator-through-the-shared-notification-package-in-categories.md). Spec: F-NOT-01 to F-NOT-04, first slice.
+> Status: **built** (first slice): the categories, the per-category settings, the HTML mails and the Settings, Notifications page. In-app toasts, Web Push, the digest and other channels are not built. Decision: D-129, [ADR 0022](../adr/0022-portarr-writes-to-the-operator-through-the-shared-notification-package-in-categories.md). Spec: F-NOT-01 to F-NOT-04, first slice.
 
 ## Need
 
