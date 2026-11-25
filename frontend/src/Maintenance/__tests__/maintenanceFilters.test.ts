@@ -84,6 +84,8 @@ describe('maintenanceFilters', () => {
     expect(attentionSearch('images-behind')).toBe('?tab=images&filter=behind-minor');
     expect(attentionSearch('code-source-error')).toBeNull();
     expect(attentionSearch('image-critical-vulnerabilities')).toBe('?tab=images&filter=vulnerable-critical');
+    expect(attentionSearch('release-critical-vulnerabilities')).toBe('?');
+    expect(attentionSearch('release-vulnerabilities')).toBe('?');
     expect(attentionSearch('image-vulnerabilities')).toBe('?tab=images&filter=vulnerable');
     expect(attentionSearch('image-scanner-error')).toBe('?tab=images');
   });

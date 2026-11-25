@@ -5,10 +5,10 @@ namespace Portarr.Providers.Trivy;
 // The scanner companion's API (scanner/, D-131): camelCase JSON, the answer of GET /v1/results and the body of POST /v1/scans.
 // Everything is optional here: the Core normalises what is kept (severity vocabulary, https links, closed reasons, lengths).
 
-internal sealed record ScanRequest([property: JsonPropertyName("targets")] IReadOnlyList<ScanTarget> Targets);
+internal sealed record ScanRequest([property: JsonPropertyName("targets")] IReadOnlyList<ScanRequestTarget> Targets);
 
-/// <summary>What is scanned: <c>kind</c> is <c>image</c> for now (an SBOM of a release later), <c>ref</c> its reference.</summary>
-internal sealed record ScanTarget([property: JsonPropertyName("kind")] string Kind, [property: JsonPropertyName("ref")] string Ref);
+/// <summary>What is scanned: <c>kind</c> is <c>image</c> or <c>release</c> (the SBOM of a repository's latest release), <c>ref</c> its reference (<c>owner/name</c> for a release).</summary>
+internal sealed record ScanRequestTarget([property: JsonPropertyName("kind")] string Kind, [property: JsonPropertyName("ref")] string Ref);
 
 internal sealed record ScannerResults(
     [property: JsonPropertyName("generatedAt")] DateTimeOffset? GeneratedAt,
@@ -25,6 +25,7 @@ internal sealed record ScannerImage(
     [property: JsonPropertyName("state")] string? State,
     [property: JsonPropertyName("reason")] string? Reason,
     [property: JsonPropertyName("scannedAt")] DateTimeOffset? ScannedAt,
+    [property: JsonPropertyName("version")] string? Version,
     [property: JsonPropertyName("counts")] ScannerCounts? Counts,
     [property: JsonPropertyName("fixable")] ScannerCounts? Fixable,
     [property: JsonPropertyName("findings")] IReadOnlyList<ScannerFinding>? Findings);

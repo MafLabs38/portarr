@@ -13,13 +13,15 @@ export interface ScannerConfig {
   rescanAfterMs: number;
   /** An image Portarr has not named for this long is forgotten. */
   forgetAfterMs: number;
-  /** The most image references tracked at once; a new one beyond it is ignored. */
+  /** The most targets (images and releases) tracked at once; a new one beyond it is ignored. */
   maxImages: number;
+  /** Optional GitHub token, only to lift the anonymous rate limit of the releases API. Never logged. */
+  githubToken?: string;
 }
 
 export const minimumSecretLength = 32;
 
-/** The most references the scanner tracks unless PORTARR_SCANNER_MAX_IMAGES says otherwise: far above a homelab's images, far below a flood. */
+/** The most targets (images and releases) the scanner tracks unless PORTARR_SCANNER_MAX_IMAGES says otherwise: far above a homelab's images, far below a flood. */
 export const defaultMaxImages = 2000;
 
 function integer(name: string, value: string | undefined, fallback: number, min: number, max: number): number {
@@ -37,6 +39,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): ScannerConfig {
       `PORTARR_SCANNER_SECRET must be at least ${minimumSecretLength} characters (openssl rand -hex 32).`,
     );
   }
+  const githubToken = env.PORTARR_SCANNER_GITHUB_TOKEN?.trim();
   return {
     host: env.PORTARR_SCANNER_HOST ?? '0.0.0.0',
     port: integer('PORTARR_SCANNER_PORT', env.PORTARR_SCANNER_PORT, 8489, 1, 65535),
@@ -48,5 +51,6 @@ export function loadConfig(env: NodeJS.ProcessEnv): ScannerConfig {
       integer('PORTARR_SCANNER_RESCAN_HOURS', env.PORTARR_SCANNER_RESCAN_HOURS, 24, 1, 24 * 30) * 3_600_000,
     forgetAfterMs: integer('PORTARR_SCANNER_FORGET_DAYS', env.PORTARR_SCANNER_FORGET_DAYS, 7, 1, 365) * 86_400_000,
     maxImages: integer('PORTARR_SCANNER_MAX_IMAGES', env.PORTARR_SCANNER_MAX_IMAGES, defaultMaxImages, 10, 10_000),
+    ...(githubToken ? { githubToken } : {}),
   };
 }

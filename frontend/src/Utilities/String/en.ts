@@ -572,6 +572,13 @@ const en: Record<string, string> = {
   // Image vulnerabilities (V4, D-131)
   'Attention_image-critical-vulnerabilities':
     'Critical vulnerabilities with a fix in {images} running images ({count} critical or high in all)',
+  'Attention_release-critical-vulnerabilities':
+    'Critical vulnerabilities with a fix in the latest release of {repositories} repositories ({count} critical or high in all)',
+  'Attention_release-vulnerabilities':
+    '{count} high vulnerabilities with a fix in the latest release of {repositories} repositories',
+  ReleaseVulnerabilitiesOf: 'Latest release {version}',
+  ReleaseVulnerabilitiesFrom: 'Latest release {version}, read from {repository}',
+  'VulnerabilityNotScanned_no-sbom': 'Latest release: no SBOM published',
   'Attention_image-scanner-error': 'The image scanner could not be read: {reason}. The last results are kept.',
   'Attention_image-vulnerabilities': '{count} high vulnerabilities with a fix in {images} running images',
   Filter_vulnerable: 'Critical or high vulnerabilities with a fix',

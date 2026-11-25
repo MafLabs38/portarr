@@ -23,6 +23,9 @@ public sealed partial class TrivyImageScanner : IImageScanner
 
     public const int MaxReferenceLength = 300;
 
+    /// <summary>A release target is <c>owner/name</c>, each part of at most 100 characters.</summary>
+    private const int MaxRepositoryLength = 201;
+
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ICatalogService _catalogService;
     private readonly IConfiguration _configuration;
@@ -36,18 +39,18 @@ public sealed partial class TrivyImageScanner : IImageScanner
         _timeProvider = timeProvider;
     }
 
-    public async Task RequestAsync(IReadOnlyCollection<string> images, CancellationToken cancellationToken)
+    public async Task RequestAsync(IReadOnlyCollection<ScanTarget> targets, CancellationToken cancellationToken)
     {
         var source = Source();
         var secret = Secret(source);
         // What the companion would refuse (it validates every reference, and refuses the whole request) is left out here.
-        var plain = images.Where(IsPlainReference).Distinct(StringComparer.Ordinal).ToList();
+        var plain = targets.Where(IsValid).Distinct().ToList();
         using var client = _httpClientFactory.CreateClient(HttpClientName);
         foreach (var batch in plain.Chunk(MaxImagesPerRequest))
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(source.Url, "v1/scans"))
             {
-                Content = JsonContent.Create(new ScanRequest([.. batch.Select(image => new ScanTarget(ScanTargetKinds.Image, image))]), ScannerJsonContext.Default.ScanRequest),
+                Content = JsonContent.Create(new ScanRequest([.. batch.Select(target => new ScanRequestTarget(target.Kind, target.Ref))]), ScannerJsonContext.Default.ScanRequest),
             };
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", secret);
             using var response = await client.SendAsync(request, cancellationToken);
@@ -93,7 +96,8 @@ public sealed partial class TrivyImageScanner : IImageScanner
         ToCounts(image.Fixable),
         [.. (image.Findings ?? []).Select(ToFinding)],
         // A result without a kind is an image's: the kind was added for the targets that come later.
-        image.Kind ?? ScanTargetKinds.Image);
+        image.Kind ?? ScanTargetKinds.Image,
+        image.Version);
 
     private static VulnerabilityCounts ToCounts(ScannerCounts? counts) =>
         counts is null ? VulnerabilityCounts.None : new VulnerabilityCounts(counts.Critical, counts.High, counts.Medium, counts.Low, counts.Unknown);
@@ -109,6 +113,14 @@ public sealed partial class TrivyImageScanner : IImageScanner
 
     internal static bool IsPlainReference(string reference) =>
         reference.Length is > 0 and <= MaxReferenceLength && ReferencePattern().IsMatch(reference);
+
+    /// <summary>Whether the companion would accept the target: an image by its plain reference, a release by its repository name (<c>owner/name</c>); any other kind is left out.</summary>
+    internal static bool IsValid(ScanTarget target) => target.Kind switch
+    {
+        ScanTargetKinds.Image => IsPlainReference(target.Ref),
+        ScanTargetKinds.Release => target.Ref.Length <= MaxRepositoryLength && RepositoryPattern().IsMatch(target.Ref),
+        _ => false,
+    };
 
     private ImageScannerSource Source()
     {
@@ -133,4 +145,8 @@ public sealed partial class TrivyImageScanner : IImageScanner
     /// <summary>The companion's own rule for an image reference: names, a tag, a digest, starting with a letter or a digit.</summary>
     [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._/:@-]*$")]
     private static partial Regex ReferencePattern();
+
+    /// <summary>The companion's own rule for the repository of a release: <c>owner/name</c>.</summary>
+    [GeneratedRegex("^[A-Za-z0-9._-]{1,100}/[A-Za-z0-9._-]{1,100}$")]
+    private static partial Regex RepositoryPattern();
 }

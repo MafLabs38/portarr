@@ -35,3 +35,9 @@ test('the number of tracked images defaults to 2000 and is bounded', () => {
   assert.throws(() => loadConfig({ ...base, PORTARR_SCANNER_MAX_IMAGES: '3' }), /PORTARR_SCANNER_MAX_IMAGES/);
   assert.throws(() => loadConfig({ ...base, PORTARR_SCANNER_MAX_IMAGES: '1000000' }), /PORTARR_SCANNER_MAX_IMAGES/);
 });
+
+test('the GitHub token is optional and trimmed', () => {
+  assert.equal(loadConfig(base).githubToken, undefined);
+  assert.equal(loadConfig({ ...base, PORTARR_SCANNER_GITHUB_TOKEN: '  ' }).githubToken, undefined);
+  assert.equal(loadConfig({ ...base, PORTARR_SCANNER_GITHUB_TOKEN: ' ghp_example \n' }).githubToken, 'ghp_example');
+});

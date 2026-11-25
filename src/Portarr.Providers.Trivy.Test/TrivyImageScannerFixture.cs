@@ -27,7 +27,7 @@ public sealed class TrivyImageScannerFixture
         _catalog = "imageScanner: { url: \"https://scanner.homelab.example/trivy\", secretEnv: PORTARR_SCANNER_STAGING }\n";
         var configured = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["PORTARR_SCANNER_STAGING"] = "another-secret-another-secret-12" }).Build();
 
-        await Subject(configured).RequestAsync(["app:1"], TestContext.Current.CancellationToken);
+        await Subject(configured).RequestAsync([Image("app:1")], TestContext.Current.CancellationToken);
 
         _calls.Should().ContainSingle().Which.Should().Match<(HttpMethod Method, Uri Uri, string? Authorization, string Body)>(
             c => c.Method == HttpMethod.Post && c.Uri.AbsoluteUri == "https://scanner.homelab.example/trivy/v1/scans" && c.Authorization == "Bearer another-secret-another-secret-12");
@@ -36,7 +36,7 @@ public sealed class TrivyImageScannerFixture
     [Fact]
     public async Task should_send_the_references_in_batches_of_200_each_once_and_leave_out_what_the_scanner_would_refuse()
     {
-        var images = Enumerable.Range(0, 450).Select(i => $"registry.example/team/app{i}:1").Append("registry.example/team/app0:1").Append($"registry.example/{new string('a', 300)}:1").Append("-option").Append("with space").Append(string.Empty).ToList();
+        var images = Enumerable.Range(0, 450).Select(i => $"registry.example/team/app{i}:1").Append("registry.example/team/app0:1").Append($"registry.example/{new string('a', 300)}:1").Append("-option").Append("with space").Append(string.Empty).Select(Image).ToList();
 
         await Subject().RequestAsync(images, TestContext.Current.CancellationToken);
 
@@ -44,9 +44,66 @@ public sealed class TrivyImageScannerFixture
     }
 
     [Fact]
+    public async Task should_send_images_and_releases_in_one_request_with_the_kind_of_each()
+    {
+        await Subject().RequestAsync([Image("app:1"), new(ScanTargetKinds.Release, "example/desktop-app"), new(ScanTargetKinds.Release, "Example_Org/app.v2-x")], TestContext.Current.CancellationToken);
+
+        var body = JsonDocument.Parse(_calls.Should().ContainSingle().Which.Body).RootElement.GetProperty("targets");
+        body.EnumerateArray().Select(t => (t.GetProperty("kind").GetString(), t.GetProperty("ref").GetString())).Should().Equal(
+            ("image", "app:1"), ("release", "example/desktop-app"), ("release", "Example_Org/app.v2-x"));
+    }
+
+    [Theory]
+    [InlineData("no-slash")]
+    [InlineData("owner/name/extra")]
+    [InlineData("/name")]
+    [InlineData("owner/")]
+    [InlineData("owner/na me")]
+    [InlineData("owner/na;me")]
+    [InlineData("")]
+    public async Task should_leave_out_a_release_that_is_not_a_repository_and_any_kind_it_does_not_know(string reference)
+    {
+        await Subject().RequestAsync([new(ScanTargetKinds.Release, reference), new("sbom", "example/desktop-app")], TestContext.Current.CancellationToken);
+
+        _calls.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task should_leave_out_a_release_whose_parts_are_too_long()
+    {
+        await Subject().RequestAsync([new(ScanTargetKinds.Release, $"{new string('a', 101)}/name"), new(ScanTargetKinds.Release, $"owner/{new string('b', 101)}"), new(ScanTargetKinds.Release, $"{new string('a', 100)}/{new string('b', 100)}")], TestContext.Current.CancellationToken);
+
+        JsonDocument.Parse(_calls.Should().ContainSingle().Which.Body).RootElement.GetProperty("targets").GetArrayLength().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task should_read_the_version_of_a_release_and_the_no_sbom_reason_and_take_a_result_without_a_kind_for_an_image()
+    {
+        _answer = _ => Json("""
+            { "images": [
+              { "ref": "app:1", "state": "scanned", "version": "v9" },
+              { "kind": "release", "ref": "example/desktop-app", "state": "scanned", "version": "  v1.4.0\n", "scannedAt": "2026-11-25T09:00:00Z" },
+              { "kind": "release", "ref": "example/library", "state": "failed", "reason": "no-sbom", "version": "v0.1" },
+              { "kind": "release", "ref": "example/queued", "state": "queued", "version": "v0.2" },
+              { "kind": "release", "ref": "example/long", "state": "scanned", "version": "__LONG__" }
+            ] }
+            """.Replace("__LONG__", new string('v', 300), StringComparison.Ordinal));
+
+        var report = await Subject().ReadAsync(TestContext.Current.CancellationToken);
+
+        report.Images.Select(i => (i.Kind, i.Image, i.Version)).Should().Equal(
+            ("image", "app:1", null),
+            ("release", "example/desktop-app", "v1.4.0"),
+            ("release", "example/library", null),
+            ("release", "example/queued", null),
+            ("release", "example/long", new string('v', ImageScanResult.MaxVersionLength)));
+        report.Images[2].Reason.Should().Be(ImageScanReasons.NoSbom);
+    }
+
+    [Fact]
     public async Task should_send_nothing_when_no_reference_is_worth_sending()
     {
-        await Subject().RequestAsync(["-option", "with space"], TestContext.Current.CancellationToken);
+        await Subject().RequestAsync([Image("-option"), Image("with space")], TestContext.Current.CancellationToken);
 
         _calls.Should().BeEmpty();
     }
@@ -57,7 +114,7 @@ public sealed class TrivyImageScannerFixture
         _secret = null;
         var subject = Subject();
 
-        var ask = () => subject.RequestAsync(["app:1"], TestContext.Current.CancellationToken);
+        var ask = () => subject.RequestAsync([Image("app:1")], TestContext.Current.CancellationToken);
         var read = () => subject.ReadAsync(TestContext.Current.CancellationToken);
 
         (await ask.Should().ThrowAsync<ImageScannerUnavailableException>()).Which.Reason.Should().Be(ImageScannerUnavailableException.SecretMissing);
@@ -82,7 +139,7 @@ public sealed class TrivyImageScannerFixture
     {
         _answer = _ => new HttpResponseMessage(status);
 
-        var ask = () => Subject().RequestAsync(["app:1"], TestContext.Current.CancellationToken);
+        var ask = () => Subject().RequestAsync([Image("app:1")], TestContext.Current.CancellationToken);
         var read = () => Subject().ReadAsync(TestContext.Current.CancellationToken);
 
         (await ask.Should().ThrowAsync<HttpRequestException>()).Which.StatusCode.Should().Be(status);
@@ -139,6 +196,8 @@ public sealed class TrivyImageScannerFixture
         using var client = provider.GetRequiredService<IHttpClientFactory>().CreateClient(TrivyImageScanner.HttpClientName);
         client.Timeout.Should().Be(TimeSpan.FromSeconds(20));
     }
+
+    private static ScanTarget Image(string reference) => new(ScanTargetKinds.Image, reference);
 
     private static HttpResponseMessage Json(string body) => new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 

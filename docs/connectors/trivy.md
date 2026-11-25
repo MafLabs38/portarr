@@ -23,8 +23,10 @@ imageScanner:
 
 | Request | Reading |
 |---|---|
-| `POST /v1/scans` `{ "targets": [{ "kind": "image", "ref": "docker.io/library/postgres:16" }, …] }` | the images that run (`image` is the only kind for now; another is refused), by their full reference (registry, repository, tag and digest), 200 at a time, plain references only; answers `202` with `queued` (how many it will scan; it skips an image it scanned less than 24 hours ago) and `ignored` (new references beyond the 2000 it tracks at most, `PORTARR_SCANNER_MAX_IMAGES`) |
+| `POST /v1/scans` `{ "targets": [{ "kind": "image", "ref": "docker.io/library/postgres:16" }, …] }` | the images that run (`image`; the other kind is `release`, below), by their full reference (registry, repository, tag and digest), 200 at a time, plain references only; answers `202` with `queued` (how many it will scan; it skips an image it scanned less than 24 hours ago) and `ignored` (new references beyond the 2000 it tracks at most, `PORTARR_SCANNER_MAX_IMAGES`) |
 | `GET /v1/results` | per target (`kind`, `ref`): `state` (`scanned`, `queued`, `scanning`, `failed`), `reason`, `scannedAt`, `counts` and `fixable` by severity, and the worst `findings`; and the date of the vulnerability database |
+
+**Releases (D-132).** The same request takes `{ "kind": "release", "ref": "owner/name" }`: the latest GitHub release of that repository. The companion reads it through the GitHub API (anonymously; `PORTARR_SCANNER_GITHUB_TOKEN`, optional and set on the companion, lets it read a private repository), picks the SBOM asset (`*.cdx.json`, then `*.spdx.json`, then `sbom*.json`, 50 MiB at most, from github.com), runs `trivy sbom` on it and answers with the release tag as `version`. A release that publishes no SBOM is `failed` with the reason `no-sbom` (retried after a day, since a project may add one later), shown as "no SBOM published". Portarr asks for the repositories its GitHub source scans, with the `releases:` mapping of the catalog ([catalog.md](../catalog.md#sources)).
 
 Every request carries `Authorization: Bearer <secret>`. Portarr asks **every 30 minutes** (5 after a failure), and on a manual refresh of the Maintenance page. An image created from an id (`sha256:…`) cannot be scanned and is not sent.
 

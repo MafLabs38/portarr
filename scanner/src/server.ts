@@ -78,7 +78,7 @@ async function route(
     if ('error' in parsed) {
       throw new HttpError(400, parsed.error);
     }
-    send(response, 202, scanner.request(parsed.targets.map((target) => target.ref)));
+    send(response, 202, scanner.request(parsed.targets));
     return;
   }
   throw new HttpError(404, 'Not found.');

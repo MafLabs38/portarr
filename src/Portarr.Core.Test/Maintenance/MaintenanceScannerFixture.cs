@@ -36,7 +36,7 @@ public sealed class MaintenanceScannerFixture
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
 
         await _scanner.Received(1).RequestAsync(
-            Arg.Is<IReadOnlyCollection<string>>(images => images.SequenceEqual(new[] { "docker.io/library/proxy:1", "ghcr.io/example/api:2" })),
+            Arg.Is<IReadOnlyCollection<ScanTarget>>(targets => targets.SequenceEqual(new[] { new ScanTarget("image", "docker.io/library/proxy:1"), new ScanTarget("image", "ghcr.io/example/api:2") })),
             Arg.Any<CancellationToken>());
         monitor.Current.Scans.Results.Keys.Should().Equal("docker.io/library/proxy:1");
         monitor.Current.Scans.Error.Should().BeNull();
@@ -96,7 +96,7 @@ public sealed class MaintenanceScannerFixture
     [Fact]
     public async Task should_name_the_reason_of_a_scanner_that_cannot_be_called()
     {
-        _scanner.RequestAsync(Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>()).Returns(_ => throw new ImageScannerUnavailableException(ImageScannerUnavailableException.SecretMissing));
+        _scanner.RequestAsync(Arg.Any<IReadOnlyCollection<ScanTarget>>(), Arg.Any<CancellationToken>()).Returns(_ => throw new ImageScannerUnavailableException(ImageScannerUnavailableException.SecretMissing));
         _scanner.ReadAsync(Arg.Any<CancellationToken>()).Returns<ScannerReport>(_ => throw new ImageScannerUnavailableException(ImageScannerUnavailableException.SecretMissing));
         var monitor = Monitor();
 
@@ -109,7 +109,7 @@ public sealed class MaintenanceScannerFixture
     [Fact]
     public async Task should_read_what_the_scanner_knows_even_when_asking_it_to_scan_failed()
     {
-        _scanner.RequestAsync(Arg.Any<IReadOnlyCollection<string>>(), Arg.Any<CancellationToken>()).Returns(_ => throw new HttpRequestException("busy", null, System.Net.HttpStatusCode.BadGateway));
+        _scanner.RequestAsync(Arg.Any<IReadOnlyCollection<ScanTarget>>(), Arg.Any<CancellationToken>()).Returns(_ => throw new HttpRequestException("busy", null, System.Net.HttpStatusCode.BadGateway));
         var monitor = Monitor();
 
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
@@ -133,14 +133,16 @@ public sealed class MaintenanceScannerFixture
     }
 
     [Fact]
-    public async Task should_keep_only_the_results_of_images_for_now()
+    public async Task should_keep_the_images_and_the_releases_apart_and_drop_any_other_kind()
     {
-        _scanner.ReadAsync(Arg.Any<CancellationToken>()).Returns(_ => Task.FromResult(Report(Scanned("docker.io/library/proxy:1"), Scanned("release.json") with { Kind = "sbom" })));
+        _scanner.ReadAsync(Arg.Any<CancellationToken>()).Returns(_ => Task.FromResult(Report(Scanned("docker.io/library/proxy:1"), Scanned("release.json") with { Kind = "sbom" }, Scanned("Example/Desktop-App") with { Kind = "release", Version = "v1.0" }, Scanned("example/desktop-app") with { Kind = "release" })));
         var monitor = Monitor();
 
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
 
         monitor.Current.Scans.Results.Keys.Should().Equal("docker.io/library/proxy:1");
+        monitor.Current.Scans.Releases.Keys.Should().ContainSingle("a repository name is one whatever its case").Which.Should().BeEquivalentTo("Example/Desktop-App");
+        monitor.Current.Scans.Releases["example/desktop-app"].Version.Should().Be("v1.0");
     }
 
     [Fact]

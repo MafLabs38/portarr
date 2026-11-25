@@ -119,6 +119,8 @@ const attentionFilters: Record<string, { tab: MaintenanceTab; filter?: Maintenan
   'image-critical-vulnerabilities': { tab: imagesTab, filter: 'vulnerable-critical' },
   'image-vulnerabilities': { tab: imagesTab, filter: 'vulnerable' },
   'image-scanner-error': { tab: imagesTab },
+  'release-critical-vulnerabilities': { tab: codeTab },
+  'release-vulnerabilities': { tab: codeTab },
   'platform-out-of-support': { tab: platformsTab, filter: 'platform-out-of-support' },
   'platform-support-ending': { tab: platformsTab, filter: 'platform-support-ending' },
   'platforms-behind': { tab: platformsTab, filter: 'platform-behind' },

@@ -7,6 +7,7 @@ import type { CiRun, Repository } from 'typings/Maintenance';
 import formatAge from 'Utilities/Date/formatAge';
 import translate from 'Utilities/String/translate';
 
+import ReleaseVulnerabilityCell from './ReleaseVulnerabilityCell';
 import RepositoryAlerts, { alertsPanelId, hasAlertDetails } from './RepositoryAlerts';
 import styles from './RepositoryRow.module.css';
 import SeverityChips from './SeverityChips';
@@ -105,6 +106,8 @@ export default function RepositoryRow({ repository, apps }: Readonly<RepositoryR
       </div>
 
       <RepositorySecurity onToggle={() => setOpen((current) => !current)} open={open} repository={repository} />
+
+      <ReleaseVulnerabilityCell repository={repository} />
 
       <div className={styles.project}>
         {ci && repository.ci ? (

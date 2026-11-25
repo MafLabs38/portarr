@@ -437,6 +437,8 @@ public static partial class CatalogParser
                 _errors.Add($"{label}: exclude entry '{pattern}' must be owner/name, * allowed (e.g. example/test-*).");
             }
 
+            var releases = BuildReleases(document.Releases, label);
+
             if (CatalogValues.SecretVariableError("tokenEnv", document.TokenEnv, GitHubSource.TokenPrefix, GitHubSource.DefaultTokenVariable, "token", _allowedSecretVariables, out _) is { } tokenError)
             {
                 _errors.Add($"{label}: {tokenError}");
@@ -473,7 +475,46 @@ public static partial class CatalogParser
                 exclude,
                 document.Forks ?? false,
                 document.Archived ?? false,
-                apiUrl);
+                apiUrl)
+            {
+                ReleaseRepositories = releases,
+            };
+        }
+
+        /// <summary><c>releases:</c> (D-132): <c>owner/source-repo: owner/releases-repo</c>, both ways a repository name, at most <see cref="GitHubSource.MaxReleaseRepositories"/> entries.</summary>
+        private Dictionary<string, string> BuildReleases(Dictionary<string, string?>? document, string label)
+        {
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (document is null)
+            {
+                return result;
+            }
+
+            if (document.Count > GitHubSource.MaxReleaseRepositories)
+            {
+                _errors.Add($"{label}: releases lists {document.Count} repositories; at most {GitHubSource.MaxReleaseRepositories} are allowed.");
+                return result;
+            }
+
+            foreach (var (key, value) in document)
+            {
+                var source = key?.Trim() ?? string.Empty;
+                var target = value?.Trim() ?? string.Empty;
+                if (!RepositoryPattern().IsMatch(source))
+                {
+                    _errors.Add($"{label}: releases entry '{source}' must be owner/name.");
+                }
+                else if (!RepositoryPattern().IsMatch(target))
+                {
+                    _errors.Add($"{label}: releases entry '{source}' must point at owner/name, the repository its releases are published in.");
+                }
+                else if (!result.TryAdd(source, target))
+                {
+                    _errors.Add($"{label}: releases lists '{source}' more than once.");
+                }
+            }
+
+            return result;
         }
 
         /// <summary>Web apps are checked by default (D-50); <c>check: false</c> turns it off, a mapping overrides it.</summary>

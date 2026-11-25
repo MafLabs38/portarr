@@ -374,6 +374,10 @@ Secrets are never logged and never returned. The CLI's environment is an allow-l
 
 For each image that runs (Docker containers and Kubernetes pods, third-party ones included): the vulnerabilities by severity, how many of them have a fix, and the worst findings (id, package, installed and fixed version, a link). A critical vulnerability with a fix becomes a **danger** on the Maintenance page, a high one a warning ([connectors/trivy.md](connectors/trivy.md)).
 
+### Releases and their SBOM (D-132, [ADR 0024](adr/0024-the-vulnerabilities-of-a-release-are-read-from-its-sbom.md))
+
+For software that is not an image (a desktop application, a tool), the companion scans the **SBOM published with the latest GitHub release**. The project's release workflow writes it: a CycloneDX file named `<name>.cdx.json`, uploaded as a release asset (for a .NET application, a few lines of PowerShell turn the publish output's `deps.json` into one, runtime pack included). Components no advisory database knows (a bundled FFmpeg) can be listed but are not matched. The scan describes the latest published release, not what the users have installed.
+
 ### What it does and does not do
 
 | Does | Does not |

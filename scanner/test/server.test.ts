@@ -72,11 +72,42 @@ test('POST /v1/scans queues the images and says how many, GET /v1/results answer
   assert.deepEqual(await again.json(), { queued: 0, ignored: 0 });
 });
 
+test('a release target is queued and answered with its tag, next to an image of the same text', async () => {
+  const posted = await fetch(`${base}/v1/scans`, {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({
+      targets: [
+        { kind: 'release', ref: 'example/app' },
+        target('example/app'),
+        { kind: 'release', ref: 'example/app' },
+      ],
+    }),
+  });
+  assert.deepEqual(await posted.json(), { queued: 2, ignored: 0 });
+  await context.scanner.idle();
+
+  const results = (await (await fetch(`${base}/v1/results`, { headers: auth })).json()) as {
+    images: { kind: string; ref: string; state: string; version?: string }[];
+  };
+  assert.deepEqual(
+    results.images
+      .filter((image) => image.ref === 'example/app')
+      .map((image) => [image.kind, image.state, image.version]),
+    [
+      ['image', 'scanned', undefined],
+      ['release', 'scanned', 'v1.0.0'],
+    ],
+  );
+});
+
 test('a request that is not a list of plain references is refused, nothing is queued', async () => {
   for (const body of [
     '{ "targets": [{ "kind": "image", "ref": "--help" }] }',
     '{ "targets": [] }',
     '{ "targets": [{ "kind": "sbom", "ref": "release.json" }] }',
+    '{ "targets": [{ "kind": "release", "ref": "-owner/name" }] }',
+    '{ "targets": [{ "kind": "release", "ref": "app:1" }] }',
     '{ "images": ["app:1"] }',
     '{}',
     'null',
@@ -87,7 +118,7 @@ test('a request that is not a list of plain references is refused, nothing is qu
     assert.equal(response.status, 400, body);
   }
   const results = (await (await fetch(`${base}/v1/results`, { headers: auth })).json()) as { images: unknown[] };
-  assert.equal(results.images.length, 2);
+  assert.equal(results.images.length, 4);
 });
 
 test('a body that is too large is refused, and so are the wrong method and an unknown route', async () => {

@@ -1,4 +1,6 @@
+using System.Text.Json.Nodes;
 using Portarr.Core.Catalog;
+using Portarr.Core.Catalog.Editing;
 using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Catalog;
@@ -39,6 +41,78 @@ public sealed class CatalogSourcesParserFixture
 
         result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
         result.Catalog.CodeSources.Should().ContainSingle().Which.Should().BeEquivalentTo(new GitHubSource(["example"], "PORTARR_GITHUB_MINE", 0, ["other/lib"], [], true, true), "an include listed twice, in any case, is kept once");
+    }
+
+    [Fact]
+    public void should_read_where_the_releases_of_a_repository_are_published()
+    {
+        var result = TestCatalog.Parse("""
+            sources:
+              github:
+                owners: [example]
+                releases:
+                  example/app-source: example/app-releases
+                  Example/Other: other/public-builds
+            """);
+
+        result.IsValid.Should().BeTrue(string.Join("; ", result.Errors));
+        var source = (GitHubSource)result.Catalog.CodeSources.Single();
+        source.ReleaseRepositories.Should().BeEquivalentTo(new Dictionary<string, string> { ["example/app-source"] = "example/app-releases", ["Example/Other"] = "other/public-builds" });
+        source.ReleaseRepositories["EXAMPLE/APP-SOURCE"].Should().Be("example/app-releases", "repository names are not case-sensitive");
+    }
+
+    [Fact]
+    public void should_have_no_release_mapping_by_default_and_rescan_when_it_changes()
+    {
+        var plain = (GitHubSource)TestCatalog.Parse("sources:\n  github: { owners: [example] }\n").Catalog.CodeSources.Single();
+        var mapped = (GitHubSource)TestCatalog.Parse("sources:\n  github: { owners: [example], releases: { example/a: example/b } }\n").Catalog.CodeSources.Single();
+        var reordered = (GitHubSource)TestCatalog.Parse("sources:\n  github: { owners: [example], releases: { example/c: example/d, example/a: example/b } }\n").Catalog.CodeSources.Single();
+        var swapped = (GitHubSource)TestCatalog.Parse("sources:\n  github: { owners: [example], releases: { example/a: example/b, example/c: example/d } }\n").Catalog.CodeSources.Single();
+
+        plain.ReleaseRepositories.Should().BeEmpty();
+        mapped.Fingerprint.Should().NotBe(plain.Fingerprint);
+        reordered.Fingerprint.Should().Be(swapped.Fingerprint, "the order the operator wrote them in changes nothing");
+    }
+
+    [Fact]
+    public void should_keep_the_release_mapping_through_an_edit_of_the_catalog()
+    {
+        const string text = "sources:\n  github:\n    owners: [example]\n    releases:\n      example/app-source: example/app-releases   # builds go public\n\napps:\n  - { id: shop, name: Shop }\n";
+
+        var edited = CatalogTextEditor.Apply(text, CatalogSections.Apps, "shop", JsonNode.Parse("""{ "id": "shop", "name": "Shop 2" }""")!.AsObject()).Text;
+
+        edited.Should().Contain("example/app-source: example/app-releases   # builds go public").And.Contain("Shop 2");
+        ((GitHubSource)TestCatalog.Parse(edited).Catalog.CodeSources.Single()).ReleaseRepositories.Should().ContainKey("example/app-source");
+    }
+
+    [Theory]
+    [InlineData("releases: { shop: example/releases }", "releases entry 'shop' must be owner/name")]
+    [InlineData("releases: { example/shop: releases }", "releases entry 'example/shop' must point at owner/name")]
+    [InlineData("releases: { example/shop: \"\" }", "releases entry 'example/shop' must point at owner/name")]
+    [InlineData("releases: { example/shop: }", "releases entry 'example/shop' must point at owner/name")]
+    [InlineData("releases: { example/shop: example/a, Example/Shop: example/b }", "releases lists 'Example/Shop' more than once")]
+    public void should_reject_an_invalid_release_mapping(string releases, string error)
+    {
+        var result = TestCatalog.Parse($"sources:\n  github: {{ owners: [example], {releases} }}\n");
+
+        result.Errors.Should().ContainSingle().Which.Should().Contain(error).And.StartWith("sources.github: ");
+    }
+
+    [Fact]
+    public void should_accept_100_release_mappings_and_refuse_101()
+    {
+        static string Mapping(int count) => string.Join(", ", Enumerable.Range(0, count).Select(i => $"example/app{i}: example/releases{i}"));
+
+        TestCatalog.Parse($"sources:\n  github: {{ owners: [example], releases: {{ {Mapping(100)} }} }}\n").IsValid.Should().BeTrue();
+        TestCatalog.Parse($"sources:\n  github: {{ owners: [example], releases: {{ {Mapping(101)} }} }}\n").Errors.Should().ContainSingle().Which.Should().Contain("releases lists 101 repositories; at most 100");
+    }
+
+    [Fact]
+    public void should_name_the_account_in_the_errors_of_a_release_mapping_in_a_list()
+    {
+        var result = TestCatalog.Parse("sources:\n  github:\n    - { owners: [one] }\n    - { owners: [two], releases: { bad: example/x } }\n");
+
+        result.Errors.Should().ContainSingle().Which.Should().StartWith("sources.github[1]: releases entry 'bad'");
     }
 
     [Fact]

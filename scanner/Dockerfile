@@ -1,5 +1,5 @@
 # portarr-scanner (D-131): the optional companion that runs the Trivy CLI on the images Portarr names, one at a time.
-# Not part of Portarr's image. It only pulls image layers from registries: nothing runs on your machines.
+# Not part of Portarr's image. It only pulls image layers from registries and reads release SBOMs from GitHub: nothing runs on your machines.
 #
 #   docker build -t portarr-scanner scanner/
 #

@@ -67,6 +67,8 @@ export interface Repository {
   codeScanning: AlertScan;
   secretScanning: AlertScan;
   release: Release | null;
+  /** The vulnerabilities of the latest release, read from its SBOM (D-132); null when there is no release to scan. */
+  releaseVulnerabilities: ReleaseVulnerabilities | null;
   dependabotPullRequests: number | null;
   ci: CiRun | null;
   appIds: string[];
@@ -126,6 +128,14 @@ export interface ImageVulnerabilities {
   fixable: VulnerabilityCounts;
   /** At most 50, worst first, none below the threshold. */
   findings: ImageFinding[];
+}
+
+/** The vulnerabilities of the latest release of a repository (D-132): the same facts as an image's, plus the build they describe. */
+export interface ReleaseVulnerabilities extends ImageVulnerabilities {
+  /** The release tag that was scanned; null until it is. */
+  version: string | null;
+  /** The repository the release was read from (not the repository's own when the catalog maps it). */
+  releaseRepository: string;
 }
 
 /** The image scanner companion (D-131): declared in the catalog or not, when it was read, its error code, its database's age. */

@@ -179,6 +179,9 @@ internal sealed class GitHubDocument
 
     public List<string>? Exclude { get; set; }
 
+    /// <summary>Source repository to the repository its releases are published in (D-132).</summary>
+    public Dictionary<string, string?>? Releases { get; set; }
+
     public bool? Forks { get; set; }
 
     /// <summary>The REST API of a GitHub Enterprise Server; absent for github.com.</summary>
