@@ -64,6 +64,12 @@ public static partial class CatalogParser
     [GeneratedRegex("^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")]
     private static partial Regex OwnerPattern();
 
+    /// <summary>
+    /// A repository of the releases map: <c>owner/name</c> where no part is <c>.</c> or <c>..</c> (the scanner companion refuses the whole request on
+    /// such a reference, so the catalog must not let it through).
+    /// </summary>
+    private static bool IsRepository(string value) => RepositoryPattern().IsMatch(value) && value.Split('/').All(part => part is not ("." or ".."));
+
     /// <summary>A repository: <c>owner/name</c>.</summary>
     [GeneratedRegex("^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")]
     private static partial Regex RepositoryPattern();
@@ -500,11 +506,11 @@ public static partial class CatalogParser
             {
                 var source = key?.Trim() ?? string.Empty;
                 var target = value?.Trim() ?? string.Empty;
-                if (!RepositoryPattern().IsMatch(source))
+                if (!IsRepository(source))
                 {
                     _errors.Add($"{label}: releases entry '{source}' must be owner/name.");
                 }
-                else if (!RepositoryPattern().IsMatch(target))
+                else if (!IsRepository(target))
                 {
                     _errors.Add($"{label}: releases entry '{source}' must point at owner/name, the repository its releases are published in.");
                 }

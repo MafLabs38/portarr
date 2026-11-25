@@ -56,6 +56,8 @@ public static class NotificationTemplates
         ["image-critical-vulnerabilities"] = "running images have critical vulnerabilities that have a fix",
         ["image-vulnerabilities"] = "running images have high vulnerabilities that have a fix",
         ["image-scanner-error"] = "the image scanner cannot be read",
+        ["release-critical-vulnerabilities"] = "latest releases have critical vulnerabilities that have a fix",
+        ["release-vulnerabilities"] = "latest releases have high vulnerabilities that have a fix",
         ["dependabot-off"] = "Dependabot is off",
         ["code-scanning-off"] = "code scanning is off",
         ["dependabot-prs"] = "Dependabot pull requests are waiting",

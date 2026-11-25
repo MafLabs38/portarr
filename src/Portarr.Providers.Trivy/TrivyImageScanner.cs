@@ -118,7 +118,7 @@ public sealed partial class TrivyImageScanner : IImageScanner
     internal static bool IsValid(ScanTarget target) => target.Kind switch
     {
         ScanTargetKinds.Image => IsPlainReference(target.Ref),
-        ScanTargetKinds.Release => target.Ref.Length <= MaxRepositoryLength && RepositoryPattern().IsMatch(target.Ref),
+        ScanTargetKinds.Release => target.Ref.Length <= MaxRepositoryLength && RepositoryPattern().IsMatch(target.Ref) && target.Ref.Split('/').All(part => part is not ("." or "..")),
         _ => false,
     };
 

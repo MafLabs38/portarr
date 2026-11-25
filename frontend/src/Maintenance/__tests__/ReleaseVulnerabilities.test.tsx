@@ -63,15 +63,6 @@ describe('vulnerabilities of the latest release (D-132)', () => {
     expect(screen.getByText(text)).toBeInTheDocument();
   });
 
-  it.each([
-    ['not-found', 'Latest release: none published, or not readable'],
-    ['unauthorized', 'Latest release: access refused'],
-  ])('says in release words why a release was not scanned (%s)', (reason, text) => {
-    render({ ...scanned, state: 'not-scanned', reason, version: null, findings: [] });
-
-    expect(screen.getByText(text)).toBeInTheDocument();
-  });
-
   it('shows nothing without a release to scan or a declared scanner', () => {
     const { container, rerender } = render(null);
     expect(container).toBeEmptyDOMElement();

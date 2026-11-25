@@ -39,7 +39,7 @@ For each image row (`vulnerabilities` in `GET /api/v1/maintenance`, see [V4](../
 | `scanned` | the counts are real: every severity, how many have a fix, and the worst findings (critical and high; at most 50 kept) |
 | `queued` | asked, not scanned yet (the scanner takes one image at a time) |
 | `failed` | the scanner failed on this image (`timeout`, `error`), or cannot be read (`unreachable`, `http-401`, `secret-missing`…) |
-| `not-scanned` | an image the scanner cannot read, with the reason: `not-found` (a local build, a name that does not exist), `unauthorized` (a private image: registry credentials are not supported yet), `unsupported` (nothing Trivy can read: from scratch, an unknown operating system), `image-id` (created from an id) |
+| `not-scanned` | an image the scanner cannot read, with the reason: `not-found` (a local build, a name that does not exist), `unauthorized` (a private image: registry credentials are not supported yet), `unsupported` (nothing Trivy can read: from scratch, an unknown operating system), `image-id` (created from an id); for a release, `no-sbom` (no usable SBOM published with it), `not-found` (no release, or not readable) or `unauthorized` |
 | `off` | no scanner declared |
 
 `PORTARR__VULNERABILITIES__MINSEVERITY` (`critical` or `high`, `high` by default) hides the findings and the attention below it; the counts stay whole. The scanner describes high and critical findings only, so these are the only two values.

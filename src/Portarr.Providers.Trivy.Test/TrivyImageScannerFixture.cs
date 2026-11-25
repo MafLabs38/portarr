@@ -56,6 +56,8 @@ public sealed class TrivyImageScannerFixture
     [Theory]
     [InlineData("no-slash")]
     [InlineData("owner/name/extra")]
+    [InlineData("owner/..")]
+    [InlineData("./name")]
     [InlineData("/name")]
     [InlineData("owner/")]
     [InlineData("owner/na me")]

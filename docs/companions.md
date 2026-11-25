@@ -385,7 +385,7 @@ For software that is not an image (a desktop application, a tool), the companion
 | Pull the layers of the images Portarr names from their registries, read them with Trivy, keep the result | Run, start, stop or change anything on your machines (Portarr never acts on the infrastructure, D-16, D-31) |
 | One scan at a time, at the lowest priority, ten minutes at most, Trivy's scan cache dropped after each | Scan in parallel, or the same image twice in a day |
 | Answer Portarr behind a shared secret (every route but `/healthz`) | Listen on the Internet: publish its port only on an address Portarr reaches (or share a Docker network); every route but `/healthz` needs the secret |
-| Report an image it cannot read with a reason (`not-found`, `unauthorized`, `timeout`, `unsupported`, `error`) | Read private registries (not supported yet), or pin the scan to the running digest of a floating tag |
+| Report an image it cannot read with a reason (`not-found`, `unauthorized`, `timeout`, `unsupported`, `error`, and for a release `no-sbom`, D-132) | Read private registries (not supported yet), or pin the scan to the running digest of a floating tag |
 
 **Where to run it.** On a **staging machine, outside the production cluster**: a scan reads every layer of an image (network, disk, CPU). Give the container a CPU and memory limit (the example sets `cpus: 2` and `mem_limit: 2g`); the data volume holds Trivy's vulnerability database (a few hundred MB) and the results.
 

@@ -88,6 +88,8 @@ public sealed class CatalogSourcesParserFixture
     [Theory]
     [InlineData("releases: { shop: example/releases }", "releases entry 'shop' must be owner/name")]
     [InlineData("releases: { example/shop: releases }", "releases entry 'example/shop' must point at owner/name")]
+    [InlineData("releases: { example/shop: example/.. }", "releases entry 'example/shop' must point at owner/name")]
+    [InlineData("releases: { example/..: example/shop }", "releases entry 'example/..' must be owner/name")]
     [InlineData("releases: { example/shop: \"\" }", "releases entry 'example/shop' must point at owner/name")]
     [InlineData("releases: { example/shop: }", "releases entry 'example/shop' must point at owner/name")]
     [InlineData("releases: { example/shop: example/a, Example/Shop: example/b }", "releases lists 'Example/Shop' more than once")]

@@ -123,6 +123,8 @@ public sealed class NotificationTemplatesFixture
     [InlineData("image-critical-vulnerabilities", "running images have critical vulnerabilities that have a fix")]
     [InlineData("image-vulnerabilities", "running images have high vulnerabilities that have a fix")]
     [InlineData("image-scanner-error", "the image scanner cannot be read")]
+    [InlineData("release-critical-vulnerabilities", "latest releases have critical vulnerabilities that have a fix")]
+    [InlineData("release-vulnerabilities", "latest releases have high vulnerabilities that have a fix")]
     public void should_have_a_sentence_for_the_kinds_of_finding_that_are_known(string kind, string sentence)
     {
         NotificationTemplates.SentenceOf(kind).Should().Be(sentence);
