@@ -55,7 +55,7 @@ function RepositorySecurity({ repository, open, onToggle }: Readonly<RepositoryS
       )}
       {hasAlertDetails(repository) ? (
         <button
-          aria-controls={alertsPanelId(repository)}
+          aria-controls={open ? alertsPanelId(repository) : undefined}
           aria-expanded={open}
           className={styles.toggle}
           onClick={onToggle}

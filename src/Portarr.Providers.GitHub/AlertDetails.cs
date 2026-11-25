@@ -1,11 +1,12 @@
 using System.Globalization;
+using System.Text;
 using Portarr.Core.Maintenance;
 
 namespace Portarr.Providers.GitHub;
 
 /// <summary>
 /// Reads the alerts GitHub returns as <see cref="AlertDetail"/>: what is wrong, where, and which version mends it.
-/// Text comes from third parties (an advisory's summary): control and direction-changing characters are dropped and it
+/// Text comes from third parties (an advisory's summary): control, format and separator characters are dropped and it
 /// is cut short. Severity and link rules live in Core (<see cref="AlertDetail.Normalised"/>).
 /// </summary>
 internal static class AlertDetails
@@ -82,22 +83,30 @@ internal static class AlertDetails
 
     private static string? Text(string? value)
     {
-        var text = value is null ? null : new string([.. value.Where(c => !char.IsControl(c) && !IsBidiControl(c))]).Trim();
-        if (string.IsNullOrEmpty(text))
+        if (value is null)
         {
             return null;
         }
 
-        return text.Length <= MaxText ? text : text[..MaxText] + "…";
+        // By rune, so a character outside the basic plane is kept or dropped whole, and so every control, format
+        // (direction, zero-width, Unicode tag characters) and separator character goes.
+        var text = string.Concat(value.EnumerateRunes().Where(rune => !IsHidden(rune))).Trim();
+        if (text.Length == 0)
+        {
+            return null;
+        }
+
+        if (text.Length <= MaxText)
+        {
+            return text;
+        }
+
+        var cut = char.IsHighSurrogate(text[MaxText - 1]) ? MaxText - 1 : MaxText;
+        return text[..cut] + "…";
     }
 
-    // Characters that reorder, hide or split text: bidi embeddings and overrides (U+202A–202E, U+2066–2069), marks
-    // and zero-width characters (U+061C, U+200B–200F, U+2060, U+FEFF) and the line and paragraph separators.
-    private static bool IsBidiControl(char c) =>
-        c is '\u061C' or '\u2028' or '\u2029' or '\u2060' or '\uFEFF'
-            or >= '\u200B' and <= '\u200F'
-            or >= '\u202A' and <= '\u202E'
-            or >= '\u2066' and <= '\u2069';
+    private static bool IsHidden(Rune rune) => Rune.GetUnicodeCategory(rune) is
+        UnicodeCategory.Control or UnicodeCategory.Format or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator;
 
     private static Uri? Link(string? value) =>
         Uri.TryCreate(value, UriKind.Absolute, out var url) && url.Scheme == Uri.UriSchemeHttps ? url : null;

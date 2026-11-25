@@ -120,11 +120,13 @@ public sealed class GitHubRepositorySourceFixture
     public async Task should_cut_long_text_drop_control_and_direction_characters_and_name_a_bare_alert()
     {
         var summary = new string('x', 300);
+        var emoji = new string('y', 199) + "\uD83D\uDE00 and more";
         _answers["/repos/example/shop/dependabot/alerts?state=open&per_page=100"] = new(HttpStatusCode.OK, $$"""
             [
               { "number": 1, "security_advisory": { "severity": "high", "summary": "{{summary}}" } },
-              { "number": 2, "security_advisory": { "severity": "low", "summary": "Fix\u202E me\nnow\u001b[0m" } },
-              { "number": 3 }
+              { "number": 2, "security_advisory": { "severity": "low", "summary": "Fix\u202E me\nnow\u001b[0m\uDB40\uDC41" } },
+              { "number": 3 },
+              { "number": 4, "security_advisory": { "severity": "low", "summary": "{{emoji}}" } }
             ]
             """);
 
@@ -133,6 +135,7 @@ public sealed class GitHubRepositorySourceFixture
         shop.Dependabot.Alerts.Single(a => a.Id == "1").Title.Should().HaveLength(201).And.EndWith("…");
         shop.Dependabot.Alerts.Single(a => a.Id == "2").Title.Should().Be("Fix menow[0m");
         shop.Dependabot.Alerts.Single(a => a.Id == "3").Title.Should().Be("Dependency alert");
+        shop.Dependabot.Alerts.Single(a => a.Id == "4").Title.Should().Be(new string('y', 199) + "…", "a character outside the basic plane is not cut in two");
     }
 
     [Theory]
