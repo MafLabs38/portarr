@@ -23,7 +23,7 @@ Portarr connects those dots.
 - **Maintenance** — image updates, deployed vs declared vs released versions, the platforms the machines run (K3s, operating systems) with their newer versions and end-of-support dates, Dependabot alerts.
 - **Security** — image CVEs (Trivy), dependency vulnerabilities, login events.
 - **MCP servers** — describe your MCP servers once, see which are down, and let any assistant install them on any workstation ([docs/verticals/mcp-servers.md](docs/verticals/mcp-servers.md)).
-- **Alerts** — e-mail, in-app and browser push notifications, periodic digest.
+- **Alerts** — e-mail to the operator, one HTML mail per category (apps, infrastructure, data, maintenance), with its own settings and quiet defaults; off until turned on ([deployment](docs/deployment.md), [notifications](docs/verticals/notifications.md)). In-app and browser push notifications and a periodic digest are planned.
 - **As code** — catalog in YAML or container labels, Terraform provider, Helm chart.
 
 See the full [specification](docs/SPEC.md).

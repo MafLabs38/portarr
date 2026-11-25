@@ -26,3 +26,4 @@ An accepted ADR is never edited to change its decision: a new ADR supersedes it.
 | [0019](0019-the-gpu-is-read-from-a-standard-exporter.md) | The GPU is read from a standard exporter | D-120 |
 | [0020](0020-the-catalog-is-writable-and-a-connection-change-waits-for-approval.md) | The catalog is writable, and a change of connection waits for approval | D-122 to D-125 |
 | [0021](0021-a-host-without-an-engine-and-a-proxmox-node-are-runtimes.md) | A host without an engine and a Proxmox node are runtimes | D-126 to D-128 |
+| [0022](0022-portarr-writes-to-the-operator-through-the-shared-notification-package-in-categories.md) | Portarr writes to the operator through the shared notification package, in categories | D-129 |

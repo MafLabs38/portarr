@@ -10,6 +10,7 @@ import type DataReport from 'typings/Data';
 import type { InfrastructureEnvironment } from 'typings/Infrastructure';
 import type MaintenanceReport from 'typings/Maintenance';
 import type { McpRendering, McpServer, McpServerDetail, McpWorkstation, McpWorkstationPlan } from 'typings/Mcp';
+import type { NotificationLevel, NotificationLog, NotificationSettings } from 'typings/Notifications';
 import type Portal from 'typings/Portal';
 import type Stack from 'typings/Stack';
 import type SystemStatus from 'typings/SystemStatus';
@@ -34,6 +35,96 @@ export const portal: Portal = {
   logoProblem: null,
   writable: false,
   colors: { name: 'accent', version: 'accent' },
+};
+
+const categoryDefaults = { reminderHours: 24, maxReminders: 3, maxPerDay: 3 };
+
+const category = (
+  id: string,
+  title: string,
+  description: string,
+  enabled: boolean,
+  minimumLevel: NotificationLevel,
+) => ({
+  id,
+  title,
+  description,
+  enabled,
+  minimumLevel,
+  ...categoryDefaults,
+  defaults: { enabled, minimumLevel, ...categoryDefaults },
+});
+
+/** Mail to the operator (D-129): off, with a connection set by the deployment, four categories at their defaults, and a log of three mails. */
+export const notificationSettings: NotificationSettings = {
+  enabled: false,
+  recipient: null,
+  from: null,
+  maxPerDay: 10,
+  connection: {
+    provider: 'Smtp',
+    host: 'smtp.homelab.example',
+    port: 587,
+    userName: 'portarr',
+    startTls: true,
+    passwordFileConfigured: true,
+  },
+  problem: null,
+  secretProblem: null,
+  lastAttempt: null,
+  categories: [
+    category('apps', 'Apps', 'Apps that are down, degraded or unknown.', true, 'danger'),
+    category(
+      'infrastructure',
+      'Infrastructure',
+      'Environments, machines and metrics that cannot be reached.',
+      true,
+      'danger',
+    ),
+    category('data', 'Data', 'Backups that fail, are missing or late.', true, 'warning'),
+    category(
+      'maintenance',
+      'Maintenance',
+      'Alerts, failing CI, images behind and platforms out of support.',
+      false,
+      'danger',
+    ),
+  ],
+};
+
+export const notificationLog: NotificationLog = {
+  entries: [
+    {
+      id: 13,
+      kind: 'test',
+      category: null,
+      level: 'info',
+      reminder: 0,
+      sentAt: '2026-01-01T13:00:00Z',
+      delivered: true,
+      error: null,
+    },
+    {
+      id: 12,
+      kind: 'category',
+      category: 'data',
+      level: 'danger',
+      reminder: 1,
+      sentAt: '2026-01-01T12:00:00Z',
+      delivered: false,
+      error: 'The mail server did not accept the connection.',
+    },
+    {
+      id: 11,
+      kind: 'category',
+      category: 'data',
+      level: 'warning',
+      reminder: 0,
+      sentAt: '2026-01-01T11:00:00Z',
+      delivered: true,
+      error: null,
+    },
+  ],
 };
 
 export const allPermissions = [
@@ -1078,6 +1169,8 @@ export const handlers = [
   http.get('/api/v1/workloads/:environmentId/:name/usage', () =>
     HttpResponse.json({ cpuCores: 0.004, memoryBytes: 138_522_624, memoryLimitBytes: 536_870_912 }),
   ),
+  http.get('/api/v1/notifications/settings', () => HttpResponse.json(notificationSettings)),
+  http.get('/api/v1/notifications/log', () => HttpResponse.json(notificationLog)),
   http.get('/api/v1/system/logging', () => HttpResponse.json({ level: logLevel })),
   http.put('/api/v1/system/logging', async ({ request }) => {
     const body = (await request.json()) as { level: string };
