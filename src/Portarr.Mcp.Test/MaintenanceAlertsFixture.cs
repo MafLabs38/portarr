@@ -30,14 +30,21 @@ public sealed class MaintenanceAlertsFixture
     }
 
     [Fact]
-    public void should_list_an_open_secret_without_any_value_and_at_most_ten_alerts()
+    public void should_list_at_most_ten_severe_alerts_and_keep_an_open_secret_among_them()
     {
-        var many = AlertScan.On([.. Enumerable.Range(1, 15).Select(n => Alert("dependabot", n.ToString(System.Globalization.CultureInfo.InvariantCulture), "critical"))]);
+        var many = AlertScan.On([.. Enumerable.Range(1, 15).Select(n => Alert("dependabot", n.ToString(System.Globalization.CultureInfo.InvariantCulture), "high"))]);
         var secret = AlertScan.On([new AlertDetail("secret-scanning", "9", null, "GitHub Personal Access Token", null, null, null, null, null, null, null, null, Now)]);
 
         var shop = new FleetBuilder { Repositories = [Shop(many, secret)] }.Digest.GetMaintenance("code").Repositories.Should().ContainSingle().Subject;
 
-        shop.SevereAlerts.Should().HaveCount(10);
+        shop.SevereAlerts.Should().HaveCount(10).And.Contain(a => a.Source == "secret-scanning");
+    }
+
+    [Fact]
+    public void should_list_an_open_secret_alone()
+    {
+        var secret = AlertScan.On([new AlertDetail("secret-scanning", "9", null, "GitHub Personal Access Token", null, null, null, null, null, null, null, null, Now)]);
+
         var onlySecret = new FleetBuilder { Repositories = [Shop(AlertScan.On(AlertCounts.None), secret)] }.Digest.GetMaintenance("code").Repositories.Single();
         onlySecret.SevereAlerts.Should().ContainSingle().Which.Source.Should().Be("secret-scanning");
     }
@@ -45,7 +52,7 @@ public sealed class MaintenanceAlertsFixture
     [Fact]
     public void should_say_nothing_of_alerts_when_there_is_no_severe_one()
     {
-        var dependabot = AlertScan.On([Alert("dependabot", "1", "low")]);
+        var dependabot = AlertScan.On([Alert("dependabot", "1", "medium")]);
 
         var shop = new FleetBuilder { Repositories = [Shop(dependabot, AlertScan.On(AlertCounts.None))] }.Digest.GetMaintenance("code").Repositories.Should().ContainSingle().Subject;
 

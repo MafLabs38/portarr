@@ -47,6 +47,9 @@ function facts(alert: Alert): string[] {
   return parts;
 }
 
+/** The id of the panel a repository's Details button controls. */
+export const alertsPanelId = (repository: Repository) => `alerts-${repository.fullName.replaceAll('/', '-')}`;
+
 /**
  * The worst open alerts of a repository, one line each, read without leaving the page: how bad, what it is,
  * which package and range, which version mends it, which advisory names it, which file it points at. Every alert
@@ -57,7 +60,7 @@ export default function RepositoryAlerts({ repository }: Readonly<RepositoryAler
   const hidden = scansOf(repository).reduce((sum, scan) => sum + Math.max(0, scan.total - scan.alerts.length), 0);
 
   return (
-    <div className={styles.alerts}>
+    <div className={styles.alerts} id={alertsPanelId(repository)}>
       <ul aria-label={translate('AlertsOf', { repository: repository.fullName })} className={styles.list}>
         {alerts.map((alert) => (
           <li className={styles.alert} key={`${alert.source}-${alert.id}`}>

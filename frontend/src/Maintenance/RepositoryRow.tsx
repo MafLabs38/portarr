@@ -7,7 +7,7 @@ import type { CiRun, Repository } from 'typings/Maintenance';
 import formatAge from 'Utilities/Date/formatAge';
 import translate from 'Utilities/String/translate';
 
-import RepositoryAlerts, { hasAlertDetails } from './RepositoryAlerts';
+import RepositoryAlerts, { alertsPanelId, hasAlertDetails } from './RepositoryAlerts';
 import styles from './RepositoryRow.module.css';
 import SeverityChips from './SeverityChips';
 
@@ -54,7 +54,13 @@ function RepositorySecurity({ repository, open, onToggle }: Readonly<RepositoryS
         />
       )}
       {hasAlertDetails(repository) ? (
-        <button aria-expanded={open} className={styles.toggle} onClick={onToggle} type="button">
+        <button
+          aria-controls={alertsPanelId(repository)}
+          aria-expanded={open}
+          className={styles.toggle}
+          onClick={onToggle}
+          type="button"
+        >
           {translate(open ? 'AlertDetailsHide' : 'AlertDetailsShow')}
         </button>
       ) : null}

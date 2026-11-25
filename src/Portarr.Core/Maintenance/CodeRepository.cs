@@ -55,6 +55,14 @@ public sealed record AlertCounts(int Critical, int High, int Medium, int Low, in
     }
 }
 
+/// <summary>The closed set of alert sources: every code host connector names its alerts with these.</summary>
+public static class AlertSources
+{
+    public const string Dependabot = "dependabot";
+    public const string CodeScanning = "code-scanning";
+    public const string SecretScanning = "secret-scanning";
+}
+
 /// <summary>
 /// One open alert, as the code host describes it: enough to read what is wrong and what mends it without opening
 /// the host. <c>Source</c>: dependabot, code-scanning or secret-scanning. Everything but the identity is optional:
@@ -74,7 +82,26 @@ public sealed record AlertDetail(
     string? CveId,
     string? Location,
     Uri? Url,
-    DateTimeOffset? CreatedAt);
+    DateTimeOffset? CreatedAt)
+{
+    /// <summary>
+    /// The same alert in the vocabulary every consumer relies on, whatever the connector sent: severity in
+    /// critical, high, medium, low or null (GitHub's "moderate" is medium, an unknown word is null), and a link only
+    /// when it is an absolute https address.
+    /// </summary>
+    public AlertDetail Normalised() => this with
+    {
+        Severity = Severity?.Trim().ToLowerInvariant() switch
+        {
+            "critical" => "critical",
+            "high" => "high",
+            "medium" or "moderate" => "medium",
+            "low" => "low",
+            _ => null,
+        },
+        Url = Url is { IsAbsoluteUri: true } url && url.Scheme == Uri.UriSchemeHttps ? url : null,
+    };
+}
 
 /// <summary>
 /// One security feature of a repository. <c>Counts</c> cover every open alert; <c>Alerts</c> lists the worst of them
@@ -96,16 +123,19 @@ public sealed record AlertScan(ScanningState State, AlertCounts Counts, string? 
 
     /// <summary>Counts every alert by severity, and keeps the worst <see cref="MaxAlerts"/> of them described.</summary>
     public static AlertScan On(IReadOnlyCollection<AlertDetail> alerts) =>
-        new(ScanningState.On, AlertCounts.From(alerts.Select(a => a.Severity)), null, Worst(alerts));
+        On([.. alerts.Select(a => a.Normalised())], AlertCounts.From(alerts.Select(a => a.Severity)));
+
+    private static AlertScan On(List<AlertDetail> normalised, AlertCounts counts) =>
+        new(ScanningState.On, counts, null, Worst(normalised));
 
     private static List<AlertDetail> Worst(IEnumerable<AlertDetail> alerts) =>
         [.. alerts.OrderBy(a => Rank(a.Severity)).ThenByDescending(a => a.CreatedAt).Take(MaxAlerts)];
 
-    private static int Rank(string? severity) => severity?.ToLowerInvariant() switch
+    private static int Rank(string? severity) => severity switch
     {
         "critical" => 0,
         "high" => 1,
-        "medium" or "moderate" => 2,
+        "medium" => 2,
         "low" => 3,
         _ => 4,
     };

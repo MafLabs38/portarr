@@ -5,8 +5,8 @@ namespace Portarr.Providers.GitHub;
 
 /// <summary>
 /// Reads the alerts GitHub returns as <see cref="AlertDetail"/>: what is wrong, where, and which version mends it.
-/// Text comes from third parties (an advisory's summary): it is cut short, and a link is kept only when it is an
-/// absolute https address.
+/// Text comes from third parties (an advisory's summary): control and direction-changing characters are dropped and it
+/// is cut short. Severity and link rules live in Core (<see cref="AlertDetail.Normalised"/>).
 /// </summary>
 internal static class AlertDetails
 {
@@ -17,7 +17,7 @@ internal static class AlertDetails
         {
             var package = a.SecurityVulnerability?.Package ?? a.Dependency?.Package;
             return new AlertDetail(
-                "dependabot",
+                AlertSources.Dependabot,
                 Id(a.Number),
                 a.SecurityAdvisory?.Severity,
                 Text(a.SecurityAdvisory?.Summary) ?? Text(a.SecurityAdvisory?.GhsaId) ?? "Dependency alert",
@@ -37,7 +37,7 @@ internal static class AlertDetails
         {
             var location = a.MostRecentInstance?.Location;
             return new AlertDetail(
-                "code-scanning",
+                AlertSources.CodeScanning,
                 Id(a.Number),
                 a.Rule?.SecuritySeverityLevel,
                 Text(a.Rule?.Description) ?? Text(a.Rule?.Id) ?? "Code scanning alert",
@@ -54,7 +54,7 @@ internal static class AlertDetails
 
     public static List<AlertDetail> Secrets(List<SecretScanningAlert> alerts) =>
         [.. alerts.Select(a => new AlertDetail(
-            "secret-scanning",
+            AlertSources.SecretScanning,
             Id(a.Number),
             null,
             Text(a.SecretTypeDisplayName) ?? "Secret",
@@ -82,7 +82,7 @@ internal static class AlertDetails
 
     private static string? Text(string? value)
     {
-        var text = value?.Trim();
+        var text = value is null ? null : new string([.. value.Where(c => !char.IsControl(c) && !IsBidiControl(c))]).Trim();
         if (string.IsNullOrEmpty(text))
         {
             return null;
@@ -90,6 +90,9 @@ internal static class AlertDetails
 
         return text.Length <= MaxText ? text : text[..MaxText] + "…";
     }
+
+    // U+202A–U+202E and U+2066–U+2069 reorder the text around them: they can make a title read as something else.
+    private static bool IsBidiControl(char c) => c is >= '\u202A' and <= '\u202E' or >= '\u2066' and <= '\u2069';
 
     private static Uri? Link(string? value) =>
         Uri.TryCreate(value, UriKind.Absolute, out var url) && url.Scheme == Uri.UriSchemeHttps ? url : null;

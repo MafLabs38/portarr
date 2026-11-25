@@ -59,6 +59,26 @@ describe('MaintenanceIndex', () => {
     );
     expect(alerts[1]).toHaveTextContent('no fix yet');
     expect(within(alerts[1] as HTMLElement).queryByRole('link')).not.toBeInTheDocument();
+    expect(within(shop).getByText('2 of 3 alerts shown; the rest is on the code host')).toBeInTheDocument();
+    expect(toggle).toHaveAttribute(
+      'aria-controls',
+      within(shop).getByRole('list', { name: /^Alerts of/ }).parentElement?.id,
+    );
+
+    await user.click(toggle);
+
+    expect(within(shop).queryByRole('list', { name: 'Alerts of example/shop' })).not.toBeInTheDocument();
+  });
+
+  it('offers no Details button for a repository without alerts', async () => {
+    renderWithProviders(<MaintenanceIndex />);
+    const elsewhere = await screen.findByRole('list', { name: 'Not deployed here (desktop apps, libraries, tools)' });
+
+    expect(
+      within(within(elsewhere).getByRole('listitem', { name: 'example/desktop' })).queryByRole('button', {
+        name: 'Details',
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it('switches to the deployed images with the keyboard and says when it cannot tell', async () => {

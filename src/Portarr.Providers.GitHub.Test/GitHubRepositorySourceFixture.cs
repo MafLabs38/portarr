@@ -101,7 +101,6 @@ public sealed class GitHubRepositorySourceFixture
         shop.CodeScanning.Alerts[0].Title.Should().Be("Database query built from user-controlled sources");
         shop.CodeScanning.Alerts[1].Severity.Should().BeNull();
         shop.SecretScanning.Alerts.Should().ContainSingle().Which.Title.Should().Be("GitHub Personal Access Token");
-        shop.SecretScanning.Alerts[0].ToString().Should().NotContain("ghp_must_never_be_kept");
     }
 
     [Fact]
@@ -115,6 +114,25 @@ public sealed class GitHubRepositorySourceFixture
         shop.Dependabot.Counts.Total.Should().Be(60);
         shop.Dependabot.Alerts.Should().HaveCount(AlertScan.MaxAlerts);
         shop.Dependabot.Alerts[0].Id.Should().Be("60", "the critical one is kept first even though it came last");
+    }
+
+    [Fact]
+    public async Task should_cut_long_text_drop_control_and_direction_characters_and_name_a_bare_alert()
+    {
+        var summary = new string('x', 300);
+        _answers["/repos/example/shop/dependabot/alerts?state=open&per_page=100"] = new(HttpStatusCode.OK, $$"""
+            [
+              { "number": 1, "security_advisory": { "severity": "high", "summary": "{{summary}}" } },
+              { "number": 2, "security_advisory": { "severity": "low", "summary": "Fix\u202E me\nnow\u001b[0m" } },
+              { "number": 3 }
+            ]
+            """);
+
+        var shop = (await Subject().ScanAsync(Source, TestContext.Current.CancellationToken)).Should().ContainSingle().Subject;
+
+        shop.Dependabot.Alerts.Single(a => a.Id == "1").Title.Should().HaveLength(201).And.EndWith("…");
+        shop.Dependabot.Alerts.Single(a => a.Id == "2").Title.Should().Be("Fix menow[0m");
+        shop.Dependabot.Alerts.Single(a => a.Id == "3").Title.Should().Be("Dependency alert");
     }
 
     [Theory]

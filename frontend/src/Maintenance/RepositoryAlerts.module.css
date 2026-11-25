@@ -46,6 +46,10 @@
   color: var(--infoColor);
 }
 
+.other {
+  color: var(--inkMuted);
+}
+
 .title {
   overflow: hidden;
   color: var(--ink);

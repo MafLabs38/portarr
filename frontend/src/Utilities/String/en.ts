@@ -29,7 +29,7 @@ const en: Record<string, string> = {
   AlertDetailsShow: 'Details',
   AlertFixedIn: 'fixed in {version}',
   AlertNoFix: 'no fix yet',
-  AlertShownOf: '{shown} of {total} alerts shown; the rest is on GitHub',
+  AlertShownOf: '{shown} of {total} alerts shown; the rest is on the code host',
   AlertVulnerable: 'affects {range}',
   AlertsOf: 'Alerts of {repository}',
   Api: 'API',

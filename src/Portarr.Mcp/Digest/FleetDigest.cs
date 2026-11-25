@@ -500,13 +500,24 @@ public sealed class FleetDigest
 
     private const int MaxSevereAlerts = 10;
 
+    /// <summary>Critical first, then an open secret, then the high ones.</summary>
+    private static int SevereRank(AlertResource alert)
+    {
+        if (alert.Severity == "critical")
+        {
+            return 0;
+        }
+
+        return alert.Source == AlertSources.SecretScanning ? 1 : 2;
+    }
+
     /// <summary>The critical and high alerts and open secrets of a repository, worst first, as lines an assistant can act on.</summary>
     private static List<AlertLine>? SevereAlertsOf(RepositoryResource r)
     {
         var lines = new[] { r.Dependabot, r.CodeScanning, r.SecretScanning }
             .SelectMany(scan => scan.Alerts)
-            .Where(a => a.Severity is "critical" or "high" || a.Source == "secret-scanning")
-            .OrderBy(a => a.Severity == "critical" ? 0 : 1)
+            .Where(a => a.Severity is "critical" or "high" || a.Source == AlertSources.SecretScanning)
+            .OrderBy(SevereRank)
             .Take(MaxSevereAlerts)
             .Select(a => new AlertLine(a.Source, a.Severity, a.Title, a.Package, a.VulnerableRange, a.FixedVersion, a.CveId ?? a.AdvisoryId, a.Location, a.Url))
             .ToList();
