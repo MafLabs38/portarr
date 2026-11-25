@@ -32,7 +32,7 @@ export default function MailLog({ log, failed, categories }: Readonly<MailLogPro
 
   return (
     <Card title={translate('NotificationsRecentMails')}>
-      {log && log.entries.length === 0 ? <p className={styles.empty}>{translate('NotificationsNoMails')}</p> : null}
+      {log?.entries.length === 0 ? <p className={styles.empty}>{translate('NotificationsNoMails')}</p> : null}
       {log && log.entries.length > 0 ? (
         <div className={table.wrapper}>
           <table aria-label={translate('NotificationsRecentMails')} className={table.table}>
