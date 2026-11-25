@@ -7,12 +7,16 @@ import translate from 'Utilities/String/translate';
 
 import styles from './AttentionList.module.css';
 import { attentionSearch } from './maintenanceFilters';
+import scanReason from './scanReason';
 
 const levelIcons: Record<AttentionLevel, LucideIcon> = {
   danger: icons.VULNERABILITY,
   warning: icons.DEGRADED,
   info: icons.INFO,
 };
+
+/** Kinds whose single subject is a reason code: it is said in the line itself, not listed. */
+const reasonKinds = new Set(['code-source-error', 'image-scanner-error']);
 
 /** Subjects named before "+N more": enough to act on, short enough to scan. */
 const shownSubjects = 8;
@@ -21,7 +25,14 @@ function describe(item: AttentionItem): string {
   if (item.kind === 'code-source-error') {
     return translate('Attention_code-source-error', { reason: translate(`Reason_${item.subjects[0]?.label ?? ''}`) });
   }
-  return translate(`Attention_${item.kind}`, { count: item.count, repositories: item.subjects.length });
+  if (item.kind === 'image-scanner-error') {
+    return translate('Attention_image-scanner-error', { reason: scanReason(item.subjects[0]?.label ?? null) });
+  }
+  return translate(`Attention_${item.kind}`, {
+    count: item.count,
+    repositories: item.subjects.length,
+    images: item.subjects.length,
+  });
 }
 
 /**
@@ -38,8 +49,8 @@ export default function AttentionList({ items }: Readonly<{ items: AttentionItem
     <ul aria-label={translate('NeedsAttention')} className={styles.list}>
       {items.map((item) => {
         const Icon = levelIcons[item.level];
-        const subjects = item.kind === 'code-source-error' ? [] : item.subjects.slice(0, shownSubjects);
-        const more = item.kind === 'code-source-error' ? 0 : item.subjects.length - subjects.length;
+        const subjects = reasonKinds.has(item.kind) ? [] : item.subjects.slice(0, shownSubjects);
+        const more = reasonKinds.has(item.kind) ? 0 : item.subjects.length - subjects.length;
         const search = attentionSearch(item.kind);
         const what = (
           <>

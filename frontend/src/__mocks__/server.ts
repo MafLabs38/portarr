@@ -9,6 +9,7 @@ import type CatalogStatus from 'typings/CatalogStatus';
 import type DataReport from 'typings/Data';
 import type { InfrastructureEnvironment } from 'typings/Infrastructure';
 import type MaintenanceReport from 'typings/Maintenance';
+import type { DeployedImage, ImageVulnerabilities, VulnerabilityCounts } from 'typings/Maintenance';
 import type { McpRendering, McpServer, McpServerDetail, McpWorkstation, McpWorkstationPlan } from 'typings/Mcp';
 import type { NotificationLevel, NotificationLog, NotificationSettings } from 'typings/Notifications';
 import type Portal from 'typings/Portal';
@@ -699,6 +700,25 @@ export const dataReport: DataReport = {
   ],
 };
 
+const noVulnerabilities = {
+  critical: 0,
+  high: 0,
+  medium: 0,
+  low: 0,
+  unknown: 0,
+  total: 0,
+} satisfies VulnerabilityCounts;
+
+/** No scanner is declared: the image says `off` and nothing is shown. */
+const vulnerabilitiesOff: ImageVulnerabilities = {
+  state: 'off',
+  reason: null,
+  scannedAt: null,
+  counts: noVulnerabilities,
+  fixable: noVulnerabilities,
+  findings: [],
+};
+
 const off = {
   state: 'off',
   critical: 0,
@@ -731,6 +751,10 @@ export const maintenanceReport: MaintenanceReport = {
     imagesMajor: 1,
     imagesFloating: 1,
     imagesUnknown: 0,
+    imagesScanned: 0,
+    imagesVulnerable: 0,
+    imageCritical: 0,
+    imageHigh: 0,
   },
   attention: [
     {
@@ -866,6 +890,7 @@ export const maintenanceReport: MaintenanceReport = {
       fromLabel: false,
       users: [{ environmentId: 'server-1', environmentName: 'Server 1', name: 'app-db', namespace: null, appIds: [] }],
       repositoryFullName: null,
+      vulnerabilities: vulnerabilitiesOff,
     },
     {
       reference: 'grafana/grafana:latest',
@@ -882,6 +907,7 @@ export const maintenanceReport: MaintenanceReport = {
       fromLabel: false,
       users: [{ environmentId: 'server-1', environmentName: 'Server 1', name: 'grafana', namespace: null, appIds: [] }],
       repositoryFullName: null,
+      vulnerabilities: vulnerabilitiesOff,
     },
   ],
   refresh: {
@@ -938,6 +964,151 @@ export const maintenanceReport: MaintenanceReport = {
       lookup: 'not-listed',
     },
   ],
+  imageScanner: { configured: false, readAt: null, error: null, databaseUpdatedAt: null },
+};
+
+const scannedImage = (reference: string, name: string, vulnerabilities: ImageVulnerabilities): DeployedImage => ({
+  reference,
+  registry: 'ghcr.io',
+  repository: reference.split(':')[0]?.replace('ghcr.io/', '') ?? reference,
+  tag: reference.split(':')[1] ?? null,
+  status: 'up-to-date',
+  current: reference.split(':')[1] ?? null,
+  latest: reference.split(':')[1] ?? null,
+  change: null,
+  currentAt: null,
+  latestAt: null,
+  reason: null,
+  fromLabel: false,
+  users: [{ environmentId: 'server-1', environmentName: 'Server 1', name, namespace: null, appIds: [] }],
+  repositoryFullName: null,
+  vulnerabilities,
+});
+
+const scannedAt = new Date(Date.now() - 5 * 3_600_000).toISOString();
+
+/**
+ * The maintenance report of a fleet with an image scanner (D-131): one image in each state of its scan: scanned with findings
+ * (one without a fix, one with a very long title and one with an unsafe address), clean, queued, failed, and not scanned
+ * for each reason the API gives.
+ */
+export const imageVulnerabilitiesReport: MaintenanceReport = {
+  ...maintenanceReport,
+  summary: {
+    ...maintenanceReport.summary,
+    images: 8,
+    imagesUpToDate: 7,
+    imagesScanned: 2,
+    imagesVulnerable: 1,
+    imageCritical: 1,
+    imageHigh: 14,
+  },
+  attention: [
+    {
+      kind: 'image-critical-vulnerabilities',
+      level: 'danger',
+      count: 11,
+      subjects: [{ label: 'ghcr.io/example/shop:1.4', url: null, count: 11 }],
+    },
+    {
+      kind: 'image-vulnerabilities',
+      level: 'warning',
+      count: 2,
+      subjects: [{ label: 'ghcr.io/example/blog:2.0', url: null, count: 2 }],
+    },
+    {
+      kind: 'image-scanner-error',
+      level: 'warning',
+      count: 1,
+      subjects: [{ label: 'unreachable', url: null, count: null }],
+    },
+  ],
+  images: [
+    scannedImage('ghcr.io/example/shop:1.4', 'shop', {
+      state: 'scanned',
+      reason: null,
+      scannedAt,
+      counts: { critical: 1, high: 14, medium: 30, low: 2, unknown: 0, total: 47 },
+      fixable: { critical: 1, high: 10, medium: 0, low: 0, unknown: 0, total: 11 },
+      findings: [
+        {
+          id: 'CVE-2026-0001',
+          package: 'openssl',
+          installedVersion: '3.0.1',
+          fixedVersion: '3.0.2',
+          severity: 'critical',
+          title: 'Buffer overflow in the certificate parser',
+          url: 'https://avd.example/cve-2026-0001',
+        },
+        {
+          id: 'CVE-2026-0002',
+          package: 'zlib',
+          installedVersion: '1.2.11',
+          fixedVersion: null,
+          severity: 'high',
+          title:
+            'Heap over-read when inflating a crafted archive that declares a window larger than the buffer it was given',
+          url: 'https://avd.example/cve-2026-0002',
+        },
+        {
+          id: 'GHSA-xxxx-0003',
+          package: 'libexample',
+          installedVersion: '0.9',
+          fixedVersion: '1.0',
+          severity: 'high',
+          title: '<img src=x onerror=alert(1)> not markup',
+          url: 'http://insecure.example/advisory',
+        },
+        {
+          id: 'CVE-2026-0004',
+          package: 'busybox',
+          installedVersion: '1.36',
+          fixedVersion: '1.36.1',
+          severity: null,
+          title: null,
+          url: null,
+        },
+      ],
+    }),
+    scannedImage('ghcr.io/example/blog:2.0', 'blog', {
+      state: 'scanned',
+      reason: null,
+      scannedAt,
+      counts: { critical: 0, high: 0, medium: 3, low: 1, unknown: 0, total: 4 },
+      fixable: noVulnerabilities,
+      findings: [],
+    }),
+    scannedImage('ghcr.io/example/clean:1.0', 'clean', {
+      state: 'scanned',
+      reason: null,
+      scannedAt,
+      counts: noVulnerabilities,
+      fixable: noVulnerabilities,
+      findings: [],
+    }),
+    scannedImage('ghcr.io/example/queue:1.0', 'queue', { ...vulnerabilitiesOff, state: 'queued' }),
+    scannedImage('ghcr.io/example/broken:1.0', 'broken', { ...vulnerabilitiesOff, state: 'failed', reason: 'timeout' }),
+    scannedImage('local-build:1', 'local', { ...vulnerabilitiesOff, state: 'not-scanned', reason: 'not-found' }),
+    scannedImage('ghcr.io/example/private:1.0', 'private', {
+      ...vulnerabilitiesOff,
+      state: 'not-scanned',
+      reason: 'unauthorized',
+    }),
+    {
+      ...scannedImage('sha256:0123456789abcdef', 'by-id', {
+        ...vulnerabilitiesOff,
+        state: 'not-scanned',
+        reason: 'image-id',
+      }),
+      reason: 'image-id',
+    },
+  ],
+  imageScanner: {
+    configured: true,
+    readAt: scannedAt,
+    error: 'unreachable',
+    databaseUpdatedAt: new Date(Date.now() - 3 * 3_600_000).toISOString(),
+  },
 };
 
 let logLevel = 'Information';

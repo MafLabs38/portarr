@@ -1,0 +1,13 @@
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 0 0 10px;
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+}
+
+.error {
+  color: var(--warningColor);
+}

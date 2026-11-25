@@ -17,7 +17,8 @@ public sealed record Catalog(
     CatalogPortal? Portal = null,
     IReadOnlyList<McpServerDefinition>? McpServers = null,
     IReadOnlyList<WorkstationDefinition>? Workstations = null,
-    McpSecretStore? SecretStore = null)
+    McpSecretStore? SecretStore = null,
+    ImageScannerSource? ImageScanner = null)
 {
     public static Catalog Empty { get; } = new([], [], []);
 

@@ -69,6 +69,9 @@ public sealed class PortarrOptions
     public IReadOnlyList<string> TrustedProxyEntries =>
         (TrustedProxies ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
+    /// <summary>The vulnerabilities of running images (D-131): <c>PORTARR__VULNERABILITIES__MINSEVERITY</c>.</summary>
+    public VulnerabilityOptions Vulnerabilities { get; set; } = new();
+
     /// <summary>Editing the catalog through the API and the MCP write tools (D-83, D-85).</summary>
     public CatalogOptions Catalog { get; set; } = new();
 
@@ -108,6 +111,21 @@ public sealed class PortarrOptions
     }
 }
 
+/// <summary>Section <c>Vulnerabilities</c> (D-131): what the image scanner's findings must reach to be shown and to need attention.</summary>
+public sealed class VulnerabilityOptions
+{
+    public const string DefaultMinSeverity = "high";
+
+    /// <summary>The values <see cref="MinSeverity"/> takes, worst first.</summary>
+    public static readonly IReadOnlyList<string> Severities = ["critical", "high"];
+
+    /// <summary>
+    /// The lowest severity shown and raised as attention: <c>critical</c> or <c>high</c> (the default). The counts of an
+    /// image stay complete; the scanner describes high and critical findings only, so no lower value is accepted.
+    /// </summary>
+    public string MinSeverity { get; set; } = DefaultMinSeverity;
+}
+
 /// <summary>Section <c>Catalog</c>: <c>PORTARR__CATALOG__WRITABLE</c>, <c>PORTARR__CATALOG__BACKUPS</c>.</summary>
 public sealed class CatalogOptions
 {
@@ -118,7 +136,7 @@ public sealed class CatalogOptions
 
     /// <summary>
     /// Environment variables, besides each connector's own namespace (<c>PORTARR_K8S_</c>, <c>PORTARR_BACKREST_</c>, <c>PORTARR_CLOUDFLARE_</c>,
-    /// <c>PORTARR_GITHUB_</c>, <c>PORTARR_PROXMOX_</c>) and default name, that a catalog may name as a secret (comma separated): <c>PORTARR__CATALOG__SECRETVARIABLES</c>.
+    /// <c>PORTARR_GITHUB_</c>, <c>PORTARR_PROXMOX_</c>, <c>PORTARR_SCANNER_</c>) and default name, that a catalog may name as a secret (comma separated): <c>PORTARR__CATALOG__SECRETVARIABLES</c>.
     /// Set by whoever runs Portarr, never by the catalog: it is how an existing setup keeps its variable names.
     /// </summary>
     public string? SecretVariables { get; set; }

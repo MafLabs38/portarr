@@ -36,6 +36,21 @@ internal sealed class CatalogDocument
 
     /// <summary>The operator's vault, where the secrets of the MCP servers live (D-116).</summary>
     public SecretStoreDocument? SecretStore { get; set; }
+
+    /// <summary>The companion that scans the images that run for vulnerabilities (D-131).</summary>
+    public ImageScannerDocument? ImageScanner { get; set; }
+}
+
+/// <summary>See <see cref="ImageScannerSource"/>.</summary>
+internal sealed class ImageScannerDocument
+{
+    public string? Url { get; set; }
+
+    /// <summary>Name of the environment variable holding the shared secret (never the secret itself).</summary>
+    public string? SecretEnv { get; set; }
+
+    /// <summary>Accepts http: the shared secret then travels in clear.</summary>
+    public bool? AllowInsecure { get; set; }
 }
 
 /// <summary>See <see cref="CatalogPortal"/>.</summary>

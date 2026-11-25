@@ -1,0 +1,15 @@
+{
+  "name": "portarr-scanner",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Runs the Trivy CLI on the images Portarr names, one at a time, and answers with their vulnerabilities",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "test": "node --test test/*.test.ts"
+  }
+}

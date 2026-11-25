@@ -7,7 +7,7 @@ import {
   maintenanceSearch,
 } from 'Maintenance/maintenanceFilters';
 
-import { maintenanceReport } from '__mocks__/server';
+import { imageVulnerabilitiesReport, maintenanceReport } from '__mocks__/server';
 
 const names = (items: { fullName: string }[]) => items.map((item) => item.fullName);
 const references = (items: { reference: string }[]) => items.map((item) => item.reference);
@@ -34,6 +34,21 @@ describe('maintenanceFilters', () => {
     ['up-to-date', []],
   ] as const)('keeps the images the "%s" figure of the summary counts', (filter, expected) => {
     expect(references(filterImages(images, filter))).toEqual(expected);
+  });
+
+  it.each([
+    ['scanned', ['ghcr.io/example/shop:1.4', 'ghcr.io/example/blog:2.0', 'ghcr.io/example/clean:1.0']],
+    ['vulnerable', ['ghcr.io/example/shop:1.4']],
+    ['vulnerable-critical', ['ghcr.io/example/shop:1.4']],
+    ['with-critical', ['ghcr.io/example/shop:1.4']],
+    ['with-high', ['ghcr.io/example/shop:1.4']],
+  ] as const)('keeps the images with vulnerabilities the "%s" figure counts', (filter, expected) => {
+    expect(references(filterImages(imageVulnerabilitiesReport.images, filter))).toEqual(expected);
+  });
+
+  it('keeps no image for a vulnerability figure while no scanner is declared', () => {
+    expect(filterImages(images, 'scanned')).toEqual([]);
+    expect(filterImages(images, 'vulnerable')).toEqual([]);
   });
 
   it('keeps nothing for a figure the report has no match for, instead of everything', () => {
@@ -68,6 +83,9 @@ describe('maintenanceFilters', () => {
     expect(attentionSearch('image-major')).toBe('?tab=images&filter=major');
     expect(attentionSearch('images-behind')).toBe('?tab=images&filter=behind-minor');
     expect(attentionSearch('code-source-error')).toBeNull();
+    expect(attentionSearch('image-critical-vulnerabilities')).toBe('?tab=images&filter=vulnerable-critical');
+    expect(attentionSearch('image-vulnerabilities')).toBe('?tab=images&filter=vulnerable');
+    expect(attentionSearch('image-scanner-error')).toBe('?tab=images');
   });
 
   it.each([

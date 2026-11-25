@@ -149,6 +149,7 @@ public sealed class PortarrFactory : WebApplicationFactory<Program>
             // Registries and code hosts are on the internet: tests never call them.
             services.RemoveAll<IImageRegistry>();
             services.RemoveAll<ICodeRepositorySource>();
+            services.RemoveAll<IImageScanner>();
 
             // App checks never leave the test: every URL answers 200.
             services.AddHttpClient(HttpCheckRunner.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => new OkHandler());

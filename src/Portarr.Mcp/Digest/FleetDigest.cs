@@ -279,8 +279,10 @@ public sealed class FleetDigest
         var repositories = code
             ? resource.Repositories.Where(NeedsAttention).Select(r => RepositoryLineOf(r, names)).ToList()
             : [];
+        var thresholdRank = VulnerabilitySeverities.ThresholdRank(report.MinSeverity);
+        var withFix = report.Images.Where(i => ImageVulnerabilityAttention.NeedsAttention(i.Vulnerabilities, thresholdRank)).Select(i => i.Image.Display).ToHashSet(StringComparer.Ordinal);
         var imageLines = images
-            ? resource.Images.Where(i => i.Status is not "up-to-date").Select(ImageLineOf).ToList()
+            ? resource.Images.Where(i => i.Status is not "up-to-date" || withFix.Contains(i.Reference)).OrderBy(i => i.Vulnerabilities.Fixable.Critical > 0 ? 0 : 1).Select(ImageLineOf).ToList()
             : [];
 
         var platformLines = platforms
@@ -317,7 +319,7 @@ public sealed class FleetDigest
     private static DataCounts ToCounts(DataSummary s) => new(s.Followed, s.Protected, s.Late, s.Failed, s.Missing, s.Unknown, s.CriticalAssets, s.CriticalOffsite, s.Waiting, s.NotSetUp, s.CriticalOffsitePending);
 
     private static MaintenanceCounts ToCounts(MaintenanceSummary s) =>
-        new(s.Repositories, s.Critical + s.High, s.SecretAlerts, s.CiFailing, s.DependabotOff, s.Images, s.ImagesBehind, s.ImagesMajor, s.ImagesUnknown);
+        new(s.Repositories, s.Critical + s.High, s.SecretAlerts, s.CiFailing, s.DependabotOff, s.Images, s.ImagesBehind, s.ImagesMajor, s.ImagesUnknown, s.ImagesVulnerable);
 
     private static string Level(AttentionLevel level) => level.ToString().ToLowerInvariant();
 
@@ -385,6 +387,23 @@ public sealed class FleetDigest
             latest?.CertificateExpiresAt);
     }
 
+    private const int MaxImageFindings = 10;
+
+    /// <summary>The scanner's reading of an image, or null when no scanner is declared (the line then carries nothing about vulnerabilities).</summary>
+    private static ImageVulnerabilityLine? VulnerabilitiesOf(ImageVulnerabilitiesResource v) => v.State == "off"
+        ? null
+        : new ImageVulnerabilityLine(
+            v.State,
+            v.Reason,
+            v.Counts.Critical,
+            v.Counts.High,
+            v.Counts.Medium,
+            v.Counts.Low,
+            v.Counts.Unknown,
+            v.Fixable.Critical,
+            v.Fixable.High,
+            [.. v.Findings.Take(MaxImageFindings).Select(f => new ImageFindingLine(f.Id, f.Package, f.InstalledVersion, f.FixedVersion, f.Severity, f.Title, f.Url is null ? null : SafeUrl.Of(f.Url)))]);
+
     private static ImageLine ImageLineOf(DeployedImageResource image) => new(
         image.Reference,
         image.Status,
@@ -392,7 +411,8 @@ public sealed class FleetDigest
         image.Latest,
         image.Change,
         image.Reason,
-        Cap(image.Users.Select(u => u.AppIds.Count > 0 ? string.Join(", ", u.AppIds) : $"{u.EnvironmentId}/{u.Name}").Distinct(StringComparer.Ordinal)));
+        Cap(image.Users.Select(u => u.AppIds.Count > 0 ? string.Join(", ", u.AppIds) : $"{u.EnvironmentId}/{u.Name}").Distinct(StringComparer.Ordinal)),
+        VulnerabilitiesOf(image.Vulnerabilities));
 
     private static MachineLine MachineLineOf(string environmentId, MachineResource machine, Dictionary<(string, string), WorkloadView> workloads)
     {

@@ -80,6 +80,12 @@ internal sealed class FleetBuilder
     /// <summary>The repositories the code source scanned, as the maintenance report carries them (none by default).</summary>
     public IReadOnlyList<RepositoryView> Repositories { get; set; } = [];
 
+    /// <summary>The running images of the Maintenance report, with their vulnerabilities.</summary>
+    public IReadOnlyList<DeployedImageView> Images { get; set; } = [];
+
+    /// <summary>The vulnerability threshold of the Maintenance report (PORTARR__VULNERABILITIES__MINSEVERITY); null: the default.</summary>
+    public string? MinSeverity { get; set; }
+
     public FleetDigest Digest => Build().Digest;
 
     public KnowledgeBase Knowledge => Build().Knowledge;
@@ -123,7 +129,7 @@ internal sealed class FleetBuilder
         data.GetReport().Returns(_ => DataService.Build(parsed.Catalog, Backups, Now));
         var maintenance = Substitute.For<IMaintenanceService>();
         maintenance.GetReport().Returns(new MaintenanceReport(
-            new MaintenanceSummary(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), [], false, RepositoryScan.NotConfigured, Repositories, [], MaintenanceRefresh.None, Platforms));
+            new MaintenanceSummary(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), [], false, RepositoryScan.NotConfigured, Repositories, Images, MaintenanceRefresh.None, Platforms, null, MinSeverity));
 
         var source = Substitute.For<IWorkloadSource>();
         source.Supports(Arg.Any<CatalogEnvironment>()).Returns(call => call.Arg<CatalogEnvironment>().Runtime != RuntimeNames.None);
