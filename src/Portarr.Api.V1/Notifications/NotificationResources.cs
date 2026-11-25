@@ -181,7 +181,7 @@ public static class NotificationResourceMapper
             update.Recipient,
             update.From,
             update.MaxPerDay!.Value,
-            [.. update.Categories!.Select(c => new NotificationCategoryChange(c!.Id!, c.Enabled!.Value, Enum.Parse<NotificationLevel>(c.MinimumLevel!, ignoreCase: true), c.ReminderHours!.Value, c.MaxReminders!.Value, c.MaxPerDay!.Value))]);
+            [.. update.Categories!.Select(c => new NotificationCategoryChange(c.Id!, c.Enabled!.Value, Enum.Parse<NotificationLevel>(c.MinimumLevel!, ignoreCase: true), c.ReminderHours!.Value, c.MaxReminders!.Value, c.MaxPerDay!.Value))]);
 
     private static string LevelText(NotificationLevel level) => level.ToString().ToLowerInvariant();
 }
