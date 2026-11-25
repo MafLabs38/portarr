@@ -200,7 +200,24 @@ public sealed record RepositoryLine(
     string SecretScanning,
     string? Ci,
     int? DependabotPullRequests,
-    string? LatestRelease);
+    string? LatestRelease,
+    IReadOnlyList<AlertLine>? SevereAlerts = null);
+
+/// <summary>
+/// One critical or high alert (or an open secret) of a repository, enough to act on it: the package and what mends it,
+/// the advisory that names the flaw, the file a code alert points at. At most ten a repository, the worst first;
+/// <c>RepositoryLine</c> says how many there are in all.
+/// </summary>
+public sealed record AlertLine(
+    string Source,
+    string? Severity,
+    string Title,
+    string? Package,
+    string? VulnerableRange,
+    string? FixedVersion,
+    string? Advisory,
+    string? Location,
+    Uri? Url);
 
 public sealed record MaintenanceDigest(
     MaintenanceCounts Summary,

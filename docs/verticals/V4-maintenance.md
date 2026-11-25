@@ -60,6 +60,13 @@ sources:
 - A failed scan keeps the last repositories and shows the reason above them.
 - **Token**: the sandbox uses the maintainer's `gh` session token. **Production must use a fine-grained, read-only token** limited to the scanned owners, with *Metadata*, *Contents*, *Dependabot alerts*, *Code scanning alerts*, *Secret scanning alerts*, *Actions* and *Pull requests*, all **Read-only**. Portarr only sends GET requests ([connectors/github.md](../connectors/github.md)).
 
+### Alert detail (D-130)
+- **What is kept.** For every open alert: its source (`dependabot`, `code-scanning`, `secret-scanning`), severity (none for a secret or a code quality rule), title, package and ecosystem, vulnerable range, the version that mends it (none when nobody fixed it yet), GHSA and CVE identifiers, the file (and line) it points at, its link and date. These are fields of the pages Portarr already reads: no request is added.
+- **How much.** The counts cover every open alert; the resource describes the **worst 50 per feature and repository**, worst first (`alerts` next to `total` in each `dependabot`, `codeScanning` and `secretScanning`). When `total` is larger, the page says how many are shown and the rest is on GitHub.
+- **The page.** A *Details* button on each repository row (WAI-ARIA disclosure) opens one line per alert under the row: severity, title (a link to the alert), package, range, fixed version or "no fix yet", identifiers, file.
+- **The assistant.** `get_maintenance` gives each repository `severeAlerts`: its critical and high alerts and open secrets, at most ten, worst first, with the package, the version that mends it, the advisory and the link. An assistant (Orchestrarr, a chat) reads *which* flaw to mend without reading GitHub itself.
+- **Safety.** A secret's value is never read (`hide_secret=true`, and no field of it is mapped). A text from a third party (an advisory's summary) is cut at 200 characters; a link is kept only when it is an absolute https address.
+
 ### Linking code and apps (D-65)
 A repository is **deployed** when one of these links it to the fleet:
 1. `repository: owner/name` on a catalog app (explicit, wins);

@@ -2,6 +2,24 @@
 
 export type ScanningState = 'on' | 'off' | 'unknown';
 
+/** One open alert (D-130). `severity` is null for a secret or a code quality rule. A secret's value is never carried. */
+export interface Alert {
+  source: 'dependabot' | 'code-scanning' | 'secret-scanning';
+  id: string;
+  severity: 'critical' | 'high' | 'medium' | 'low' | null;
+  title: string;
+  package: string | null;
+  ecosystem: string | null;
+  vulnerableRange: string | null;
+  fixedVersion: string | null;
+  advisoryId: string | null;
+  cveId: string | null;
+  /** The file (and line) a code alert points at, or the manifest of a dependency. */
+  location: string | null;
+  url: string | null;
+  createdAt: string | null;
+}
+
 export interface AlertScan {
   state: ScanningState;
   critical: number;
@@ -13,6 +31,8 @@ export interface AlertScan {
   total: number;
   /** A reason code when the state is unknown. */
   reason: string | null;
+  /** The worst open alerts (at most 50, worst first); `total` may be larger. */
+  alerts: Alert[];
 }
 
 export interface Release {
