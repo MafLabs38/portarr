@@ -1,3 +1,4 @@
+using MafLabs.Notifications;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -21,6 +22,7 @@ using Portarr.Core.Maintenance;
 using Portarr.Core.Mcp;
 using Portarr.Core.Mcp.Clients;
 using Portarr.Core.Mcp.Secrets;
+using Portarr.Core.Notifications;
 using Portarr.Core.Platforms;
 using Portarr.Core.Portal;
 using Portarr.Core.Status;
@@ -75,6 +77,18 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IMaintenanceService, MaintenanceService>();
         services.AddSingleton<IAttentionService, AttentionService>();
         services.AddSingleton<IMcpAttentionSource, McpAttentionSource>();
+
+        // One mail per category to the operator when something needs attention (D-129): the shared package sends it and decides when
+        // (its decider and its policy options, Notifications:Policy), Portarr declares the categories and sorts the findings into them.
+        // The package's sender reads the settings in force at each send, so the page's changes need no restart.
+        services.AddOptions<PortarrNotificationOptions>().Bind(configuration.GetSection(PortarrNotificationOptions.SectionName));
+        services.AddSingleton<NotificationSettings>();
+        services.AddSingleton<INotificationSettings>(provider => provider.GetRequiredService<NotificationSettings>());
+        services.AddSingleton<IOptions<NotificationOptions>>(provider => provider.GetRequiredService<NotificationSettings>());
+        services.AddNotifications(PortarrNotificationCategories.Declare);
+        services.AddSingleton<INotificationStore, NotificationStore>();
+        services.AddSingleton<AttentionNotifier>();
+        services.AddHostedService<NotificationMonitor>();
 
         services.AddSingleton<ICheckStore, CheckStore>();
         services.AddSingleton<ICheckRunner, HttpCheckRunner>();
