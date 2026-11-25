@@ -21,7 +21,7 @@ Portarr connects those dots.
 - **Logs** — live tail for containers and pods, history via Loki, probable cause of unexpected stops.
 - **Data** — databases, storage and **backup verification** (is the last backup recent, external, plausible?).
 - **Maintenance** — image updates, deployed vs declared vs released versions, the platforms the machines run (K3s, operating systems) with their newer versions and end-of-support dates, Dependabot alerts.
-- **Security** — image CVEs (Trivy), dependency vulnerabilities, login events.
+- **Security** — image and release CVEs (Trivy), dependency vulnerabilities, login events.
 - **MCP servers** — describe your MCP servers once, see which are down, and let any assistant install them on any workstation ([docs/verticals/mcp-servers.md](docs/verticals/mcp-servers.md)).
 - **Alerts** — e-mail to the operator, one HTML mail per category (apps, infrastructure, data, maintenance), with its own settings and quiet defaults; off until turned on ([deployment](docs/deployment.md), [notifications](docs/verticals/notifications.md)). In-app and browser push notifications and a periodic digest are planned.
 - **As code** — catalog in YAML or container labels, Terraform provider, Helm chart.
@@ -84,7 +84,7 @@ Settings come from `appsettings.json`, overridden by `PORTARR__*` environment va
 | `PORTARR__LOGSOFALLWORKLOADS` | `false` | Serve live logs and usage of containers no app declares |
 | `PORTARR__PLATFORMUPDATES` | `true` | Ask `update.k3s.io` and `endoflife.date` about the platforms the machines run (Maintenance → Platforms). `false` for an air-gapped homelab: the versions are shown with no newer version and no support date |
 | `PORTARR__IMAGEUPDATES` | `true` | Ask the registries about the images that run (Maintenance). `false` for an air-gapped homelab, where every lookup would only fail |
-| `PORTARR__VULNERABILITIES__MINSEVERITY` | `high` | With an [image scanner](docs/connectors/trivy.md) declared (`imageScanner:` in the catalog), the lowest severity (`critical` or `high`; the scanner describes only those two) of the findings shown for the images that run and raised as attention. The counts stay whole |
+| `PORTARR__VULNERABILITIES__MINSEVERITY` | `high` | With an [image scanner](docs/connectors/trivy.md) declared (`imageScanner:` in the catalog), the lowest severity (`critical` or `high`; the scanner describes only those two) of the findings shown for the images that run and the latest releases of the repositories, and raised as attention. The counts stay whole |
 | `PORTARR_SCANNER_SECRET` | — | The shared secret of the [image scanner](docs/connectors/trivy.md) (the variable named by `secretEnv:` in the catalog; 32 characters at least, the same value as the scanner's) |
 | `PORTARR__AGENT__URL` | — (chat off) | The optional [agent runner](docs/companions.md#agent-runner) (`portarr-agent`) behind the built-in chat, e.g. `http://portarr-agent:8488`. Without it the chat icon is hidden |
 | `PORTARR__AGENT__SECRET` | — | Shared with the runner (32 characters at least, `openssl rand -hex 32`); required with `PORTARR__AGENT__URL` |
