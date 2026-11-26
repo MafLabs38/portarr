@@ -99,7 +99,7 @@ public sealed class MaintenanceReleaseVulnerabilitiesFixture
         json.GetProperty("counts").GetProperty("total").GetInt32().Should().Be(47);
         json.GetProperty("fixable").GetProperty("critical").GetInt32().Should().Be(1);
         json.GetProperty("findings").GetArrayLength().Should().Be(12, "the API carries every finding the Core kept; only the digest cuts them");
-        json.GetProperty("findings")[0].EnumerateObject().Select(p => p.Name).Should().Equal("id", "package", "installedVersion", "fixedVersion", "severity", "title", "url");
+        json.GetProperty("findings")[0].EnumerateObject().Select(p => p.Name).Should().Equal("id", "package", "installedVersion", "fixedVersion", "severity", "title", "url", "exploited", "epss");
     }
 
     [Fact]

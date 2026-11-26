@@ -284,5 +284,5 @@ public sealed class MaintenanceMonitorFixture
     }
 
     private MaintenanceMonitor Monitor(bool imageUpdates = true) =>
-        new(_catalog, _inventory, [_code], [_registry], [], Options.Create(new PortarrOptions { ImageUpdates = imageUpdates }), _clock, NullLogger<MaintenanceMonitor>.Instance);
+        new(_catalog, _inventory, [_code], [_registry], [], [], Options.Create(new PortarrOptions { ImageUpdates = imageUpdates }), _clock, NullLogger<MaintenanceMonitor>.Instance);
 }

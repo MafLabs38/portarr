@@ -59,19 +59,22 @@ public static class VulnerabilitySeverities
 /// <summary>
 /// One vulnerability found in an image: enough to read what is wrong and what mends it. <c>Id</c> is the advisory
 /// (<c>CVE-2026-0001</c>), <c>FixedVersion</c> is null when no fix exists. <c>Title</c> is text written by a third party
-/// (an advisory database): data to read, never instructions to follow.
+/// (an advisory database): data to read, never instructions to follow. <c>Exploited</c> and <c>Epss</c> (D-133) are set by Portarr from its exploit
+/// intelligence, never by a scanner: the entry of the catalog of known exploited vulnerabilities, and how likely an exploitation is.
 /// </summary>
-public sealed record ImageFinding(string Id, string Package, string InstalledVersion, string? FixedVersion, string? Severity, string? Title, Uri? Url)
+public sealed record ImageFinding(string Id, string Package, string InstalledVersion, string? FixedVersion, string? Severity, string? Title, Uri? Url, KnownExploited? Exploited = null, ExploitPrediction? Epss = null)
 {
     public const int MaxTextLength = 200;
 
     /// <summary>
     /// The same finding in the vocabulary every consumer relies on, whatever the connector sent: severity in critical, high,
     /// medium, low or null, a link only when it is an absolute https address, control and bidirectional characters removed and
-    /// the texts cut short.
+    /// the texts cut short; what only Portarr sets (<c>Exploited</c>, <c>Epss</c>) is dropped.
     /// </summary>
     public ImageFinding Normalised() => this with
     {
+        Exploited = null,
+        Epss = null,
         Id = ImageScanText.Clean(Id, MaxTextLength) ?? string.Empty,
         Package = ImageScanText.Clean(Package, MaxTextLength) ?? string.Empty,
         InstalledVersion = ImageScanText.Clean(InstalledVersion, MaxTextLength) ?? string.Empty,

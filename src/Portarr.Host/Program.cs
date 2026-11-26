@@ -18,6 +18,7 @@ using Portarr.Providers.NodeExporter;
 using Portarr.Providers.Platforms;
 using Portarr.Providers.Proxmox;
 using Portarr.Providers.Registries;
+using Portarr.Providers.ThreatIntel;
 using Portarr.Providers.Trivy;
 
 // The content root is the binary's folder, whatever the working directory (like the *arr apps).
@@ -42,6 +43,7 @@ builder.Services.AddGpuExporterProvider();
 builder.Services.AddGitHubProvider();
 builder.Services.AddRegistriesProvider();
 builder.Services.AddTrivyProvider();
+builder.Services.AddThreatIntelProvider();
 builder.Services.AddPlatformsProvider();
 builder.Services.AddMcpClientsProvider();
 builder.Services

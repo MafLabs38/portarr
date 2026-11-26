@@ -109,3 +109,16 @@ a.id:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.exploited {
+  padding: 0 7px;
+  border: var(--borderWidth) solid var(--dangerColor);
+  border-radius: var(--radiusPill);
+  color: var(--dangerColor);
+  font-weight: 800;
+}
+
+.epss {
+  color: var(--inkMuted);
+  font-weight: 700;
+}

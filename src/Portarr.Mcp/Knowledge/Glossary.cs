@@ -69,9 +69,15 @@ public static class Glossary
         - Release vulnerabilities (D-132, a repository's `releaseVulnerabilities`, same scanner): the vulnerabilities of the latest release of a repository, read from the SBOM it publishes
           (a desktop app has no image); read like an image's, with the `version` that was scanned and the `releaseRepository` read (the repository itself, or the one its releases are published in).
           A release that publishes no SBOM is **not-scanned** with the reason `no-sbom`.
+        - Exploitation of a finding (D-133, only with an image scanner): `exploited` says the flaw is in CISA's catalog of Known Exploited Vulnerabilities (attackers use it
+          now; `exploitedSince` is the day it was added): mitigate it first, **whether or not a fix exists**. `epss` is the probability (0 to 1) that it is exploited in the
+          next 30 days (FIRST's EPSS), `epssPercentile` how it ranks against every scored vulnerability; absent when unknown (a new id gets its score within a day). Findings
+          are ordered known exploited first, then by severity, then by EPSS. Only the findings the scanner keeps (high and critical, the worst 50) can be matched.
         - Attention kinds: `severe-alerts`, `secret-alerts`, `ci-failing`, `image-major`, `images-behind`,
           `image-rebuilt`, `dependabot-off`, `code-scanning-off`, `other-alerts`, `dependabot-prs`, `images-unknown`,
           and for the vulnerabilities of the running images (when an image scanner is declared): `image-critical-vulnerabilities` (a critical one that has a fix), `image-vulnerabilities` (a high one that has a fix), `image-scanner-error` (the scanner cannot be read: the results shown are the last ones), and for the latest release of a repository: `release-critical-vulnerabilities` (a critical one that has a fix), `release-vulnerabilities` (a high one that has a fix),
+          `known-exploited-vulnerabilities` (danger: an image or a latest release has a finding known to be exploited in the wild, fix or no fix; the count is the number of such findings),
+          `threat-intel-error` (the exploit intelligence could not be read: what is shown is the last read),
           and for the platforms the machines run: `platform-out-of-support` (end of life reached), `platform-support-ending`
           (within 90 days), `platforms-behind` (a newer version exists), `platform-lookup-failed` (the sources of newer
           versions and support dates could not be read, so a platform may be missing its dates).

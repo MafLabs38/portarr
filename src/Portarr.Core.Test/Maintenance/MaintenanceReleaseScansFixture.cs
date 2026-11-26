@@ -141,7 +141,7 @@ public sealed class MaintenanceReleaseScansFixture
         _code.ScanAsync(Arg.Any<ICodeSource>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult<IReadOnlyList<CodeRepository>>(repositories));
 
     private MaintenanceMonitor Monitor() =>
-        new(_catalog, _inventory, [_code], [], [_scanner], Options.Create(new PortarrOptions()), _clock, NullLogger<MaintenanceMonitor>.Instance);
+        new(_catalog, _inventory, [_code], [], [_scanner], [], Options.Create(new PortarrOptions()), _clock, NullLogger<MaintenanceMonitor>.Instance);
 
     private static ReleaseInfo Release(string tag, bool tagOnly = false) => new(tag, null, null, tagOnly);
 

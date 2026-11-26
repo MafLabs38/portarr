@@ -115,6 +115,30 @@ export interface ImageFinding {
   title: string | null;
   /** An https address, or null. */
   url: string | null;
+  /** In CISA's catalog of vulnerabilities known to be exploited in the wild (D-133); null when not. */
+  exploited: KnownExploited | null;
+  /** EPSS: the probability (0 to 1) that it is exploited in the next 30 days, and its percentile; null when unknown. */
+  epss: ExploitPrediction | null;
+}
+
+export interface KnownExploited {
+  dateAdded: string;
+  dueDate: string | null;
+  knownRansomwareUse: boolean;
+}
+
+export interface ExploitPrediction {
+  score: number;
+  percentile: number;
+}
+
+/** The threat intelligence feeds (D-133): CISA's known exploited catalog and EPSS, read once a day. */
+export interface ThreatIntel {
+  configured: boolean;
+  readAt: string | null;
+  error: string | null;
+  kevUpdatedAt: string | null;
+  epssScoreDate: string | null;
 }
 
 export interface ImageVulnerabilities {
@@ -259,4 +283,5 @@ export default interface MaintenanceReport {
   refresh: MaintenanceRefresh;
   platforms: Platform[];
   imageScanner: ImageScanner;
+  threatIntel: ThreatIntel;
 }

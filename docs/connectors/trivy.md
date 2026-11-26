@@ -46,6 +46,8 @@ For each image row (`vulnerabilities` in `GET /api/v1/maintenance`, see [V4](../
 
 **What needs attention**: an image with a critical vulnerability that has a fix is a **danger**, one whose worst fixable vulnerability is high a **warning**; a vulnerability with no fix is counted, not raised. A scanner that cannot be read is a warning, and the page keeps the results of the last read next to its error.
 
+**Exploitation (D-133).** Each finding also says whether it is known to be exploited in the wild (CISA KEV) and how likely it is to be (FIRST EPSS); a known exploited one comes first and is a danger even without a fix: see [threat-intel.md](threat-intel.md).
+
 ## Limits
 
 - A floating tag (`latest`) is scanned as the registry has it now: it may not be the image that runs.

@@ -42,6 +42,15 @@ public sealed class PortarrOptionsValidator : IValidateOptions<PortarrOptions>
             failures.Add($"Vulnerabilities:MinSeverity must be one of {string.Join(", ", VulnerabilityOptions.Severities)} (PORTARR__VULNERABILITIES__MINSEVERITY).");
         }
 
+        // The exploit intelligence is read over https only, and never with credentials in the address (D-133).
+        foreach (var (url, setting) in new[] { (options.ThreatIntel.KevUrl, "KEVURL"), (options.ThreatIntel.EpssUrl, "EPSSURL") })
+        {
+            if (url is not { IsAbsoluteUri: true, UserInfo.Length: 0 } || url.Scheme != Uri.UriSchemeHttps)
+            {
+                failures.Add($"ThreatIntel:{setting} must be an absolute https address without credentials (PORTARR__THREATINTEL__{setting}).");
+            }
+        }
+
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
 }

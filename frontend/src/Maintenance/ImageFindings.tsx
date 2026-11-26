@@ -1,4 +1,4 @@
-import type { ImageFinding, ImageVulnerabilities } from 'typings/Maintenance';
+import type { ImageFinding, ImageVulnerabilities, KnownExploited } from 'typings/Maintenance';
 import formatAge from 'Utilities/Date/formatAge';
 import translate from 'Utilities/String/translate';
 
@@ -22,6 +22,21 @@ function FindingId({ finding }: Readonly<{ finding: ImageFinding }>) {
     </a>
   ) : (
     <span className={styles.id}>{finding.id}</span>
+  );
+}
+
+/** An EPSS probability as a short percentage: two significant figures under 1 %, a whole number above. */
+function formatScore(score: number): string {
+  const percent = score * 100;
+  return percent >= 1 ? `${Math.round(percent)} %` : `${percent.toPrecision(2)} %`;
+}
+
+/** Known to be exploited in the wild (CISA KEV, D-133), with the date it was listed and the ransomware flag. */
+function ExploitedBadge({ exploited }: Readonly<{ exploited: KnownExploited }>) {
+  return (
+    <span className={styles.exploited} title={translate('FindingExploitedSince', { date: exploited.dateAdded })}>
+      {translate(exploited.knownRansomwareUse ? 'FindingExploitedRansomware' : 'FindingExploited')}
+    </span>
   );
 }
 
@@ -52,7 +67,16 @@ export default function ImageFindings({ id, image, vulnerabilities }: Readonly<I
               <span className={`${styles.severity} ${styles[finding.severity ?? 'unrated']}`}>
                 {translate(`FindingSeverity_${finding.severity ?? 'unrated'}`)}
               </span>
+              {finding.exploited ? <ExploitedBadge exploited={finding.exploited} /> : null}
               <FindingId finding={finding} />
+              {finding.epss ? (
+                <span
+                  className={styles.epss}
+                  title={translate('FindingEpssTitle', { percentile: Math.round(finding.epss.percentile * 100) })}
+                >
+                  {translate('FindingEpss', { score: formatScore(finding.epss.score) })}
+                </span>
+              ) : null}
               <span className={styles.package}>{finding.package}</span>
               <span className={styles.versions}>
                 {finding.installedVersion}

@@ -277,17 +277,8 @@ public sealed class FleetDigest
         var platforms = section is "all" or "platforms";
 
         var thresholdRank = VulnerabilitySeverities.ThresholdRank(report.MinSeverity);
-        var releaseWithFix = report.Repositories
-            .Where(r => ImageVulnerabilityAttention.NeedsAttention(r.ReleaseVulnerabilities, thresholdRank))
-            .Select(r => r.Repository.FullName)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var repositories = code
-            ? resource.Repositories.Where(r => NeedsAttention(r) || releaseWithFix.Contains(r.FullName)).Select(r => RepositoryLineOf(r, names)).ToList()
-            : [];
-        var withFix = report.Images.Where(i => ImageVulnerabilityAttention.NeedsAttention(i.Vulnerabilities, thresholdRank)).Select(i => i.Image.Display).ToHashSet(StringComparer.Ordinal);
-        var imageLines = images
-            ? resource.Images.Where(i => i.Status is not "up-to-date" || withFix.Contains(i.Reference)).OrderBy(i => i.Vulnerabilities.Fixable.Critical > 0 ? 0 : 1).Select(ImageLineOf).ToList()
-            : [];
+        var repositories = code ? RepositoryLines(report, resource, names, thresholdRank) : [];
+        var imageLines = images ? ImageLines(report, resource, thresholdRank) : [];
 
         var platformLines = platforms
             ? resource.Platforms.Select(p => new PlatformLine(p.EnvironmentName, p.Machine, p.Kind, p.Name, p.Version, p.NewestPatchOfMinor, p.NextMinor, p.SupportedUntil?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), p.EndOfLife?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), p.Level, p.Lookup)).ToList()
@@ -301,6 +292,32 @@ public sealed class FleetDigest
             resource.CodeSource.Error,
             repositories.Count > MaxItems || imageLines.Count > MaxItems || platformLines.Count > MaxItems,
             platformLines.Take(MaxItems).ToList());
+    }
+
+    // A release or an image is listed when it has a fix to apply, or a flaw known to be exploited (D-133, fix or no fix), those first.
+    private static List<RepositoryLine> RepositoryLines(MaintenanceReport report, MaintenanceResource resource, Dictionary<string, string> names, int thresholdRank)
+    {
+        var releaseWithFix = report.Repositories
+            .Where(r => ImageVulnerabilityAttention.NeedsAttention(r.ReleaseVulnerabilities, thresholdRank) || r.ReleaseVulnerabilities is { Vulnerabilities.KnownExploitedCount: > 0 })
+            .Select(r => r.Repository.FullName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return resource.Repositories.Where(r => NeedsAttention(r) || releaseWithFix.Contains(r.FullName))
+            .OrderBy(r => r.ReleaseVulnerabilities?.Findings.Any(f => f.Exploited is not null) == true ? 0 : 1)
+            .Select(r => RepositoryLineOf(r, names))
+            .ToList();
+    }
+
+    private static List<ImageLine> ImageLines(MaintenanceReport report, MaintenanceResource resource, int thresholdRank)
+    {
+        var withFix = report.Images
+            .Where(i => ImageVulnerabilityAttention.NeedsAttention(i.Vulnerabilities, thresholdRank) || i.Vulnerabilities.KnownExploitedCount > 0)
+            .Select(i => i.Image.Display)
+            .ToHashSet(StringComparer.Ordinal);
+        return resource.Images.Where(i => i.Status is not "up-to-date" || withFix.Contains(i.Reference))
+            .OrderBy(i => i.Vulnerabilities.Findings.Any(f => f.Exploited is not null) ? 0 : 1)
+            .ThenBy(i => i.Vulnerabilities.Fixable.Critical > 0 ? 0 : 1)
+            .Select(ImageLineOf)
+            .ToList();
     }
 
     public static IReadOnlyList<string> Cap(IEnumerable<string> subjects)
@@ -409,7 +426,18 @@ public sealed class FleetDigest
             WorstOf(v.Findings));
 
     private static List<ImageFindingLine> WorstOf(IReadOnlyList<ImageFindingResource> findings) =>
-        [.. findings.Take(MaxImageFindings).Select(f => new ImageFindingLine(f.Id, f.Package, f.InstalledVersion, f.FixedVersion, f.Severity, f.Title, f.Url is null ? null : SafeUrl.Of(f.Url)))];
+        [.. findings.OrderBy(f => f.Exploited is null ? 1 : 0).Take(MaxImageFindings).Select(f => new ImageFindingLine(
+            f.Id,
+            f.Package,
+            f.InstalledVersion,
+            f.FixedVersion,
+            f.Severity,
+            f.Title,
+            f.Url is null ? null : SafeUrl.Of(f.Url),
+            f.Exploited is not null,
+            f.Exploited?.DateAdded.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            f.Epss?.Score,
+            f.Epss?.Percentile))];
 
     /// <summary>The scanner's reading of a repository's latest release, or null when it has none or no scanner is declared.</summary>
     private static ReleaseVulnerabilityLine? ReleaseVulnerabilitiesOf(ReleaseVulnerabilitiesResource? v) => v is null or { State: "off" }

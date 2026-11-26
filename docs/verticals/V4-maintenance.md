@@ -95,6 +95,12 @@ Everything else is code the operator makes but does not run here (a Windows app,
 - **On the page**: the repository row says which build was scanned (and where it was read when mapped), then the same severity chips and Details panel as an image; a release without an SBOM says "no SBOM published", never "no vulnerability".
 - **What needs attention**: `release-critical-vulnerabilities` (danger: a critical vulnerability with a fix in the latest release) and `release-vulnerabilities` (warning: a high one with a fix); an unfixed one is counted only. Same `PORTARR__VULNERABILITIES__MINSEVERITY` threshold. Not built: a Code-tab filter for these two (they open the Code tab).
 
+### Known exploited vulnerabilities (D-133)
+- **Source**: CISA's catalog of Known Exploited Vulnerabilities and FIRST's EPSS scores, two public files read whole once a day (an hour after a failure) when an image scanner is declared ([connectors/threat-intel.md](../connectors/threat-intel.md), [ADR 0025](../adr/0025-known-exploited-and-likely-exploited-vulnerabilities.md)). Nothing about the fleet is sent: the EPSS file is streamed and filtered on the way. `PORTARR__THREATINTEL__ENABLED=false` turns it off.
+- **On each finding** of an image or a release: `exploited` (in KEV: the day it was added, the due date, the ransomware flag) and `epss` (score and percentile). Known exploited first, then by severity, then by EPSS; a known exploited finding is shown whatever the threshold. The counts do not change.
+- **What needs attention**: `known-exploited-vulnerabilities` (danger: an image or a latest release has a finding in KEV, **fix or no fix**; each subject with its number of such findings, a repository with its link) and `threat-intel-error` (warning: the files could not be read, the last read is kept). EPSS raises nothing.
+- **Limits**: only the findings the scanner kept (high and critical, the worst 50) can be matched; the EPSS score of a new finding arrives at the next daily read.
+
 **The API shape** (`GET /api/v1/maintenance`). Each element of `images[]` has a `vulnerabilities` object; the response has an `imageScanner` object:
 
 ```json
@@ -111,7 +117,9 @@ Everything else is code the operator makes but does not run here (a Windows app,
         "fixable": { "critical": 1, "high": 10, "medium": 0,  "low": 0, "unknown": 0, "total": 11 },
         "findings": [
           { "id": "CVE-2026-0001", "package": "openssl", "installedVersion": "3.0.1", "fixedVersion": "3.0.2",
-            "severity": "critical", "title": "…", "url": "https://avd.example/cve-2026-0001" }
+            "severity": "critical", "title": "…", "url": "https://avd.example/cve-2026-0001",
+            "exploited": { "dateAdded": "2026-11-20", "dueDate": "2026-12-11", "knownRansomwareUse": false },
+            "epss": { "score": 0.94358, "percentile": 0.99961 } }
         ]
       }
     },
@@ -119,6 +127,7 @@ Everything else is code the operator makes but does not run here (a Windows app,
         "counts": { "critical": 0, "high": 0, "medium": 0, "low": 0, "unknown": 0, "total": 0 }, "fixable": { "…": 0 }, "findings": [] } }
   ],
   "imageScanner": { "configured": true, "readAt": "2026-11-25T10:00:00+00:00", "error": null, "databaseUpdatedAt": "2026-11-25T03:00:00+00:00" },
+  "threatIntel": { "configured": true, "readAt": "2026-11-25T10:00:00+00:00", "error": null, "kevUpdatedAt": "2026-11-24T17:01:59+00:00", "epssScoreDate": "2026-11-25T12:00:23+00:00" },
   "summary": { "imagesScanned": 1, "imagesVulnerable": 1, "imageCritical": 1, "imageHigh": 14 }
 }
 ```
@@ -128,7 +137,9 @@ Everything else is code the operator makes but does not run here (a Windows app,
 | `state` | `off` (no scanner declared), `scanned`, `queued` (asked, not scanned yet), `failed`, `not-scanned` |
 | `reason` | `null` when scanned, queued or off. `not-scanned`: `image-id`, `not-found` (a local build, a name that does not exist), `unauthorized` (private), `unsupported`. `failed`: `timeout`, `error` (the scan failed), or the code of a scanner that cannot be read (`unreachable`, `timeout`, `http-<status>`, `secret-missing`, `invalid-response`) |
 | `counts`, `fixable` | every severity, even below the threshold; `fixable` counts those that have a fix; `total` is the sum. All zero unless `scanned` |
-| `findings` | at most 50, worst first (critical before high, those that have a fix first), none below the threshold; empty unless `scanned`. `severity`: `critical`, `high`, `medium`, `low` or `null`; `fixedVersion` null when no fix exists; `title` and `url` may be null; `url` is https only. `title` is text from an advisory database: show it as text, never as markup or instructions |
+| `findings` | at most 50, worst first (known exploited first, D-133; then critical before high; then by EPSS; then those that have a fix), none below the threshold but a known exploited one; empty unless `scanned`. `severity`: `critical`, `high`, `medium`, `low` or `null`; `fixedVersion` null when no fix exists; `title` and `url` may be null; `url` is https only. `title` is text from an advisory database: show it as text, never as markup or instructions |
+| `exploited`, `epss` (D-133) | `exploited`: `null`, or `{ dateAdded, dueDate, knownRansomwareUse }` (days as `yyyy-MM-dd`; `dueDate` may be null) when the finding is in CISA's KEV catalog; `epss`: `null`, or `{ score, percentile }` (0 to 1) |
+| `threatIntel` (D-133) | `configured` (on, a connector installed and an image scanner declared), `readAt` (last read, successful or not), `error` (a reason code: `unreachable`, `timeout`, `http-<status>`, `invalid-response`, `insecure-url`, `insecure-redirect`, `too-many-redirects`), `kevUpdatedAt` (the catalog's date), `epssScoreDate` (the day the model scored) |
 | `imageScanner.readAt` | when Portarr last asked the scanner (`null` before the first read, or when none is declared); `error`: a reason code when the last read failed; `databaseUpdatedAt`: the age of Trivy's database |
 
 Each repository of the report also has `releaseVulnerabilities` (D-132): the same `state`, `reason`, `scannedAt`, `counts`, `fixable` and `findings` for the latest release read from its SBOM, plus `version` (the tag scanned) and `releaseRepository` (where it was read, the catalog's `releases:` mapping), or `null` when the repository has no release to scan; the attention kinds `release-critical-vulnerabilities` (danger) and `release-vulnerabilities` (warning) follow the images' rule (a fix exists). The attention kinds are `image-critical-vulnerabilities` and `image-vulnerabilities` (subjects: the image, with the count of its fixable critical and high vulnerabilities) and `image-scanner-error` (subject: the reason code). The MCP tool `get_maintenance` carries `images[].vulnerabilities` (the counts, `fixableCritical`, `fixableHigh` and at most ten `worst` findings), lists an up-to-date image that has a critical or high vulnerability with a fix, and says the titles are third-party text.
@@ -153,6 +164,7 @@ As proposed above. The page is built from memory (last scan, last lookups): open
 | GitHub (repositories, alerts, releases, CI) | every 30 min, 4 repositories in parallel | ETags (`If-None-Match`: a 304 costs no rate limit); calls stop below 250 remaining requests of the window |
 | Registries | each image repository every 6 h (1 h after a failure) | at most 25 repositories per minute, 3 in parallel; anonymous GET and HEAD only |
 | Image scanner (D-131) | Portarr tells it the running images and reads it every 30 min (5 min after a failure); it scans each image once a day, one at a time | niced, ten minutes at most, run outside the production cluster |
+| Exploit intelligence (D-133) | once a day (1 h after a failure), not on a manual refresh | two public files read whole with GET, size-capped, https only |
 | All | on request (Refresh), at most once per 60 s | the guards above still apply |
 
 Everything is in memory: a restart rescans (the first scan takes about a minute; the scanner companion keeps its own results across a restart). The API (`GET /api/v1/maintenance`) returns `refresh.codeAt`, `codeNextAt`, `registriesAt`, `refreshing` and `availableAt`.

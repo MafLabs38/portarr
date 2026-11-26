@@ -81,6 +81,7 @@ const report = {
   platforms: [],
   // No image scanner declared (D-131): the report always carries its status.
   imageScanner: { configured: false, readAt: null, error: null, databaseUpdatedAt: null },
+  threatIntel: { configured: false, readAt: null, error: null, kevUpdatedAt: null, epssScoreDate: null },
   minSeverity: 'high',
 };
 
