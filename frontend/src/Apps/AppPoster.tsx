@@ -16,13 +16,13 @@ interface AppPosterProps {
 }
 
 /**
- * A launcher tile (F-CAT-01): a web app opens its URL for the current network (D-46); desktop apps
- * and services are not launchable. The frame color is the app status (D-45), which includes its HTTP check (V2).
+ * A launcher tile (F-CAT-01): a web app opens its URL for the current network (D-46) and lists its others; desktop apps
+ * and services are not launchable, so every link they have is listed (a download, the release notes, the repository). The frame color is the app status (D-45), which includes its HTTP check (V2).
  */
 export default function AppPoster({ app, now }: Readonly<AppPosterProps>) {
   const mode = useUrlModeStore((state) => state.mode);
   const mainUrl = pickUrl(app.urls, resolveScope(mode, globalThis.location.hostname));
-  const otherUrls = app.urls.filter((url) => url !== mainUrl);
+  const otherUrls = app.type === 'web' ? app.urls.filter((url) => url !== mainUrl) : app.urls;
   const TypeIcon = app.type === 'desktop' ? icons.DESKTOP : icons.SERVICE;
 
   const body = (
