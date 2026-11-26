@@ -710,7 +710,8 @@ const en: Record<string, string> = {
   ChangeCancelled: 'Cancelled: the turn was stopped, nothing was written.',
   ChangeRejected: 'Rejected: nothing was written.',
   Chat: 'Chat',
-  ChatEmpty: 'Ask about your fleet, or ask for a change to Portarr’s catalog: you approve every write.',
+  ChatEmpty:
+    'Ask about your fleet. If your role may change the catalog, ask for a change too: you confirm every write.',
   ChatHistory: 'Conversations',
   ChatNoConversations: 'No conversation yet.',
   ChatNoCredentials: '{agent} has no credentials in the agent runner (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY).',
@@ -718,7 +719,7 @@ const en: Record<string, string> = {
   ChatPromptPlaceholder: 'Ask or paste… (Enter to send, Shift+Enter for a new line)',
   ChatRequestFailed: 'The request failed ({status}).',
   ChatScope:
-    'Its only tool is Portarr: it reads the fleet and edits the catalog with your approval. No shell, no access to the machines.',
+    'Its only tool is Portarr: it reads the fleet and, if your role may change the catalog, edits it once you confirm. No shell, no access to the machines.',
   ChatScopeReadOnly: 'Its only tool is Portarr: it reads the fleet. No shell, no access to the machines.',
   ChatNotices: 'Notices about the chat',
   ChatReadOnlyHint:

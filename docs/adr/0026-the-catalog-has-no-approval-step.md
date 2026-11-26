@@ -24,6 +24,6 @@ The same reasoning showed a gap in the roles: the built-in Operator held `catalo
 ## Consequences
 
 - An assistant connected with an Admin's key declares a machine, an app's check or an MCP server in one call; the operator sees it in the catalog and in the audit trail, not in a queue. An assistant connected with an Operator's key reads and cannot change anything.
-- An existing Operator user loses the catalog editor on upgrade (the built-in roles are defined in code). To let an assistant describe the fleet, give it a key of an Admin; to vary the rights, a custom role is created as before.
+- **A breaking change**: an existing Operator user, and their API keys, lose the catalog editor and Settings on upgrade (the built-in roles are defined in code), and a change to how a host is reached sent by a role without `settings.manage` (the deprecated shared keys included) answers 403 where it used to wait. The release notes say so. To let an assistant describe the fleet, give it a key of an Admin; to vary the rights, a custom role is created as before.
 - The description of a built-in role is now read from the code, like its permissions, so that it follows such a change.
 - CLAUDE.md rule 6 loses its sentence on the approval.
