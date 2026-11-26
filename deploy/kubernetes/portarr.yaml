@@ -151,8 +151,8 @@ spec:
             # Plain HTTP inside the pod on purpose: TLS ends at the ingress, and nothing leaves the pod network in clear.
             - { name: PORTARR__URLS, value: "http://+:8484" }
             - { name: PORTARR__DATAFOLDER, value: /config }
-            # The catalog lives in the data volume and Portarr writes it. A change to how a host is reached, asked by an assistant, waits
-            # for an administrator's approval in Settings, Catalog. Export it (Settings, Catalog) to keep a copy in git.
+            # The catalog lives in the data volume and Portarr writes it. How a host is reached is changed only by a role holding
+            # settings.manage (an Admin, or an Admin's key), at once (D-134). Export it (Settings, Catalog) to keep a copy in git.
             - { name: PORTARR__CATALOGFILE, value: /config/catalog/catalog.yaml }
             - { name: PORTARR__CATALOG__WRITABLE, value: "true" }
             # Behind a TLS-terminating proxy that Portarr does not see as trusted: the session cookie is always Secure.

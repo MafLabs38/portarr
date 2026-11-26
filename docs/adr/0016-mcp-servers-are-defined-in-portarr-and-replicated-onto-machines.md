@@ -1,7 +1,7 @@
 # 0016 — MCP servers are defined in Portarr and replicated onto machines, never the other way
 
 - **Status**: proposed
-- **Amended by**: [0020](0020-the-catalog-is-writable-and-a-connection-change-waits-for-approval.md) (D-125): servers and workstations are edited like the rest of the catalog; how a server is reached or launched (`http`, `stdio`) waits for an administrator's approval; `secretStore` stays in the file.
+- **Amended by**: [0020](0020-the-catalog-is-writable-and-a-connection-change-waits-for-approval.md) (D-125): servers and workstations are edited like the rest of the catalog; how a server is reached or launched (`http`, `stdio`) waited for an administrator's approval, and since [0026](0026-the-catalog-has-no-approval-step.md) (D-134) is written only by a role holding `settings.manage`; `secretStore` stays in the file.
 - **Date**: 2026-11-12
 - **Spec**: D-110 to D-116 (the vertical is [mcp-servers.md](../verticals/mcp-servers.md))
 
@@ -12,7 +12,7 @@ An operator uses several AI assistants on several machines and keeps re-describi
 ## Decision
 
 1. **Portarr is the master, and the configuration flows one way.** An MCP server is defined once, in the catalog. Portarr renders from it the configuration of any client for any machine, and an assistant on the machine fetches it and applies it with the operator's approval. Portarr never reads what a machine really has, never imports it, never writes to a machine or reaches one, and keeps no state about one (D-110). A machine that differs from the catalog is brought in line.
-2. **Only the catalog defines servers.** The keys that say how a server is reached or launched (`http`, `stdio`) are protected settings that wait for an administrator's approval (D-112, amended by D-125 and D-123); the four MCP tools of this vertical are read-only.
+2. **Only the catalog defines servers.** The keys that say how a server is reached or launched (`http`, `stdio`) are protected settings, written only by a role holding `settings.manage` (D-112, amended by D-125, D-123 and D-134: no approval step); the four MCP tools of this vertical are read-only.
 3. **Secrets are references.** A value is the name of a variable (`env:`) and, with a `secretStore`, a key in the operator's vault (`secret:`). Portarr never holds or reads a value; the plan gives the command that reads it on the workstation, in its own shell (D-116).
 4. **The health is the server's, not the machine's.** A check type `mcp` (`initialize`; a refusal asking for credentials is healthy), run by its own monitor, with the state persisted (last healthy, down since). A check Portarr could not run is Unknown, never Down (D-104). A local (stdio) server is not monitored (D-114). It is the only background work of the vertical.
 5. **Narrow contracts, adapters in their own library.** `IMcpClientRenderer` (one AI client) and `IMcpSecretStoreProvisioner` (one kind of vault) each return only what is specific to their tool; the Core composes the generic parts (scope and operating system, required variables, the provisioning operation, the generic notes) in a rendering service, and finds the adapters through injected registries. A vocabulary interface gives the catalog parser the client ids and the store kinds, and the kind-specific checks of a prefix or a key belong to the provisioner, not to the parser. The nine renderers and the two provisioners are in `Portarr.Providers.McpClients`, which registers them in dependency injection like a connector does (D-113). Adding a client is one class and its registration.

@@ -7,11 +7,10 @@ namespace Portarr.Core.Catalog.Editing;
 /// kubernetes, cloudflare, backrest, hostMetrics…) and what it fetches for an app (<c>check</c>). They hold an address and
 /// the name of the variable that holds the credential for it, so whoever can write them can make Portarr send that
 /// credential to another host. An MCP server's <c>http</c> and <c>stdio</c> are the same kind of setting (an address with its
-/// credential variables, or a command the operator's machines will run, D-125). Declaring a machine needs them, so they can be written, but not by anyone alone: a person
-/// holding <c>settings.manage</c> writes them directly, and any other author (an assistant, a key that only edits the
-/// catalog) leaves a <b>pending change</b> that such a person approves in Settings (<see cref="CatalogPendingStore"/>). Every
-/// change, approved or not, goes through <see cref="ConnectionGuardrails"/>. A read for an assistant leaves them out, and an
-/// edit that omits them keeps the current ones.
+/// credential variables, or a command the operator's machines will run, D-125). The role decides (D-134, no approval step): a
+/// role holding <c>settings.manage</c> (a person or the key of one, an assistant included) writes and reads them, any other
+/// author is refused and reads the items without them; an edit that omits them keeps the current ones. Every change to them
+/// goes through <see cref="ConnectionGuardrails"/>.
 /// </summary>
 public static class ProtectedSettings
 {
@@ -38,7 +37,7 @@ public static class ProtectedSettings
     /// <summary>
     /// The keys whose addresses <see cref="ConnectionGuardrails"/> checks: the ones Portarr itself calls (the protected ones, and
     /// an app's links, which its default check fetches). The arguments of a
-    /// local MCP program (<c>stdio</c>) may name a loopback address (a browser's debugging port): they wait for approval, no more.
+    /// local MCP program (<c>stdio</c>) may name a loopback address (a browser's debugging port): they are not refused, and only a role holding settings.manage writes them.
     /// </summary>
     public static IReadOnlyList<string> GuardedKeysOf(string section, IEnumerable<string> connectorSections) =>
         section switch
@@ -52,7 +51,6 @@ public static class ProtectedSettings
     /// <summary>Whether the edit sets, changes or removes a protected setting (removing an item that holds one counts).</summary>
     public static bool Touches(JsonObject? current, JsonObject? next, IReadOnlyList<string> keys)
     {
-        // Removing an item that holds a connection setting removes that connection: it waits for approval like its addition did.
         return next is null ? keys.Any(key => current?[key] is not null) : ChangedKeys(current, next, keys).Count > 0;
     }
 
@@ -82,8 +80,8 @@ public static class ProtectedSettings
 
     /// <summary>
     /// The item as it will be written: a protected setting the caller left out is the current one (kept); one sent as an explicit
-    /// <c>null</c> is removed. One the caller sets, changes or removes is refused unless <paramref name="allowChange"/> (the author
-    /// may reconfigure, or it is an approval).
+    /// <c>null</c> is removed. One the caller sets, changes or removes is refused unless <paramref name="allowChange"/> (the author's
+    /// role may reconfigure).
     /// </summary>
     public static JsonObject? Apply(string section, string id, JsonObject? current, JsonObject? next, IReadOnlyList<string> keys, bool allowChange = false)
     {
@@ -110,13 +108,15 @@ public static class ProtectedSettings
 
         if (refused.Count > 0)
         {
-            throw new CatalogEditException(
-                CatalogEditStatus.Invalid,
-                $"{section} '{id}': {string.Join(", ", refused)} need an administrator's approval: they say how Portarr reaches a host and with which credential.");
+            throw new CatalogEditException(CatalogEditStatus.Forbidden, NotAllowed(section, id, refused));
         }
 
         return result;
     }
+
+    /// <summary>Why an author whose role lacks <c>settings.manage</c> may not make this change.</summary>
+    public static string NotAllowed(string section, string id, IEnumerable<string> keys) =>
+        $"{section} '{id}': {string.Join(", ", keys)} say how Portarr reaches a host and with which credential; changing them needs a role that holds settings.manage.";
 
     /// <summary>The setting the caller left out, put back as it is; the sent object is copied the first time, never changed.</summary>
     private static JsonObject Restore(JsonObject result, JsonObject sent, string key, JsonNode? before)

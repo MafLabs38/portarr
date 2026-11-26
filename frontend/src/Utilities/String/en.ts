@@ -463,8 +463,7 @@ const en: Record<string, string> = {
   McpEnvironment: 'Environment',
   McpApp: 'App',
   McpNotes: 'Notes',
-  McpEditInCatalog:
-    'Edit it in Settings, Catalog (or ask your assistant): how to reach or launch a server waits for an administrator.',
+  McpEditInCatalog: 'Edit it in Settings, Catalog, or ask your assistant.',
   McpUnpinned: 'This package is not pinned to a version: it can change under you. Pin it, for example package@1.2.3.',
   McpInstall: 'Install in a client',
   McpInstallHint:
@@ -711,7 +710,8 @@ const en: Record<string, string> = {
   ChangeCancelled: 'Cancelled: the turn was stopped, nothing was written.',
   ChangeRejected: 'Rejected: nothing was written.',
   Chat: 'Chat',
-  ChatEmpty: 'Ask about your fleet, or ask for a change to Portarr’s catalog: you approve every write.',
+  ChatEmpty:
+    'Ask about your fleet. If your role may change the catalog, ask for a change too: you confirm every write.',
   ChatHistory: 'Conversations',
   ChatNoConversations: 'No conversation yet.',
   ChatNoCredentials: '{agent} has no credentials in the agent runner (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY).',
@@ -719,7 +719,7 @@ const en: Record<string, string> = {
   ChatPromptPlaceholder: 'Ask or paste… (Enter to send, Shift+Enter for a new line)',
   ChatRequestFailed: 'The request failed ({status}).',
   ChatScope:
-    'Its only tool is Portarr: it reads the fleet and edits the catalog with your approval. No shell, no access to the machines.',
+    'Its only tool is Portarr: it reads the fleet and, if your role may change the catalog, edits it once you confirm. No shell, no access to the machines.',
   ChatScopeReadOnly: 'Its only tool is Portarr: it reads the fleet. No shell, no access to the machines.',
   ChatNotices: 'Notices about the chat',
   ChatReadOnlyHint:
@@ -910,13 +910,6 @@ const en: Record<string, string> = {
   Address: 'Address',
   Catalog: 'Catalog',
   CatalogAddItem: 'Add an item',
-  CatalogAfter: 'After',
-  CatalogAskedBy: 'Asked by {who}, {when}',
-  CatalogBefore: 'Before',
-  CatalogChangeWaiting:
-    'This changes how a host is reached, so it waits for an administrator. It is in the Pending tab.',
-  CatalogChangeWouldWait:
-    'Valid. It changes how a host is reached, so saving it will leave it waiting for an administrator.',
   CatalogEditItem: 'Edit {id}',
   CatalogExport: 'Download catalog.yaml',
   CatalogHelp:
@@ -925,19 +918,14 @@ const en: Record<string, string> = {
   CatalogItemInvalid: 'This item is not valid:',
   CatalogItemJson: 'The whole item (JSON, the keys of the catalog file)',
   CatalogItemJsonHelp:
-    'Everything the form does not show is here: urls, workloads, connections (docker, kubernetes, check…). Changing how a host is reached waits for an administrator unless you are one.',
+    'Everything the form does not show is here: urls, workloads, connections (docker, kubernetes, check…).',
   CatalogItemRemoved: '{id} removed.',
   CatalogItemSaved: 'Saved.',
   CatalogItemValid: 'Valid: saving it would work.',
   CatalogLoadFailed: 'The catalog could not be read.',
   CatalogNew: 'New item',
-  CatalogNotAllowed: 'You are not allowed to change the catalog.',
+  CatalogNotAllowed: 'Your role may not make this change.',
   CatalogNothingChanged: 'Nothing changed: the item already reads like that.',
-  CatalogPending: 'Pending',
-  CatalogPendingEmpty: 'Nothing waits for approval.',
-  CatalogPendingHelp:
-    'Changes to how a host is reached (docker, kubernetes, runtime, check…) asked for by an assistant or an editor wait here until you approve them.',
-  CatalogPendingNeedsAdmin: 'An administrator approves these changes.',
   CatalogReadOnly:
     'The catalog is read-only on this Portarr: it is a file you edit yourself. Set PORTARR__CATALOG__WRITABLE=true and mount its folder read-write to change it here.',
   CatalogRemoved: 'Removed',

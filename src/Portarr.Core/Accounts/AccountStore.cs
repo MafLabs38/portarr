@@ -268,7 +268,7 @@ internal sealed class AccountStore
         return rows.Select(row => new RoleDefinition(
             row.Id,
             row.Name,
-            row.Description,
+            row.BuiltIn ? BuiltInRoles.Find(row.Name)?.Description ?? row.Description : row.Description,
             row.BuiltIn,
             row.BuiltIn
                 ? Permissions.Ordered(BuiltInRoles.Find(row.Name)?.Permissions ?? new HashSet<string>())

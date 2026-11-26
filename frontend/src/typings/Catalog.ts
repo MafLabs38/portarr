@@ -21,25 +21,9 @@ export interface CatalogSectionItems {
   items: CatalogItem[];
 }
 
-/** `applied`, `unchanged`, `valid` (a check that would pass) or `pending` (waits for an administrator). */
+/** `applied`, `unchanged` or `valid` (a check that would pass). */
 export interface CatalogEditOutcome {
-  status: 'applied' | 'unchanged' | 'valid' | 'pending';
+  status: 'applied' | 'unchanged' | 'valid';
   version: string;
-  changes: string[];
-  pendingId?: string | null;
-}
-
-/** A change that waits for approval: who asked, for which item, the item before and after. */
-export interface PendingChange {
-  id: string;
-  at: string;
-  channel: string;
-  user?: string | null;
-  via?: string | null;
-  section: string;
-  itemId: string;
-  operation: string;
-  before: CatalogItem | null;
-  after: CatalogItem | null;
   changes: string[];
 }

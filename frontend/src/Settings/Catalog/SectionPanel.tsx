@@ -6,7 +6,7 @@ import form from 'Components/Form/Form.module.css';
 import table from 'Components/Table/Table.module.css';
 import { ApiError } from 'Helpers/Hooks/useApiQuery';
 import * as icons from 'Helpers/Props/icons';
-import type { CatalogEditOutcome, CatalogItem, CatalogSectionName } from 'typings/Catalog';
+import type { CatalogItem, CatalogSectionName } from 'typings/Catalog';
 import translate from 'Utilities/String/translate';
 
 import styles from './Catalog.module.css';
@@ -39,20 +39,16 @@ export default function SectionPanel({ section, writable }: Readonly<SectionPane
     return <Card title={translate(`CatalogSection_${section}`)}>{translate('Loading')}</Card>;
   }
 
-  const onSaved = (status: CatalogEditOutcome['status']) => {
+  const onSaved = () => {
     setEditing(null);
-    setNotice({ kind: 'info', text: translate(status === 'pending' ? 'CatalogChangeWaiting' : 'CatalogItemSaved') });
+    setNotice({ kind: 'info', text: translate('CatalogItemSaved') });
   };
 
   const onRemove = async (id: string) => {
     setNotice(null);
     try {
-      const outcome = await remove.mutateAsync({ section, id, version: data.version });
-      setNotice({
-        kind: 'info',
-        text:
-          outcome?.status === 'pending' ? translate('CatalogChangeWaiting') : translate('CatalogItemRemoved', { id }),
-      });
+      await remove.mutateAsync({ section, id, version: data.version });
+      setNotice({ kind: 'info', text: translate('CatalogItemRemoved', { id }) });
     } catch (error) {
       setNotice({
         kind: 'danger',
