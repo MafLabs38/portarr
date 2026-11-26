@@ -14,7 +14,7 @@ public static class CatalogSections
     public const string Links = "links";
     public const string Providers = "providers";
 
-    /// <summary>The MCP servers (D-111). Edited like the rest (D-125): how to launch or reach one is a protected setting that waits for approval.</summary>
+    /// <summary>The MCP servers (D-111). Edited like the rest (D-125): how to launch or reach one is a protected setting (D-134: only a role holding settings.manage changes it).</summary>
     public const string McpServers = "mcpServers";
 
     /// <summary>The workstations (D-111): a name, an operating system, the assistants and the wanted servers.</summary>
@@ -48,6 +48,9 @@ public enum CatalogEditStatus
     /// <summary>The edit, or the catalog it would produce, is not valid.</summary>
     Invalid,
 
+    /// <summary>The author's role may not make this edit: changing how a host is reached needs <c>settings.manage</c> (D-134).</summary>
+    Forbidden,
+
     /// <summary>A dry run: the edit would be accepted as it is, nothing was written.</summary>
     Valid,
 }
@@ -56,8 +59,10 @@ public enum CatalogEditStatus
 /// Who asked for an edit: the channel (<c>api</c>, <c>mcp</c>, <c>console</c>), the client's address and, for an MCP
 /// client that says so, where the request came from (<c>chat:&lt;conversation&gt;</c> for the built-in chat, D-89)
 /// and, since accounts (V7, D-96), the user who made the edit (<c>system</c> for the deprecated environment keys).
+/// <c>Reconfigure</c> says the author's role may change how a host is reached (<see cref="ProtectedSettings"/>): it holds
+/// <c>settings.manage</c> (D-134). Without it such a change is refused; there is no approval step.
 /// </summary>
-public sealed record CatalogActor(string Channel, string? Client, string? Via = null, string? User = null);
+public sealed record CatalogActor(string Channel, string? Client, string? Via = null, string? User = null, bool Reconfigure = false);
 
 /// <summary>
 /// One edit of one catalog item. <c>Change</c> gets the current item (null when absent) and returns the new one

@@ -44,7 +44,7 @@ Login is required. Every page and every endpoint belongs to a permission; a role
 | `maintenance.view` | Maintenance, including the manual refresh |
 | `assistant.view` | The Assistant page (MCP state, knowledge base), the catalog audit |
 | `chat.use` | The built-in chat |
-| `catalog.write` | Reading catalog items; every catalog write, how a host is reached included (D-134), the portal identity; approving a chat change. Reading how a host is reached and exporting the file need `settings.manage` (D-123, D-124) |
+| `catalog.write` | Reading catalog items; every catalog write, the portal identity; approving a chat change. Not in the Operator role (D-134). Reading and changing how a host is reached, and exporting the file, need `settings.manage` as well (D-124, D-134) |
 | `system.view` | System status, the log level, `/metrics` |
 | `settings.manage` | Changing the log level |
 | `users.manage` | Users, roles, activity |
@@ -54,7 +54,7 @@ Login is required. Every page and every endpoint belongs to a permission; a role
 | Role | Permissions |
 |---|---|
 | Admin | all |
-| Operator | all but `users.manage`, `settings.manage`, `secrets.view` |
+| Operator | all but `catalog.write`, `users.manage`, `settings.manage`, `secrets.view`: reads every page, changes nothing (D-134) |
 | Observer | `apps.view`, `infrastructure.view`, `data.view`, `maintenance.view`, `assistant.view`, `system.view` |
 | Guest | `apps.view` |
 

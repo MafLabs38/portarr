@@ -19,6 +19,7 @@ public sealed class CatalogEditorFixture : IDisposable
         """;
 
     private static readonly CatalogActor Actor = new("api", "10.0.0.5");
+    private static readonly CatalogActor Administrator = new("mcp", "10.0.0.5", "chat:7", "assistant", Reconfigure: true);
 
     private readonly string _folder = Directory.CreateTempSubdirectory("portarr-editor-").FullName;
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 1, 31, 10, 0, 0, TimeSpan.Zero));
@@ -293,5 +294,55 @@ public sealed class CatalogEditorFixture : IDisposable
         exists.Status.Should().Be(CatalogEditStatus.AlreadyExists);
         missing.Status.Should().Be(CatalogEditStatus.NotFound);
         otherId.Status.Should().Be(CatalogEditStatus.Invalid);
+    }
+
+    [Fact]
+    public async Task should_write_how_a_host_is_reached_at_once_for_a_role_that_may_reconfigure_and_audit_who_did()
+    {
+        var version = await _subject.GetVersionAsync(Token);
+
+        var result = await _subject.EditAsync(new CatalogEdit("apps", "sonarr", "upsert", version, Administrator, CatalogEdits.Upsert("sonarr", Json("""{ "name": "Sonarr", "check": { "url": "http://10.0.0.9:8989/ping" } }"""))), Token);
+
+        result.Status.Should().Be(CatalogEditStatus.Applied, "no approval step (D-134)");
+        (await File.ReadAllTextAsync(CatalogFile, Token)).Should().Contain("http://10.0.0.9:8989/ping");
+        (await new CatalogAuditLog(Options.Create(_options)).ReadAsync(10, Token)).Should().ContainSingle()
+            .Which.Should().Match<CatalogAuditEntry>(e => e.Channel == "mcp" && e.Via == "chat:7" && e.User == "assistant");
+    }
+
+    [Fact]
+    public async Task should_refuse_a_change_of_how_a_host_is_reached_to_a_role_that_may_not_reconfigure()
+    {
+        var before = await File.ReadAllTextAsync(CatalogFile, Token);
+
+        var result = await _subject.EditAsync(new CatalogEdit("apps", "sonarr", "upsert", await _subject.GetVersionAsync(Token), Actor, CatalogEdits.Upsert("sonarr", Json("""{ "name": "Sonarr", "check": { "url": "http://10.0.0.9:8989/ping" } }"""))), Token);
+
+        result.Status.Should().Be(CatalogEditStatus.Forbidden);
+        result.Errors.Single().Should().Contain("check").And.Contain("settings.manage");
+        (await File.ReadAllTextAsync(CatalogFile, Token)).Should().Be(before);
+    }
+
+    [Fact]
+    public async Task should_let_only_a_role_that_may_reconfigure_remove_an_item_that_holds_a_connection()
+    {
+        await _subject.EditAsync(new CatalogEdit("apps", "sonarr", "upsert", await _subject.GetVersionAsync(Token), Administrator, CatalogEdits.Upsert("sonarr", Json("""{ "name": "Sonarr", "check": { "url": "http://10.0.0.9:8989/ping" } }"""))), Token);
+
+        var refused = await _subject.EditAsync(new CatalogEdit("apps", "sonarr", "remove", await _subject.GetVersionAsync(Token), Actor, CatalogEdits.Remove("apps", "sonarr")), Token);
+        var removed = await _subject.EditAsync(new CatalogEdit("apps", "sonarr", "remove", await _subject.GetVersionAsync(Token), Administrator, CatalogEdits.Remove("apps", "sonarr")), Token);
+
+        refused.Status.Should().Be(CatalogEditStatus.Forbidden);
+        removed.Status.Should().Be(CatalogEditStatus.Applied);
+        (await File.ReadAllTextAsync(CatalogFile, Token)).Should().NotContain("sonarr");
+    }
+
+    [Fact]
+    public async Task should_show_how_a_host_is_reached_only_to_a_role_that_may_change_it()
+    {
+        await _subject.EditAsync(new CatalogEdit("apps", "sonarr", "upsert", await _subject.GetVersionAsync(Token), Administrator, CatalogEdits.Upsert("sonarr", Json("""{ "name": "Sonarr", "check": { "url": "http://10.0.0.9:8989/ping" } }"""))), Token);
+
+        var hidden = await _subject.GetItemAsync("apps", "sonarr", withConnections: false, Token);
+        var shown = await _subject.GetItemAsync("apps", "sonarr", withConnections: true, Token);
+
+        hidden!.Item.ContainsKey("check").Should().BeFalse();
+        shown!.Item["check"]!["url"]!.ToString().Should().Be("http://10.0.0.9:8989/ping");
     }
 }

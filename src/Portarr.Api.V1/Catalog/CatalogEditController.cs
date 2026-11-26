@@ -63,7 +63,7 @@ public sealed class CatalogEditController : ControllerBase
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<CatalogItemResource>> GetItemAsync(string section, string id, CancellationToken cancellationToken)
     {
-        var item = await _editor.GetItemAsync(section, id, cancellationToken);
+        var item = await _editor.GetItemAsync(section, id, await MayReconfigureAsync(), cancellationToken);
         return item is null
             ? Problem(title: "Not found", detail: $"No {section} item '{id}' in the catalog.", statusCode: StatusCodes.Status404NotFound)
             : new CatalogItemResource(item.Version, item.Section, item.Id, item.Item);
@@ -282,11 +282,11 @@ public sealed class CatalogEditController : ControllerBase
 
     private async Task<IActionResult> EditAsync(string section, string id, string operation, string? version, Func<JsonObject?, JsonObject?> change, CancellationToken cancellationToken, bool dryRun = false)
     {
-        var actor = new CatalogActor(Channel, HttpContext.Connection.RemoteIpAddress?.ToString(), null, User.Identity?.Name);
+        var actor = new CatalogActor(Channel, HttpContext.Connection.RemoteIpAddress?.ToString(), null, User.Identity?.Name, await MayReconfigureAsync());
         var result = await _editor.EditAsync(new CatalogEdit(section, id, operation, version, actor, change, dryRun), cancellationToken);
         return this.ToActionResult(result, section, id);
     }
 
-    /// <summary>A person (or the key of one) holding <c>settings.manage</c> reads how a host is reached; anyone else reads the items without it.</summary>
+    /// <summary>A role holding <c>settings.manage</c> (a person or the key of one) reads and changes how a host is reached; any other is refused and reads the items without it (D-134).</summary>
     private async Task<bool> MayReconfigureAsync() => (await _authorization.AuthorizeAsync(User, Permissions.SettingsManage)).Succeeded;
 }

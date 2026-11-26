@@ -97,12 +97,13 @@ public static class BuiltInRoles
     public const string Observer = "Observer";
     public const string Guest = "Guest";
 
-    private static readonly string[] OperatorExcluded = [Permissions.UsersManage, Permissions.SettingsManage, Permissions.SecretsView];
+    /// <summary>The Operator reads everything and changes nothing of Portarr's configuration (D-134): no catalog write, no settings, users or secrets.</summary>
+    private static readonly string[] OperatorExcluded = [Permissions.CatalogWrite, Permissions.UsersManage, Permissions.SettingsManage, Permissions.SecretsView];
 
     public static IReadOnlyList<BuiltInRole> All { get; } =
     [
         new(Admin, "Everything, settings and users included.", Permissions.Keys),
-        new(Operator, "Everything except settings, users and secrets.", Permissions.Keys.Except(OperatorExcluded).ToHashSet(StringComparer.Ordinal)),
+        new(Operator, "Every page and the chat; no change to the catalog, no settings, users or secrets.", Permissions.Keys.Except(OperatorExcluded).ToHashSet(StringComparer.Ordinal)),
         new(Observer, "Every page, read only; no chat, no change.", Permissions.View),
         new(Guest, "The apps launcher only.", new HashSet<string>(StringComparer.Ordinal) { Permissions.AppsView }),
     ];

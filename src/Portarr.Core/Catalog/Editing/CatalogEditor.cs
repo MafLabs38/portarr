@@ -22,8 +22,8 @@ public interface ICatalogEditor
     /// <summary>The version of the file as it is now.</summary>
     Task<string> GetVersionAsync(CancellationToken cancellationToken);
 
-    /// <summary>One item as the file holds it, or null.</summary>
-    Task<CatalogItem?> GetItemAsync(string section, string id, CancellationToken cancellationToken);
+    /// <summary>One item as the file holds it, or null; how hosts are reached included only when <paramref name="withConnections"/> (a role that may reconfigure).</summary>
+    Task<CatalogItem?> GetItemAsync(string section, string id, bool withConnections, CancellationToken cancellationToken);
 
     /// <summary>The ids of a section as the file holds them (also when the file does not load).</summary>
     Task<IReadOnlyList<string>> GetIdsAsync(string section, CancellationToken cancellationToken);
@@ -77,13 +77,14 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
         return CatalogVersion.Of((await ReadFileAsync(cancellationToken)).Text);
     }
 
-    public async Task<CatalogItem?> GetItemAsync(string section, string id, CancellationToken cancellationToken)
+    public async Task<CatalogItem?> GetItemAsync(string section, string id, bool withConnections, CancellationToken cancellationToken)
     {
         var (text, _) = await ReadFileAsync(cancellationToken);
         var item = FindItem(text, section, id);
 
-        // What an assistant reads leaves out how hosts are reached (addresses, credential variables); an edit that omits them keeps them.
-        return item is null ? null : new CatalogItem(CatalogVersion.Of(text), section, id, ProtectedSettings.Redact(item, ProtectedSettings.KeysOf(section, _parser.GetConnectorSections())));
+        // A role that may not change how hosts are reached does not read it either (addresses, credential variables); an edit that omits them keeps them.
+        var keys = withConnections ? [] : ProtectedSettings.KeysOf(section, _parser.GetConnectorSections());
+        return item is null ? null : new CatalogItem(CatalogVersion.Of(text), section, id, ProtectedSettings.Redact(item, keys));
     }
 
     public async Task<IReadOnlyList<string>> GetIdsAsync(string section, CancellationToken cancellationToken)
@@ -154,7 +155,13 @@ public sealed partial class CatalogEditor : ICatalogEditor, IDisposable
             current = FindItem(text, edit.Section, edit.Id);
             var keys = ProtectedSettings.KeysOf(edit.Section, _parser.GetConnectorSections());
             var proposed = edit.Change(current?.DeepClone().AsObject());
-            next = ProtectedSettings.WithoutNulls(ProtectedSettings.Apply(edit.Section, edit.Id, current, proposed, keys, allowChange: true));
+            if (proposed is null && !edit.Actor.Reconfigure && ProtectedSettings.Touches(current, proposed, keys))
+            {
+                // Removing an item that holds a connection removes that connection: the same role rule as changing it.
+                return Refused(CatalogEditStatus.Forbidden, version, ProtectedSettings.NotAllowed(edit.Section, edit.Id, keys.Where(key => current?[key] is not null)));
+            }
+
+            next = ProtectedSettings.WithoutNulls(ProtectedSettings.Apply(edit.Section, edit.Id, current, proposed, keys, edit.Actor.Reconfigure));
             var guarded = ProtectedSettings.GuardedKeysOf(edit.Section, _parser.GetConnectorSections());
             if (ProtectedSettings.ChangedKeys(current, next, guarded) is { Count: > 0 } changedGuarded && ConnectionGuardrails.Check(next, changedGuarded) is { Count: > 0 } problems)
             {

@@ -923,7 +923,7 @@ const en: Record<string, string> = {
   CatalogItemValid: 'Valid: saving it would work.',
   CatalogLoadFailed: 'The catalog could not be read.',
   CatalogNew: 'New item',
-  CatalogNotAllowed: 'You are not allowed to change the catalog.',
+  CatalogNotAllowed: 'Your role may not make this change.',
   CatalogNothingChanged: 'Nothing changed: the item already reads like that.',
   CatalogReadOnly:
     'The catalog is read-only on this Portarr: it is a file you edit yourself. Set PORTARR__CATALOG__WRITABLE=true and mount its folder read-write to change it here.',

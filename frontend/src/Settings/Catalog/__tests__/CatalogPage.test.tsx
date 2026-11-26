@@ -143,10 +143,37 @@ describe('CatalogPage', () => {
 
   it('saves a change of how a host is reached at once, without an approval step', async () => {
     const user = userEvent.setup();
+    arrange();
+    let sent: unknown;
+    server.use(
+      http.put('/api/v1/catalog/apps/wiki', async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json({ status: 'applied', version: 'v2', changes: ['check: added'] });
+      }),
+    );
+    renderWithProviders(<CatalogPage />);
+    await user.click(await screen.findByRole('button', { name: 'Edit wiki' }));
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByText('Saved.')).toBeInTheDocument();
+    expect(sent).toMatchObject({ version: 'v1', item: { id: 'wiki' } });
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+  });
+
+  it('shows why a role that may not change how a host is reached is refused', async () => {
+    const user = userEvent.setup();
     arrange({ admin: false });
     server.use(
       http.put('/api/v1/catalog/apps/wiki', () =>
-        HttpResponse.json({ status: 'applied', version: 'v2', changes: ['check: added'] }),
+        HttpResponse.json(
+          {
+            title: 'Not allowed',
+            detail:
+              "apps 'wiki': check say how Portarr reaches a host and with which credential; changing them needs a role that holds settings.manage.",
+          },
+          { status: 403 },
+        ),
       ),
     );
     renderWithProviders(<CatalogPage />);
@@ -154,8 +181,8 @@ describe('CatalogPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
-    expect(await screen.findByText(/saved/i)).toBeInTheDocument();
-    expect(screen.queryByText(/administrator/)).not.toBeInTheDocument();
+    expect(await screen.findByText('Your role may not make this change.')).toBeInTheDocument();
+    expect(screen.getByText(/needs a role that holds settings.manage/)).toBeInTheDocument();
   });
 
   it('keeps the JSON and the guided fields in step, and refuses text that is not an object', async () => {

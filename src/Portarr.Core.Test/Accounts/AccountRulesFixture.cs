@@ -14,7 +14,7 @@ public sealed class AccountRulesFixture
         var guest = BuiltInRoles.Find("Guest")!.Permissions;
 
         admin.Should().BeEquivalentTo(Permissions.Keys);
-        op.Should().NotContain([Permissions.UsersManage, Permissions.SettingsManage, Permissions.SecretsView]).And.Contain([Permissions.CatalogWrite, Permissions.ChatUse]);
+        op.Should().NotContain([Permissions.CatalogWrite, Permissions.UsersManage, Permissions.SettingsManage, Permissions.SecretsView]).And.Contain([Permissions.ChatUse, Permissions.InfrastructureView]);
         observer.Should().OnlyContain(p => p.EndsWith(".view", StringComparison.Ordinal)).And.NotContain(Permissions.SecretsView).And.NotContain(Permissions.ChatUse);
         guest.Should().BeEquivalentTo([Permissions.AppsView]);
         Permissions.Assignable.Should().NotContain(Permissions.SecretsView);

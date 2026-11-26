@@ -101,6 +101,7 @@ public static partial class CatalogEditMapper
             CatalogEditStatus.Invalid => controller.ValidationProblem(new ValidationProblemDetails(result.ToErrors(section, id)) { Extensions = { ["version"] = result.Version } }),
             CatalogEditStatus.NotFound => controller.Problem(title: "Not found", detail: detail, statusCode: StatusCodes.Status404NotFound),
             CatalogEditStatus.ReadOnly => controller.Problem(title: "Catalog read-only", detail: detail, statusCode: StatusCodes.Status403Forbidden),
+            CatalogEditStatus.Forbidden => controller.Problem(title: "Not allowed", detail: detail, statusCode: StatusCodes.Status403Forbidden),
             _ => Conflict(controller, result),
         };
     }

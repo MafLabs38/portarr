@@ -69,7 +69,7 @@ public sealed partial class CatalogTools
             return new CatalogItemAnswer(version, section, null, null, await IdsAsync(section, cancellationToken));
         }
 
-        var item = await _editor.GetItemAsync(section, id, cancellationToken)
+        var item = await _editor.GetItemAsync(section, id, MayReconfigure(), cancellationToken)
             ?? throw new McpException($"No {section} item '{id}'. Ids: {string.Join(", ", await IdsAsync(section, cancellationToken))}.");
         return new CatalogItemAnswer(item.Version, section, id, item.Item, null);
     }
@@ -117,7 +117,7 @@ public sealed partial class CatalogTools
 
     [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "upsert_app", Title = "Create or replace an app", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Creates or replaces an app of the catalog: id, name, type (web, desktop, service), icon, description, urls, workloads, check, repository, notes. The check is a connection setting: what get_catalog_item returns leaves it out, a key left out is kept, and sending it as null removes it.")]
+    [Description("Creates or replaces an app of the catalog: id, name, type (web, desktop, service), icon, description, urls, workloads, check, repository, notes. The check is a connection setting: only a role holding settings.manage reads and changes it (anyone else is refused), a key left out is kept, and sending it as null removes it.")]
     public Task<CatalogWriteAnswer> UpsertAppAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
         UpsertAsync(CatalogSections.Apps, item, version, cancellationToken);
 
@@ -135,7 +135,7 @@ public sealed partial class CatalogTools
 
     [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "upsert_environment", Title = "Create or replace an environment", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Creates or replaces an environment (a host, a cluster, a hosting account): id, name, address, host (its hypervisor), connector (docker, cloudflare, kubernetes, or a host with no engine: runtime machine, or a Proxmox node: runtime proxmox with proxmox: { url, node, tokenId, tokenEnv }), notes, access ({ ssh: { alias, host, port, user, key (file name only), jump }, consoles: [{ label, href }], notes }) and machines ([{ name, notes, access }]). Read it first. Connector settings (docker, kubernetes, cloudflare, hostMetrics, nvidiaGpu, runtime…) can be sent; what get_catalog_item returns leaves them out and a key left out is kept. To remove a connection setting, send it as null. Check an item with get_catalog_item_check before sending it.")]
+    [Description("Creates or replaces an environment (a host, a cluster, a hosting account): id, name, address, host (its hypervisor), connector (docker, cloudflare, kubernetes, or a host with no engine: runtime machine, or a Proxmox node: runtime proxmox with proxmox: { url, node, tokenId, tokenEnv }), notes, access ({ ssh: { alias, host, port, user, key (file name only), jump }, consoles: [{ label, href }], notes }) and machines ([{ name, notes, access }]). Read it first. Connector settings (docker, kubernetes, cloudflare, hostMetrics, nvidiaGpu, runtime…) are read and changed only by a role holding settings.manage (anyone else is refused); a key left out is kept. To remove a connection setting, send it as null. Check an item with get_catalog_item_check before sending it.")]
     public Task<CatalogWriteAnswer> UpsertEnvironmentAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
         UpsertAsync(CatalogSections.Environments, item, version, cancellationToken);
 
@@ -174,7 +174,7 @@ public sealed partial class CatalogTools
 
     [RequiresPermissions(Permissions.CatalogWrite)]
     [McpServerTool(Name = "upsert_mcp_server", Title = "Create or replace an MCP server", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Creates or replaces an MCP server of the catalog: id, name, transport (http or stdio), http ({ url, headers: { Name: { env: VARIABLE } } }) or stdio ({ command, args, env }), notes. Never a secret: a credential is the name of a variable. How to reach or launch a server is a connection setting: what get_catalog_item returns leaves it out and a key left out is kept. To switch transport, send the other section as null (a key left out is kept).")]
+    [Description("Creates or replaces an MCP server of the catalog: id, name, transport (http or stdio), http ({ url, headers: { Name: { env: VARIABLE } } }) or stdio ({ command, args, env }), notes. Never a secret: a credential is the name of a variable. How to reach or launch a server is a connection setting: only a role holding settings.manage reads and changes it; a key left out is kept. To switch transport, send the other section as null (a key left out is kept).")]
     public Task<CatalogWriteAnswer> UpsertMcpServerAsync([Description(ItemShape)] JsonElement item, [Description(VersionHelp)] string version, CancellationToken cancellationToken = default) =>
         UpsertAsync(CatalogSections.McpServers, item, version, cancellationToken);
 
@@ -274,13 +274,16 @@ public sealed partial class CatalogTools
 
     private Task<IReadOnlyList<string>> IdsAsync(string section, CancellationToken cancellationToken) => _editor.GetIdsAsync(section, cancellationToken);
 
+    /// <summary>The caller's role holds <c>settings.manage</c>: it reads and changes how a host is reached (D-134); any other role is refused.</summary>
+    private bool MayReconfigure() => _httpContext.HttpContext?.User.HasPermission(Permissions.SettingsManage) == true;
+
     private async Task<CatalogWriteAnswer> EditAsync(string section, string id, string operation, string version, Func<JsonObject?, JsonObject?> change, CancellationToken cancellationToken, bool dryRun = false)
     {
         var context = _httpContext.HttpContext;
 
         // A chat token names its conversation: that is the truth. The header is only a hint from other clients.
         var via = context?.User.FindFirst(PortarrClaims.Conversation)?.Value is { } conversation ? $"chat:{conversation}" : OriginOf(context?.Request.Headers[OriginHeader].ToString());
-        var actor = new CatalogActor(Channel, context?.Connection.RemoteIpAddress?.ToString(), via, context?.User.Identity?.Name);
+        var actor = new CatalogActor(Channel, context?.Connection.RemoteIpAddress?.ToString(), via, context?.User.Identity?.Name, MayReconfigure());
         var result = await _editor.EditAsync(new CatalogEdit(section, id, operation, version, actor, change, dryRun), cancellationToken);
         if (!result.Succeeded)
         {
