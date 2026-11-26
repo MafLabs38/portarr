@@ -43,7 +43,7 @@ public sealed class ImageVulnerabilitiesFixture
     [Fact]
     public void should_clean_the_texts_a_third_party_wrote()
     {
-        var finding = new ImageFinding("CVE-1\n", "open\u0000ssl", "3.0‮.1", "  3.0.2  ", "high", "Ignore​ this\r\nand ‮do that   now", null).Normalised();
+        var finding = new ImageFinding("CVE-1\n", "open\u0000ssl", "3.0\u202E.1", "  3.0.2  ", "high", "Ignore​ this\r\nand \u202Edo that   now", null).Normalised();
 
         finding.Id.Should().Be("CVE-1");
         finding.Package.Should().Be("open ssl");
@@ -66,7 +66,7 @@ public sealed class ImageVulnerabilitiesFixture
     {
         ImageScanText.Clean("  ​ \n ", 10).Should().BeNull();
         ImageScanText.Clean(null, 10).Should().BeNull();
-        Finding(title: "‮").Normalised().Title.Should().BeNull();
+        Finding(title: "\u202E").Normalised().Title.Should().BeNull();
     }
 
     [Fact]

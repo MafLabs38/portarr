@@ -48,7 +48,7 @@ export interface RequestOutcome {
   ignored: number;
 }
 
-const lastingFailures: Reason[] = ['not-found', 'unauthorized', 'unsupported'];
+const lastingFailures: ReadonlySet<Reason> = new Set<Reason>(['not-found', 'unauthorized', 'unsupported']);
 
 /** A record whose kind is settled: an old file knows only images. */
 type Tracked = StoredImage & { kind: TargetKind };
@@ -61,7 +61,7 @@ export class Scanner {
   private records = new Map<string, Tracked>();
   private database: DatabaseInfo = {};
   /** Keys (kind and ref), oldest request first. */
-  private queue: string[] = [];
+  private readonly queue: string[] = [];
   private current: string | undefined;
   private working: Promise<void> | undefined;
   private saving: Promise<void> = Promise.resolve();
@@ -129,7 +129,7 @@ export class Scanner {
     return {
       generatedAt: new Date(now).toISOString(),
       database: this.database,
-      images: images.sort((a, b) => a.kind.localeCompare(b.kind) || a.ref.localeCompare(b.ref)),
+      images: images.toSorted((a, b) => a.kind.localeCompare(b.kind) || a.ref.localeCompare(b.ref)),
     };
   }
 
@@ -148,7 +148,7 @@ export class Scanner {
     // A failure that may pass is tried again soon; a lasting one, and a release without an SBOM (it may publish one with
     // its next version, not within the hour), wait for the normal rescan.
     const reason = record.reason as Reason;
-    const retrySoon = record.state === 'failed' && !lastingFailures.includes(reason) && reason !== 'no-sbom';
+    const retrySoon = record.state === 'failed' && !lastingFailures.has(reason) && reason !== 'no-sbom';
     const wait = retrySoon ? this.options.retryAfterMs : this.options.rescanAfterMs;
     return now - record.attemptedAt >= wait;
   }

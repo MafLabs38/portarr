@@ -45,7 +45,7 @@ public abstract class ImageScannerContract
     {
         var findings = new List<ImageFinding>
         {
-            new("CVE-2026-0001", "openssl", "3.0.1", "3.0.2", "CRITICAL", "A flaw‮ in the library\nwith a break", new Uri("https://avd.example/cve-2026-0001")),
+            new("CVE-2026-0001", "openssl", "3.0.1", "3.0.2", "CRITICAL", "A flaw\u202E in the library\nwith a break", new Uri("https://avd.example/cve-2026-0001")),
             new("CVE-2026-0002", "zlib", "1.2.0", null, "Moderate", "Insecure link", new Uri("http://insecure.example/cve")),
         };
         findings.AddRange(Enumerable.Range(0, 60).Select(i => new ImageFinding($"CVE-2026-1{i:D3}", $"pkg{i}", "1.0", "1.1", "high", $"Finding {i}", null)));
@@ -89,7 +89,7 @@ public abstract class ImageScannerContract
         {
             f.Severity.Should().BeOneOf(null, "critical", "high", "medium", "low");
             (f.Url is null || f.Url.Scheme == Uri.UriSchemeHttps).Should().BeTrue("a link in clear is dropped");
-            (f.Title ?? string.Empty).Should().NotContainAny("‮", "\n");
+            (f.Title ?? string.Empty).Should().NotContainAny("\u202E", "\n");
         });
         findings[0].Id.Should().Be("CVE-2026-0001");
         findings[0].Severity.Should().Be("critical");

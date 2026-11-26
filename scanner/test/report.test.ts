@@ -59,7 +59,7 @@ test('what a database wrote is cleaned: control and bidirectional characters, le
   const summary = summarise(
     report(
       vulnerability({
-        Title: `Ignore\u0000 the\nrules‮ and ${'x'.repeat(400)}`,
+        Title: `Ignore\u0000 the\nrules\u202E and ${'x'.repeat(400)}`,
         PrimaryURL: 'javascript:alert(1)',
       }),
     ),
@@ -81,7 +81,7 @@ test('a link is kept only when it is an absolute https address without credentia
 });
 
 test('clean drops what is not text, cuts by characters and says nothing for an empty value', () => {
-  assert.equal(clean('a​b⁦c', 10), 'abc');
+  assert.equal(clean('a​b\u2066c', 10), 'abc');
   assert.equal(clean('😀😀😀', 2), '😀😀');
   assert.equal(clean('   ', 10), undefined);
   assert.equal(clean(undefined, 10), undefined);

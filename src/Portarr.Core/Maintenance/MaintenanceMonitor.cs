@@ -103,6 +103,7 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
     private DateTimeOffset? _answeredAt;
     private volatile TaskCompletionSource _wake = NewWake();
 
+    [global::System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "Dependency injection: each parameter is a connector capability or a service the monitor orchestrates; a parameter object would only hide them.")]
     public MaintenanceMonitor(
         ICatalogService catalogService,
         IWorkloadInventory inventory,

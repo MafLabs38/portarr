@@ -179,7 +179,10 @@ export class TrivyCli implements TrivyRunner {
     try {
       const database = (JSON.parse(outcome.stdout) as { VulnerabilityDB?: { Version?: unknown; UpdatedAt?: unknown } })
         .VulnerabilityDB;
-      const version = database?.Version === undefined ? undefined : String(database.Version).slice(0, 50);
+      const version =
+        typeof database?.Version === 'string' || typeof database?.Version === 'number'
+          ? String(database.Version).slice(0, 50)
+          : undefined;
       const updatedAt =
         typeof database?.UpdatedAt === 'string' && !Number.isNaN(Date.parse(database.UpdatedAt))
           ? new Date(database.UpdatedAt).toISOString()
