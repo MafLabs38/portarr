@@ -163,6 +163,10 @@ public sealed class CatalogEditFixture : IClassFixture<CatalogEditHosts>
         (await operatorClient.SendAsync(Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin/notes", new { version = await VersionAsync(admin), notes = "x" }, null), Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden, "an operator changes nothing");
         (await operatorClient.GetAsync("/api/v1/apps", Token)).StatusCode.Should().Be(HttpStatusCode.OK, "an operator still reads the fleet");
         (await operatorClient.SendAsync(Request(HttpMethod.Get, "/api/v1/catalog/export", new { }, null), Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var checkedByKey = await admin.SendAsync(Request(HttpMethod.Post, "/api/v1/catalog/apps/jellyfin/validate", new { version = await VersionAsync(admin), item = new { name = "Jellyfin", check = new { url = "http://10.0.0.8:8096/health" } } }, Key), Token);
+        checkedByKey.StatusCode.Should().Be(HttpStatusCode.Forbidden, "a dry run says what a write would do for the same role");
+        var readByKey = await McpTestClient.CallAsync(admin, "get_catalog_item", """{"section":"apps","id":"jellyfin"}""", Key);
+        readByKey.Should().NotContain("10.0.0.9", "the MCP read leaves the connection out for a role that may not change it");
     }
 
     private static async Task<string> PersonalKeyAsync(HttpClient client)
