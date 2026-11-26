@@ -60,7 +60,7 @@
     "eslint-plugin-sonarjs": "4.2.2",
     "eslint-plugin-unicorn": "79.0.0",
     "globals": "17.14.0",
-    "jsdom": "29.1.1",
+    "jsdom": "31.0.1",
     "msw": "3.0.7",
     "prettier": "3.10.1",
     "semantic-release": "25.0.9",
