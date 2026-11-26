@@ -7,7 +7,7 @@
 # Both base images are pinned by version and digest (Dependabot keeps them current): Trivy is the program that reads every layer.
 FROM aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb AS trivy
 
-FROM node:22.18-alpine@sha256:1b2479dd35a99687d6638f5976fd235e26c5b37e8122f786fcd5fe231d63de5b
+FROM node:26.13-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5
 COPY --from=trivy /usr/local/bin/trivy /usr/local/bin/trivy
 
 WORKDIR /app
