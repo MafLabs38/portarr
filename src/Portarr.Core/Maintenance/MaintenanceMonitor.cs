@@ -455,7 +455,7 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
 
     /// <summary>
     /// The exploit intelligence (D-133), when it is on and an image scanner is declared (it enriches the scanner's findings, nothing else): the catalog of
-    /// known exploited vulnerabilities whole, and the predictions of the CVE ids the scanner's findings carry now, once a day (an hour after a failure). A CVE id
+    /// known exploited vulnerabilities whole, and the predictions of the CVE ids the scanner reports now (every finding's, not only those it describes), once a day (an hour after a failure). A CVE id
     /// that appears in between gets its prediction at the next daily read (its exploitation is known at once: the catalog is whole); a read that had no id to
     /// ask about is made again as soon as there are some. A part that cannot be read keeps the previous data, with the error next to it.
     /// </summary>

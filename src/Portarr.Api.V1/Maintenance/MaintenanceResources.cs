@@ -76,6 +76,12 @@ public sealed record ImageFindingResource(string Id, string Package, string Inst
 /// <summary>A finding known to be exploited in the wild (D-133, CISA KEV): the day it was added to the catalog, the day it is due to be mended (US federal deadline), and whether ransomware is known to use it.</summary>
 public sealed record KnownExploitedResource(DateOnly DateAdded, DateOnly? DueDate, bool KnownRansomwareUse);
 
+/// <summary>
+/// A vulnerability known to be exploited (D-133, CISA KEV) whose finding the scanner did not describe (it keeps only the worst, at most fifty): the scanner sends
+/// the ids of every finding, and each one is matched. <c>Id</c> is the CVE id; the dates and the ransomware flag are the catalog's, <c>Epss</c> as for a finding.
+/// </summary>
+public sealed record ExploitedVulnerabilityResource(string Id, DateOnly DateAdded, DateOnly? DueDate, bool KnownRansomwareUse, ExploitPredictionResource? Epss);
+
 /// <summary>The likelihood of exploitation in the next 30 days (D-133, FIRST EPSS): <c>Score</c> the probability, <c>Percentile</c> its rank among every scored vulnerability, both between 0 and 1.</summary>
 public sealed record ExploitPredictionResource(double Score, double Percentile);
 
@@ -93,6 +99,8 @@ public sealed record VulnerabilityCountsResource(int Critical, int High, int Med
 /// (the scanner failed or cannot be read) or not-scanned (an image it cannot read); <c>Reason</c>: image-id, not-found, unauthorized,
 /// unsupported, timeout, error, or the code of an unreachable scanner (unreachable, http-401, secret-missing…). <c>Counts</c> cover every severity,
 /// <c>Fixable</c> the ones that have a fix, <c>Findings</c> the worst ones at or above <c>PORTARR__VULNERABILITIES__MINSEVERITY</c>.
+/// <c>ExploitedBeyondFindings</c> (D-133): the vulnerabilities known to be exploited whose finding is not described; <c>IdsTruncated</c>: the scanner had more ids than
+/// it sent, so the match against the exploit intelligence is partial.
 /// </summary>
 public sealed record ImageVulnerabilitiesResource(
     string State,
@@ -100,12 +108,15 @@ public sealed record ImageVulnerabilitiesResource(
     DateTimeOffset? ScannedAt,
     VulnerabilityCountsResource Counts,
     VulnerabilityCountsResource Fixable,
-    IReadOnlyList<ImageFindingResource> Findings);
+    IReadOnlyList<ImageFindingResource> Findings,
+    IReadOnlyList<ExploitedVulnerabilityResource> ExploitedBeyondFindings,
+    bool IdsTruncated);
 
 /// <summary>
 /// The vulnerabilities of the latest release of a repository, read from the SBOM it publishes (D-132); absent when the repository has no release to scan.
 /// Read like an image's (<c>State</c>, <c>Reason</c>, <c>Counts</c>, <c>Fixable</c>, <c>Findings</c>; a release without an SBOM is not-scanned with the reason no-sbom).
 /// <c>ReleaseRepository</c> is the repository whose release is read (the repository itself, or the one the catalog maps it to); <c>Version</c> is the tag that was scanned.
+/// <c>ExploitedBeyondFindings</c> and <c>IdsTruncated</c> as for an image.
 /// </summary>
 public sealed record ReleaseVulnerabilitiesResource(
     string State,
@@ -115,7 +126,9 @@ public sealed record ReleaseVulnerabilitiesResource(
     string ReleaseRepository,
     VulnerabilityCountsResource Counts,
     VulnerabilityCountsResource Fixable,
-    IReadOnlyList<ImageFindingResource> Findings);
+    IReadOnlyList<ImageFindingResource> Findings,
+    IReadOnlyList<ExploitedVulnerabilityResource> ExploitedBeyondFindings,
+    bool IdsTruncated);
 
 /// <summary>The image scanner: declared in the catalog or not, when it was last read, its error code (the previous results stay) and the age of its vulnerability database.</summary>
 public sealed record ImageScannerResource(bool Configured, DateTimeOffset? ReadAt, string? Error, DateTimeOffset? DatabaseUpdatedAt);
@@ -251,7 +264,9 @@ public static class MaintenanceResourceMapper
         vulnerabilities.ScannedAt,
         ToResource(vulnerabilities.Counts),
         ToResource(vulnerabilities.Fixable),
-        FindingsOf(vulnerabilities));
+        FindingsOf(vulnerabilities),
+        ExploitedBeyondFindingsOf(vulnerabilities),
+        vulnerabilities.IdsTruncated);
 
     private static ReleaseVulnerabilitiesResource ToResource(ReleaseVulnerabilities release) => new(
         StateName(release.Vulnerabilities),
@@ -261,7 +276,9 @@ public static class MaintenanceResourceMapper
         release.ReleaseRepository,
         ToResource(release.Vulnerabilities.Counts),
         ToResource(release.Vulnerabilities.Fixable),
-        FindingsOf(release.Vulnerabilities));
+        FindingsOf(release.Vulnerabilities),
+        ExploitedBeyondFindingsOf(release.Vulnerabilities),
+        release.Vulnerabilities.IdsTruncated);
 
     private static VulnerabilityCountsResource ToResource(VulnerabilityCounts counts) => new(counts.Critical, counts.High, counts.Medium, counts.Low, counts.Unknown, counts.Total);
 
@@ -354,6 +371,14 @@ public static class MaintenanceResourceMapper
         VulnerabilityState.NotScanned => "not-scanned",
         _ => vulnerabilities.State.ToString().ToLowerInvariant(),
     };
+
+    private static List<ExploitedVulnerabilityResource> ExploitedBeyondFindingsOf(ImageVulnerabilities vulnerabilities) =>
+        [.. vulnerabilities.ExploitedBeyondFindings.Select(e => new ExploitedVulnerabilityResource(
+            e.Id,
+            e.Exploited.DateAdded,
+            e.Exploited.DueDate,
+            e.Exploited.KnownRansomwareUse,
+            e.Epss is { } epss ? new ExploitPredictionResource(epss.Score, epss.Percentile) : null))];
 
     private static List<ImageFindingResource> FindingsOf(ImageVulnerabilities vulnerabilities) =>
         [.. vulnerabilities.Findings.Select(f => new ImageFindingResource(

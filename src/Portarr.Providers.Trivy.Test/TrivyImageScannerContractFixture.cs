@@ -92,6 +92,8 @@ public sealed class TrivyImageScannerContractFixture : ImageScannerContract
                     ["title"] = f.Title,
                     ["url"] = f.Url?.AbsoluteUri,
                 }),
+                ["ids"] = image.VulnerabilityIds,
+                ["idsTruncated"] = image.VulnerabilityIds is null ? null : image.VulnerabilityIdsTruncated,
             });
             return JsonSerializer.Serialize(new Dictionary<string, object?>
             {

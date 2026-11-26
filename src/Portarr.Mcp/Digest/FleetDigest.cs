@@ -281,7 +281,7 @@ public sealed class FleetDigest
         var imageLines = images ? ImageLines(report, resource, thresholdRank) : [];
 
         var platformLines = platforms
-            ? resource.Platforms.Select(p => new PlatformLine(p.EnvironmentName, p.Machine, p.Kind, p.Name, p.Version, p.NewestPatchOfMinor, p.NextMinor, p.SupportedUntil?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), p.EndOfLife?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), p.Level, p.Lookup)).ToList()
+            ? resource.Platforms.Select(p => new PlatformLine(p.EnvironmentName, p.Machine, p.Kind, p.Name, p.Version, p.NewestPatchOfMinor, p.NextMinor, p.SupportedUntil?.ToString(DayFormat, System.Globalization.CultureInfo.InvariantCulture), p.EndOfLife?.ToString(DayFormat, System.Globalization.CultureInfo.InvariantCulture), p.Level, p.Lookup)).ToList()
             : [];
 
         return new MaintenanceDigest(
@@ -302,7 +302,7 @@ public sealed class FleetDigest
             .Select(r => r.Repository.FullName)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         return resource.Repositories.Where(r => NeedsAttention(r) || releaseWithFix.Contains(r.FullName))
-            .OrderBy(r => r.ReleaseVulnerabilities?.Findings.Any(f => f.Exploited is not null) == true ? 0 : 1)
+            .OrderBy(r => r.ReleaseVulnerabilities is { } v && HasExploited(v.Findings, v.ExploitedBeyondFindings) ? 0 : 1)
             .Select(r => RepositoryLineOf(r, names))
             .ToList();
     }
@@ -314,11 +314,14 @@ public sealed class FleetDigest
             .Select(i => i.Image.Display)
             .ToHashSet(StringComparer.Ordinal);
         return resource.Images.Where(i => i.Status is not "up-to-date" || withFix.Contains(i.Reference))
-            .OrderBy(i => i.Vulnerabilities.Findings.Any(f => f.Exploited is not null) ? 0 : 1)
+            .OrderBy(i => HasExploited(i.Vulnerabilities.Findings, i.Vulnerabilities.ExploitedBeyondFindings) ? 0 : 1)
             .ThenBy(i => i.Vulnerabilities.Fixable.Critical > 0 ? 0 : 1)
             .Select(ImageLineOf)
             .ToList();
     }
+
+    private static bool HasExploited(IReadOnlyList<ImageFindingResource> findings, IReadOnlyList<ExploitedVulnerabilityResource> beyond) =>
+        beyond.Count > 0 || findings.Any(f => f.Exploited is not null);
 
     public static IReadOnlyList<string> Cap(IEnumerable<string> subjects)
     {
@@ -410,6 +413,9 @@ public sealed class FleetDigest
 
     private const int MaxImageFindings = 10;
 
+    /// <summary>How a day is written in the digest.</summary>
+    private const string DayFormat = "yyyy-MM-dd";
+
     /// <summary>The scanner's reading of an image, or null when no scanner is declared (the line then carries nothing about vulnerabilities).</summary>
     private static ImageVulnerabilityLine? VulnerabilitiesOf(ImageVulnerabilitiesResource v) => v.State == "off"
         ? null
@@ -423,7 +429,15 @@ public sealed class FleetDigest
             v.Counts.Unknown,
             v.Fixable.Critical,
             v.Fixable.High,
-            WorstOf(v.Findings));
+            WorstOf(v.Findings),
+            ExploitedBeyondOf(v.ExploitedBeyondFindings),
+            v.ExploitedBeyondFindings.Count,
+            v.IdsTruncated);
+
+    /// <summary>At most ten known exploited ids beyond the findings (D-133), in the order the API gives (ransomware first, then the most likely); null when there are none.</summary>
+    private static List<ExploitedIdLine>? ExploitedBeyondOf(IReadOnlyList<ExploitedVulnerabilityResource> beyond) => beyond.Count == 0
+        ? null
+        : [.. beyond.Take(MaxImageFindings).Select(e => new ExploitedIdLine(e.Id, e.DateAdded.ToString(DayFormat, System.Globalization.CultureInfo.InvariantCulture), e.KnownRansomwareUse, e.Epss?.Score))];
 
     private static List<ImageFindingLine> WorstOf(IReadOnlyList<ImageFindingResource> findings) =>
         [.. findings.OrderBy(f => f.Exploited is null ? 1 : 0).Take(MaxImageFindings).Select(f => new ImageFindingLine(
@@ -435,7 +449,7 @@ public sealed class FleetDigest
             f.Title,
             f.Url is null ? null : SafeUrl.Of(f.Url),
             f.Exploited is not null,
-            f.Exploited?.DateAdded.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            f.Exploited?.DateAdded.ToString(DayFormat, System.Globalization.CultureInfo.InvariantCulture),
             f.Epss?.Score,
             f.Epss?.Percentile))];
 
@@ -454,7 +468,10 @@ public sealed class FleetDigest
             v.Counts.Unknown,
             v.Fixable.Critical,
             v.Fixable.High,
-            WorstOf(v.Findings));
+            WorstOf(v.Findings),
+            ExploitedBeyondOf(v.ExploitedBeyondFindings),
+            v.ExploitedBeyondFindings.Count,
+            v.IdsTruncated);
 
     private static ImageLine ImageLineOf(DeployedImageResource image) => new(
         image.Reference,

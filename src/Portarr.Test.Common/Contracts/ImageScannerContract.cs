@@ -32,6 +32,9 @@ public abstract class ImageScannerContract
     public const string Released = "example/desktop-app";
     public const string Unpublished = "example/library";
 
+    /// <summary>A low finding: never among the findings described, only in the full list of ids.</summary>
+    public const string LowOnly = "CVE-2026-9999";
+
     public static readonly DateTimeOffset DatabaseAt = new(2026, 11, 25, 3, 0, 0, TimeSpan.Zero);
 
     /// <summary>The POST calls the connector may make to tell the companion which images to scan.</summary>
@@ -49,16 +52,18 @@ public abstract class ImageScannerContract
             new("CVE-2026-0002", "zlib", "1.2.0", null, "Moderate", "Insecure link", new Uri("http://insecure.example/cve")),
         };
         findings.AddRange(Enumerable.Range(0, 60).Select(i => new ImageFinding($"CVE-2026-1{i:D3}", $"pkg{i}", "1.0", "1.1", "high", $"Finding {i}", null)));
+        // The ids of every finding (D-133): the sixty-two above, a low one never described, the same id twice, and two that are not plain ids.
+        List<string> ids = [.. findings.Select(f => f.Id), LowOnly, "CVE-2026-0001", "CVE-2026-9998 <b>", "-leading-dash"];
 
         return new ScannerReport(
             new DateTimeOffset(2026, 11, 25, 10, 0, 0, TimeSpan.Zero),
             DatabaseAt,
             [
-                new ImageScanResult(Scanned, ImageScanState.Scanned, null, new DateTimeOffset(2026, 11, 25, 9, 0, 0, TimeSpan.Zero), new VulnerabilityCounts(1, 61, 3, 4, 0), new VulnerabilityCounts(1, 60, 0, 0, 0), findings),
-                new ImageScanResult(Waiting, ImageScanState.Queued, null, null, new VulnerabilityCounts(9, 9, 9, 9, 9), VulnerabilityCounts.None, []),
+                new ImageScanResult(Scanned, ImageScanState.Scanned, null, new DateTimeOffset(2026, 11, 25, 9, 0, 0, TimeSpan.Zero), new VulnerabilityCounts(1, 61, 3, 4, 0), new VulnerabilityCounts(1, 60, 0, 0, 0), findings, VulnerabilityIds: ids),
+                new ImageScanResult(Waiting, ImageScanState.Queued, null, null, new VulnerabilityCounts(9, 9, 9, 9, 9), VulnerabilityCounts.None, [], VulnerabilityIds: ["CVE-2026-0001"], VulnerabilityIdsTruncated: true),
                 new ImageScanResult(Local, ImageScanState.Failed, ImageScanReasons.NotFound, null, VulnerabilityCounts.None, VulnerabilityCounts.None, []),
                 new ImageScanResult(Private, ImageScanState.Failed, "something-nobody-defined", null, VulnerabilityCounts.None, VulnerabilityCounts.None, []),
-                new ImageScanResult(Released, ImageScanState.Scanned, null, new DateTimeOffset(2026, 11, 25, 9, 30, 0, TimeSpan.Zero), new VulnerabilityCounts(0, 2, 0, 0, 0), new VulnerabilityCounts(0, 1, 0, 0, 0), [new ImageFinding("CVE-2026-2001", "Example.Package", "1.0.0", "1.0.1", "HIGH", "A flaw in a package", new Uri("https://avd.example/cve-2026-2001"))], ScanTargetKinds.Release, "v1.4.0"),
+                new ImageScanResult(Released, ImageScanState.Scanned, null, new DateTimeOffset(2026, 11, 25, 9, 30, 0, TimeSpan.Zero), new VulnerabilityCounts(0, 2, 0, 0, 0), new VulnerabilityCounts(0, 1, 0, 0, 0), [new ImageFinding("CVE-2026-2001", "Example.Package", "1.0.0", "1.0.1", "HIGH", "A flaw in a package", new Uri("https://avd.example/cve-2026-2001"))], ScanTargetKinds.Release, "v1.4.0", ["CVE-2026-2001", "CVE-2026-2002"], true),
                 new ImageScanResult(Unpublished, ImageScanState.Failed, ImageScanReasons.NoSbom, null, VulnerabilityCounts.None, VulnerabilityCounts.None, [], ScanTargetKinds.Release, "v0.9.0"),
             ]);
     }
@@ -170,6 +175,24 @@ public abstract class ImageScannerContract
         images.Single(i => i.Image == Released).Should().Match<ImageScanResult>(i => i.Kind == ScanTargetKinds.Release && i.State == ImageScanState.Scanned && i.Version == "v1.4.0" && i.Fixable.High == 1);
         images.Single(i => i.Image == Scanned).Version.Should().BeNull("only a release has a version");
         images.Single(i => i.Image == Unpublished).Should().Match<ImageScanResult>(i => i.Reason == ImageScanReasons.NoSbom && i.Version == null);
+    }
+
+    [Fact]
+    public async Task should_hand_back_the_ids_of_every_finding_plain_distinct_and_sorted_only_for_a_scanned_target()
+    {
+        var harness = Arrange();
+
+        var images = (await harness.Scanner.ReadAsync(TestContext.Current.CancellationToken)).Images;
+
+        var scanned = images.Single(i => i.Image == Scanned);
+        scanned.VulnerabilityIds.Should().NotBeNull();
+        scanned.VulnerabilityIds.Should().Contain([LowOnly, "CVE-2026-1059"], "an id is kept whether or not its finding is described");
+        scanned.VulnerabilityIds.Should().HaveCount(63).And.OnlyHaveUniqueItems().And.BeInAscendingOrder(StringComparer.Ordinal);
+        scanned.VulnerabilityIds.Should().AllSatisfy(id => PlainVulnerabilityIds.IsPlain(id).Should().BeTrue("text is never passed on as an id"));
+        scanned.VulnerabilityIdsTruncated.Should().BeFalse();
+        images.Single(i => i.Image == Released).Should().Match<ImageScanResult>(i => i.VulnerabilityIdsTruncated && i.VulnerabilityIds!.Count == 2, "a scanner with more ids than it sent says so");
+        images.Single(i => i.Image == Waiting).Should().Match<ImageScanResult>(i => i.VulnerabilityIds == null && !i.VulnerabilityIdsTruncated, "a target not scanned has no ids");
+        images.Single(i => i.Image == Local).VulnerabilityIds.Should().BeNull();
     }
 
     private static ScanTarget Image(string reference) => new(ScanTargetKinds.Image, reference);

@@ -26,6 +26,8 @@ const behindImage = {
     counts: { critical: 0, high: 0, medium: 0, low: 0, unknown: 0, total: 0 },
     fixable: { critical: 0, high: 0, medium: 0, low: 0, unknown: 0, total: 0 },
     findings: [],
+    exploitedBeyondFindings: [],
+    idsTruncated: false,
   },
 };
 

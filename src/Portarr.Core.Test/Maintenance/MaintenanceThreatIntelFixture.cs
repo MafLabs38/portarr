@@ -9,7 +9,7 @@ using Portarr.Test.Common;
 
 namespace Portarr.Core.Test.Maintenance;
 
-/// <summary>The monitor's step for the exploit intelligence (D-133): read once a day after the scanner, for the ids its findings carry, kept when it fails.</summary>
+/// <summary>The monitor's step for the exploit intelligence (D-133): read once a day after the scanner, for every id the scanner reports, kept when it fails.</summary>
 public sealed class MaintenanceThreatIntelFixture
 {
     private const string Declared = "imageScanner: { url: \"http://scanner.homelab.example:8489\", allowInsecure: true }\n";
@@ -47,6 +47,18 @@ public sealed class MaintenanceThreatIntelFixture
         intel.Should().Match<ThreatIntelSnapshot>(i => i.Enabled && i.At == _clock.GetUtcNow() && i.Error == null);
         intel.KnownExploited.Should().BeSameAs(_kev);
         intel.Predictions.Scores.Keys.Should().BeEquivalentTo("CVE-2021-44228", "CVE-2024-0002");
+    }
+
+    [Fact]
+    public async Task should_read_the_predictions_of_every_id_the_scanner_reports_not_only_its_findings()
+    {
+        _report = _report with { Images = [_report.Images[0] with { VulnerabilityIds = ["CVE-2021-44228", "CVE-2024-0002", "CVE-2024-0042"] }] };
+        var monitor = Monitor();
+
+        await monitor.RefreshAsync(TestContext.Current.CancellationToken);
+
+        await _intel.Received(1).ReadPredictionsAsync(Arg.Is<IReadOnlySet<string>>(ids => ids.SetEquals(new[] { "CVE-2021-44228", "CVE-2024-0002", "CVE-2024-0042" })), Arg.Any<CancellationToken>());
+        monitor.Current.Intel.Predictions.Scores.Should().ContainKey("CVE-2024-0042", "a low finding the scanner did not describe is scored too");
     }
 
     [Fact]

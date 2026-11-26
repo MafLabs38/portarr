@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using Portarr.Core.Workloads;
 
 namespace Portarr.Core.Maintenance;
@@ -135,6 +136,8 @@ public sealed record ScanTarget(string Kind, string Ref);
 /// What the scanner says of one scan target (an image reference, <see cref="Kind"/> <c>image</c>, or a repository, <c>release</c>; the pair kind and reference names a result). <c>Counts</c> cover every vulnerability, <c>Fixable</c> the ones that have a fix,
 /// <c>Findings</c> the worst of them (at most <see cref="MaxFindings"/>, severity high and critical, worst first). A target that
 /// is not <c>Scanned</c> has no counts and no findings. <c>Version</c> is the tag of the release that was scanned (a release target only).
+/// <c>VulnerabilityIds</c> are the ids of every finding, any severity (D-133: what is matched against the exploit intelligence, so that a finding cut from
+/// <c>Findings</c> is still known to be exploited), null when the scanner sent none; <c>VulnerabilityIdsTruncated</c> says the scanner had more than it sent.
 /// </summary>
 public sealed record ImageScanResult(
     string Image,
@@ -145,7 +148,9 @@ public sealed record ImageScanResult(
     VulnerabilityCounts Fixable,
     IReadOnlyList<ImageFinding> Findings,
     string Kind = ScanTargetKinds.Image,
-    string? Version = null)
+    string? Version = null,
+    IReadOnlyList<string>? VulnerabilityIds = null,
+    bool VulnerabilityIdsTruncated = false)
 {
     /// <summary>The longest release tag kept.</summary>
     public const int MaxVersionLength = 100;
@@ -155,11 +160,14 @@ public sealed record ImageScanResult(
 
     /// <summary>
     /// The same result with the safety rules applied once for every connector: closed reasons (only a failure has one), a
-    /// date only for a scanned image, non-negative counts, findings normalised, the worst first, at most <see cref="MaxFindings"/>.
+    /// date only for a scanned image, non-negative counts, findings normalised, the worst first, at most <see cref="MaxFindings"/>,
+    /// the full list of ids (only for a scanned target) plain, distinct, sorted and at most <see cref="PlainVulnerabilityIds.Max"/>.
     /// </summary>
     public ImageScanResult Normalised()
     {
         var scanned = State == ImageScanState.Scanned;
+        // One more than kept: a scanner that sent more than the Core keeps had more than it shows, whatever it said.
+        var ids = scanned && VulnerabilityIds is not null ? PlainVulnerabilityIds.Normalise(VulnerabilityIds, PlainVulnerabilityIds.Max + 1) : null;
         return this with
         {
             Reason = State == ImageScanState.Failed ? ImageScanReasons.Normalise(Reason) : null,
@@ -170,8 +178,30 @@ public sealed record ImageScanResult(
             Findings = scanned
                 ? [.. Findings.Select(f => f.Normalised()).Where(f => f.Id.Length > 0 && f.Package.Length > 0).OrderBy(f => VulnerabilitySeverities.Rank(f.Severity)).ThenBy(f => f.FixedVersion is null).Take(MaxFindings)]
                 : [],
+            VulnerabilityIds = ids is null ? null : [.. ids.Take(PlainVulnerabilityIds.Max)],
+            VulnerabilityIdsTruncated = ids is not null && (VulnerabilityIdsTruncated || ids.Count > PlainVulnerabilityIds.Max),
         };
     }
+
+    /// <summary>Every id the result knows: the full list the scanner sent and the ids of the findings (all a scanner without a full list gives).</summary>
+    public IEnumerable<string> AllVulnerabilityIds => (VulnerabilityIds ?? []).Concat(Findings.Select(f => f.Id)).Distinct(StringComparer.Ordinal);
+}
+
+/// <summary>The rule for the full list of vulnerability ids a scanner sends (D-133): plain ids only, never text.</summary>
+public static partial class PlainVulnerabilityIds
+{
+    /// <summary>The most ids kept per target: a scanner with more says so (<see cref="ImageScanResult.VulnerabilityIdsTruncated"/>).</summary>
+    public const int Max = 5000;
+
+    /// <summary>A plain id: <c>CVE-2026-1234</c>, <c>GHSA-xxxx-xxxx-xxxx</c>, <c>DLA-1234-1</c>… a letter or a digit, then at most 63 of letters, digits and <c>. _ : -</c>.</summary>
+    public static bool IsPlain(string? id) => id is { Length: > 0 and <= 64 } && IdPattern().IsMatch(id);
+
+    /// <summary>The plain ids only, once each, sorted, at most <paramref name="max"/> (<see cref="Max"/> by default).</summary>
+    public static IReadOnlyList<string> Normalise(IEnumerable<string?> ids, int max = Max) =>
+        [.. ids.Where(IsPlain).Select(id => id!).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).Take(max)];
+
+    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}\z", RegexOptions.CultureInvariant)]
+    private static partial Regex IdPattern();
 }
 
 /// <summary>

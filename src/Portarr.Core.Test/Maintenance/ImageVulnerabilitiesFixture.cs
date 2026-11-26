@@ -86,6 +86,39 @@ public sealed class ImageVulnerabilitiesFixture
     }
 
     [Fact]
+    public void should_keep_the_full_list_of_ids_plain_distinct_sorted_and_only_for_a_scanned_target()
+    {
+        var result = (Scanned([]) with { VulnerabilityIds = ["CVE-2026-0002", "CVE-2026-0001", "CVE-2026-0001", "CVE-1\n", "<b>x</b>", " ", new string('A', 65), "GHSA-aaaa-bbbb-cccc"] }).Normalised();
+
+        result.VulnerabilityIds.Should().Equal("CVE-2026-0001", "CVE-2026-0002", "GHSA-aaaa-bbbb-cccc");
+        result.VulnerabilityIdsTruncated.Should().BeFalse();
+        (Scanned([]) with { State = ImageScanState.Queued, VulnerabilityIds = ["CVE-2026-0001"], VulnerabilityIdsTruncated = true }).Normalised()
+            .Should().Match<ImageScanResult>(r => r.VulnerabilityIds == null && !r.VulnerabilityIdsTruncated, "a target that is not scanned has no ids");
+        Scanned([]).Normalised().VulnerabilityIds.Should().BeNull("a scanner that sends no list has none");
+    }
+
+    [Fact]
+    public void should_cut_the_list_of_ids_at_its_maximum_and_say_so()
+    {
+        var ids = Enumerable.Range(0, PlainVulnerabilityIds.Max + 10).Select(i => $"CVE-2026-{i:D5}").ToList();
+
+        var result = (Scanned([]) with { VulnerabilityIds = ids }).Normalised();
+
+        result.VulnerabilityIds.Should().HaveCount(PlainVulnerabilityIds.Max);
+        result.VulnerabilityIdsTruncated.Should().BeTrue("a scanner that sent more than is kept had more than is shown");
+        (Scanned([]) with { VulnerabilityIds = ["CVE-2026-0001"], VulnerabilityIdsTruncated = true }).Normalised().VulnerabilityIdsTruncated.Should().BeTrue("the scanner's own word is kept");
+    }
+
+    [Fact]
+    public void should_know_every_id_of_a_result_the_full_list_and_the_findings_or_the_findings_alone()
+    {
+        var withList = Scanned([Finding("CVE-2026-0001")]) with { VulnerabilityIds = ["CVE-2026-0002"] };
+
+        withList.AllVulnerabilityIds.Should().BeEquivalentTo("CVE-2026-0002", "CVE-2026-0001");
+        Scanned([Finding("CVE-2026-0001")]).AllVulnerabilityIds.Should().Equal("CVE-2026-0001");
+    }
+
+    [Fact]
     public void should_drop_a_finding_without_an_id_or_a_package()
     {
         var result = Scanned([Finding(" "), Finding("CVE-1", package: "​"), Finding("CVE-2")]).Normalised();

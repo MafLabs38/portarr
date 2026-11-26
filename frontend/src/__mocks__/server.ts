@@ -717,6 +717,8 @@ const vulnerabilitiesOff: ImageVulnerabilities = {
   counts: noVulnerabilities,
   fixable: noVulnerabilities,
   findings: [],
+  exploitedBeyondFindings: [],
+  idsTruncated: false,
 };
 
 const off = {
@@ -866,6 +868,8 @@ export const maintenanceReport: MaintenanceReport = {
             epss: { score: 0.9436, percentile: 0.9996 },
           },
         ],
+        exploitedBeyondFindings: [],
+        idsTruncated: false,
       },
       dependabotPullRequests: 3,
       ci: { workflow: 'CI', status: 'completed', conclusion: 'failure', failed: true, at: null, url: null },
@@ -1101,6 +1105,18 @@ export const imageVulnerabilitiesReport: MaintenanceReport = {
           epss: null,
         },
       ],
+      // A flaw known to be exploited whose finding the scanner did not describe (D-133), and a list of ids that was cut.
+      exploitedBeyondFindings: [
+        {
+          id: 'CVE-2021-44228',
+          dateAdded: '2021-12-10',
+          dueDate: '2021-12-24',
+          knownRansomwareUse: true,
+          epss: { score: 0.9436, percentile: 0.9996 },
+        },
+        { id: 'GHSA-xxxx-0009', dateAdded: '2024-03-01', dueDate: null, knownRansomwareUse: false, epss: null },
+      ],
+      idsTruncated: true,
     }),
     scannedImage('ghcr.io/example/blog:2.0', 'blog', {
       state: 'scanned',
@@ -1109,6 +1125,8 @@ export const imageVulnerabilitiesReport: MaintenanceReport = {
       counts: { critical: 0, high: 0, medium: 3, low: 1, unknown: 0, total: 4 },
       fixable: noVulnerabilities,
       findings: [],
+      exploitedBeyondFindings: [],
+      idsTruncated: false,
     }),
     scannedImage('ghcr.io/example/clean:1.0', 'clean', {
       state: 'scanned',
@@ -1117,6 +1135,8 @@ export const imageVulnerabilitiesReport: MaintenanceReport = {
       counts: noVulnerabilities,
       fixable: noVulnerabilities,
       findings: [],
+      exploitedBeyondFindings: [],
+      idsTruncated: false,
     }),
     scannedImage('ghcr.io/example/queue:1.0', 'queue', { ...vulnerabilitiesOff, state: 'queued' }),
     scannedImage('ghcr.io/example/broken:1.0', 'broken', { ...vulnerabilitiesOff, state: 'failed', reason: 'timeout' }),

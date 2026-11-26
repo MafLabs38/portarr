@@ -337,3 +337,60 @@ test('a file written before releases existed has no kind: its records are images
     ['image', 'release'],
   );
 });
+
+test('a scanned target carries the ids of all its findings, a failed or queued one none, and they survive a restart', async () => {
+  const { scanner, trivy, dir } = await harness();
+  trivy.answers.set(
+    'app:1',
+    report(vulnerability(), vulnerability({ VulnerabilityID: 'CVE-2026-0002', PkgName: 'zlib', Severity: 'LOW' })),
+  );
+  trivy.answers.set('gone:1', new ScanFailure('not-found'));
+  trivy.gate = new Promise(() => undefined);
+  scanner.request(images('app:1'));
+  assert.equal(scanner.results().images[0].ids, undefined, 'nothing while it is being scanned');
+  trivy.gate = undefined;
+
+  const second = await harness(dir);
+  second.trivy.answers = trivy.answers;
+  second.scanner.request(images('app:1', 'gone:1'));
+  await second.scanner.idle();
+
+  const [app, gone] = second.scanner.results().images;
+  assert.deepEqual(app.ids, ['CVE-2026-0001', 'CVE-2026-0002']);
+  assert.equal(app.idsTruncated, false);
+  assert.equal(gone.ids, undefined);
+  assert.equal(gone.idsTruncated, undefined);
+
+  const third = await harness(dir);
+  assert.deepEqual(third.scanner.results().images[0].ids, ['CVE-2026-0001', 'CVE-2026-0002']);
+});
+
+test('a file written before ids were kept still loads: its result has no ids, and a stored id that is not plain is dropped', async () => {
+  const { dir } = await harness();
+  const at = Date.parse('2026-11-25T09:00:00Z');
+  await writeFile(
+    join(dir, 'results.json'),
+    JSON.stringify({
+      database: {},
+      records: [
+        { image: 'old:1', requestedAt: at, attemptedAt: at, state: 'scanned', scannedAt: '2026-11-25T09:00:00.000Z' },
+        {
+          image: 'new:1',
+          requestedAt: at,
+          attemptedAt: at,
+          state: 'scanned',
+          scannedAt: '2026-11-25T09:00:00.000Z',
+          ids: ['CVE-2026-0001', 42, 'not plain'],
+          idsTruncated: true,
+        },
+      ],
+    }),
+  );
+
+  const { scanner } = await harness(dir);
+
+  const [fresh, old] = scanner.results().images;
+  assert.equal(old.ids, undefined);
+  assert.deepEqual(fresh.ids, ['CVE-2026-0001']);
+  assert.equal(fresh.idsTruncated, true);
+});

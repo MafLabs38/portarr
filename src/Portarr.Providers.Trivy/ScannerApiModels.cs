@@ -28,7 +28,9 @@ internal sealed record ScannerImage(
     [property: JsonPropertyName("version")] string? Version,
     [property: JsonPropertyName("counts")] ScannerCounts? Counts,
     [property: JsonPropertyName("fixable")] ScannerCounts? Fixable,
-    [property: JsonPropertyName("findings")] IReadOnlyList<ScannerFinding>? Findings);
+    [property: JsonPropertyName("findings")] IReadOnlyList<ScannerFinding>? Findings,
+    [property: JsonPropertyName("ids")] IReadOnlyList<string?>? Ids = null,
+    [property: JsonPropertyName("idsTruncated")] bool? IdsTruncated = null);
 
 internal sealed record ScannerCounts(
     [property: JsonPropertyName("critical")] int Critical,

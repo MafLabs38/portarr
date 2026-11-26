@@ -20,6 +20,13 @@
   font-weight: 700;
 }
 
+.beyondHeading {
+  margin: 4px 0 0;
+  color: var(--dangerColor);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+}
+
 .list {
   display: flex;
   flex-direction: column;

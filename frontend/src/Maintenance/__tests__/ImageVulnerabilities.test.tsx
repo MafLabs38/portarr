@@ -69,6 +69,50 @@ describe('image vulnerabilities on the Maintenance page', () => {
     expect(within(row).queryByRole('link', { name: 'GHSA-xxxx-0003' })).not.toBeInTheDocument();
   });
 
+  it('lists after the findings the flaws known to be exploited among the findings not shown, and says when the ids were cut', async () => {
+    useScanner();
+    const user = userEvent.setup();
+    renderWithProviders(<MaintenanceIndex />, '/?tab=images');
+
+    const row = await screen.findByRole('listitem', { name: 'ghcr.io/example/shop:1.4' });
+    await user.click(within(row).getByRole('button', { name: /^Details/ }));
+
+    expect(within(row).getByText('Also known to be exploited, among the findings not shown')).toBeInTheDocument();
+    const beyond = within(
+      within(row).getByRole('list', {
+        name: 'Known to be exploited, beyond the findings shown, in ghcr.io/example/shop:1.4',
+      }),
+    );
+    const items = beyond.getAllByRole('listitem');
+    expect(items).toHaveLength(2);
+    const cve = within(items[0] as HTMLElement);
+    expect(cve.getByRole('link', { name: 'CVE-2021-44228' })).toHaveAttribute(
+      'href',
+      'https://nvd.nist.gov/vuln/detail/CVE-2021-44228',
+    );
+    expect(cve.getByText('Exploited, ransomware')).toHaveAttribute('title', expect.stringContaining('2021-12-10'));
+    expect(cve.getByText('EPSS 94 %')).toBeInTheDocument();
+    // An id that is not a CVE id stays plain text, and an unknown EPSS shows nothing.
+    const other = within(items[1] as HTMLElement);
+    expect(other.getByText('GHSA-xxxx-0009')).toBeInTheDocument();
+    expect(other.queryByRole('link')).not.toBeInTheDocument();
+    expect(other.getByText('Exploited')).toBeInTheDocument();
+    expect(other.queryByText(/^EPSS/)).not.toBeInTheDocument();
+    expect(within(row).getByText(/sent only part of the ids/)).toBeInTheDocument();
+  });
+
+  it('shows no list of exploited flaws beyond the findings, and no truncation line, when there are none', async () => {
+    useScanner();
+    const user = userEvent.setup();
+    renderWithProviders(<MaintenanceIndex />, '/?tab=images');
+
+    const row = await screen.findByRole('listitem', { name: 'ghcr.io/example/blog:2.0' });
+    await user.click(within(row).getByRole('button', { name: /^Details/ }));
+
+    expect(within(row).queryByText('Also known to be exploited, among the findings not shown')).not.toBeInTheDocument();
+    expect(within(row).queryByText(/sent only part of the ids/)).not.toBeInTheDocument();
+  });
+
   it('shows medium and low when nothing is critical or high, and says when nothing is shown at the threshold', async () => {
     useScanner();
     const user = userEvent.setup();

@@ -132,6 +132,15 @@ export interface ExploitPrediction {
   percentile: number;
 }
 
+/**
+ * A vulnerability known to be exploited (D-133) whose finding is not among the findings shown: the scanner describes only the
+ * worst fifty, but every id it saw is matched. `id` is a CVE id.
+ */
+export interface ExploitedVulnerability extends KnownExploited {
+  id: string;
+  epss: ExploitPrediction | null;
+}
+
 /** The threat intelligence feeds (D-133): CISA's known exploited catalog and EPSS, read once a day. */
 export interface ThreatIntel {
   configured: boolean;
@@ -152,6 +161,10 @@ export interface ImageVulnerabilities {
   fixable: VulnerabilityCounts;
   /** At most 50, worst first, none below the threshold. */
   findings: ImageFinding[];
+  /** Known to be exploited, among the findings not shown (D-133); empty when none. */
+  exploitedBeyondFindings: ExploitedVulnerability[];
+  /** The scanner had more ids than it sent: what is known to be exploited may be more than shown. */
+  idsTruncated: boolean;
 }
 
 /** The vulnerabilities of the latest release of a repository (D-132): the same facts as an image's, plus the build they describe. */

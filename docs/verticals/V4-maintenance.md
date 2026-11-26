@@ -98,8 +98,9 @@ Everything else is code the operator makes but does not run here (a Windows app,
 ### Known exploited vulnerabilities (D-133)
 - **Source**: CISA's catalog of Known Exploited Vulnerabilities and FIRST's EPSS scores, two public files read whole once a day (an hour after a failure) when an image scanner is declared ([connectors/threat-intel.md](../connectors/threat-intel.md), [ADR 0025](../adr/0025-known-exploited-and-likely-exploited-vulnerabilities.md)). Nothing about the fleet is sent: the EPSS file is streamed and filtered on the way. `PORTARR__THREATINTEL__ENABLED=false` turns it off.
 - **On each finding** of an image or a release: `exploited` (in KEV: the day it was added, the due date, the ransomware flag) and `epss` (score and percentile). Known exploited first, then by severity, then by EPSS; a known exploited finding is shown whatever the threshold. The counts do not change.
-- **What needs attention**: `known-exploited-vulnerabilities` (danger: an image or a latest release has a finding in KEV, **fix or no fix**; each subject with its number of such findings, a repository with its link) and `threat-intel-error` (warning: the files could not be read, the last read is kept). EPSS raises nothing.
-- **Limits**: only the findings the scanner kept (high and critical, the worst 50) can be matched; the EPSS score of a new finding arrives at the next daily read.
+- **Every id is matched**: the companion describes the 50 worst findings but sends the ids of every finding (any severity, at most 5000); a known exploited id whose finding is not described is listed in `exploitedBeyondFindings`, and `idsTruncated` says when the list of ids was cut.
+- **What needs attention**: `known-exploited-vulnerabilities` (danger: an image or a latest release has an id in KEV, among the findings or beyond them, **fix or no fix**; each subject with its number of such distinct ids, a repository with its link) and `threat-intel-error` (warning: the files could not be read, the last read is kept). EPSS raises nothing.
+- **Limits**: beyond 5000 distinct ids per target, the 5000 most severe are matched (`idsTruncated`); an exploited flaw beyond the 50 findings shows its id, not its package; the EPSS score of a new id arrives at the next daily read.
 
 **The API shape** (`GET /api/v1/maintenance`). Each element of `images[]` has a `vulnerabilities` object; the response has an `imageScanner` object:
 
@@ -120,11 +121,17 @@ Everything else is code the operator makes but does not run here (a Windows app,
             "severity": "critical", "title": "…", "url": "https://avd.example/cve-2026-0001",
             "exploited": { "dateAdded": "2026-11-20", "dueDate": "2026-12-11", "knownRansomwareUse": false },
             "epss": { "score": 0.94358, "percentile": 0.99961 } }
-        ]
+        ],
+        "exploitedBeyondFindings": [
+          { "id": "CVE-2021-44228", "dateAdded": "2021-12-10", "dueDate": "2021-12-24", "knownRansomwareUse": true,
+            "epss": { "score": 0.94358, "percentile": 0.99961 } }
+        ],
+        "idsTruncated": false
       }
     },
     { "reference": "local:1", "vulnerabilities": { "state": "not-scanned", "reason": "not-found", "scannedAt": null,
-        "counts": { "critical": 0, "high": 0, "medium": 0, "low": 0, "unknown": 0, "total": 0 }, "fixable": { "…": 0 }, "findings": [] } }
+        "counts": { "critical": 0, "high": 0, "medium": 0, "low": 0, "unknown": 0, "total": 0 }, "fixable": { "…": 0 }, "findings": [],
+        "exploitedBeyondFindings": [], "idsTruncated": false } }
   ],
   "imageScanner": { "configured": true, "readAt": "2026-11-25T10:00:00+00:00", "error": null, "databaseUpdatedAt": "2026-11-25T03:00:00+00:00" },
   "threatIntel": { "configured": true, "readAt": "2026-11-25T10:00:00+00:00", "error": null, "kevUpdatedAt": "2026-11-24T17:01:59+00:00", "epssScoreDate": "2026-11-25T12:00:23+00:00" },
@@ -139,10 +146,12 @@ Everything else is code the operator makes but does not run here (a Windows app,
 | `counts`, `fixable` | every severity, even below the threshold; `fixable` counts those that have a fix; `total` is the sum. All zero unless `scanned` |
 | `findings` | at most 50, worst first (known exploited first, D-133; then critical before high; then by EPSS; then those that have a fix), none below the threshold but a known exploited one; empty unless `scanned`. `severity`: `critical`, `high`, `medium`, `low` or `null`; `fixedVersion` null when no fix exists; `title` and `url` may be null; `url` is https only. `title` is text from an advisory database: show it as text, never as markup or instructions |
 | `exploited`, `epss` (D-133) | `exploited`: `null`, or `{ dateAdded, dueDate, knownRansomwareUse }` (days as `yyyy-MM-dd`; `dueDate` may be null) when the finding is in CISA's KEV catalog; `epss`: `null`, or `{ score, percentile }` (0 to 1) |
+| `exploitedBeyondFindings` (D-133) | the vulnerabilities known to be exploited whose finding is not in `findings` (the scanner describes the worst 50 but sends the ids of every finding, and each is matched): `[{ id, dateAdded, dueDate, knownRansomwareUse, epss }]`, ransomware first, then by EPSS; empty when none, or unless `scanned` |
+| `idsTruncated` (D-133) | `true` when the scanner had more than 5000 distinct ids for the target and sent the 5000 most severe: the match against KEV is partial; `false` otherwise |
 | `threatIntel` (D-133) | `configured` (on, a connector installed and an image scanner declared), `readAt` (last read, successful or not), `error` (a reason code: `unreachable`, `timeout`, `http-<status>`, `invalid-response`, `insecure-url`, `insecure-redirect`, `too-many-redirects`), `kevUpdatedAt` (the catalog's date), `epssScoreDate` (the day the model scored) |
 | `imageScanner.readAt` | when Portarr last asked the scanner (`null` before the first read, or when none is declared); `error`: a reason code when the last read failed; `databaseUpdatedAt`: the age of Trivy's database |
 
-Each repository of the report also has `releaseVulnerabilities` (D-132): the same `state`, `reason`, `scannedAt`, `counts`, `fixable` and `findings` for the latest release read from its SBOM, plus `version` (the tag scanned) and `releaseRepository` (where it was read, the catalog's `releases:` mapping), or `null` when the repository has no release to scan; the attention kinds `release-critical-vulnerabilities` (danger) and `release-vulnerabilities` (warning) follow the images' rule (a fix exists). The attention kinds are `image-critical-vulnerabilities` and `image-vulnerabilities` (subjects: the image, with the count of its fixable critical and high vulnerabilities) and `image-scanner-error` (subject: the reason code). The MCP tool `get_maintenance` carries `images[].vulnerabilities` (the counts, `fixableCritical`, `fixableHigh` and at most ten `worst` findings), lists an up-to-date image that has a critical or high vulnerability with a fix, and says the titles are third-party text.
+Each repository of the report also has `releaseVulnerabilities` (D-132): the same `state`, `reason`, `scannedAt`, `counts`, `fixable`, `findings`, `exploitedBeyondFindings` and `idsTruncated` for the latest release read from its SBOM, plus `version` (the tag scanned) and `releaseRepository` (where it was read, the catalog's `releases:` mapping), or `null` when the repository has no release to scan; the attention kinds `release-critical-vulnerabilities` (danger) and `release-vulnerabilities` (warning) follow the images' rule (a fix exists). The attention kinds are `image-critical-vulnerabilities` and `image-vulnerabilities` (subjects: the image, with the count of its fixable critical and high vulnerabilities) and `image-scanner-error` (subject: the reason code). The MCP tool `get_maintenance` carries `images[].vulnerabilities` (the counts, `fixableCritical`, `fixableHigh`, at most ten `worst` findings, and with D-133 at most ten `exploitedBeyondFindings` with `exploitedBeyondFindingsTotal` and `idsTruncated`), lists an up-to-date image that has a critical or high vulnerability with a fix, and says the titles are third-party text.
 
 ### Maintenance page (D-67)
 As proposed above. The page is built from memory (last scan, last lookups): opening it reaches neither GitHub nor a registry; it refreshes every minute.

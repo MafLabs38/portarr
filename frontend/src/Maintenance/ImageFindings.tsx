@@ -1,4 +1,4 @@
-import type { ImageFinding, ImageVulnerabilities, KnownExploited } from 'typings/Maintenance';
+import type { ExploitedVulnerability, ImageFinding, ImageVulnerabilities, KnownExploited } from 'typings/Maintenance';
 import formatAge from 'Utilities/Date/formatAge';
 import translate from 'Utilities/String/translate';
 
@@ -40,13 +40,62 @@ function ExploitedBadge({ exploited }: Readonly<{ exploited: KnownExploited }>) 
   );
 }
 
+/** A CVE id links to its NVD page; any other id stays plain text. */
+const cvePattern = /^CVE-\d{4}-\d{4,}$/;
+
+function ExploitedId({ id }: Readonly<{ id: string }>) {
+  return cvePattern.test(id) ? (
+    <a className={styles.id} href={`https://nvd.nist.gov/vuln/detail/${id}`} rel="noreferrer" target="_blank">
+      {id}
+    </a>
+  ) : (
+    <span className={styles.id}>{id}</span>
+  );
+}
+
+function Epss({ epss }: Readonly<{ epss: ImageFinding['epss'] }>) {
+  return epss ? (
+    <span
+      className={styles.epss}
+      title={translate('FindingEpssTitle', { percentile: Math.round(epss.percentile * 100) })}
+    >
+      {translate('FindingEpss', { score: formatScore(epss.score) })}
+    </span>
+  ) : null;
+}
+
+/**
+ * The vulnerabilities known to be exploited whose finding is not shown (D-133): the scanner describes the worst fifty, but every
+ * id it saw is matched, so an exploited flaw is never silently absent.
+ */
+function ExploitedBeyondFindings({
+  image,
+  exploited,
+}: Readonly<{ image: string; exploited: ExploitedVulnerability[] }>) {
+  return (
+    <>
+      <p className={styles.beyondHeading}>{translate('ExploitedBeyondFindings')}</p>
+      <ul aria-label={translate('ExploitedBeyondFindingsOf', { image })} className={styles.list}>
+        {exploited.map((vulnerability) => (
+          <li className={styles.finding} key={vulnerability.id}>
+            <ExploitedBadge exploited={vulnerability} />
+            <ExploitedId id={vulnerability.id} />
+            <Epss epss={vulnerability.epss} />
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
 /**
  * The worst vulnerabilities of one image (D-131): severity, advisory id, package, the version it runs and the one that
  * fixes it, and the advisory's title cut to one line. Every text comes from a vulnerability database and is shown as
- * plain text, never as markup.
+ * plain text, never as markup. After them, the flaws known to be exploited among the findings not shown, and a line when the
+ * scanner's list of ids was itself cut (the match is then partial).
  */
 export default function ImageFindings({ id, image, vulnerabilities }: Readonly<ImageFindingsProps>) {
-  const { counts, fixable, findings, scannedAt } = vulnerabilities;
+  const { counts, fixable, findings, scannedAt, exploitedBeyondFindings, idsTruncated } = vulnerabilities;
   const severe = counts.critical + counts.high;
 
   return (
@@ -69,14 +118,7 @@ export default function ImageFindings({ id, image, vulnerabilities }: Readonly<I
               </span>
               {finding.exploited ? <ExploitedBadge exploited={finding.exploited} /> : null}
               <FindingId finding={finding} />
-              {finding.epss ? (
-                <span
-                  className={styles.epss}
-                  title={translate('FindingEpssTitle', { percentile: Math.round(finding.epss.percentile * 100) })}
-                >
-                  {translate('FindingEpss', { score: formatScore(finding.epss.score) })}
-                </span>
-              ) : null}
+              <Epss epss={finding.epss} />
               <span className={styles.package}>{finding.package}</span>
               <span className={styles.versions}>
                 {finding.installedVersion}
@@ -96,6 +138,10 @@ export default function ImageFindings({ id, image, vulnerabilities }: Readonly<I
           ))}
         </ul>
       )}
+      {exploitedBeyondFindings.length > 0 ? (
+        <ExploitedBeyondFindings exploited={exploitedBeyondFindings} image={image} />
+      ) : null}
+      {idsTruncated ? <p className={styles.empty}>{translate('VulnerabilityIdsTruncated')}</p> : null}
     </div>
   );
 }

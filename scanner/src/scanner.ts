@@ -4,7 +4,7 @@
 import { defaultMaxImages } from './config.ts';
 import { type Target, targetKey, type TargetKind } from './reference.ts';
 import type { ReleaseSource } from './release.ts';
-import { type Counts, emptyCounts, type Finding, hasResults, summarise } from './report.ts';
+import { type Counts, emptyCounts, type Finding, hasResults, idPattern, maxIds, summarise } from './report.ts';
 import type { ResultStore, StoredImage } from './store.ts';
 import { type DatabaseInfo, type Reason, ScanFailure, type TrivyRunner } from './trivy.ts';
 
@@ -22,6 +22,10 @@ export interface ImageResult {
   counts: Counts;
   fixable: Counts;
   findings: Finding[];
+  /** The distinct ids of every finding, any severity, sorted; only for a scanned target whose result has them. */
+  ids?: string[];
+  /** Only with `ids`: true when the target had more ids than the companion sends. */
+  idsTruncated?: boolean;
 }
 
 export interface ScanResults {
@@ -49,6 +53,17 @@ export interface RequestOutcome {
 }
 
 const lastingFailures: ReadonlySet<Reason> = new Set<Reason>(['not-found', 'unauthorized', 'unsupported']);
+
+/** The ids go with a scanned result only, and only a list of strings is passed on (a file is read back as it was). */
+function idsOf(record: StoredImage): Pick<ImageResult, 'ids' | 'idsTruncated'> {
+  if (record.state !== 'scanned' || !Array.isArray(record.ids)) {
+    return {};
+  }
+  return {
+    ids: record.ids.filter((id): id is string => typeof id === 'string' && idPattern.test(id)).slice(0, maxIds),
+    idsTruncated: record.idsTruncated === true,
+  };
+}
 
 /** A record whose kind is settled: an old file knows only images. */
 type Tracked = StoredImage & { kind: TargetKind };
@@ -165,6 +180,7 @@ export class Scanner {
       counts: record.counts ?? emptyCounts(),
       fixable: record.fixable ?? emptyCounts(),
       findings: record.findings ?? [],
+      ...idsOf(record),
     };
   }
 
@@ -224,6 +240,8 @@ export class Scanner {
         counts: undefined,
         fixable: undefined,
         findings: undefined,
+        ids: undefined,
+        idsTruncated: undefined,
       });
     }
     record.attemptedAt = this.options.now();

@@ -92,7 +92,7 @@ public sealed class MaintenanceReleaseVulnerabilitiesFixture
         var resource = Resource(Desktop);
 
         var json = JsonSerializer.SerializeToElement(resource, new JsonSerializerOptions(JsonSerializerDefaults.Web)).GetProperty("repositories")[0].GetProperty("releaseVulnerabilities");
-        json.EnumerateObject().Select(p => p.Name).Should().Equal("state", "reason", "scannedAt", "version", "releaseRepository", "counts", "fixable", "findings");
+        json.EnumerateObject().Select(p => p.Name).Should().Equal("state", "reason", "scannedAt", "version", "releaseRepository", "counts", "fixable", "findings", "exploitedBeyondFindings", "idsTruncated");
         json.GetProperty("state").GetString().Should().Be("scanned");
         json.GetProperty("version").GetString().Should().Be("v1.4.0");
         json.GetProperty("releaseRepository").GetString().Should().Be("example/desktop-app");

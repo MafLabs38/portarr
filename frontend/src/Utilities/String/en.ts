@@ -586,6 +586,8 @@ const en: Record<string, string> = {
   'Attention_known-exploited-vulnerabilities':
     '{count} vulnerabilities known to be exploited in the wild, in {images} running images or latest releases',
   'Attention_threat-intel-error': 'The exploit feeds could not be read: {reason}. The last data is kept.',
+  ExploitedBeyondFindings: 'Also known to be exploited, among the findings not shown',
+  ExploitedBeyondFindingsOf: 'Known to be exploited, beyond the findings shown, in {image}',
   FindingExploited: 'Exploited',
   FindingExploitedRansomware: 'Exploited, ransomware',
   FindingExploitedSince: 'In the CISA catalog of known exploited vulnerabilities since {date}',
@@ -635,6 +637,8 @@ const en: Record<string, string> = {
   VulnerabilitiesQueued: 'Scanning soon',
   VulnerabilityDetails: 'Details',
   VulnerabilityDetailsOf: 'Details: vulnerabilities of {image}',
+  VulnerabilityIdsTruncated:
+    'The scanner sent only part of the ids of this target: other flaws known to be exploited may not be shown.',
   VulnerabilityLabel: 'Vulnerabilities',
   VulnerabilityNotScanned: 'Not scanned',
   'VulnerabilityNotScanned_image-id': 'Local image id',
