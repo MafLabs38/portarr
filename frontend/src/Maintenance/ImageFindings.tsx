@@ -12,7 +12,7 @@ interface ImageFindingsProps {
 
 /** Only an https address becomes a link: the advisory database is third-party data. */
 function isSecureAddress(url: string | null): url is string {
-  return url !== null && url.startsWith('https://');
+  return url?.startsWith('https://') === true;
 }
 
 function FindingId({ finding }: Readonly<{ finding: ImageFinding }>) {
