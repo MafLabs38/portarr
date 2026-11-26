@@ -14,26 +14,20 @@ import { catalogSections } from 'typings/Catalog';
 import translate from 'Utilities/String/translate';
 
 import styles from './Catalog.module.css';
-import PendingPanel from './PendingPanel';
 import SectionPanel from './SectionPanel';
-import { usePendingChanges } from './useCatalog';
 
 /**
  * Settings, Catalog: the description of the infrastructure, edited here as through the API and the MCP tools (the same
  * path, the same checks). Every change ends up in the catalog file, which stays readable and versionable; this page is one
- * way to write it. A change to how a host is reached waits for an administrator.
+ * way to write it.
  */
 export default function CatalogPage() {
   const [tab, setTab] = useState<string>('apps');
   const portal = usePortal();
-  const pending = usePendingChanges();
   const { can } = usePermissions();
   const writable = portal.data?.writable === true;
 
-  const tabs = [
-    ...catalogSections.map((section) => ({ id: section, label: translate(`CatalogSection_${section}`) })),
-    { id: 'pending', label: translate('CatalogPending'), count: pending.data?.length },
-  ];
+  const tabs = catalogSections.map((section) => ({ id: section, label: translate(`CatalogSection_${section}`) }));
 
   return (
     <PageContent title={translate('Catalog')}>
@@ -50,11 +44,7 @@ export default function CatalogPage() {
           </div>
         ) : null}
         <MaintenanceTabs onSelect={setTab} selected={tab} tabs={tabs}>
-          {tab === 'pending' ? (
-            <PendingPanel />
-          ) : (
-            <SectionPanel key={tab} section={tab as (typeof catalogSections)[number]} writable={writable} />
-          )}
+          <SectionPanel key={tab} section={tab as (typeof catalogSections)[number]} writable={writable} />
         </MaintenanceTabs>
       </PageContentBody>
     </PageContent>

@@ -7,11 +7,9 @@ namespace Portarr.Core.Catalog.Editing;
 /// kubernetes, cloudflare, backrest, hostMetrics…) and what it fetches for an app (<c>check</c>). They hold an address and
 /// the name of the variable that holds the credential for it, so whoever can write them can make Portarr send that
 /// credential to another host. An MCP server's <c>http</c> and <c>stdio</c> are the same kind of setting (an address with its
-/// credential variables, or a command the operator's machines will run, D-125). Declaring a machine needs them, so they can be written, but not by anyone alone: a person
-/// holding <c>settings.manage</c> writes them directly, and any other author (an assistant, a key that only edits the
-/// catalog) leaves a <b>pending change</b> that such a person approves in Settings (<see cref="CatalogPendingStore"/>). Every
-/// change, approved or not, goes through <see cref="ConnectionGuardrails"/>. A read for an assistant leaves them out, and an
-/// edit that omits them keeps the current ones.
+/// credential variables, or a command the operator's machines will run, D-125). Whoever may edit the catalog writes them
+/// directly (D-134: no approval step), and every change to them goes through <see cref="ConnectionGuardrails"/>. A read for an
+/// assistant leaves them out, and an edit that omits them keeps the current ones.
 /// </summary>
 public static class ProtectedSettings
 {
@@ -48,13 +46,6 @@ public static class ProtectedSettings
             CatalogSections.Environments => [.. KeysOf(section, connectorSections), AddressKey],
             _ => KeysOf(section, connectorSections),
         };
-
-    /// <summary>Whether the edit sets, changes or removes a protected setting (removing an item that holds one counts).</summary>
-    public static bool Touches(JsonObject? current, JsonObject? next, IReadOnlyList<string> keys)
-    {
-        // Removing an item that holds a connection setting removes that connection: it waits for approval like its addition did.
-        return next is null ? keys.Any(key => current?[key] is not null) : ChangedKeys(current, next, keys).Count > 0;
-    }
 
     /// <summary>The protected keys the edit sets, changes or removes: the guardrails check these, not what the item already held.</summary>
     public static IReadOnlyList<string> ChangedKeys(JsonObject? current, JsonObject? next, IReadOnlyList<string> keys)

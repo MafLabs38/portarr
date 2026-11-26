@@ -52,13 +52,12 @@ public sealed class CatalogEditHosts : IAsyncLifetime
         await ReadOnly.DisposeAsync();
     }
 
-    /// <summary>Puts the writable host back as it started: the seeded catalog, no audit trail, nothing waiting, reloaded. Every test that writes starts here.</summary>
+    /// <summary>Puts the writable host back as it started: the seeded catalog, no audit trail, reloaded. Every test that writes starts here.</summary>
     public async Task ResetWritableAsync()
     {
         await File.WriteAllTextAsync(Path.Combine(Folder, "catalog.yaml"), Catalog, TestContext.Current.CancellationToken);
         File.Delete(Path.Combine(Folder, "catalog.audit.jsonl"));
         File.Delete(Path.Combine(Folder, "catalog.audit.jsonl.1"));
-        File.Delete(Path.Combine(Folder, "catalog.pending.json"));
         await Writable.Services.GetRequiredService<ICatalogService>().ReloadAsync(TestContext.Current.CancellationToken);
     }
 
@@ -126,65 +125,34 @@ public sealed class CatalogEditFixture : IClassFixture<CatalogEditHosts>
     }
 
     [Fact]
-    public async Task should_hold_a_change_of_how_a_host_is_reached_until_an_administrator_approves_it()
+    public async Task should_write_how_a_host_is_reached_at_once_for_a_key_that_edits_the_catalog()
     {
         await _hosts.ResetWritableAsync();
         using var admin = await _writable.CreateSignedInClientAsync();
-        using var operatorClient = await _writable.CreateSignedInClientAsync("Operator");
         var catalog = Path.Combine(_folder, "catalog.yaml");
-        var version = await VersionAsync(admin);
-        var item = new { version, item = new { name = "Jellyfin", check = new { url = "http://10.0.0.9:8096/health" } } };
+        var item = new { version = await VersionAsync(admin), item = new { name = "Jellyfin", check = new { url = "http://10.0.0.9:8096/health" } } };
 
-        var asked = await admin.SendAsync(Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin", item, Key), Token);
-        var renamed = await admin.SendAsync(Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin", new { version, item = new { name = "Jellyfin 2" } }, Key), Token);
+        var written = await admin.SendAsync(Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin", item, Key), Token);
 
-        asked.StatusCode.Should().Be(HttpStatusCode.Accepted, "a key that only edits the catalog may not say how a host is reached alone");
-        var pending = await admin.GetFromJsonAsync<List<CatalogPendingResource>>("/api/v1/catalog/pending", Token);
-        var change = pending.Should().ContainSingle().Subject;
-        change.Section.Should().Be("apps");
-        renamed.StatusCode.Should().Be(HttpStatusCode.OK, "the rest of an item is written at once");
-        (await File.ReadAllTextAsync(catalog, Token)).Should().NotContain("10.0.0.9");
-
-        (await operatorClient.SendAsync(Request(HttpMethod.Post, $"/api/v1/catalog/pending/{change.Id}/approve", new { }, null), Token))
-            .StatusCode.Should().Be(HttpStatusCode.Forbidden, "approving needs settings.manage");
-        var approved = await admin.SendAsync(Request(HttpMethod.Post, $"/api/v1/catalog/pending/{change.Id}/approve", new { }, null), Token);
-
-        approved.StatusCode.Should().Be(HttpStatusCode.OK);
+        written.StatusCode.Should().Be(HttpStatusCode.OK, "no approval step: whoever may edit the catalog writes how a host is reached (D-134)");
+        (await written.Content.ReadFromJsonAsync<CatalogEditResource>(Token))!.Status.Should().Be("applied");
         (await File.ReadAllTextAsync(catalog, Token)).Should().Contain("http://10.0.0.9:8096/health");
-        (await admin.GetFromJsonAsync<List<CatalogPendingResource>>("/api/v1/catalog/pending", Token)).Should().BeEmpty();
     }
 
     [Fact]
-    public async Task should_show_how_a_host_is_reached_in_a_waiting_change_only_to_whoever_may_reconfigure()
+    public async Task should_show_how_a_host_is_reached_only_to_whoever_may_reconfigure()
     {
         await _hosts.ResetWritableAsync();
         using var admin = await _writable.CreateSignedInClientAsync();
         using var operatorClient = await _writable.CreateSignedInClientAsync("Operator");
-        var version = await VersionAsync(admin);
-        await admin.SendAsync(Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin", new { version, item = new { name = "Jellyfin", check = new { url = "http://10.0.0.9:8096/health" } } }, Key), Token);
+        await admin.SendAsync(Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin", new { version = await VersionAsync(admin), item = new { name = "Jellyfin", check = new { url = "http://10.0.0.9:8096/health" } } }, null), Token);
 
-        var asKey = await Pending(admin, Key);
-        var asAdmin = await Pending(admin, null);
+        var asOperator = await operatorClient.GetFromJsonAsync<CatalogSectionResource>("/api/v1/catalog/apps", Token);
+        var asAdmin = await admin.GetFromJsonAsync<CatalogSectionResource>("/api/v1/catalog/apps", Token);
 
-        asKey.Single().After!.ContainsKey("check").Should().BeFalse("a key that only edits the catalog does not read how a host is reached");
-        asKey.Single().After!["name"]!.ToString().Should().Be("Jellyfin");
-        asAdmin.Single().After!["check"]!["url"]!.ToString().Should().Be("http://10.0.0.9:8096/health");
+        asOperator!.Items.Single(i => i["id"]!.ToString() == "jellyfin").ContainsKey("check").Should().BeFalse("an operator does not read how a host is reached");
+        asAdmin!.Items.Single(i => i["id"]!.ToString() == "jellyfin")["check"]!["url"]!.ToString().Should().Be("http://10.0.0.9:8096/health");
         (await operatorClient.SendAsync(Request(HttpMethod.Get, "/api/v1/catalog/export", new { }, null), Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden, "the export needs settings.manage");
-        (await operatorClient.SendAsync(Request(HttpMethod.Delete, $"/api/v1/catalog/pending/{asAdmin.Single().Id}", new { }, null), Token)).StatusCode.Should().Be(HttpStatusCode.Forbidden, "rejecting needs settings.manage");
-        (await admin.SendAsync(Request(HttpMethod.Post, "/api/v1/catalog/pending/unknown/approve", new { }, null), Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
-        (await admin.SendAsync(Request(HttpMethod.Delete, "/api/v1/catalog/pending/unknown", new { }, null), Token)).StatusCode.Should().Be(HttpStatusCode.NotFound);
-    }
-
-    private static async Task<List<CatalogPendingResource>> Pending(HttpClient client, string? key)
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/catalog/pending");
-        if (key is not null)
-        {
-            request.Headers.Add("X-Api-Key", key);
-        }
-
-        var response = await client.SendAsync(request, Token);
-        return (await response.Content.ReadFromJsonAsync<List<CatalogPendingResource>>(Token))!;
     }
 
     [Fact]
@@ -203,20 +171,20 @@ public sealed class CatalogEditFixture : IClassFixture<CatalogEditHosts>
     }
 
     [Fact]
-    public async Task should_remove_a_connection_setting_sent_as_null_for_an_administrator_and_hold_it_for_a_key()
+    public async Task should_remove_a_connection_setting_sent_as_null_and_keep_one_left_out()
     {
         await _hosts.ResetWritableAsync();
         using var admin = await _writable.CreateSignedInClientAsync();
         var catalog = Path.Combine(_folder, "catalog.yaml");
         await admin.SendAsync(Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin", new { version = await VersionAsync(admin), item = new { name = "Jellyfin", check = new { url = "http://10.0.0.9:8096/health" } } }, null), Token);
 
-        var asKey = await admin.SendAsync(Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin", new { version = await VersionAsync(admin), item = new { name = "Jellyfin", check = (object?)null } }, Key), Token);
-        var held = (await Pending(admin, null)).Single();
-        var asAdmin = await admin.SendAsync(Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin", new { version = await VersionAsync(admin), item = new { name = "Jellyfin", check = (object?)null } }, null), Token);
+        var leftOut = await admin.SendAsync(Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin", new { version = await VersionAsync(admin), item = new { name = "Jellyfin 2" } }, Key), Token);
+        var kept = await File.ReadAllTextAsync(catalog, Token);
+        var removed = await admin.SendAsync(Request(HttpMethod.Put, "/api/v1/catalog/apps/jellyfin", new { version = await VersionAsync(admin), item = new { name = "Jellyfin", check = (object?)null } }, Key), Token);
 
-        asKey.StatusCode.Should().Be(HttpStatusCode.Accepted, "removing a connection waits for approval for a key that only edits the catalog");
-        held.After!.ContainsKey("check").Should().BeFalse();
-        asAdmin.StatusCode.Should().Be(HttpStatusCode.OK);
+        leftOut.StatusCode.Should().Be(HttpStatusCode.OK);
+        kept.Should().Contain("10.0.0.9", "a key left out is kept");
+        removed.StatusCode.Should().Be(HttpStatusCode.OK);
         (await File.ReadAllTextAsync(catalog, Token)).Should().NotContain("10.0.0.9");
     }
 
@@ -230,15 +198,14 @@ public sealed class CatalogEditFixture : IClassFixture<CatalogEditHosts>
         var version = await VersionAsync(operatorClient);
 
         var valid = await operatorClient.SendAsync(Request(HttpMethod.Post, "/api/v1/catalog/apps/jellyfin/validate", new { version, item = new { name = "Jellyfin 3" } }, null), Token);
-        var wouldWait = await operatorClient.SendAsync(Request(HttpMethod.Post, "/api/v1/catalog/apps/jellyfin/validate", new { version, item = new { name = "Jellyfin", check = new { url = "http://10.0.0.9:8096/health" } } }, null), Token);
+        var withCheck = await operatorClient.SendAsync(Request(HttpMethod.Post, "/api/v1/catalog/apps/jellyfin/validate", new { version, item = new { name = "Jellyfin", check = new { url = "http://10.0.0.9:8096/health" } } }, null), Token);
         var invalid = await operatorClient.SendAsync(Request(HttpMethod.Post, "/api/v1/catalog/apps/jellyfin/validate", new { version, item = new { name = "Jellyfin", stack = "nowhere" } }, null), Token);
 
         valid.StatusCode.Should().Be(HttpStatusCode.OK);
         (await valid.Content.ReadAsStringAsync(Token)).Should().Contain("\"valid\"");
-        wouldWait.StatusCode.Should().Be(HttpStatusCode.Accepted);
+        withCheck.StatusCode.Should().Be(HttpStatusCode.OK);
         invalid.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await File.ReadAllTextAsync(catalog, Token)).Should().Be(before);
-        (await operatorClient.GetFromJsonAsync<List<CatalogPendingResource>>("/api/v1/catalog/pending", Token)).Should().BeEmpty("a check queues nothing");
     }
 
     [Fact]
@@ -293,7 +260,7 @@ public sealed class CatalogEditFixture : IClassFixture<CatalogEditHosts>
     }
 
     [Fact]
-    public async Task should_keep_an_mcp_server_for_approval_write_a_workstation_and_check_without_writing()
+    public async Task should_write_an_mcp_server_and_a_workstation_and_check_without_writing()
     {
         await _hosts.ResetWritableAsync();
         using var client = await _writable.CreateSignedInClientAsync();
@@ -302,17 +269,16 @@ public sealed class CatalogEditFixture : IClassFixture<CatalogEditHosts>
         var version = Version(await McpTestClient.CallAsync(client, "get_catalog_item", """{"section":"apps"}""", Key));
 
         var checkedOnly = JsonDocument.Parse(await McpTestClient.CallAsync(client, "get_catalog_item_check", $$$"""{"section":"mcpServers","item":{"id":"docs","name":"Docs","transport":"http","http":{"url":"https://10.0.0.20:8080/mcp"}},"version":"{{{version}}}"}""", Key)).RootElement;
-        var held = JsonDocument.Parse(await McpTestClient.CallAsync(client, "upsert_mcp_server", $$$"""{"item":{"id":"docs","name":"Docs","transport":"http","http":{"url":"https://10.0.0.20:8080/mcp"}},"version":"{{{version}}}"}""", Key)).RootElement;
-        var written = JsonDocument.Parse(await McpTestClient.CallAsync(client, "upsert_workstation", $$"""{"item":{"id":"desk","name":"Desk","os":"linux","clients":["claude-code"]},"version":"{{version}}"}""", Key)).RootElement;
+        var checkedText = await File.ReadAllTextAsync(file, TestContext.Current.CancellationToken);
+        var server = JsonDocument.Parse(await McpTestClient.CallAsync(client, "upsert_mcp_server", $$$"""{"item":{"id":"docs","name":"Docs","transport":"http","http":{"url":"https://10.0.0.20:8080/mcp"}},"version":"{{{version}}}"}""", Key)).RootElement;
+        var written = JsonDocument.Parse(await McpTestClient.CallAsync(client, "upsert_workstation", $$"""{"item":{"id":"desk","name":"Desk","os":"linux","clients":["claude-code"]},"version":"{{Version(server.GetRawText())}}"}""", Key)).RootElement;
 
-        checkedOnly.GetProperty("status").GetString().Should().Be("pending", "the check says what a write would do");
-        held.GetProperty("status").GetString().Should().Be("pending");
-        held.GetProperty("pendingId").GetString().Should().NotBeNullOrEmpty();
-        held.TryGetProperty("next", out var next).Should().BeTrue();
-        next.GetString().Should().NotBeNullOrEmpty("the assistant is told who approves and where");
+        checkedOnly.GetProperty("status").GetString().Should().Be("valid", "the check says what a write would do");
+        checkedText.Should().NotContain("10.0.0.20", "a check writes nothing");
+        server.GetProperty("status").GetString().Should().Be("applied", "no approval step (D-134)");
         written.GetProperty("status").GetString().Should().Be("applied");
         var text = await File.ReadAllTextAsync(file, TestContext.Current.CancellationToken);
-        text.Should().Contain("id: desk").And.NotContain("10.0.0.20", "an address waits for approval, and a check writes nothing");
+        text.Should().Contain("id: desk").And.Contain("https://10.0.0.20:8080/mcp");
     }
 
     [Fact]

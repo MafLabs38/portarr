@@ -93,7 +93,7 @@ secretStore:                          # optional, see "Secrets"
   prefix: kv/mcp                      # where the MCP secrets live
 ```
 
-- The catalog is the **only place** where a server or a workstation is defined. It is edited like every other section: by hand, from Settings, Catalog, through the API or through the MCP tools (D-125, which amends D-112); how a server is reached or launched waits for an administrator's approval.
+- The catalog is the **only place** where a server or a workstation is defined. It is edited like every other section: by hand, from Settings, Catalog, through the API or through the MCP tools (D-125, which amends D-112); how a server is reached or launched is written at once like the rest (D-134).
 - A value is a harmless literal or `{ env: NAME }`. A header or variable whose name suggests a credential (authorization, key, token, secret, password…) accepts only the second form. A literal that looks like a secret is refused by the heuristic of D-84 (private keys, token formats, `password=…`, credentials in URLs, long random strings), naming the field, never the value.
 - `{ env: NAME }` is a variable **on the workstation**, read by the client. Portarr never reads it (unlike a connector's `tokenEnv`; D-108's namespaces do not apply). `secret:` is the key, under the store's `prefix`, whose value the workstation puts in that variable; it needs a `secretStore`.
 - The clients a workstation may name, and the kinds of secret store, are those of the implementations that registered (D-113, D-116): the parser asks for them, it holds no list.
@@ -155,7 +155,7 @@ Portarr holds no secret and hands none out. The secrets live in the operator's v
 
 ### Security (D-112, amended by D-125)
 
-- **A server definition is instructions an assistant will execute**: a `stdio` command runs code on a workstation, an `http` URL receives its headers. So `http` and `stdio` are **protected settings** (D-123, D-125): a person holding `settings.manage` writes them at once, anyone else (an assistant, a key that only edits the catalog) leaves a **pending change** that an administrator approves in Settings, Catalog, and every address passes the connection guardrails. The rest of a server (its name, notes) and the workstations are written like any other item. A read for an assistant leaves `http` and `stdio` out. `secretStore` stays in the file: nothing writes it.
+- **A server definition is instructions an assistant will execute**: a `stdio` command runs code on a workstation, an `http` URL receives its headers. So `http` and `stdio` are **protected settings** (D-123, D-125, amended by D-134): whoever may edit the catalog writes them at once (no approval step since D-134), and every address passes the connection guardrails. The rest of a server (its name, notes) and the workstations are written like any other item. A read for an assistant leaves `http` and `stdio` out. `secretStore` stays in the file: nothing writes it.
 - The four MCP tools of this vertical are read-only. The catalog write tools (D-86, off by default) include `upsert_mcp_server` and `upsert_workstation` (D-125); they refuse `secretStore`.
 - Portarr cannot make a client ask permission. The guards are the instruction to the assistant and the client's own prompts for file edits and commands. The page says so.
 - `http://` needs `allowInsecure: true` on the server (D-103). A `stdio` command is a program and its arguments, never a shell line. An unpinned `npx` or `uvx` package is flagged on the server's page.
@@ -210,7 +210,7 @@ One vertical, three steps, developed in the sandbox and delivered in one pull re
 - [x] For each supported client, the rendering of an `http` and a `stdio` server matches its golden file and contains no secret value; a quote character that would escape the quoting is never written inside a command
 - [x] A healthy fixture server, a 401 one, a dead one, a non-MCP one and a probe that failed give Healthy, Healthy asking for credentials, Down (twice) and Unknown; the last healthy time and the down-since survive a restart on SQLite and PostgreSQL; nothing probes a workstation
 - [x] `mcp.use` is held by Admin and Operator and by neither Observer nor Guest; role × endpoint and role × tool matrices
-- [x] A server's `http` and `stdio` are protected settings: an assistant leaves a pending change for approval (D-125), the read for an assistant leaves them out, `secretStore` is never written; the four MCP tools of this vertical are read-only
+- [x] A server's `http` and `stdio` are protected settings: written at once since D-134 (they used to wait for approval, D-125), the read for an assistant leaves them out, `secretStore` is never written; the four MCP tools of this vertical are read-only
 - [x] Adding a client is a new class and its registration: no other file of Core changes (a test registers a stand-in client)
 - [ ] (the maintainer, on the preview) An assistant connected to the sandbox obtains the exact command to add a server at user scope for its client, and a workstation's plan with what to install and what to remove
 - [x] A Down server appears in `get_overview` with the time since, for a caller with `mcp.use` only

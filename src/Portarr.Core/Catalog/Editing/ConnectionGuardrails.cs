@@ -6,16 +6,15 @@ using Portarr.Core.Net;
 namespace Portarr.Core.Catalog.Editing;
 
 /// <summary>
-/// What a change to how a host is reached may not contain, whoever makes it (a person, an approval, an assistant): the
+/// What a change to how a host is reached may not contain, whoever makes it (a person or an assistant): the
 /// catalog never holds a secret (the settings name an environment variable), and an address Portarr will call must not be a
 /// door to Portarr itself or to a cloud metadata service. Checked on the settings of <see cref="ProtectedSettings"/> and on the
 /// links and the address that a check fetches (<see cref="ProtectedSettings.GuardedKeysOf"/>), on every address a change sets or changes (what an item already holds is not judged again): <c>http</c>, <c>https</c>,
 /// <c>tcp</c> (a Docker proxy) or <c>unix</c> (a Docker socket), no <c>user:password@</c>, and an address literal that
 /// <see cref="OutboundAddressPolicy"/> accepts (a LAN address does; loopback and link-local do not), nor the names that always mean
 /// them (<c>localhost</c>, a cloud metadata name). Other host names are not resolved here: the catalog is edited offline, the
-/// connectors confine the credential variables they accept, and for the protected settings an administrator's approval is the
-/// control. The links and the address of an environment are not approved, so a name that resolves to a loopback or metadata address
-/// is a known limit there (a connect-time check is the control, and is not added: R-144-103).
+/// connectors confine the credential variables they accept, and who may edit the catalog is the control (D-134). A name that
+/// resolves to a loopback or metadata address is a known limit (a connect-time check is the control, and is not added: R-144-103).
 /// </summary>
 public static partial class ConnectionGuardrails
 {

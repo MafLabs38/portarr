@@ -48,9 +48,6 @@ public enum CatalogEditStatus
     /// <summary>The edit, or the catalog it would produce, is not valid.</summary>
     Invalid,
 
-    /// <summary>The edit changes how a host is reached and its author may not do that alone: it waits for an administrator's approval, nothing is written yet.</summary>
-    Pending,
-
     /// <summary>A dry run: the edit would be accepted as it is, nothing was written.</summary>
     Valid,
 }
@@ -59,10 +56,8 @@ public enum CatalogEditStatus
 /// Who asked for an edit: the channel (<c>api</c>, <c>mcp</c>, <c>console</c>), the client's address and, for an MCP
 /// client that says so, where the request came from (<c>chat:&lt;conversation&gt;</c> for the built-in chat, D-89)
 /// and, since accounts (V7, D-96), the user who made the edit (<c>system</c> for the deprecated environment keys).
-/// <c>Reconfigure</c> says the author may change how a host is reached (<see cref="ProtectedSettings"/>) without approval:
-/// a person holding <c>settings.manage</c>, never an assistant.
 /// </summary>
-public sealed record CatalogActor(string Channel, string? Client, string? Via = null, string? User = null, bool Reconfigure = false);
+public sealed record CatalogActor(string Channel, string? Client, string? Via = null, string? User = null);
 
 /// <summary>
 /// One edit of one catalog item. <c>Change</c> gets the current item (null when absent) and returns the new one
@@ -83,10 +78,10 @@ public sealed record CatalogEdit(
 /// The outcome of an edit. <c>Version</c> is the catalog's version after it (or the current one when refused);
 /// <c>Changes</c> summarises what changed (<c>notes: changed</c>); <c>Errors</c> say why it was refused.
 /// </summary>
-public sealed record CatalogEditResult(CatalogEditStatus Status, string Version, IReadOnlyList<string> Changes, IReadOnlyList<string> Errors, string? PendingId = null)
+public sealed record CatalogEditResult(CatalogEditStatus Status, string Version, IReadOnlyList<string> Changes, IReadOnlyList<string> Errors)
 {
-    /// <summary>Not refused: applied, unchanged, waiting for approval, or a dry run that would pass.</summary>
-    public bool Succeeded => Status is CatalogEditStatus.Applied or CatalogEditStatus.Unchanged or CatalogEditStatus.Pending or CatalogEditStatus.Valid;
+    /// <summary>Not refused: applied, unchanged, or a dry run that would pass.</summary>
+    public bool Succeeded => Status is CatalogEditStatus.Applied or CatalogEditStatus.Unchanged or CatalogEditStatus.Valid;
 }
 
 /// <summary>One item as the file holds it, with the version to send back when changing it.</summary>

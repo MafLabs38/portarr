@@ -18,8 +18,8 @@ interface ItemEditorProps {
   /** The catalog version read with the item. */
   version: string;
   onClose: () => void;
-  /** The item was saved (or left waiting for approval): the panel shows what happened and closes the editor. */
-  onSaved: (status: CatalogEditOutcome['status']) => void;
+  /** The item was saved: the panel shows what happened and closes the editor. */
+  onSaved: () => void;
 }
 
 /** What the last check or save said: the translation key of the message, and the field errors the server gave. */
@@ -29,10 +29,8 @@ interface Outcome {
   errors?: string[];
 }
 
-function outcomeOf(result: CatalogEditOutcome, saving: boolean): Outcome {
+function outcomeOf(result: CatalogEditOutcome): Outcome {
   switch (result.status) {
-    case 'pending':
-      return { kind: 'info', message: translate(saving ? 'CatalogChangeWaiting' : 'CatalogChangeWouldWait') };
     case 'unchanged':
       return { kind: 'info', message: translate('CatalogNothingChanged') };
     case 'valid':
@@ -91,8 +89,7 @@ function OutcomeNotice({ outcome }: Readonly<{ outcome: Outcome }>) {
 
 /**
  * Adds or changes one item of the catalog: its simple fields as inputs, the whole item as JSON underneath (the same keys
- * as the catalog file, docs/catalog.md), a check that writes nothing, and the save. Changing how a host is reached
- * (docker, kubernetes, runtime, check…) is accepted but waits for an administrator unless you are one.
+ * as the catalog file, docs/catalog.md), a check that writes nothing, and the save.
  */
 export default function ItemEditor({ section, item, version, onClose, onSaved }: Readonly<ItemEditorProps>) {
   const creating = item === null;
@@ -113,9 +110,9 @@ export default function ItemEditor({ section, item, version, onClose, onSaved }:
     try {
       const body = { section, item: withRemovals(item, draft), version };
       const result = await (saving ? save : validate).mutateAsync(body);
-      setOutcome(outcomeOf(result, saving));
+      setOutcome(outcomeOf(result));
       if (saving && result.status !== 'unchanged') {
-        onSaved(result.status);
+        onSaved();
       }
     } catch (error) {
       setOutcome(failureOf(error));

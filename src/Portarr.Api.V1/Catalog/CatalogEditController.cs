@@ -81,7 +81,7 @@ public sealed class CatalogEditController : ControllerBase
         return new CatalogSectionResource(version, section, items);
     }
 
-    /// <summary>Checks an item as a write would, without writing anything: <c>valid</c>, <c>pending</c> (it would wait for approval) or the errors by field path.</summary>
+    /// <summary>Checks an item as a write would, without writing anything: <c>valid</c> or the errors by field path.</summary>
     /// <param name="section">environments, stacks, apps, data, links, providers, mcpServers or workstations.</param>
     /// <param name="id">The item's id; the item's own id may be omitted.</param>
     /// <param name="request">The version read and the whole item.</param>
@@ -92,57 +92,12 @@ public sealed class CatalogEditController : ControllerBase
     [Authorize(Policy = Permissions.CatalogWrite)]
     [EnableRateLimiting(HttpServiceCollectionExtensions.CatalogWritesPolicyName)]
     [ProducesResponseType<CatalogEditResource>(StatusCodes.Status200OK)]
-    [ProducesResponseType<CatalogEditResource>(StatusCodes.Status202Accepted)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> ValidateItemAsync(string section, string id, CatalogItemRequest request, CancellationToken cancellationToken)
     {
         return await ValidateAsync(_itemValidator, request, cancellationToken)
             ?? await EditAsync(section, id, "validate", request.Version, CatalogEdits.Upsert(id, request.Item!), cancellationToken, dryRun: true);
-    }
-
-    /// <summary>The changes that wait for an administrator's approval, oldest first. How a host is reached is left out of what they show unless the caller may reconfigure (<c>settings.manage</c>), like a read of the item.</summary>
-    /// <param name="cancellationToken">Cancels the read.</param>
-    [HttpGet("pending")]
-    [Authorize(Policy = Permissions.CatalogWrite)]
-    [ProducesResponseType<IReadOnlyList<CatalogPendingResource>>(StatusCodes.Status200OK)]
-    public async Task<IReadOnlyList<CatalogPendingResource>> GetPendingAsync(CancellationToken cancellationToken)
-    {
-        return (await _editor.ListPendingAsync(await MayReconfigureAsync(), cancellationToken)).Select(p => p.ToResource()).ToList();
-    }
-
-    /// <summary>Applies a waiting change. Needs <c>settings.manage</c>: it changes how a host is reached.</summary>
-    /// <param name="id">The pending change's id.</param>
-    /// <param name="cancellationToken">Cancels the edit.</param>
-    /// <response code="404">Nothing waits with this id.</response>
-    /// <response code="409">The item changed since the change was asked for.</response>
-    [HttpPost("pending/{id}/approve")]
-    [Authorize(Policy = Permissions.SettingsManage)]
-    [CatalogWriteAccess]
-    [EnableRateLimiting(HttpServiceCollectionExtensions.CatalogWritesPolicyName)]
-    [ProducesResponseType<CatalogEditResource>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> ApproveAsync(string id, CancellationToken cancellationToken)
-    {
-        var result = await _editor.ApproveAsync(id, Actor(reconfigure: true), cancellationToken);
-        return this.ToActionResult(result, "pending", id);
-    }
-
-    /// <summary>Drops a waiting change without applying it.</summary>
-    /// <param name="id">The pending change's id.</param>
-    /// <param name="cancellationToken">Cancels the edit.</param>
-    /// <response code="404">Nothing waits with this id.</response>
-    [HttpDelete("pending/{id}")]
-    [Authorize(Policy = Permissions.SettingsManage)]
-    [EnableRateLimiting(HttpServiceCollectionExtensions.CatalogWritesPolicyName)]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> RejectAsync(string id, CancellationToken cancellationToken)
-    {
-        return await _editor.RejectAsync(id, Actor(reconfigure: true), cancellationToken)
-            ? NoContent()
-            : Problem(title: "Not found", detail: $"No change waits with id '{id}'.", statusCode: StatusCodes.Status404NotFound);
     }
 
     /// <summary>The catalog file as it is, to keep a copy or commit it back to a repository. Needs <c>settings.manage</c>.</summary>
@@ -327,13 +282,11 @@ public sealed class CatalogEditController : ControllerBase
 
     private async Task<IActionResult> EditAsync(string section, string id, string operation, string? version, Func<JsonObject?, JsonObject?> change, CancellationToken cancellationToken, bool dryRun = false)
     {
-        var actor = Actor(await MayReconfigureAsync());
+        var actor = new CatalogActor(Channel, HttpContext.Connection.RemoteIpAddress?.ToString(), null, User.Identity?.Name);
         var result = await _editor.EditAsync(new CatalogEdit(section, id, operation, version, actor, change, dryRun), cancellationToken);
         return this.ToActionResult(result, section, id);
     }
 
-    private CatalogActor Actor(bool reconfigure) => new(Channel, HttpContext.Connection.RemoteIpAddress?.ToString(), null, User.Identity?.Name, reconfigure);
-
-    /// <summary>A person (or the key of one) holding <c>settings.manage</c> may change how a host is reached; anyone else leaves a change for approval.</summary>
+    /// <summary>A person (or the key of one) holding <c>settings.manage</c> reads how a host is reached; anyone else reads the items without it.</summary>
     private async Task<bool> MayReconfigureAsync() => (await _authorization.AuthorizeAsync(User, Permissions.SettingsManage)).Succeeded;
 }
