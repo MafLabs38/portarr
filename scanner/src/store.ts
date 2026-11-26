@@ -25,6 +25,9 @@ export interface StoredImage {
   counts?: Counts;
   fixable?: Counts;
   findings?: Finding[];
+  /** The ids of every finding; absent in a file written before they were kept: Portarr falls back to the findings. */
+  ids?: string[];
+  idsTruncated?: boolean;
 }
 
 export interface Stored {

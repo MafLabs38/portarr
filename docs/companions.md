@@ -372,7 +372,7 @@ Secrets are never logged and never returned. The CLI's environment is an allow-l
 
 ### What it gives Portarr
 
-For each image that runs (Docker containers and Kubernetes pods, third-party ones included): the vulnerabilities by severity, how many of them have a fix, and the worst findings (id, package, installed and fixed version, a link). A critical vulnerability with a fix becomes a **danger** on the Maintenance page, a high one a warning ([connectors/trivy.md](connectors/trivy.md)).
+For each image that runs (Docker containers and Kubernetes pods, third-party ones included): the vulnerabilities by severity, how many of them have a fix, the worst findings (id, package, installed and fixed version, a link; critical and high, at most 50), and the ids of every finding (any severity, plain ids only, at most 5000, with `idsTruncated` beyond), which Portarr matches against the vulnerabilities known to be exploited (D-133, [connectors/threat-intel.md](connectors/threat-intel.md)) so that an exploited flaw is reported even when its finding is not among the 50. A critical vulnerability with a fix becomes a **danger** on the Maintenance page, a high one a warning ([connectors/trivy.md](connectors/trivy.md)). `results.json` keeps the ids with each result; a file written by an older companion still loads (its results simply have no ids until the next scan).
 
 ### Releases and their SBOM (D-132, [ADR 0024](adr/0024-the-vulnerabilities-of-a-release-are-read-from-its-sbom.md))
 

@@ -58,6 +58,8 @@ public static class NotificationTemplates
         ["image-scanner-error"] = "the image scanner cannot be read",
         ["release-critical-vulnerabilities"] = "latest releases have critical vulnerabilities that have a fix",
         ["release-vulnerabilities"] = "latest releases have high vulnerabilities that have a fix",
+        ["known-exploited-vulnerabilities"] = "running images or latest releases have vulnerabilities known to be exploited in the wild",
+        ["threat-intel-error"] = "the exploit intelligence cannot be read",
         ["dependabot-off"] = "Dependabot is off",
         ["code-scanning-off"] = "code scanning is off",
         ["dependabot-prs"] = "Dependabot pull requests are waiting",
@@ -69,7 +71,7 @@ public static class NotificationTemplates
     };
 
     /// <summary>The findings whose names are what a remote tool said: the sentence alone is written.</summary>
-    private static readonly HashSet<string> WithoutNames = new(StringComparer.Ordinal) { "code-source-error", "image-scanner-error" };
+    private static readonly HashSet<string> WithoutNames = new(StringComparer.Ordinal) { "code-source-error", "image-scanner-error", "threat-intel-error" };
 
     /// <summary>The test mail, to see that the settings work.</summary>
     public static RenderedMail RenderTest() =>

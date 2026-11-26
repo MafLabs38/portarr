@@ -16,7 +16,7 @@ const levelIcons: Record<AttentionLevel, LucideIcon> = {
 };
 
 /** Kinds whose single subject is a reason code: it is said in the line itself, not listed. */
-const reasonKinds = new Set(['code-source-error', 'image-scanner-error']);
+const reasonKinds = new Set(['code-source-error', 'image-scanner-error', 'threat-intel-error']);
 
 /** Subjects named before "+N more": enough to act on, short enough to scan. */
 const shownSubjects = 8;
@@ -24,6 +24,9 @@ const shownSubjects = 8;
 function describe(item: AttentionItem): string {
   if (item.kind === 'code-source-error') {
     return translate('Attention_code-source-error', { reason: translate(`Reason_${item.subjects[0]?.label ?? ''}`) });
+  }
+  if (item.kind === 'threat-intel-error') {
+    return translate('Attention_threat-intel-error', { reason: scanReason(item.subjects[0]?.label ?? null) });
   }
   if (item.kind === 'image-scanner-error') {
     return translate('Attention_image-scanner-error', { reason: scanReason(item.subjects[0]?.label ?? null) });

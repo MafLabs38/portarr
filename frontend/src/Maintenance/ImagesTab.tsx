@@ -9,6 +9,7 @@ import ImageRow from './ImageRow';
 import ImageScannerStatus from './ImageScannerStatus';
 import { filterImages, type MaintenanceFilter } from './maintenanceFilters';
 import styles from './MaintenanceIndex.module.css';
+import ThreatIntelStatus from './ThreatIntelStatus';
 
 interface ImagesTabProps {
   report: MaintenanceReport;
@@ -25,6 +26,7 @@ export default function ImagesTab({ report, filter, apps, onClearFilter }: Reado
     <>
       <p className={styles.muted}>{translate('ImagesHint')}</p>
       <ImageScannerStatus scanner={report.imageScanner} />
+      <ThreatIntelStatus threatIntel={report.threatIntel} />
       {filter ? (
         <ActiveFilter
           label={translate(`Filter_${filter}`)}

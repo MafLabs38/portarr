@@ -160,7 +160,7 @@ public sealed class MaintenanceScannerFixture
     [Fact]
     public async Task should_be_off_when_the_catalog_declares_a_scanner_but_no_connector_is_installed()
     {
-        var monitor = new MaintenanceMonitor(_catalog, _inventory, [], [_registry], [], Options.Create(new PortarrOptions()), _clock, NullLogger<MaintenanceMonitor>.Instance);
+        var monitor = new MaintenanceMonitor(_catalog, _inventory, [], [_registry], [], [], Options.Create(new PortarrOptions()), _clock, NullLogger<MaintenanceMonitor>.Instance);
 
         await monitor.RefreshAsync(TestContext.Current.CancellationToken);
 
@@ -195,5 +195,5 @@ public sealed class MaintenanceScannerFixture
         new(image, ImageScanState.Scanned, null, _clock.GetUtcNow(), new VulnerabilityCounts(0, 1, 0, 0, 0), new VulnerabilityCounts(0, 1, 0, 0, 0), [new ImageFinding("CVE-1", "openssl", "1", "2", "high", null, null)]);
 
     private MaintenanceMonitor Monitor() =>
-        new(_catalog, _inventory, [], [_registry], [_scanner], Options.Create(new PortarrOptions()), _clock, NullLogger<MaintenanceMonitor>.Instance);
+        new(_catalog, _inventory, [], [_registry], [_scanner], [], Options.Create(new PortarrOptions()), _clock, NullLogger<MaintenanceMonitor>.Instance);
 }

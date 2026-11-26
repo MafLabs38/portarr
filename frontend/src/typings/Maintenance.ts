@@ -115,6 +115,39 @@ export interface ImageFinding {
   title: string | null;
   /** An https address, or null. */
   url: string | null;
+  /** In CISA's catalog of vulnerabilities known to be exploited in the wild (D-133); null when not. */
+  exploited: KnownExploited | null;
+  /** EPSS: the probability (0 to 1) that it is exploited in the next 30 days, and its percentile; null when unknown. */
+  epss: ExploitPrediction | null;
+}
+
+export interface KnownExploited {
+  dateAdded: string;
+  dueDate: string | null;
+  knownRansomwareUse: boolean;
+}
+
+export interface ExploitPrediction {
+  score: number;
+  percentile: number;
+}
+
+/**
+ * A vulnerability known to be exploited (D-133) whose finding is not among the findings shown: the scanner describes only the
+ * worst fifty, but every id it saw is matched. `id` is a CVE id.
+ */
+export interface ExploitedVulnerability extends KnownExploited {
+  id: string;
+  epss: ExploitPrediction | null;
+}
+
+/** The threat intelligence feeds (D-133): CISA's known exploited catalog and EPSS, read once a day. */
+export interface ThreatIntel {
+  configured: boolean;
+  readAt: string | null;
+  error: string | null;
+  kevUpdatedAt: string | null;
+  epssScoreDate: string | null;
 }
 
 export interface ImageVulnerabilities {
@@ -128,6 +161,10 @@ export interface ImageVulnerabilities {
   fixable: VulnerabilityCounts;
   /** At most 50, worst first, none below the threshold. */
   findings: ImageFinding[];
+  /** Known to be exploited, among the findings not shown (D-133); empty when none. */
+  exploitedBeyondFindings: ExploitedVulnerability[];
+  /** The scanner had more ids than it sent: what is known to be exploited may be more than shown. */
+  idsTruncated: boolean;
 }
 
 /** The vulnerabilities of the latest release of a repository (D-132): the same facts as an image's, plus the build they describe. */
@@ -259,4 +296,5 @@ export default interface MaintenanceReport {
   refresh: MaintenanceRefresh;
   platforms: Platform[];
   imageScanner: ImageScanner;
+  threatIntel: ThreatIntel;
 }

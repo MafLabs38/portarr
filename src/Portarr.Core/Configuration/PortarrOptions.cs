@@ -72,6 +72,9 @@ public sealed class PortarrOptions
     /// <summary>The vulnerabilities of running images (D-131): <c>PORTARR__VULNERABILITIES__MINSEVERITY</c>.</summary>
     public VulnerabilityOptions Vulnerabilities { get; set; } = new();
 
+    /// <summary>The exploit intelligence (D-133): <c>PORTARR__THREATINTEL__ENABLED</c>, <c>PORTARR__THREATINTEL__KEVURL</c>, <c>PORTARR__THREATINTEL__EPSSURL</c>.</summary>
+    public ThreatIntelOptions ThreatIntel { get; set; } = new();
+
     /// <summary>Editing the catalog through the API and the MCP write tools (D-83, D-85).</summary>
     public CatalogOptions Catalog { get; set; } = new();
 
@@ -124,6 +127,27 @@ public sealed class VulnerabilityOptions
     /// image stay complete; the scanner describes high and critical findings only, so no lower value is accepted.
     /// </summary>
     public string MinSeverity { get; set; } = DefaultMinSeverity;
+}
+
+/// <summary>
+/// Section <c>ThreatIntel</c> (D-133): which vulnerabilities are known to be exploited (CISA's KEV catalog) and how likely the others are to be
+/// (FIRST's EPSS), read once a day to enrich the image scanner's findings. Both files are downloaded whole: Portarr never tells a third party
+/// which vulnerabilities the fleet has. The addresses can point at a mirror (an air-gapped installation), https only.
+/// </summary>
+public sealed class ThreatIntelOptions
+{
+    public static readonly Uri DefaultKevUrl = new("https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json");
+
+    public static readonly Uri DefaultEpssUrl = new("https://epss.empiricalsecurity.com/epss_scores-current.csv.gz");
+
+    /// <summary>On by default (read only when an image scanner is declared); false: nothing is fetched and the findings carry no exploitation.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>The KEV catalog in CISA's JSON format.</summary>
+    public Uri KevUrl { get; set; } = DefaultKevUrl;
+
+    /// <summary>The EPSS scores of the day, as FIRST publishes them (a gzip-compressed CSV).</summary>
+    public Uri EpssUrl { get; set; } = DefaultEpssUrl;
 }
 
 /// <summary>Section <c>Catalog</c>: <c>PORTARR__CATALOG__WRITABLE</c>, <c>PORTARR__CATALOG__BACKUPS</c>.</summary>

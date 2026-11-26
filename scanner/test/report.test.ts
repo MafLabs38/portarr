@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { clean, hasResults, maxFindings, maxTitleLength, safeUrl, summarise } from '../src/report.ts';
+import { clean, hasResults, maxFindings, maxIds, maxTitleLength, safeUrl, summarise } from '../src/report.ts';
 import { report, vulnerability } from './fakes.ts';
 
 test('every severity is counted, and the ones that have a fix', () => {
@@ -94,4 +94,52 @@ test('a vulnerability without an id or a package is skipped, and a report of not
   assert.equal(hasResults({ SchemaVersion: 2 }), false);
   assert.equal(hasResults({ Results: [] }), false);
   assert.equal(hasResults(report()), true);
+});
+
+test('the ids of every finding are passed on, any severity, distinct and sorted, beyond the findings kept', () => {
+  const many = Array.from({ length: 80 }, (_, index) =>
+    vulnerability({ VulnerabilityID: `CVE-2026-${String(index).padStart(4, '0')}`, PkgName: `p${index}` }),
+  );
+
+  const summary = summarise(
+    report(
+      ...many,
+      vulnerability({ VulnerabilityID: 'GHSA-abcd-efgh-ijkl', Severity: 'LOW' }),
+      vulnerability({ VulnerabilityID: 'CVE-2026-0001', PkgName: 'another', Severity: 'MEDIUM' }),
+    ),
+  );
+
+  assert.equal(summary.findings.length, maxFindings);
+  assert.equal(summary.ids.length, 81);
+  assert.equal(summary.ids[0], 'CVE-2026-0000');
+  assert.equal(summary.ids.at(-1), 'GHSA-abcd-efgh-ijkl');
+  assert.ok(summary.ids.includes('CVE-2026-0079'), 'an id whose finding was cut is still there');
+  assert.equal(summary.idsTruncated, false);
+});
+
+test('an id that is not a plain id is not passed on, its finding is still counted', () => {
+  const summary = summarise(
+    report(
+      vulnerability({ VulnerabilityID: 'CVE-2026-0001 <b>' }),
+      vulnerability({ VulnerabilityID: '-leading-dash' }),
+      vulnerability({ VulnerabilityID: `CVE-${'9'.repeat(70)}` }),
+      vulnerability({ VulnerabilityID: 'DLA-1234-1', Severity: 'LOW' }),
+    ),
+  );
+
+  assert.deepEqual(summary.ids, ['DLA-1234-1']);
+  assert.equal(summary.counts.high, 3);
+});
+
+test(`beyond ${maxIds} ids the most severe are kept, and the list says it was cut`, () => {
+  const low = Array.from({ length: maxIds }, (_, index) =>
+    vulnerability({ VulnerabilityID: `A-${index}`, PkgName: 'p', Severity: 'LOW' }),
+  );
+
+  const summary = summarise(report(...low, vulnerability({ VulnerabilityID: 'Z-1', Severity: 'CRITICAL' })));
+
+  assert.equal(summary.ids.length, maxIds);
+  assert.equal(summary.idsTruncated, true);
+  assert.ok(summary.ids.includes('Z-1'), 'the critical one is kept although it sorts last');
+  assert.equal(summary.ids.at(-1), 'Z-1');
 });

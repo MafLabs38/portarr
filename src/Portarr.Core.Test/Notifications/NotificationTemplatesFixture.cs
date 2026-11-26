@@ -125,6 +125,8 @@ public sealed class NotificationTemplatesFixture
     [InlineData("image-scanner-error", "the image scanner cannot be read")]
     [InlineData("release-critical-vulnerabilities", "latest releases have critical vulnerabilities that have a fix")]
     [InlineData("release-vulnerabilities", "latest releases have high vulnerabilities that have a fix")]
+    [InlineData("known-exploited-vulnerabilities", "running images or latest releases have vulnerabilities known to be exploited in the wild")]
+    [InlineData("threat-intel-error", "the exploit intelligence cannot be read")]
     public void should_have_a_sentence_for_the_kinds_of_finding_that_are_known(string kind, string sentence)
     {
         NotificationTemplates.SentenceOf(kind).Should().Be(sentence);
@@ -145,6 +147,15 @@ public sealed class NotificationTemplatesFixture
         var mail = Render("maintenance", [new AttentionFinding("maintenance", AttentionLevel.Danger, "image-critical-vulnerabilities", 3, ["idp:1"]), new AttentionFinding("maintenance", AttentionLevel.Warning, "image-scanner-error", 1, ["http-502"])]);
 
         mail.Text.Should().Contain("idp:1").And.Contain("The image scanner cannot be read (1)").And.NotContain("http-502");
+    }
+
+    [Fact]
+    public void should_name_what_carries_an_exploited_vulnerability_but_not_the_reason_code_of_an_intelligence_that_cannot_be_read()
+    {
+        var mail = Render("maintenance", [new AttentionFinding("maintenance", AttentionLevel.Danger, "known-exploited-vulnerabilities", 2, ["idp:1", "example/desktop-app"]), new AttentionFinding("maintenance", AttentionLevel.Warning, "threat-intel-error", 1, ["insecure-redirect"])]);
+
+        mail.Text.Should().Contain("Running images or latest releases have vulnerabilities known to be exploited in the wild: idp:1").And.Contain("example/desktop-app")
+            .And.Contain("The exploit intelligence cannot be read (1)").And.NotContain("insecure-redirect");
     }
 
     [Fact]

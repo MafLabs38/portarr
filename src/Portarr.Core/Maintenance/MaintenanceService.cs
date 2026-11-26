@@ -43,7 +43,8 @@ public sealed record AttentionSubject(string Label, Uri? Url, int? Count = null)
 /// <c>Kind</c>: severe-alerts, secret-alerts, ci-failing, image-major, images-behind, image-rebuilt,
 /// dependabot-off, code-scanning-off, other-alerts, dependabot-prs, images-unknown, code-source-error, and for the vulnerabilities of the
 /// running images (D-131): image-critical-vulnerabilities (a critical one with a fix), image-vulnerabilities (a high one with a fix), image-scanner-error, and for
-/// the latest release of a repository, read from its SBOM (D-132): release-critical-vulnerabilities (a critical one with a fix), release-vulnerabilities (a high one with a fix), and for the platforms the machines
+/// the latest release of a repository, read from its SBOM (D-132): release-critical-vulnerabilities (a critical one with a fix), release-vulnerabilities (a high one with a fix), and for the
+/// vulnerabilities known to be exploited in the wild (D-133): known-exploited-vulnerabilities (an image or a release with one, fix or no fix), threat-intel-error, and for the platforms the machines
 /// run (D-119): platform-out-of-support (end of life reached), platform-support-ending, platforms-behind, platform-lookup-failed.
 /// </summary>
 public sealed record AttentionItem(string Kind, AttentionLevel Level, int Count, IReadOnlyList<AttentionSubject> Subjects);
@@ -82,7 +83,8 @@ public sealed record MaintenanceReport(
     MaintenanceRefresh Refresh,
     IReadOnlyList<PlatformStatus> Platforms,
     ImageScannerStatus? ImageScanner = null,
-    string? MinSeverity = null);
+    string? MinSeverity = null,
+    ThreatIntelStatus? ThreatIntel = null);
 
 public interface IMaintenanceService
 {
@@ -124,6 +126,8 @@ public sealed class MaintenanceService : IMaintenanceService
         var scanned = state.Repositories.Repositories.ToDictionary(r => r.FullName, StringComparer.OrdinalIgnoreCase);
         var appsOf = AppsOf(catalog);
 
+        // The exploit intelligence enriches the scanner's findings (D-133): nothing to enrich without a scanner.
+        var intel = catalog.ImageScanner is not null ? state.Intel : ThreatIntelSnapshot.Off;
         var images = RunningImages(inventory, state, scanned, appsOf, codeSources ?? [], catalog.ImageScanner is not null, thresholdRank);
 
         // A repository is linked to an app by the catalog (repository:), or by an image built from it.
@@ -145,7 +149,7 @@ public sealed class MaintenanceService : IMaintenanceService
         var repositories = state.Repositories.Repositories
             .Select(repository =>
             {
-                var release = releaseTargets.TargetOf(repository) is { } target ? ReleaseVulnerabilities.Of(target, scannerDeclared, state.Scans, thresholdRank) : null;
+                var release = releaseTargets.TargetOf(repository) is { } target ? ReleaseVulnerabilities.Of(target, scannerDeclared, state.Scans, thresholdRank, intel) : null;
                 return links.TryGetValue(repository.FullName, out var apps)
                     ? new RepositoryView(repository, apps.Order(StringComparer.Ordinal).ToList(), built[repository.FullName].Distinct(StringComparer.Ordinal).ToList(), true, release)
                     : new RepositoryView(repository, [], [], false, release);
@@ -156,7 +160,7 @@ public sealed class MaintenanceService : IMaintenanceService
 
         return new MaintenanceReport(
             Summarize(repositories, images, thresholdRank),
-            Attention(repositories, images, state.Repositories, platforms ?? [], catalog.ImageScanner is not null ? state.Scans : null, thresholdRank),
+            Attention(repositories, images, state.Repositories, platforms ?? [], catalog.ImageScanner is not null ? state.Scans : null, thresholdRank, intel),
             catalog.CodeSources.Count > 0,
             state.Repositories,
             repositories,
@@ -164,7 +168,8 @@ public sealed class MaintenanceService : IMaintenanceService
             refresh ?? MaintenanceRefresh.None,
             platforms ?? [],
             catalog.ImageScanner is null ? ImageScannerStatus.NotConfigured : new ImageScannerStatus(true, state.Scans.At, state.Scans.Error, state.Scans.DatabaseUpdatedAt),
-            minSeverity);
+            minSeverity,
+            ThreatIntelStatus.Of(intel));
     }
 
     private static HashSet<string> Link(Dictionary<string, HashSet<string>> links, string repository)
@@ -195,6 +200,7 @@ public sealed class MaintenanceService : IMaintenanceService
         bool scannerDeclared,
         int thresholdRank)
     {
+        var intel = scannerDeclared ? state.Intel : ThreatIntelSnapshot.Off;
         return MaintenanceMonitor.RunningImages(inventory)
             .Select(pair =>
             {
@@ -212,7 +218,7 @@ public sealed class MaintenanceService : IMaintenanceService
                     .ThenBy(u => u.Name, StringComparer.Ordinal)
                     .ToList(),
                 group.Select(e => e.Repository).FirstOrDefault(r => r is not null),
-                ImageVulnerabilities.Of(group.First().Image, scannerDeclared, state.Scans, thresholdRank)))
+                ImageVulnerabilities.Of(group.First().Image, scannerDeclared, state.Scans, thresholdRank, intel)))
             .OrderBy(view => Rank(view.Check))
             .ThenBy(view => view.Image.Display, StringComparer.Ordinal)
             .ToList();
@@ -290,7 +296,7 @@ public sealed class MaintenanceService : IMaintenanceService
             scanned.Sum(i => i.Vulnerabilities.Counts.High));
     }
 
-    private static List<AttentionItem> Attention(List<RepositoryView> repositories, List<DeployedImageView> images, RepositoryScan scan, IReadOnlyList<PlatformStatus> platforms, ImageScanSnapshot? scans, int thresholdRank)
+    private static List<AttentionItem> Attention(List<RepositoryView> repositories, List<DeployedImageView> images, RepositoryScan scan, IReadOnlyList<PlatformStatus> platforms, ImageScanSnapshot? scans, int thresholdRank, ThreatIntelSnapshot intel)
     {
         var code = repositories.Select(r => r.Repository).ToList();
         var items = new List<AttentionItem>();
@@ -331,6 +337,7 @@ public sealed class MaintenanceService : IMaintenanceService
         Add("images-unknown", AttentionLevel.Info, images.Where(i => i.Check.Status == ImageStatus.Unknown).Select(Image).ToList());
         items.AddRange(ImageVulnerabilityAttention.Of(images, scans, thresholdRank));
         items.AddRange(ImageVulnerabilityAttention.OfReleases(repositories, thresholdRank));
+        items.AddRange(ImageVulnerabilityAttention.OfKnownExploited(images, repositories, intel));
 
         // A platform past its end of life gets no more security fixes: it is a danger; the ones about to be are a warning; a newer version is news.
         static AttentionSubject Platform(PlatformStatus platform) => new($"{platform.MachineName}: {platform.Label}", null);

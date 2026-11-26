@@ -97,7 +97,10 @@ public sealed partial class TrivyImageScanner : IImageScanner
         [.. (image.Findings ?? []).Select(ToFinding)],
         // A result without a kind is an image's: the kind was added for the targets that come later.
         image.Kind ?? ScanTargetKinds.Image,
-        image.Version);
+        image.Version,
+        // The ids of every finding (D-133); a companion older than them sends none, and Portarr falls back to the findings' ids.
+        image.Ids is null ? null : [.. image.Ids.OfType<string>()],
+        image.IdsTruncated == true);
 
     private static VulnerabilityCounts ToCounts(ScannerCounts? counts) =>
         counts is null ? VulnerabilityCounts.None : new VulnerabilityCounts(counts.Critical, counts.High, counts.Medium, counts.Low, counts.Unknown);

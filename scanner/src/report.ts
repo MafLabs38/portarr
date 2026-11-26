@@ -1,5 +1,6 @@
-// Trivy's JSON, reduced to what Portarr shows: counts of every severity, how many have a fix, and the worst findings
-// of severity HIGH and CRITICAL, cleaned (the titles come from advisory databases: text written by third parties).
+// Trivy's JSON, reduced to what Portarr shows: counts of every severity, how many have a fix, the worst findings of
+// severity HIGH and CRITICAL, cleaned (the titles come from advisory databases: text written by third parties), and the
+// ids of every finding, so that Portarr matches all of them against the known exploited list, not only the ones kept.
 
 export interface Counts {
   critical: number;
@@ -23,9 +24,16 @@ export interface Summary {
   counts: Counts;
   fixable: Counts;
   findings: Finding[];
+  /** The distinct ids of every finding, any severity, sorted: ids only, never text. */
+  ids: string[];
+  /** More ids than {@link maxIds}: the least severe were left out. */
+  idsTruncated: boolean;
 }
 
 export const maxFindings = 50;
+export const maxIds = 5000;
+/** A plain vulnerability id (CVE-2026-1234, GHSA-xxxx-xxxx-xxxx, DLA-1234-1…): anything else is not passed on. */
+export const idPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/;
 export const maxTitleLength = 200;
 const maxFieldLength = 200;
 const maxUrlLength = 500;
@@ -102,6 +110,8 @@ export function summarise(report: unknown): Summary {
   const fixable = emptyCounts();
   const seen = new Set<string>();
   const findings: Finding[] = [];
+  /** Each plain id and the rank of its worst severity (0 is critical). */
+  const ids = new Map<string, number>();
 
   for (const vulnerability of vulnerabilitiesOf(report)) {
     const id = clean(vulnerability.VulnerabilityID, maxFieldLength);
@@ -119,6 +129,7 @@ export function summarise(report: unknown): Summary {
 
     const severity = severityOf(vulnerability.Severity);
     const fixedVersion = clean(vulnerability.FixedVersion, maxFieldLength);
+    keepId(ids, id, severities.indexOf(severity));
     counts[severity]++;
     if (fixedVersion !== undefined) {
       fixable[severity]++;
@@ -143,7 +154,27 @@ export function summarise(report: unknown): Summary {
       a.id.localeCompare(b.id) ||
       a.package.localeCompare(b.package),
   );
-  return { counts, fixable, findings: findings.slice(0, maxFindings) };
+  return { counts, fixable, findings: findings.slice(0, maxFindings), ...idsOf(ids) };
+}
+
+function keepId(ids: Map<string, number>, id: string, rank: number): void {
+  if (!idPattern.test(id)) {
+    return;
+  }
+  const known = ids.get(id);
+  if (known === undefined || rank < known) {
+    ids.set(id, rank);
+  }
+}
+
+/** Beyond the maximum, the most severe ids are kept; the list is sorted by id either way. */
+function idsOf(ids: Map<string, number>): Pick<Summary, 'ids' | 'idsTruncated'> {
+  const byId = (a: string, b: string): number => (a < b ? -1 : Number(a > b));
+  let kept = [...ids.keys()];
+  if (kept.length > maxIds) {
+    kept = kept.toSorted((a, b) => (ids.get(a) ?? 0) - (ids.get(b) ?? 0) || byId(a, b)).slice(0, maxIds);
+  }
+  return { ids: kept.toSorted(byId), idsTruncated: ids.size > maxIds };
 }
 
 function optional<K extends string>(key: K, value: string | undefined): Partial<Record<K, string>> {

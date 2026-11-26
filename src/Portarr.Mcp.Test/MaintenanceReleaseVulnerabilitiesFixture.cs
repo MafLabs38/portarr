@@ -92,14 +92,14 @@ public sealed class MaintenanceReleaseVulnerabilitiesFixture
         var resource = Resource(Desktop);
 
         var json = JsonSerializer.SerializeToElement(resource, new JsonSerializerOptions(JsonSerializerDefaults.Web)).GetProperty("repositories")[0].GetProperty("releaseVulnerabilities");
-        json.EnumerateObject().Select(p => p.Name).Should().Equal("state", "reason", "scannedAt", "version", "releaseRepository", "counts", "fixable", "findings");
+        json.EnumerateObject().Select(p => p.Name).Should().Equal("state", "reason", "scannedAt", "version", "releaseRepository", "counts", "fixable", "findings", "exploitedBeyondFindings", "idsTruncated");
         json.GetProperty("state").GetString().Should().Be("scanned");
         json.GetProperty("version").GetString().Should().Be("v1.4.0");
         json.GetProperty("releaseRepository").GetString().Should().Be("example/desktop-app");
         json.GetProperty("counts").GetProperty("total").GetInt32().Should().Be(47);
         json.GetProperty("fixable").GetProperty("critical").GetInt32().Should().Be(1);
         json.GetProperty("findings").GetArrayLength().Should().Be(12, "the API carries every finding the Core kept; only the digest cuts them");
-        json.GetProperty("findings")[0].EnumerateObject().Select(p => p.Name).Should().Equal("id", "package", "installedVersion", "fixedVersion", "severity", "title", "url");
+        json.GetProperty("findings")[0].EnumerateObject().Select(p => p.Name).Should().Equal("id", "package", "installedVersion", "fixedVersion", "severity", "title", "url", "exploited", "epss");
     }
 
     [Fact]

@@ -26,6 +26,8 @@ const behindImage = {
     counts: { critical: 0, high: 0, medium: 0, low: 0, unknown: 0, total: 0 },
     fixable: { critical: 0, high: 0, medium: 0, low: 0, unknown: 0, total: 0 },
     findings: [],
+    exploitedBeyondFindings: [],
+    idsTruncated: false,
   },
 };
 
@@ -81,6 +83,7 @@ const report = {
   platforms: [],
   // No image scanner declared (D-131): the report always carries its status.
   imageScanner: { configured: false, readAt: null, error: null, databaseUpdatedAt: null },
+  threatIntel: { configured: false, readAt: null, error: null, kevUpdatedAt: null, epssScoreDate: null },
   minSeverity: 'high',
 };
 

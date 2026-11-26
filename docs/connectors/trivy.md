@@ -24,7 +24,7 @@ imageScanner:
 | Request | Reading |
 |---|---|
 | `POST /v1/scans` `{ "targets": [{ "kind": "image", "ref": "docker.io/library/postgres:16" }, …] }` | the images that run (`image`; the other kind is `release`, below), by their full reference (registry, repository, tag and digest), 200 at a time, plain references only; answers `202` with `queued` (how many it will scan; it skips an image it scanned less than 24 hours ago) and `ignored` (new references beyond the 2000 it tracks at most, `PORTARR_SCANNER_MAX_IMAGES`) |
-| `GET /v1/results` | per target (`kind`, `ref`): `state` (`scanned`, `queued`, `scanning`, `failed`), `reason`, `scannedAt`, `counts` and `fixable` by severity, and the worst `findings`; and the date of the vulnerability database |
+| `GET /v1/results` | per target (`kind`, `ref`): `state` (`scanned`, `queued`, `scanning`, `failed`), `reason`, `scannedAt`, `counts` and `fixable` by severity, the worst `findings` (critical and high, at most 50), and for a scanned target `ids` (the distinct ids of every finding, any severity, sorted, plain ids only, at most 5000) with `idsTruncated` (more than that: the most severe were kept); and the date of the vulnerability database |
 
 **Releases (D-132).** The same request takes `{ "kind": "release", "ref": "owner/name" }`: the latest GitHub release of that repository. The companion reads it through the GitHub API (anonymously, github.com only; the optional `PORTARR_SCANNER_GITHUB_TOKEN` set on the companion only lifts the rate limit, give it no repository permission: release scans are public repositories only), picks the SBOM asset (`*.cdx.json`, then `*.spdx.json`, then `sbom*.json`, then `bom.json`, 50 MiB at most, from github.com), runs `trivy sbom` on it and answers with the release tag as `version`. A release that publishes no SBOM is `failed` with the reason `no-sbom` (retried after a day, since a project may add one later), shown as "no SBOM published". Portarr asks for the public repositories its github.com source scans that publish a release, and for the repositories the `releases:` mapping of the catalog names (a private source repository maps to the public one that publishes its builds; a GitHub Enterprise Server's repositories are not asked, their `owner/name` could be another project's on github.com) ([catalog.md](../catalog.md#sources)).
 
@@ -45,6 +45,8 @@ For each image row (`vulnerabilities` in `GET /api/v1/maintenance`, see [V4](../
 `PORTARR__VULNERABILITIES__MINSEVERITY` (`critical` or `high`, `high` by default) hides the findings and the attention below it; the counts stay whole. The scanner describes high and critical findings only, so these are the only two values.
 
 **What needs attention**: an image with a critical vulnerability that has a fix is a **danger**, one whose worst fixable vulnerability is high a **warning**; a vulnerability with no fix is counted, not raised. A scanner that cannot be read is a warning, and the page keeps the results of the last read next to its error.
+
+**Exploitation (D-133).** Each finding also says whether it is known to be exploited in the wild (CISA KEV) and how likely it is to be (FIRST EPSS); a known exploited one comes first and is a danger even without a fix. The match uses the `ids` of every finding, not only the 50 described: a known exploited flaw whose finding was not kept is listed beside them (`exploitedBeyondFindings`), and a cut list of ids is said (`idsTruncated`): see [threat-intel.md](threat-intel.md).
 
 ## Limits
 

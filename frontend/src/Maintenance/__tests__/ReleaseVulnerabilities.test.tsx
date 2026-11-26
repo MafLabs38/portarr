@@ -73,3 +73,38 @@ describe('vulnerabilities of the latest release (D-132)', () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+describe('findings known to be exploited (D-133)', () => {
+  it('marks a finding in the CISA catalog and gives its EPSS score', async () => {
+    const user = userEvent.setup();
+    const exploited = scanned.findings[0];
+    if (!exploited?.exploited || !exploited.epss) {
+      throw new Error('The mock report needs an exploited finding with an EPSS score.');
+    }
+    render(scanned);
+
+    await user.click(screen.getByRole('button', { name: /^Details/ }));
+
+    const badge = screen.getByText('Exploited, ransomware');
+    expect(badge).toHaveAttribute(
+      'title',
+      `In the CISA catalog of known exploited vulnerabilities since ${exploited.exploited.dateAdded}`,
+    );
+    expect(screen.getByText('EPSS 94 %')).toBeInTheDocument();
+  });
+
+  it('gives a small EPSS score with two significant figures and no badge when not exploited', async () => {
+    const user = userEvent.setup();
+    const [first] = scanned.findings;
+    if (!first) {
+      throw new Error('The mock report needs a finding.');
+    }
+    const finding = { ...first, exploited: null, epss: { score: 0.0042, percentile: 0.71 } };
+    render({ ...scanned, findings: [finding] });
+
+    await user.click(screen.getByRole('button', { name: /^Details/ }));
+
+    expect(screen.queryByText(/^Exploited/)).not.toBeInTheDocument();
+    expect(screen.getByText('EPSS 0.42 %')).toHaveAttribute('title', expect.stringContaining('higher than 71 %'));
+  });
+});

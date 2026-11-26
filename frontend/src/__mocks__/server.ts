@@ -717,6 +717,8 @@ const vulnerabilitiesOff: ImageVulnerabilities = {
   counts: noVulnerabilities,
   fixable: noVulnerabilities,
   findings: [],
+  exploitedBeyondFindings: [],
+  idsTruncated: false,
 };
 
 const off = {
@@ -862,8 +864,12 @@ export const maintenanceReport: MaintenanceReport = {
             severity: 'critical',
             title: 'Example flaw in the bundled runtime',
             url: 'https://advisories.example/CVE-2026-0001',
+            exploited: { dateAdded: '2026-10-01', dueDate: '2026-10-22', knownRansomwareUse: true },
+            epss: { score: 0.9436, percentile: 0.9996 },
           },
         ],
+        exploitedBeyondFindings: [],
+        idsTruncated: false,
       },
       dependabotPullRequests: 3,
       ci: { workflow: 'CI', status: 'completed', conclusion: 'failure', failed: true, at: null, url: null },
@@ -986,6 +992,7 @@ export const maintenanceReport: MaintenanceReport = {
     },
   ],
   imageScanner: { configured: false, readAt: null, error: null, databaseUpdatedAt: null },
+  threatIntel: { configured: false, readAt: null, error: null, kevUpdatedAt: null, epssScoreDate: null },
 };
 
 const scannedImage = (reference: string, name: string, vulnerabilities: ImageVulnerabilities): DeployedImage => ({
@@ -1060,6 +1067,8 @@ export const imageVulnerabilitiesReport: MaintenanceReport = {
           severity: 'critical',
           title: 'Buffer overflow in the certificate parser',
           url: 'https://avd.example/cve-2026-0001',
+          exploited: null,
+          epss: null,
         },
         {
           id: 'CVE-2026-0002',
@@ -1070,6 +1079,8 @@ export const imageVulnerabilitiesReport: MaintenanceReport = {
           title:
             'Heap over-read when inflating a crafted archive that declares a window larger than the buffer it was given',
           url: 'https://avd.example/cve-2026-0002',
+          exploited: null,
+          epss: null,
         },
         {
           id: 'GHSA-xxxx-0003',
@@ -1079,6 +1090,8 @@ export const imageVulnerabilitiesReport: MaintenanceReport = {
           severity: 'high',
           title: '<img src=x onerror=alert(1)> not markup',
           url: 'http://insecure.example/advisory',
+          exploited: null,
+          epss: null,
         },
         {
           id: 'CVE-2026-0004',
@@ -1088,8 +1101,22 @@ export const imageVulnerabilitiesReport: MaintenanceReport = {
           severity: null,
           title: null,
           url: null,
+          exploited: null,
+          epss: null,
         },
       ],
+      // A flaw known to be exploited whose finding the scanner did not describe (D-133), and a list of ids that was cut.
+      exploitedBeyondFindings: [
+        {
+          id: 'CVE-2021-44228',
+          dateAdded: '2021-12-10',
+          dueDate: '2021-12-24',
+          knownRansomwareUse: true,
+          epss: { score: 0.9436, percentile: 0.9996 },
+        },
+        { id: 'GHSA-xxxx-0009', dateAdded: '2024-03-01', dueDate: null, knownRansomwareUse: false, epss: null },
+      ],
+      idsTruncated: true,
     }),
     scannedImage('ghcr.io/example/blog:2.0', 'blog', {
       state: 'scanned',
@@ -1098,6 +1125,8 @@ export const imageVulnerabilitiesReport: MaintenanceReport = {
       counts: { critical: 0, high: 0, medium: 3, low: 1, unknown: 0, total: 4 },
       fixable: noVulnerabilities,
       findings: [],
+      exploitedBeyondFindings: [],
+      idsTruncated: false,
     }),
     scannedImage('ghcr.io/example/clean:1.0', 'clean', {
       state: 'scanned',
@@ -1106,6 +1135,8 @@ export const imageVulnerabilitiesReport: MaintenanceReport = {
       counts: noVulnerabilities,
       fixable: noVulnerabilities,
       findings: [],
+      exploitedBeyondFindings: [],
+      idsTruncated: false,
     }),
     scannedImage('ghcr.io/example/queue:1.0', 'queue', { ...vulnerabilitiesOff, state: 'queued' }),
     scannedImage('ghcr.io/example/broken:1.0', 'broken', { ...vulnerabilitiesOff, state: 'failed', reason: 'timeout' }),
@@ -1124,6 +1155,13 @@ export const imageVulnerabilitiesReport: MaintenanceReport = {
       reason: 'image-id',
     },
   ],
+  threatIntel: {
+    configured: true,
+    readAt: '2026-11-25T08:00:00Z',
+    error: null,
+    kevUpdatedAt: '2026-11-25T06:00:00Z',
+    epssScoreDate: '2026-11-25T12:00:00Z',
+  },
   imageScanner: {
     configured: true,
     readAt: scannedAt,

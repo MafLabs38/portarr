@@ -20,6 +20,13 @@
   font-weight: 700;
 }
 
+.beyondHeading {
+  margin: 4px 0 0;
+  color: var(--dangerColor);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+}
+
 .list {
   display: flex;
   flex-direction: column;
@@ -108,4 +115,17 @@ a.id:hover {
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.exploited {
+  padding: 0 7px;
+  border: var(--borderWidth) solid var(--dangerColor);
+  border-radius: var(--radiusPill);
+  color: var(--dangerColor);
+  font-weight: 800;
+}
+
+.epss {
+  color: var(--inkMuted);
+  font-weight: 700;
 }

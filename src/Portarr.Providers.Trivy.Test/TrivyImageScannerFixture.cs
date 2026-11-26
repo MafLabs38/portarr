@@ -182,6 +182,24 @@ public sealed class TrivyImageScannerFixture
         report.Images[1].Reason.Should().Be(ImageScanReasons.Timeout);
         report.Images[2].Counts.Should().Be(new VulnerabilityCounts(0, 2, 0, 0, 0), "a negative count is zero");
         report.Images[2].Findings.Should().ContainSingle().Which.Should().Match<ImageFinding>(f => f.Id == "CVE-2" && f.Severity == "high" && f.Url == null);
+        report.Images[2].VulnerabilityIds.Should().BeNull("a companion older than the full list sends none: Portarr falls back to the findings");
+    }
+
+    [Fact]
+    public async Task should_read_the_ids_of_every_finding_and_whether_the_list_was_cut()
+    {
+        _answer = _ => Json("""
+            { "images": [
+              { "kind": "image", "ref": "app:1", "state": "scanned", "findings": [], "ids": [ "CVE-2026-0002", null, "CVE-2026-0001", "not plain", "CVE-2026-0001" ], "idsTruncated": true },
+              { "kind": "image", "ref": "app:2", "state": "failed", "reason": "timeout", "ids": [ "CVE-2026-0003" ] }
+            ] }
+            """);
+
+        var report = await Subject().ReadAsync(TestContext.Current.CancellationToken);
+
+        report.Images[0].VulnerabilityIds.Should().Equal("CVE-2026-0001", "CVE-2026-0002");
+        report.Images[0].VulnerabilityIdsTruncated.Should().BeTrue();
+        report.Images[1].VulnerabilityIds.Should().BeNull("only a scanned target has ids");
     }
 
     [Fact]

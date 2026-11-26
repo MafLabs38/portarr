@@ -39,7 +39,8 @@ public sealed class ImageVulnerabilitiesScan : IAsyncLifetime
                   "images": [
                     { "kind": "image", "ref": "docker.io/library/idp:1", "state": "scanned", "scannedAt": "2026-11-25T09:00:00Z",
                       "counts": { "critical": 1, "high": 2, "medium": 3, "low": 0, "unknown": 0 }, "fixable": { "critical": 1, "high": 1, "medium": 0, "low": 0, "unknown": 0 },
-                      "findings": [ { "id": "CVE-2026-0001", "package": "openssl", "installedVersion": "3.0.1", "fixedVersion": "3.0.2", "severity": "critical", "title": "A flaw", "url": "https://avd.example/cve-2026-0001" } ] },
+                      "findings": [ { "id": "CVE-2026-0001", "package": "openssl", "installedVersion": "3.0.1", "fixedVersion": "3.0.2", "severity": "critical", "title": "A flaw", "url": "https://avd.example/cve-2026-0001" } ],
+                      "ids": [ "CVE-2026-0001", "CVE-2026-0099" ], "idsTruncated": true },
                     { "kind": "image", "ref": "docker.io/library/local:1", "state": "failed", "reason": "not-found", "counts": {}, "fixable": {}, "findings": [] }
                   ] }
                 """);
@@ -108,6 +109,8 @@ public sealed class ImageVulnerabilitiesFixture : IClassFixture<ImageVulnerabili
         idp.GetProperty("counts").GetProperty("total").GetInt32().Should().Be(6);
         idp.GetProperty("fixable").GetProperty("critical").GetInt32().Should().Be(1);
         idp.GetProperty("findings").EnumerateArray().Single().GetProperty("id").GetString().Should().Be("CVE-2026-0001");
+        idp.GetProperty("idsTruncated").GetBoolean().Should().BeTrue("the companion said its list of ids was cut");
+        idp.GetProperty("exploitedBeyondFindings").GetArrayLength().Should().Be(0, "no exploit intelligence is read here");
         var local = images["local:1"].GetProperty("vulnerabilities");
         local.GetProperty("state").GetString().Should().Be("not-scanned");
         local.GetProperty("reason").GetString().Should().Be("not-found");
