@@ -24,9 +24,10 @@ An accepted ADR is never edited to change its decision: a new ADR supersedes it.
 | [0017](0017-the-reader-is-retired.md) | The reader is retired: node_exporter is the host source | D-117 |
 | [0018](0018-platforms-are-reported-from-the-tools-portarr-reads-and-two-public-sources.md) | Platforms are reported from the tools Portarr reads and two public sources | D-118, D-119 |
 | [0019](0019-the-gpu-is-read-from-a-standard-exporter.md) | The GPU is read from a standard exporter | D-120 |
-| [0020](0020-the-catalog-is-writable-and-a-connection-change-waits-for-approval.md) | The catalog is writable, and a change of connection waits for approval | D-122 to D-125 |
+| [0020](0020-the-catalog-is-writable-and-a-connection-change-waits-for-approval.md) | The catalog is writable, and a change of connection waits for approval (approval superseded by 0026) | D-122 to D-125 |
 | [0021](0021-a-host-without-an-engine-and-a-proxmox-node-are-runtimes.md) | A host without an engine and a Proxmox node are runtimes | D-126 to D-128 |
 | [0022](0022-portarr-writes-to-the-operator-through-the-shared-notification-package-in-categories.md) | Portarr writes to the operator through the shared notification package, in categories | D-129 |
 | [0023](0023-image-vulnerabilities-are-read-from-a-scanner-companion.md) | The vulnerabilities of the images that run are read from a scanner companion | D-131 |
 | [0024](0024-the-vulnerabilities-of-a-release-are-read-from-its-sbom.md) | The vulnerabilities of a release are read from its SBOM | D-132 |
 | [0025](0025-known-exploited-and-likely-exploited-vulnerabilities.md) | Known exploited and likely exploited vulnerabilities | D-133 |
+| [0026](0026-the-catalog-has-no-approval-step.md) | The catalog has no approval step: the role decides | D-134 |

@@ -192,7 +192,7 @@ public sealed class CatalogMcpParserFixture
     [Fact]
     public void should_let_the_editor_change_the_mcp_servers_but_keep_how_to_reach_one_for_approval()
     {
-        // D-125 (D-112 amended): a definition becomes a command on the operator's machines, so its http and stdio are protected settings: only a person who may reconfigure writes them, anyone else waits for approval. The secret store stays in the file.
+        // D-125 (D-112 amended): a definition becomes a command on the operator's machines, so its http and stdio are protected settings: only a role holding settings.manage writes them, any other is refused (D-134). The secret store stays in the file.
         CatalogSections.All.Should().Contain(["mcpServers", "workstations"]).And.NotContain("secretStore");
         Portarr.Core.Catalog.Editing.ProtectedSettings.KeysOf("mcpServers", []).Should().BeEquivalentTo("http", "stdio");
     }

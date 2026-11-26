@@ -15,26 +15,11 @@ const apps = {
   ],
 };
 
-const pendingChange = {
-  id: 'abc123',
-  at: '2026-11-16T07:03:00Z',
-  channel: 'mcp',
-  user: null,
-  via: 'chat:42',
-  section: 'environments',
-  itemId: 'server-2',
-  operation: 'upsert',
-  before: null,
-  after: { id: 'server-2', name: 'Server 2', docker: { url: 'http://10.0.0.30:2375' } },
-  changes: ['added'],
-};
-
-function arrange(options: { writable?: boolean; admin?: boolean; pending?: unknown[] } = {}) {
-  const { writable = true, admin = true, pending = [] } = options;
+function arrange(options: { writable?: boolean; admin?: boolean } = {}) {
+  const { writable = true, admin = true } = options;
   server.use(
     http.get('/api/v1/portal', () => HttpResponse.json({ ...portal, writable })),
     http.get('/api/v1/catalog/apps', () => HttpResponse.json(apps)),
-    http.get('/api/v1/catalog/pending', () => HttpResponse.json(pending)),
     http.get('/api/v1/auth/me', () =>
       HttpResponse.json({ ...me, permissions: admin ? ['catalog.write', 'settings.manage'] : ['catalog.write'] }),
     ),
@@ -56,7 +41,6 @@ describe('CatalogPage', () => {
       'Providers',
       'MCP servers',
       'Workstations',
-      'Pending0',
     ]);
   });
 
@@ -157,14 +141,38 @@ describe('CatalogPage', () => {
     expect(within(alert).getByText(/apps\[wiki\]\.stack: stack 'nowhere' is not declared/)).toBeInTheDocument();
   });
 
-  it('says a change of how a host is reached waits for an administrator', async () => {
+  it('saves a change of how a host is reached at once, without an approval step', async () => {
+    const user = userEvent.setup();
+    arrange();
+    let sent: unknown;
+    server.use(
+      http.put('/api/v1/catalog/apps/wiki', async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json({ status: 'applied', version: 'v2', changes: ['check: added'] });
+      }),
+    );
+    renderWithProviders(<CatalogPage />);
+    await user.click(await screen.findByRole('button', { name: 'Edit wiki' }));
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByText('Saved.')).toBeInTheDocument();
+    expect(sent).toMatchObject({ version: 'v1', item: { id: 'wiki' } });
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+  });
+
+  it('shows why a role that may not change how a host is reached is refused', async () => {
     const user = userEvent.setup();
     arrange({ admin: false });
     server.use(
       http.put('/api/v1/catalog/apps/wiki', () =>
         HttpResponse.json(
-          { status: 'pending', version: 'v1', changes: ['check: added'], pendingId: 'p1' },
-          { status: 202 },
+          {
+            title: 'Not allowed',
+            detail:
+              "apps 'wiki': check say how Portarr reaches a host and with which credential; changing them needs a role that holds settings.manage.",
+          },
+          { status: 403 },
         ),
       ),
     );
@@ -173,7 +181,8 @@ describe('CatalogPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
-    expect(await screen.findByText(/waits for an administrator/)).toBeInTheDocument();
+    expect(await screen.findByText('Your role may not make this change.')).toBeInTheDocument();
+    expect(screen.getByText(/needs a role that holds settings.manage/)).toBeInTheDocument();
   });
 
   it('keeps the JSON and the guided fields in step, and refuses text that is not an object', async () => {
@@ -193,15 +202,12 @@ describe('CatalogPage', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 
-  it('says a removal waits for an administrator when the server keeps it for approval', async () => {
+  it('removes an item and says so', async () => {
     const user = userEvent.setup();
     arrange({ admin: false });
     server.use(
       http.delete('/api/v1/catalog/apps/:id', () =>
-        HttpResponse.json(
-          { status: 'pending', version: 'v1', changes: ['removed'], pendingId: 'abc123' },
-          { status: 202 },
-        ),
+        HttpResponse.json({ status: 'applied', version: 'v2', changes: ['removed'] }),
       ),
     );
     renderWithProviders(<CatalogPage />);
@@ -209,80 +215,6 @@ describe('CatalogPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Remove jellyfin' }));
     await user.click(screen.getByRole('button', { name: 'Confirm delete' }));
 
-    expect(await screen.findByText(/waits for an administrator/)).toBeInTheDocument();
-    expect(screen.queryByText('jellyfin removed.')).not.toBeInTheDocument();
-  });
-
-  it('lets an administrator approve a waiting change and shows what would change', async () => {
-    const user = userEvent.setup();
-    arrange({ pending: [pendingChange] });
-    let approved: string | undefined;
-    server.use(
-      http.post('/api/v1/catalog/pending/:id/approve', ({ params }) => {
-        approved = String(params.id);
-        return HttpResponse.json({ status: 'applied', version: 'v2', changes: ['added'] });
-      }),
-    );
-    renderWithProviders(<CatalogPage />);
-    await user.click(await screen.findByRole('tab', { name: /Pending/ }));
-
-    expect(await screen.findByText('environments / server-2')).toBeInTheDocument();
-    expect(screen.getByLabelText('After')).toHaveTextContent('http://10.0.0.30:2375');
-
-    await user.click(screen.getByRole('button', { name: 'Approve' }));
-
-    expect(approved).toBe('abc123');
-  });
-
-  it('lets an administrator reject a waiting change', async () => {
-    const user = userEvent.setup();
-    arrange({ pending: [pendingChange] });
-    let rejected: string | undefined;
-    server.use(
-      http.delete('/api/v1/catalog/pending/:id', ({ params }) => {
-        rejected = String(params.id);
-        return new HttpResponse(null, { status: 204 });
-      }),
-    );
-    renderWithProviders(<CatalogPage />);
-    await user.click(await screen.findByRole('tab', { name: /Pending/ }));
-
-    await user.click(await screen.findByRole('button', { name: 'Reject' }));
-
-    expect(rejected).toBe('abc123');
-  });
-
-  it('tells the administrator why an approval was refused and keeps the change', async () => {
-    const user = userEvent.setup();
-    arrange({ pending: [pendingChange] });
-    server.use(
-      http.post('/api/v1/catalog/pending/:id/approve', () =>
-        HttpResponse.json(
-          {
-            title: 'Conflict',
-            detail: "environments 'server-2', docker, changed since this was asked for: reject it and ask again.",
-          },
-          { status: 409 },
-        ),
-      ),
-    );
-    renderWithProviders(<CatalogPage />);
-    await user.click(await screen.findByRole('tab', { name: /Pending/ }));
-
-    await user.click(await screen.findByRole('button', { name: 'Approve' }));
-
-    expect(await screen.findByText(/changed since this was asked for/)).toBeInTheDocument();
-    expect(screen.getByText('environments / server-2')).toBeInTheDocument();
-  });
-
-  it('shows a waiting change but no decision buttons to someone who is not an administrator', async () => {
-    const user = userEvent.setup();
-    arrange({ admin: false, pending: [pendingChange] });
-    renderWithProviders(<CatalogPage />);
-    await user.click(await screen.findByRole('tab', { name: /Pending/ }));
-
-    expect(await screen.findByText('environments / server-2')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
-    expect(screen.getByText('An administrator approves these changes.')).toBeInTheDocument();
+    expect(await screen.findByText('jellyfin removed.')).toBeInTheDocument();
   });
 });
