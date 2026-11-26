@@ -278,6 +278,7 @@ sources:
     pushedWithinMonths: 6            # default 6: only repositories pushed recently; 0 scans them all
     include: [example/legacy-tool]   # always scanned, even inactive or owned by someone else
     exclude: ["example/test-*", "*/sandbox"]   # never scanned; * matches anything
+    releases: { example/desktop-app: example/desktop-app-releases }   # builds published in another repository (D-132); at most 100
     forks: false                     # default false
     archived: false                  # default false
 
@@ -287,6 +288,7 @@ apps:
 ```
 
 - A repository is shown as **running in the fleet** when an app declares it in `repository:`, when a running image carries its URL in the OCI label `org.opencontainers.image.source`, or when a running image is named like it (`ghcr.io/example/shop`, Docker Hub `example/shop`). The others are listed as **not deployed here**.
+- **`releases:`** links a repository to the one where its builds are published (a private source, a public releases repository). With an [image scanner](#image-scanner) declared, Portarr asks it for the vulnerabilities of the **latest release** of every scanned repository that has one (not archived, not a fork, a real release rather than a bare tag), read from the SBOM published with it (D-132, [connectors/trivy.md](connectors/trivy.md)); a mapped repository shows the result of the repository named on the right, and that one is not asked for itself. Both sides are `owner/name`.
 - Running images need no declaration: every running container and pod is checked against its registry ([connectors/registries.md](connectors/registries.md)).
 
 ## Image scanner

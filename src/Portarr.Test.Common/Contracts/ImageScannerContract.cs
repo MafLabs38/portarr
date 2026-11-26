@@ -7,13 +7,13 @@ namespace Portarr.Test.Common.Contracts;
 
 /// <summary>
 /// An image scanner connector wired to a fake companion that holds <see cref="ImageScannerContract.Content"/>: the connector under test, how
-/// to make the companion fail, what the connector called, the references it asked to scan, and the secrets that must never come out.
+/// to make the companion fail, what the connector called, the targets it asked to scan, and the secrets that must never come out.
 /// </summary>
 public sealed record ImageScannerHarness(
     IImageScanner Scanner,
     Action Fail,
     Func<IReadOnlyList<RecordedRequest>> Requests,
-    Func<IReadOnlyList<string>> Asked,
+    Func<IReadOnlyList<ScanTarget>> Asked,
     IReadOnlyList<string> Secrets);
 
 /// <summary>
@@ -29,6 +29,8 @@ public abstract class ImageScannerContract
     public const string Waiting = "registry.example/team/waiting:1";
     public const string Local = "registry.example/team/local:1";
     public const string Private = "registry.example/team/private:1";
+    public const string Released = "example/desktop-app";
+    public const string Unpublished = "example/library";
 
     public static readonly DateTimeOffset DatabaseAt = new(2026, 11, 25, 3, 0, 0, TimeSpan.Zero);
 
@@ -56,6 +58,8 @@ public abstract class ImageScannerContract
                 new ImageScanResult(Waiting, ImageScanState.Queued, null, null, new VulnerabilityCounts(9, 9, 9, 9, 9), VulnerabilityCounts.None, []),
                 new ImageScanResult(Local, ImageScanState.Failed, ImageScanReasons.NotFound, null, VulnerabilityCounts.None, VulnerabilityCounts.None, []),
                 new ImageScanResult(Private, ImageScanState.Failed, "something-nobody-defined", null, VulnerabilityCounts.None, VulnerabilityCounts.None, []),
+                new ImageScanResult(Released, ImageScanState.Scanned, null, new DateTimeOffset(2026, 11, 25, 9, 30, 0, TimeSpan.Zero), new VulnerabilityCounts(0, 2, 0, 0, 0), new VulnerabilityCounts(0, 1, 0, 0, 0), [new ImageFinding("CVE-2026-2001", "Example.Package", "1.0.0", "1.0.1", "HIGH", "A flaw in a package", new Uri("https://avd.example/cve-2026-2001"))], ScanTargetKinds.Release, "v1.4.0"),
+                new ImageScanResult(Unpublished, ImageScanState.Failed, ImageScanReasons.NoSbom, null, VulnerabilityCounts.None, VulnerabilityCounts.None, [], ScanTargetKinds.Release, "v0.9.0"),
             ]);
     }
 
@@ -66,7 +70,7 @@ public abstract class ImageScannerContract
 
         var report = await harness.Scanner.ReadAsync(TestContext.Current.CancellationToken);
 
-        report.Images.Select(i => i.Image).Should().BeEquivalentTo(Scanned, Waiting, Local, Private);
+        report.Images.Select(i => i.Image).Should().BeEquivalentTo(Scanned, Waiting, Local, Private, Released, Unpublished);
         report.Images.Select(i => i.Image).Should().OnlyHaveUniqueItems();
         report.DatabaseUpdatedAt.Should().Be(DatabaseAt);
         report.Images.Single(i => i.Image == Scanned).Should().Match<ImageScanResult>(i => i.State == ImageScanState.Scanned && i.Counts.Critical == 1 && i.Counts.High == 61 && i.Fixable.High == 60);
@@ -125,7 +129,7 @@ public abstract class ImageScannerContract
         var harness = Arrange();
         harness.Fail();
 
-        var ask = () => harness.Scanner.RequestAsync([Scanned], TestContext.Current.CancellationToken);
+        var ask = () => harness.Scanner.RequestAsync([Image(Scanned)], TestContext.Current.CancellationToken);
 
         await ask.Should().ThrowAsync<Exception>();
     }
@@ -135,17 +139,47 @@ public abstract class ImageScannerContract
     {
         var harness = Arrange();
 
-        await harness.Scanner.RequestAsync([Scanned, Waiting, Scanned, "-x; rm -rf /"], TestContext.Current.CancellationToken);
+        await harness.Scanner.RequestAsync([Image(Scanned), Image(Waiting), Image(Scanned), Image("-x; rm -rf /")], TestContext.Current.CancellationToken);
 
-        harness.Asked().Should().BeEquivalentTo([Scanned, Waiting], "each reference once, and nothing the scanner would refuse");
+        harness.Asked().Should().BeEquivalentTo(
+            [new ScanTarget(ScanTargetKinds.Image, Scanned), new ScanTarget(ScanTargetKinds.Image, Waiting)],
+            "each reference once, and nothing the scanner would refuse");
     }
+
+    [Fact]
+    public async Task should_tell_the_scanner_which_releases_to_scan_beside_the_images()
+    {
+        var harness = Arrange();
+
+        await harness.Scanner.RequestAsync(
+            [new(ScanTargetKinds.Image, Scanned), new(ScanTargetKinds.Release, Released), new(ScanTargetKinds.Release, Released), new(ScanTargetKinds.Release, "not a repository"), new(ScanTargetKinds.Release, "owner/name/extra"), new("sbom", "x/y")],
+            TestContext.Current.CancellationToken);
+
+        harness.Asked().Should().BeEquivalentTo(
+            [new ScanTarget(ScanTargetKinds.Image, Scanned), new ScanTarget(ScanTargetKinds.Release, Released)],
+            "a release is named by owner/name, once, and what the scanner would refuse is left out");
+    }
+
+    [Fact]
+    public async Task should_report_the_version_of_a_scanned_release_and_a_reason_when_it_publishes_no_sbom()
+    {
+        var harness = Arrange();
+
+        var images = (await harness.Scanner.ReadAsync(TestContext.Current.CancellationToken)).Images;
+
+        images.Single(i => i.Image == Released).Should().Match<ImageScanResult>(i => i.Kind == ScanTargetKinds.Release && i.State == ImageScanState.Scanned && i.Version == "v1.4.0" && i.Fixable.High == 1);
+        images.Single(i => i.Image == Scanned).Version.Should().BeNull("only a release has a version");
+        images.Single(i => i.Image == Unpublished).Should().Match<ImageScanResult>(i => i.Reason == ImageScanReasons.NoSbom && i.Version == null);
+    }
+
+    private static ScanTarget Image(string reference) => new(ScanTargetKinds.Image, reference);
 
     [Fact]
     public async Task should_only_ask_and_read()
     {
         var harness = Arrange();
 
-        await harness.Scanner.RequestAsync([Scanned], TestContext.Current.CancellationToken);
+        await harness.Scanner.RequestAsync([Image(Scanned)], TestContext.Current.CancellationToken);
         await harness.Scanner.ReadAsync(TestContext.Current.CancellationToken);
 
         var requests = harness.Requests();

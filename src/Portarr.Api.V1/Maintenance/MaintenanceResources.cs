@@ -56,7 +56,8 @@ public sealed record RepositoryResource(
     CiRunResource? Ci,
     IReadOnlyList<string> AppIds,
     IReadOnlyList<string> Images,
-    bool Deployed);
+    bool Deployed,
+    ReleaseVulnerabilitiesResource? ReleaseVulnerabilities = null);
 
 public sealed record ImageUserResource(string EnvironmentId, string EnvironmentName, string Name, string? Namespace, IReadOnlyList<string> AppIds);
 
@@ -81,6 +82,21 @@ public sealed record ImageVulnerabilitiesResource(
     string State,
     string? Reason,
     DateTimeOffset? ScannedAt,
+    VulnerabilityCountsResource Counts,
+    VulnerabilityCountsResource Fixable,
+    IReadOnlyList<ImageFindingResource> Findings);
+
+/// <summary>
+/// The vulnerabilities of the latest release of a repository, read from the SBOM it publishes (D-132); absent when the repository has no release to scan.
+/// Read like an image's (<c>State</c>, <c>Reason</c>, <c>Counts</c>, <c>Fixable</c>, <c>Findings</c>; a release without an SBOM is not-scanned with the reason no-sbom).
+/// <c>ReleaseRepository</c> is the repository whose release is read (the repository itself, or the one the catalog maps it to); <c>Version</c> is the tag that was scanned.
+/// </summary>
+public sealed record ReleaseVulnerabilitiesResource(
+    string State,
+    string? Reason,
+    DateTimeOffset? ScannedAt,
+    string? Version,
+    string ReleaseRepository,
     VulnerabilityCountsResource Counts,
     VulnerabilityCountsResource Fixable,
     IReadOnlyList<ImageFindingResource> Findings);
@@ -210,16 +226,22 @@ public static class MaintenanceResourceMapper
     private static ImageScannerResource ToResource(ImageScannerStatus status) => new(status.Configured, status.ReadAt, status.Error, status.DatabaseUpdatedAt);
 
     private static ImageVulnerabilitiesResource ToResource(ImageVulnerabilities vulnerabilities) => new(
-        vulnerabilities.State switch
-        {
-            VulnerabilityState.NotScanned => "not-scanned",
-            _ => vulnerabilities.State.ToString().ToLowerInvariant(),
-        },
+        StateName(vulnerabilities),
         vulnerabilities.Reason,
         vulnerabilities.ScannedAt,
         ToResource(vulnerabilities.Counts),
         ToResource(vulnerabilities.Fixable),
-        [.. vulnerabilities.Findings.Select(f => new ImageFindingResource(f.Id, f.Package, f.InstalledVersion, f.FixedVersion, f.Severity, f.Title, f.Url))]);
+        FindingsOf(vulnerabilities));
+
+    private static ReleaseVulnerabilitiesResource ToResource(ReleaseVulnerabilities release) => new(
+        StateName(release.Vulnerabilities),
+        release.Vulnerabilities.Reason,
+        release.Vulnerabilities.ScannedAt,
+        release.Version,
+        release.ReleaseRepository,
+        ToResource(release.Vulnerabilities.Counts),
+        ToResource(release.Vulnerabilities.Fixable),
+        FindingsOf(release.Vulnerabilities));
 
     private static VulnerabilityCountsResource ToResource(VulnerabilityCounts counts) => new(counts.Critical, counts.High, counts.Medium, counts.Low, counts.Unknown, counts.Total);
 
@@ -269,7 +291,8 @@ public static class MaintenanceResourceMapper
             r.Ci is null ? null : new CiRunResource(r.Ci.Workflow, r.Ci.Status, r.Ci.Conclusion, r.Ci.Failed, r.Ci.At, r.Ci.Url),
             view.AppIds,
             view.Images,
-            view.Deployed);
+            view.Deployed,
+            view.ReleaseVulnerabilities is null ? null : ToResource(view.ReleaseVulnerabilities));
     }
 
     private static AlertScanResource ToResource(AlertScan scan)
@@ -305,4 +328,13 @@ public static class MaintenanceResourceMapper
             view.RepositoryFullName,
             ToResource(view.Vulnerabilities));
     }
+
+    private static string StateName(ImageVulnerabilities vulnerabilities) => vulnerabilities.State switch
+    {
+        VulnerabilityState.NotScanned => "not-scanned",
+        _ => vulnerabilities.State.ToString().ToLowerInvariant(),
+    };
+
+    private static List<ImageFindingResource> FindingsOf(ImageVulnerabilities vulnerabilities) =>
+        [.. vulnerabilities.Findings.Select(f => new ImageFindingResource(f.Id, f.Package, f.InstalledVersion, f.FixedVersion, f.Severity, f.Title, f.Url))];
 }

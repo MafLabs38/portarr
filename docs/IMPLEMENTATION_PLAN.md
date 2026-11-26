@@ -104,7 +104,7 @@ Portarr is a tool that uses other tools: each capability names **one recommended
 | Backups of hosts and Docker VMs | **Backrest** (restic): plans, schedules, database dump hooks, local array + S3 repositories | its API: plans, last run, result, snapshots |
 | Backups in Kubernetes | **K8up** (restic operator): schedules, PVC backups, annotation-based database dumps | its custom resources |
 | Code and images | GitHub API, OCI registries | alerts, releases, tags |
-| Vulnerabilities of the images that run | the optional **scanner** container (the Trivy command line, D-131) | its report: findings per image |
+| Vulnerabilities of the images that run and of the latest release of each repository | the optional **scanner** container (the Trivy command line, D-131, D-132) | its report: findings per image and per release |
 | AI assistants | Portarr's own MCP server; agent CLIs in the optional `portarr-agent` container | — |
 
 Steps, each accepted in the sandbox before the next:

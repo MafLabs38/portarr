@@ -361,7 +361,7 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
     }
 
     /// <summary>
-    /// The image scanner (D-131), when the catalog declares one: told the images that run and read, at most every 30 minutes (5 after a
+    /// The image scanner (D-131), when the catalog declares one: told the images that run and the repositories whose latest release is scanned (D-132), and read, at most every 30 minutes (5 after a
     /// failure). A scanner that cannot be reached keeps the previous results, with the error next to them; one that is not declared is off.
     /// </summary>
     private async Task<ImageScanSnapshot> ReadScannerAsync(ImageScanSnapshot previous, DateTimeOffset? forced, CancellationToken cancellationToken)
@@ -384,17 +384,24 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
         _scannerKey = source.Fingerprint;
         // Another scanner (its address changed) knows nothing of what the previous one said.
         var kept = sameSource ? previous : ImageScanSnapshot.Off;
-        var images = RunningImages(_inventory.Current)
+        var targets = RunningImages(_inventory.Current)
             .Where(pair => !pair.Image.IsImageId)
             .Select(pair => pair.Image.ScanReference)
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
+            .Select(image => new ScanTarget(ScanTargetKinds.Image, image))
+            .Concat(ReleaseTargets.Of(_catalogService.Current.Catalog).ScanTargets(_current.Repositories.Repositories))
             .ToList();
         try
         {
-            await RequestScansAsync(scanner, images, cancellationToken);
+            await RequestScansAsync(scanner, targets, cancellationToken);
             var report = await scanner.ReadAsync(cancellationToken);
-            return new ImageScanSnapshot(report.Images.Where(i => i.Kind == ScanTargetKinds.Image).ToDictionary(i => i.Image, StringComparer.Ordinal), now, null, report.DatabaseUpdatedAt);
+            return new ImageScanSnapshot(
+                report.Images.Where(i => i.Kind == ScanTargetKinds.Image).ToDictionary(i => i.Image, StringComparer.Ordinal),
+                now,
+                null,
+                report.DatabaseUpdatedAt,
+                report.Images.Where(i => i.Kind == ScanTargetKinds.Release).DistinctBy(i => i.Image, StringComparer.OrdinalIgnoreCase).ToDictionary(i => i.Image, StringComparer.OrdinalIgnoreCase));
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
@@ -405,16 +412,16 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
     }
 
     // A request that fails does not stop the read: the read is the source of truth (the scanner may answer it while it refuses new work).
-    private async Task RequestScansAsync(IImageScanner scanner, List<string> images, CancellationToken cancellationToken)
+    private async Task RequestScansAsync(IImageScanner scanner, List<ScanTarget> targets, CancellationToken cancellationToken)
     {
-        if (images.Count == 0)
+        if (targets.Count == 0)
         {
             return;
         }
 
         try
         {
-            await scanner.RequestAsync(images, cancellationToken);
+            await scanner.RequestAsync(targets, cancellationToken);
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {

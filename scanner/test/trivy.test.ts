@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { reasonOf, ScanFailure, TrivyCli } from '../src/trivy.ts';
+import { reasonOf, sbomReasonOf, ScanFailure, TrivyCli } from '../src/trivy.ts';
 
 /** A shell script that stands for Trivy: it records its arguments and answers as the first argument asks. */
 async function fakeTrivy(script: string): Promise<{ command: string; dir: string }> {
@@ -85,4 +85,34 @@ test('a database that cannot be read is an empty answer', async () => {
   const { command, dir } = await fakeTrivy(`echo 'oops'`);
 
   assert.deepEqual(await new TrivyCli(command, dir, 60_000, false).database(), {});
+});
+
+test('an SBOM is one file argument after --, read with the same options as an image', async () => {
+  const { command, dir } = await fakeTrivy(`echo '{"Results":[{"Vulnerabilities":[]}]}'`);
+  const cli = new TrivyCli(command, join(dir, 'cache'), 60_000, false);
+
+  const report = await cli.scanSbom('/data/work/sbom-x/sbom.json');
+
+  assert.deepEqual(report, { Results: [{ Vulnerabilities: [] }] });
+  const call = (await readFile(join(dir, 'calls'), 'utf8')).trim();
+  assert.match(
+    call,
+    /^sbom --format json --quiet --no-progress --scanners vuln --timeout 60s --cache-dir .*\/cache -- \/data\/work\/sbom-x\/sbom\.json$/,
+  );
+});
+
+test('an SBOM that Trivy cannot decode is no-sbom, the other failures keep their codes', async () => {
+  assert.equal(sbomReasonOf('FATAL SBOM scan error: unable to detect SBOM format'), 'no-sbom');
+  assert.equal(sbomReasonOf('failed to decode CycloneDX'), 'no-sbom');
+  assert.equal(sbomReasonOf('context deadline exceeded'), 'timeout');
+  assert.equal(sbomReasonOf('something else'), 'error');
+
+  const bad = await fakeTrivy(`echo 'FATAL unable to detect SBOM format' >&2; exit 1`);
+  await assert.rejects(new TrivyCli(bad.command, bad.dir, 60_000, false).scanSbom('f.json'), { reason: 'no-sbom' });
+  const slow = await fakeTrivy('sleep 30');
+  await assert.rejects(new TrivyCli(slow.command, slow.dir, 300, false, 0).scanSbom('f.json'), { reason: 'timeout' });
+  const notJson = await fakeTrivy(`echo 'not json'`);
+  await assert.rejects(new TrivyCli(notJson.command, notJson.dir, 60_000, false).scanSbom('f.json'), {
+    reason: 'error',
+  });
 });

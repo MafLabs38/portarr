@@ -40,7 +40,7 @@ public sealed class TrivyImageScannerContractFixture : ImageScannerContract
     {
         public List<RecordedRequest> Requests { get; } = [];
 
-        public List<string> Asked { get; } = [];
+        public List<ScanTarget> Asked { get; } = [];
 
         public bool Failing { get; set; }
 
@@ -60,7 +60,7 @@ public sealed class TrivyImageScannerContractFixture : ImageScannerContract
             if (request.Method == HttpMethod.Post && request.RequestUri.AbsolutePath == "/v1/scans")
             {
                 using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
-                Asked.AddRange(body.RootElement.GetProperty("targets").EnumerateArray().Where(e => e.GetProperty("kind").GetString() == "image").Select(e => e.GetProperty("ref").GetString()!));
+                Asked.AddRange(body.RootElement.GetProperty("targets").EnumerateArray().Select(e => new ScanTarget(e.GetProperty("kind").GetString()!, e.GetProperty("ref").GetString()!)));
                 return new HttpResponseMessage(HttpStatusCode.Accepted) { Content = new StringContent("""{ "queued": 2 }""", Encoding.UTF8, "application/json") };
             }
 
@@ -79,6 +79,7 @@ public sealed class TrivyImageScannerContractFixture : ImageScannerContract
                 ["state"] = image.State.ToString().ToLowerInvariant(),
                 ["reason"] = image.Reason,
                 ["scannedAt"] = image.ScannedAt,
+                ["version"] = image.Version,
                 ["counts"] = Counts(image.Counts),
                 ["fixable"] = Counts(image.Fixable),
                 ["findings"] = image.Findings.Select(f => new Dictionary<string, object?>

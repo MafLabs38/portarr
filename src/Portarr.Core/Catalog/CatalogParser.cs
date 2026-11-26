@@ -64,6 +64,12 @@ public static partial class CatalogParser
     [GeneratedRegex("^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")]
     private static partial Regex OwnerPattern();
 
+    /// <summary>
+    /// A repository of the releases map: <c>owner/name</c> where no part is <c>.</c> or <c>..</c> (the scanner companion refuses the whole request on
+    /// such a reference, so the catalog must not let it through).
+    /// </summary>
+    private static bool IsRepository(string value) => RepositoryPattern().IsMatch(value) && value.Split('/').All(part => part is not ("." or ".."));
+
     /// <summary>A repository: <c>owner/name</c>.</summary>
     [GeneratedRegex("^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")]
     private static partial Regex RepositoryPattern();
@@ -437,6 +443,8 @@ public static partial class CatalogParser
                 _errors.Add($"{label}: exclude entry '{pattern}' must be owner/name, * allowed (e.g. example/test-*).");
             }
 
+            var releases = BuildReleases(document.Releases, label);
+
             if (CatalogValues.SecretVariableError("tokenEnv", document.TokenEnv, GitHubSource.TokenPrefix, GitHubSource.DefaultTokenVariable, "token", _allowedSecretVariables, out _) is { } tokenError)
             {
                 _errors.Add($"{label}: {tokenError}");
@@ -473,7 +481,46 @@ public static partial class CatalogParser
                 exclude,
                 document.Forks ?? false,
                 document.Archived ?? false,
-                apiUrl);
+                apiUrl)
+            {
+                ReleaseRepositories = releases,
+            };
+        }
+
+        /// <summary><c>releases:</c> (D-132): <c>owner/source-repo: owner/releases-repo</c>, both ways a repository name, at most <see cref="GitHubSource.MaxReleaseRepositories"/> entries.</summary>
+        private Dictionary<string, string> BuildReleases(Dictionary<string, string?>? document, string label)
+        {
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (document is null)
+            {
+                return result;
+            }
+
+            if (document.Count > GitHubSource.MaxReleaseRepositories)
+            {
+                _errors.Add($"{label}: releases lists {document.Count} repositories; at most {GitHubSource.MaxReleaseRepositories} are allowed.");
+                return result;
+            }
+
+            foreach (var (key, value) in document)
+            {
+                var source = key?.Trim() ?? string.Empty;
+                var target = value?.Trim() ?? string.Empty;
+                if (!IsRepository(source))
+                {
+                    _errors.Add($"{label}: releases entry '{source}' must be owner/name.");
+                }
+                else if (!IsRepository(target))
+                {
+                    _errors.Add($"{label}: releases entry '{source}' must point at owner/name, the repository its releases are published in.");
+                }
+                else if (!result.TryAdd(source, target))
+                {
+                    _errors.Add($"{label}: releases lists '{source}' more than once.");
+                }
+            }
+
+            return result;
         }
 
         /// <summary>Web apps are checked by default (D-50); <c>check: false</c> turns it off, a mapping overrides it.</summary>

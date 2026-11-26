@@ -2,6 +2,8 @@
 // a day. The results live in memory and in one file; the Trivy CLI is the only thing that touches the network.
 
 import { defaultMaxImages } from './config.ts';
+import { type Target, targetKey, type TargetKind } from './reference.ts';
+import type { ReleaseSource } from './release.ts';
 import { type Counts, emptyCounts, type Finding, hasResults, summarise } from './report.ts';
 import type { ResultStore, StoredImage } from './store.ts';
 import { type DatabaseInfo, type Reason, ScanFailure, type TrivyRunner } from './trivy.ts';
@@ -9,12 +11,14 @@ import { type DatabaseInfo, type Reason, ScanFailure, type TrivyRunner } from '.
 export type ImageState = 'scanned' | 'queued' | 'scanning' | 'failed';
 
 export interface ImageResult {
-  /** What was scanned: `image` today (an SBOM of a release later). The pair kind and ref names a result. */
-  kind: 'image';
+  /** What was scanned: a container image, or the SBOM of the latest release of a repository. The pair kind and ref names a result. */
+  kind: TargetKind;
   ref: string;
   state: ImageState;
   reason?: Reason;
   scannedAt?: string;
+  /** The tag of the release that was scanned; only for a release, only once scanned. */
+  version?: string;
   counts: Counts;
   fixable: Counts;
   findings: Finding[];
@@ -29,7 +33,7 @@ export interface ScanResults {
 export interface ScannerOptions {
   rescanAfterMs: number;
   forgetAfterMs: number;
-  /** At most this many references are tracked; a new one beyond it is ignored (the answer says how many). */
+  /** At most this many targets (images and releases) are tracked; a new one beyond it is ignored (the answer says how many). */
   maxImages?: number;
   /** A scan that failed for no lasting reason (a timeout, an error) is tried again after this. */
   retryAfterMs?: number;
@@ -38,28 +42,34 @@ export interface ScannerOptions {
 }
 
 export interface RequestOutcome {
-  /** References that will be scanned now. */
+  /** Targets that will be scanned now. */
   queued: number;
-  /** New references refused because the scanner already tracks its maximum. */
+  /** New targets refused because the scanner already tracks its maximum. */
   ignored: number;
 }
 
 const lastingFailures: Reason[] = ['not-found', 'unauthorized', 'unsupported'];
 
+/** A record whose kind is settled: an old file knows only images. */
+type Tracked = StoredImage & { kind: TargetKind };
+
 export class Scanner {
   private readonly runner: TrivyRunner;
   private readonly store: ResultStore;
+  private readonly releases: ReleaseSource;
   private readonly options: Required<ScannerOptions>;
-  private records = new Map<string, StoredImage>();
+  private records = new Map<string, Tracked>();
   private database: DatabaseInfo = {};
+  /** Keys (kind and ref), oldest request first. */
   private queue: string[] = [];
   private current: string | undefined;
   private working: Promise<void> | undefined;
   private saving: Promise<void> = Promise.resolve();
 
-  constructor(runner: TrivyRunner, store: ResultStore, options: ScannerOptions) {
+  constructor(runner: TrivyRunner, store: ResultStore, releases: ReleaseSource, options: ScannerOptions) {
     this.runner = runner;
     this.store = store;
+    this.releases = releases;
     this.options = {
       retryAfterMs: 3_600_000,
       maxImages: defaultMaxImages,
@@ -72,34 +82,40 @@ export class Scanner {
   async init(): Promise<void> {
     const stored = await this.store.load();
     this.database = stored.database;
-    this.records = new Map(stored.records.map((record) => [record.image, record]));
+    this.records = new Map(
+      stored.records.map((record) => {
+        const kind = record.kind ?? 'image';
+        return [targetKey(kind, record.image), { ...record, kind }];
+      }),
+    );
   }
 
   /**
-   * Queues the images that are new or due. Images Portarr names stay known for the forget delay; once the scanner tracks
-   * its maximum, a reference it does not know yet is ignored (and counted).
+   * Queues the targets that are new or due. Targets Portarr names stay known for the forget delay; once the scanner
+   * tracks its maximum, one it does not know yet is ignored (and counted).
    */
-  request(images: readonly string[]): RequestOutcome {
+  request(targets: readonly Target[]): RequestOutcome {
     const now = this.options.now();
     this.forget(now);
-    const due: { image: string; since: number }[] = [];
+    const due: { key: string; since: number }[] = [];
     let ignored = 0;
-    for (const image of new Set(images)) {
-      const known = this.records.get(image);
+    const unique = new Map(targets.map((target) => [targetKey(target.kind, target.ref), target]));
+    for (const [key, target] of unique) {
+      const known = this.records.get(key);
       if (known === undefined && this.records.size >= this.options.maxImages) {
         ignored++;
         continue;
       }
-      const record = known ?? { image, requestedAt: now };
+      const record: Tracked = known ?? { image: target.ref, kind: target.kind, requestedAt: now };
       record.requestedAt = now;
-      this.records.set(image, record);
-      if (image !== this.current && !this.queue.includes(image) && this.isDue(record, now)) {
-        due.push({ image, since: record.attemptedAt ?? 0 });
+      this.records.set(key, record);
+      if (key !== this.current && !this.queue.includes(key) && this.isDue(record, now)) {
+        due.push({ key, since: record.attemptedAt ?? 0 });
       }
     }
-    // Images never scanned go first, then the ones scanned longest ago.
+    // Targets never scanned go first, then the ones scanned longest ago.
     due.sort((a, b) => a.since - b.since);
-    this.queue.push(...due.map((entry) => entry.image));
+    this.queue.push(...due.map((entry) => entry.key));
     this.start();
     if (due.length === 0) {
       void this.persist();
@@ -109,14 +125,11 @@ export class Scanner {
 
   results(): ScanResults {
     const now = this.options.now();
-    const images = new Map<string, ImageResult>();
-    for (const record of this.records.values()) {
-      images.set(record.image, this.resultOf(record));
-    }
+    const images = [...this.records.entries()].map(([key, record]) => this.resultOf(key, record));
     return {
       generatedAt: new Date(now).toISOString(),
       database: this.database,
-      images: [...images.values()].sort((a, b) => a.ref.localeCompare(b.ref)),
+      images: images.sort((a, b) => a.kind.localeCompare(b.kind) || a.ref.localeCompare(b.ref)),
     };
   }
 
@@ -128,25 +141,27 @@ export class Scanner {
     await this.saving;
   }
 
-  private isDue(record: StoredImage, now: number): boolean {
+  private isDue(record: Tracked, now: number): boolean {
     if (record.attemptedAt === undefined) {
       return true;
     }
-    const wait =
-      record.state === 'failed' && !lastingFailures.includes(record.reason as Reason)
-        ? this.options.retryAfterMs
-        : this.options.rescanAfterMs;
+    // A failure that may pass is tried again soon; a lasting one, and a release without an SBOM (it may publish one with
+    // its next version, not within the hour), wait for the normal rescan.
+    const reason = record.reason as Reason;
+    const retrySoon = record.state === 'failed' && !lastingFailures.includes(reason) && reason !== 'no-sbom';
+    const wait = retrySoon ? this.options.retryAfterMs : this.options.rescanAfterMs;
     return now - record.attemptedAt >= wait;
   }
 
-  private resultOf(record: StoredImage): ImageResult {
+  private resultOf(key: string, record: Tracked): ImageResult {
     // An image with a result keeps showing it while it waits for a rescan; the others say where they are in the queue.
     return {
-      kind: 'image',
+      kind: record.kind,
       ref: record.image,
-      state: record.state ?? (record.image === this.current ? 'scanning' : 'queued'),
+      state: record.state ?? (key === this.current ? 'scanning' : 'queued'),
       ...(record.reason === undefined ? {} : { reason: record.reason }),
       ...(record.scannedAt === undefined ? {} : { scannedAt: record.scannedAt }),
+      ...(record.version === undefined ? {} : { version: record.version }),
       counts: record.counts ?? emptyCounts(),
       fixable: record.fixable ?? emptyCounts(),
       findings: record.findings ?? [],
@@ -154,13 +169,9 @@ export class Scanner {
   }
 
   private forget(now: number): void {
-    for (const [image, record] of this.records) {
-      if (
-        now - record.requestedAt > this.options.forgetAfterMs &&
-        image !== this.current &&
-        !this.queue.includes(image)
-      ) {
-        this.records.delete(image);
+    for (const [key, record] of this.records) {
+      if (now - record.requestedAt > this.options.forgetAfterMs && key !== this.current && !this.queue.includes(key)) {
+        this.records.delete(key);
       }
     }
   }
@@ -171,42 +182,45 @@ export class Scanner {
     }
     this.working = this.work().finally(() => {
       this.working = undefined;
-      // Images queued while the worker was finishing are not left waiting.
+      // Targets queued while the worker was finishing are not left waiting.
       this.start();
     });
   }
 
   private async work(): Promise<void> {
-    for (let image = this.queue.shift(); image !== undefined; image = this.queue.shift()) {
-      this.current = image;
-      await this.scanOne(image);
+    for (let key = this.queue.shift(); key !== undefined; key = this.queue.shift()) {
+      this.current = key;
+      await this.scanOne(key);
       this.current = undefined;
     }
   }
 
-  private async scanOne(image: string): Promise<void> {
-    const record = this.records.get(image);
+  private async scanOne(key: string): Promise<void> {
+    const record = this.records.get(key);
     if (record === undefined) {
       return;
     }
     try {
-      const report = await this.runner.scan(image);
+      const { report, version } = await this.report(record);
       if (!hasResults(report)) {
-        // Nothing Trivy can read: an image from scratch, or an operating system it does not know.
-        throw new ScanFailure('unsupported');
+        // Nothing Trivy can read: an image from scratch, or an operating system it does not know; for a release, an
+        // SBOM that lists nothing.
+        throw new ScanFailure(record.kind === 'release' ? 'no-sbom' : 'unsupported');
       }
       Object.assign(record, summarise(report), {
         state: 'scanned',
         reason: undefined,
         scannedAt: new Date(this.options.now()).toISOString(),
+        version,
       });
     } catch (error) {
       const reason: Reason = error instanceof ScanFailure ? error.reason : 'error';
-      this.options.log(`scan of ${image} failed: ${reason}`);
+      this.options.log(`scan of ${key} failed: ${reason}`);
       Object.assign(record, {
         state: 'failed',
         reason,
         scannedAt: undefined,
+        version: undefined,
         counts: undefined,
         fixable: undefined,
         findings: undefined,
@@ -215,6 +229,12 @@ export class Scanner {
     record.attemptedAt = this.options.now();
     await this.cleanUp();
     await this.persist();
+  }
+
+  private async report(record: Tracked): Promise<{ report: unknown; version?: string }> {
+    return record.kind === 'release'
+      ? this.releases.scan(record.image, this.runner)
+      : { report: await this.runner.scan(record.image) };
   }
 
   private async cleanUp(): Promise<void> {

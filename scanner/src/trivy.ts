@@ -3,7 +3,8 @@
 
 import { spawn } from 'node:child_process';
 
-export type Reason = 'not-found' | 'unauthorized' | 'timeout' | 'unsupported' | 'error';
+/** `no-sbom`: a release publishes no SBOM, or one Trivy cannot read. Unlike the others it may change on the next release. */
+export type Reason = 'not-found' | 'unauthorized' | 'timeout' | 'unsupported' | 'no-sbom' | 'error';
 
 /** A scan that did not produce a report, with the short code Portarr shows. */
 export class ScanFailure extends Error {
@@ -22,6 +23,8 @@ export interface DatabaseInfo {
 export interface TrivyRunner {
   /** Trivy's JSON report of the image, or a `ScanFailure`. */
   scan(image: string): Promise<unknown>;
+  /** Trivy's JSON report of an SBOM file (CycloneDX or SPDX), or a `ScanFailure`. */
+  scanSbom(file: string): Promise<unknown>;
   /** Drops what the scan left in the cache (layers, results); the vulnerability database stays. */
   clean(): Promise<void>;
   /** The vulnerability database Trivy holds; empty when it cannot tell. */
@@ -42,6 +45,15 @@ export function reasonOf(stderr: string): Reason {
     return 'timeout';
   }
   return 'error';
+}
+
+/** An SBOM Trivy cannot decode is not a scanner fault: the release simply publishes nothing usable. */
+export function sbomReasonOf(stderr: string): Reason {
+  return /unable to (detect|decode|determine)|failed to (detect|decode)|unknown (sbom )?format|unsupported (sbom )?format/i.test(
+    stderr,
+  )
+    ? 'no-sbom'
+    : reasonOf(stderr);
 }
 
 interface Outcome {
@@ -117,12 +129,18 @@ export class TrivyCli implements TrivyRunner {
     this.nice = nice;
   }
 
-  async scan(image: string): Promise<unknown> {
+  scan(image: string): Promise<unknown> {
+    return this.report(['image', '--image-src', 'remote'], image, reasonOf);
+  }
+
+  scanSbom(file: string): Promise<unknown> {
+    return this.report(['sbom'], file, sbomReasonOf);
+  }
+
+  private async report(command: string[], subject: string, why: (stderr: string) => Reason): Promise<unknown> {
     const outcome = await this.trivy(
       [
-        'image',
-        '--image-src',
-        'remote',
+        ...command,
         '--format',
         'json',
         '--quiet',
@@ -134,7 +152,7 @@ export class TrivyCli implements TrivyRunner {
         '--cache-dir',
         this.cacheDir,
         '--',
-        image,
+        subject,
       ],
       // Trivy stops itself at its own timeout; this one only catches a process that does not.
       this.timeoutMs + this.graceMs,
@@ -143,7 +161,7 @@ export class TrivyCli implements TrivyRunner {
       throw new ScanFailure('timeout');
     }
     if (outcome.overflowed || outcome.code !== 0) {
-      throw new ScanFailure(outcome.overflowed ? 'error' : reasonOf(outcome.stderr));
+      throw new ScanFailure(outcome.overflowed ? 'error' : why(outcome.stderr));
     }
     try {
       return JSON.parse(outcome.stdout) as unknown;

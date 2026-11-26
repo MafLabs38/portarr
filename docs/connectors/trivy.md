@@ -23,8 +23,10 @@ imageScanner:
 
 | Request | Reading |
 |---|---|
-| `POST /v1/scans` `{ "targets": [{ "kind": "image", "ref": "docker.io/library/postgres:16" }, …] }` | the images that run (`image` is the only kind for now; another is refused), by their full reference (registry, repository, tag and digest), 200 at a time, plain references only; answers `202` with `queued` (how many it will scan; it skips an image it scanned less than 24 hours ago) and `ignored` (new references beyond the 2000 it tracks at most, `PORTARR_SCANNER_MAX_IMAGES`) |
+| `POST /v1/scans` `{ "targets": [{ "kind": "image", "ref": "docker.io/library/postgres:16" }, …] }` | the images that run (`image`; the other kind is `release`, below), by their full reference (registry, repository, tag and digest), 200 at a time, plain references only; answers `202` with `queued` (how many it will scan; it skips an image it scanned less than 24 hours ago) and `ignored` (new references beyond the 2000 it tracks at most, `PORTARR_SCANNER_MAX_IMAGES`) |
 | `GET /v1/results` | per target (`kind`, `ref`): `state` (`scanned`, `queued`, `scanning`, `failed`), `reason`, `scannedAt`, `counts` and `fixable` by severity, and the worst `findings`; and the date of the vulnerability database |
+
+**Releases (D-132).** The same request takes `{ "kind": "release", "ref": "owner/name" }`: the latest GitHub release of that repository. The companion reads it through the GitHub API (anonymously, github.com only; the optional `PORTARR_SCANNER_GITHUB_TOKEN` set on the companion only lifts the rate limit, give it no repository permission: release scans are public repositories only), picks the SBOM asset (`*.cdx.json`, then `*.spdx.json`, then `sbom*.json`, then `bom.json`, 50 MiB at most, from github.com), runs `trivy sbom` on it and answers with the release tag as `version`. A release that publishes no SBOM is `failed` with the reason `no-sbom` (retried after a day, since a project may add one later), shown as "no SBOM published". Portarr asks for the public repositories its github.com source scans that publish a release, and for the repositories the `releases:` mapping of the catalog names (a private source repository maps to the public one that publishes its builds; a GitHub Enterprise Server's repositories are not asked, their `owner/name` could be another project's on github.com) ([catalog.md](../catalog.md#sources)).
 
 Every request carries `Authorization: Bearer <secret>`. Portarr asks **every 30 minutes** (5 after a failure), and on a manual refresh of the Maintenance page. An image created from an id (`sha256:…`) cannot be scanned and is not sent.
 
@@ -37,7 +39,7 @@ For each image row (`vulnerabilities` in `GET /api/v1/maintenance`, see [V4](../
 | `scanned` | the counts are real: every severity, how many have a fix, and the worst findings (critical and high; at most 50 kept) |
 | `queued` | asked, not scanned yet (the scanner takes one image at a time) |
 | `failed` | the scanner failed on this image (`timeout`, `error`), or cannot be read (`unreachable`, `http-401`, `secret-missing`…) |
-| `not-scanned` | an image the scanner cannot read, with the reason: `not-found` (a local build, a name that does not exist), `unauthorized` (a private image: registry credentials are not supported yet), `unsupported` (nothing Trivy can read: from scratch, an unknown operating system), `image-id` (created from an id) |
+| `not-scanned` | an image the scanner cannot read, with the reason: `not-found` (a local build, a name that does not exist), `unauthorized` (a private image: registry credentials are not supported yet), `unsupported` (nothing Trivy can read: from scratch, an unknown operating system), `image-id` (created from an id); for a release, `no-sbom` (no usable SBOM published with it), `not-found` (no release, or not readable) or `unauthorized` |
 | `off` | no scanner declared |
 
 `PORTARR__VULNERABILITIES__MINSEVERITY` (`critical` or `high`, `high` by default) hides the findings and the attention below it; the counts stay whole. The scanner describes high and critical findings only, so these are the only two values.

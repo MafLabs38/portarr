@@ -276,10 +276,14 @@ public sealed class FleetDigest
         var images = section is "all" or "images";
         var platforms = section is "all" or "platforms";
 
-        var repositories = code
-            ? resource.Repositories.Where(NeedsAttention).Select(r => RepositoryLineOf(r, names)).ToList()
-            : [];
         var thresholdRank = VulnerabilitySeverities.ThresholdRank(report.MinSeverity);
+        var releaseWithFix = report.Repositories
+            .Where(r => ImageVulnerabilityAttention.NeedsAttention(r.ReleaseVulnerabilities, thresholdRank))
+            .Select(r => r.Repository.FullName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var repositories = code
+            ? resource.Repositories.Where(r => NeedsAttention(r) || releaseWithFix.Contains(r.FullName)).Select(r => RepositoryLineOf(r, names)).ToList()
+            : [];
         var withFix = report.Images.Where(i => ImageVulnerabilityAttention.NeedsAttention(i.Vulnerabilities, thresholdRank)).Select(i => i.Image.Display).ToHashSet(StringComparer.Ordinal);
         var imageLines = images
             ? resource.Images.Where(i => i.Status is not "up-to-date" || withFix.Contains(i.Reference)).OrderBy(i => i.Vulnerabilities.Fixable.Critical > 0 ? 0 : 1).Select(ImageLineOf).ToList()
@@ -402,7 +406,27 @@ public sealed class FleetDigest
             v.Counts.Unknown,
             v.Fixable.Critical,
             v.Fixable.High,
-            [.. v.Findings.Take(MaxImageFindings).Select(f => new ImageFindingLine(f.Id, f.Package, f.InstalledVersion, f.FixedVersion, f.Severity, f.Title, f.Url is null ? null : SafeUrl.Of(f.Url)))]);
+            WorstOf(v.Findings));
+
+    private static List<ImageFindingLine> WorstOf(IReadOnlyList<ImageFindingResource> findings) =>
+        [.. findings.Take(MaxImageFindings).Select(f => new ImageFindingLine(f.Id, f.Package, f.InstalledVersion, f.FixedVersion, f.Severity, f.Title, f.Url is null ? null : SafeUrl.Of(f.Url)))];
+
+    /// <summary>The scanner's reading of a repository's latest release, or null when it has none or no scanner is declared.</summary>
+    private static ReleaseVulnerabilityLine? ReleaseVulnerabilitiesOf(ReleaseVulnerabilitiesResource? v) => v is null or { State: "off" }
+        ? null
+        : new ReleaseVulnerabilityLine(
+            v.State,
+            v.Reason,
+            v.ReleaseRepository,
+            v.Version,
+            v.Counts.Critical,
+            v.Counts.High,
+            v.Counts.Medium,
+            v.Counts.Low,
+            v.Counts.Unknown,
+            v.Fixable.Critical,
+            v.Fixable.High,
+            WorstOf(v.Findings));
 
     private static ImageLine ImageLineOf(DeployedImageResource image) => new(
         image.Reference,
@@ -516,7 +540,8 @@ public sealed class FleetDigest
         CiState(r.Ci),
         r.DependabotPullRequests,
         r.Release?.Tag,
-        SevereAlertsOf(r));
+        SevereAlertsOf(r),
+        ReleaseVulnerabilitiesOf(r.ReleaseVulnerabilities));
 
     private const int MaxSevereAlerts = 10;
 

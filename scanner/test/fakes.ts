@@ -2,6 +2,8 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { Target } from '../src/reference.ts';
+import type { ReleaseScan, ReleaseSource } from '../src/release.ts';
 import { Scanner } from '../src/scanner.ts';
 import { ResultStore } from '../src/store.ts';
 import { type DatabaseInfo, ScanFailure, type TrivyRunner } from '../src/trivy.ts';
@@ -26,6 +28,9 @@ export function report(...vulnerabilities: Record<string, unknown>[]): unknown {
   };
 }
 
+export const images = (...refs: string[]): Target[] => refs.map((ref) => ({ kind: 'image', ref }));
+export const releases = (...refs: string[]): Target[] => refs.map((ref) => ({ kind: 'release', ref }));
+
 /** A Trivy that answers from a table: a report, or the failure to throw. */
 export class FakeTrivy implements TrivyRunner {
   readonly scanned: string[] = [];
@@ -44,6 +49,10 @@ export class FakeTrivy implements TrivyRunner {
     return answer;
   }
 
+  scanSbom(file: string): Promise<unknown> {
+    return this.scan(file);
+  }
+
   clean(): Promise<void> {
     this.cleaned++;
     return Promise.resolve();
@@ -54,9 +63,22 @@ export class FakeTrivy implements TrivyRunner {
   }
 }
 
+/** A source of releases that answers from a table: a scan (a report and a tag), or the failure to throw. */
+export class FakeReleases implements ReleaseSource {
+  readonly scanned: string[] = [];
+  answers = new Map<string, ReleaseScan | ScanFailure>();
+
+  scan(ref: string): Promise<ReleaseScan> {
+    this.scanned.push(ref);
+    const answer = this.answers.get(ref) ?? { report: report(vulnerability()), version: 'v1.0.0' };
+    return answer instanceof ScanFailure ? Promise.reject(answer) : Promise.resolve(answer);
+  }
+}
+
 export interface Harness {
   dir: string;
   trivy: FakeTrivy;
+  releases: FakeReleases;
   scanner: Scanner;
   clock: { now: number };
 }
@@ -66,15 +88,16 @@ const hour = 3_600_000;
 export async function harness(dir?: string, maxImages?: number): Promise<Harness> {
   const folder = dir ?? (await mkdtemp(join(tmpdir(), 'portarr-scanner-')));
   const trivy = new FakeTrivy();
+  const releaseSource = new FakeReleases();
   const clock = { now: Date.parse('2026-11-25T10:00:00Z') };
-  const scanner = new Scanner(trivy, new ResultStore(folder), {
+  const scanner = new Scanner(trivy, new ResultStore(folder), releaseSource, {
     rescanAfterMs: 24 * hour,
     forgetAfterMs: 7 * 24 * hour,
     ...(maxImages === undefined ? {} : { maxImages }),
     now: () => clock.now,
   });
   await scanner.init();
-  return { dir: folder, trivy, scanner, clock };
+  return { dir: folder, trivy, releases: releaseSource, scanner, clock };
 }
 
 export const hours = (count: number): number => count * hour;

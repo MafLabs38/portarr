@@ -102,27 +102,36 @@ public static class ImageScanReasons
 
     public const string Timeout = "timeout";
 
+    /// <summary>The latest release of a repository publishes no SBOM, or nothing readable in it.</summary>
+    public const string NoSbom = "no-sbom";
+
     /// <summary>Nothing the scanner can read in the image (from scratch, an operating system it does not know).</summary>
     public const string Unsupported = "unsupported";
 
     public const string Error = "error";
 
-    private static readonly HashSet<string> Known = [NotFound, Unauthorized, Timeout, Unsupported, Error];
+    private static readonly HashSet<string> Known = [NotFound, Unauthorized, Timeout, NoSbom, Unsupported, Error];
 
     /// <summary>The reason as the closed set says it: an unknown word is an error, never shown as given.</summary>
     public static string Normalise(string? reason) => reason?.Trim().ToLowerInvariant() is { } text && Known.Contains(text) ? text : Error;
 }
 
-/// <summary>What a scanner is asked to scan: <c>image</c> today; a later kind (the SBOM of a release) is one more constant.</summary>
+/// <summary>What a scanner is asked to scan: a running <c>image</c>, or the SBOM of the latest <c>release</c> of a repository (D-132).</summary>
 public static class ScanTargetKinds
 {
     public const string Image = "image";
+
+    /// <summary>The reference is a repository (<c>owner/name</c>) whose latest release publishes an SBOM.</summary>
+    public const string Release = "release";
 }
 
+/// <summary>One thing a scanner is asked to scan: its <see cref="ScanTargetKinds">kind</see> and its reference (an image reference, or <c>owner/name</c> for a release).</summary>
+public sealed record ScanTarget(string Kind, string Ref);
+
 /// <summary>
-/// What the scanner says of one scan target (an image reference today, <see cref="Kind"/> <c>image</c>; the pair kind and reference names a result). <c>Counts</c> cover every vulnerability, <c>Fixable</c> the ones that have a fix,
-/// <c>Findings</c> the worst of them (at most <see cref="MaxFindings"/>, severity high and critical, worst first). An image that
-/// is not <c>Scanned</c> has no counts and no findings.
+/// What the scanner says of one scan target (an image reference, <see cref="Kind"/> <c>image</c>, or a repository, <c>release</c>; the pair kind and reference names a result). <c>Counts</c> cover every vulnerability, <c>Fixable</c> the ones that have a fix,
+/// <c>Findings</c> the worst of them (at most <see cref="MaxFindings"/>, severity high and critical, worst first). A target that
+/// is not <c>Scanned</c> has no counts and no findings. <c>Version</c> is the tag of the release that was scanned (a release target only).
 /// </summary>
 public sealed record ImageScanResult(
     string Image,
@@ -132,8 +141,12 @@ public sealed record ImageScanResult(
     VulnerabilityCounts Counts,
     VulnerabilityCounts Fixable,
     IReadOnlyList<ImageFinding> Findings,
-    string Kind = ScanTargetKinds.Image)
+    string Kind = ScanTargetKinds.Image,
+    string? Version = null)
 {
+    /// <summary>The longest release tag kept.</summary>
+    public const int MaxVersionLength = 100;
+
     /// <summary>The most findings kept per image: a connector may send more, the Core keeps the worst.</summary>
     public const int MaxFindings = 50;
 
@@ -148,6 +161,7 @@ public sealed record ImageScanResult(
         {
             Reason = State == ImageScanState.Failed ? ImageScanReasons.Normalise(Reason) : null,
             ScannedAt = scanned ? ScannedAt : null,
+            Version = scanned && Kind == ScanTargetKinds.Release ? ImageScanText.Clean(Version, MaxVersionLength) : null,
             Counts = scanned ? Counts.Normalised() : VulnerabilityCounts.None,
             Fixable = scanned ? Fixable.Normalised() : VulnerabilityCounts.None,
             Findings = scanned
@@ -177,8 +191,11 @@ public sealed record ScannerReport(DateTimeOffset GeneratedAt, DateTimeOffset? D
 /// </summary>
 public interface IImageScanner
 {
-    /// <summary>Tells the scanner which images to scan (targets of kind <see cref="ScanTargetKinds.Image"/>); it skips the ones it scanned recently. Throws when it cannot be reached.</summary>
-    Task RequestAsync(IReadOnlyCollection<string> images, CancellationToken cancellationToken);
+    /// <summary>
+    /// Tells the scanner what to scan: running images and the latest release of repositories (see <see cref="ScanTargetKinds"/>); it skips the
+    /// targets it scanned recently, and a connector leaves out a target whose reference it cannot send. Throws when it cannot be reached.
+    /// </summary>
+    Task RequestAsync(IReadOnlyCollection<ScanTarget> targets, CancellationToken cancellationToken);
 
     /// <summary>What the scanner knows now, normalised. Throws when it cannot be read.</summary>
     Task<ScannerReport> ReadAsync(CancellationToken cancellationToken);

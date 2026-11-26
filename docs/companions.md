@@ -374,6 +374,10 @@ Secrets are never logged and never returned. The CLI's environment is an allow-l
 
 For each image that runs (Docker containers and Kubernetes pods, third-party ones included): the vulnerabilities by severity, how many of them have a fix, and the worst findings (id, package, installed and fixed version, a link). A critical vulnerability with a fix becomes a **danger** on the Maintenance page, a high one a warning ([connectors/trivy.md](connectors/trivy.md)).
 
+### Releases and their SBOM (D-132, [ADR 0024](adr/0024-the-vulnerabilities-of-a-release-are-read-from-its-sbom.md))
+
+For software that is not an image (a desktop application, a tool), the companion scans the **SBOM published with the latest GitHub release**. The project's release workflow writes it: a CycloneDX file named `<name>.cdx.json` (`*.spdx.json`, `sbom*.json` and the tools' default `bom.json` are read too), uploaded as a release asset (for a .NET application, a few lines of PowerShell turn the publish output's `deps.json` into one, runtime pack included). Components no advisory database knows (a bundled FFmpeg) can be listed but are not matched. The scan describes the latest published release, not what the users have installed.
+
 ### What it does and does not do
 
 | Does | Does not |
@@ -381,7 +385,7 @@ For each image that runs (Docker containers and Kubernetes pods, third-party one
 | Pull the layers of the images Portarr names from their registries, read them with Trivy, keep the result | Run, start, stop or change anything on your machines (Portarr never acts on the infrastructure, D-16, D-31) |
 | One scan at a time, at the lowest priority, ten minutes at most, Trivy's scan cache dropped after each | Scan in parallel, or the same image twice in a day |
 | Answer Portarr behind a shared secret (every route but `/healthz`) | Listen on the Internet: publish its port only on an address Portarr reaches (or share a Docker network); every route but `/healthz` needs the secret |
-| Report an image it cannot read with a reason (`not-found`, `unauthorized`, `timeout`, `unsupported`, `error`) | Read private registries (not supported yet), or pin the scan to the running digest of a floating tag |
+| Report an image it cannot read with a reason (`not-found`, `unauthorized`, `timeout`, `unsupported`, `error`, and for a release `no-sbom`, D-132) | Read private registries (not supported yet), or pin the scan to the running digest of a floating tag |
 
 **Where to run it.** On a **staging machine, outside the production cluster**: a scan reads every layer of an image (network, disk, CPU). Give the container a CPU and memory limit (the example sets `cpus: 2` and `mem_limit: 2g`); the data volume holds Trivy's vulnerability database (a few hundred MB) and the results.
 
@@ -415,7 +419,8 @@ volumes:
 | `PORTARR_SCANNER_TIMEOUT_MINUTES` | `10` | One scan stops after this long and is reported as `timeout` |
 | `PORTARR_SCANNER_RESCAN_HOURS` | `24` | An image is scanned again when Portarr names it after this long |
 | `PORTARR_SCANNER_FORGET_DAYS` | `7` | An image Portarr has not named for this long is forgotten |
-| `PORTARR_SCANNER_MAX_IMAGES` | `2000` | References tracked at most (10 to 10000); a new one beyond it is ignored |
+| `PORTARR_SCANNER_MAX_IMAGES` | `2000` | Targets tracked at most, images and releases together (10 to 10000); a new one beyond it is ignored |
+| `PORTARR_SCANNER_GITHUB_TOKEN` | — (optional) | Only lifts GitHub's anonymous rate limit when the companion reads releases (D-132): a fine-grained token **with no repository permission**. It is never sent with the SBOM download; release scans are public repositories only |
 | `TRIVY_BIN` | `trivy` | The Trivy executable |
 
 Secrets are never logged and never returned.

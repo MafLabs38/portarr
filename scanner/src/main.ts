@@ -1,10 +1,12 @@
-// portarr-scanner: runs the Trivy CLI on the images Portarr names and answers with their vulnerabilities (D-131).
-// It only pulls image layers from registries: nothing runs on the machines, and Portarr never acts on them (D-16, D-31).
+// portarr-scanner: runs the Trivy CLI on the images Portarr names, and on the SBOM of the latest release of the
+// repositories it names, and answers with their vulnerabilities (D-131). It only pulls image layers from registries and
+// reads public release assets from GitHub: nothing runs on the machines, and Portarr never acts on them (D-16, D-31).
 
-import { mkdir } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { loadConfig } from './config.ts';
+import { ReleaseSbomSource } from './release.ts';
 import { Scanner } from './scanner.ts';
 import { createScannerServer } from './server.ts';
 import { ResultStore } from './store.ts';
@@ -19,9 +21,14 @@ async function main(): Promise<void> {
   const cacheDir = join(config.dataDir, 'trivy');
   await mkdir(cacheDir, { recursive: true, mode: 0o700 });
 
+  // Downloaded SBOMs live here, on disk and not in /tmp (a RAM tmpfs); a crash may leave one behind.
+  const workDir = join(config.dataDir, 'work');
+  await rm(workDir, { recursive: true, force: true });
+
   const scanner = new Scanner(
     new TrivyCli(config.trivyCommand, cacheDir, config.scanTimeoutMs),
     new ResultStore(config.dataDir),
+    new ReleaseSbomSource({ workDir, ...(config.githubToken === undefined ? {} : { token: config.githubToken }) }),
     { rescanAfterMs: config.rescanAfterMs, forgetAfterMs: config.forgetAfterMs, maxImages: config.maxImages, log },
   );
   await scanner.init();
