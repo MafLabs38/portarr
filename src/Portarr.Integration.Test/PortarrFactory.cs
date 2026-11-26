@@ -146,9 +146,11 @@ public sealed class PortarrFactory : WebApplicationFactory<Program>
             services.RemoveAll<IWorkloadSource>();
             services.AddSingleton<IWorkloadSource>(Workloads);
 
-            // Registries and code hosts are on the internet: tests never call them.
+            // Registries, code hosts and the exploit intelligence are on the internet: tests never call them.
             services.RemoveAll<IImageRegistry>();
             services.RemoveAll<ICodeRepositorySource>();
+            services.RemoveAll<IImageScanner>();
+            services.RemoveAll<IExploitIntelligence>();
 
             // App checks never leave the test: every URL answers 200.
             services.AddHttpClient(HttpCheckRunner.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => new OkHandler());

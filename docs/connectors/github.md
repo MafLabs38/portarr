@@ -46,9 +46,9 @@ apps:
 |---|---|
 | `GET /user`, `GET /users/{owner}` | whether an owner is an organization, and whether the token belongs to a user (their private repositories are then listed) |
 | `GET /orgs/{org}/repos`, `/user/repos`, `/users/{user}/repos` | the repositories, filtered by activity, forks, archived and exclusions |
-| `GET /repos/{repo}/dependabot/alerts?state=open` | alerts by advisory severity; "disabled" means **off** |
-| `GET /repos/{repo}/code-scanning/alerts?state=open` | alerts by security severity, quality rules apart; "no analysis found" or "must be enabled" means **off** |
-| `GET /repos/{repo}/secret-scanning/alerts?state=open` | open secrets; "disabled" means **off** |
+| `GET /repos/{repo}/dependabot/alerts?state=open` | alerts by advisory severity, each with its package, vulnerable range, fixed version, GHSA and CVE identifiers, manifest and link (D-130); "disabled" means **off** |
+| `GET /repos/{repo}/code-scanning/alerts?state=open` | alerts by security severity, quality rules apart, each with its rule description, file and line, and link; "no analysis found" or "must be enabled" means **off** |
+| `GET /repos/{repo}/secret-scanning/alerts?state=open` | open secrets, each with the kind of secret and its link, never its value (`hide_secret=true`); "disabled" means **off** |
 | `GET /repos/{repo}/releases/latest`, then `/tags` | latest release, else latest tag |
 | `GET /repos/{repo}/pulls?state=open` | pull requests opened by `dependabot[bot]` |
 | `GET /repos/{repo}/actions/runs?branch={default}&event=push&per_page=1` | the last CI run of the default branch |

@@ -69,6 +69,12 @@ public sealed class PortarrOptions
     public IReadOnlyList<string> TrustedProxyEntries =>
         (TrustedProxies ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
+    /// <summary>The vulnerabilities of running images (D-131): <c>PORTARR__VULNERABILITIES__MINSEVERITY</c>.</summary>
+    public VulnerabilityOptions Vulnerabilities { get; set; } = new();
+
+    /// <summary>The exploit intelligence (D-133): <c>PORTARR__THREATINTEL__ENABLED</c>, <c>PORTARR__THREATINTEL__KEVURL</c>, <c>PORTARR__THREATINTEL__EPSSURL</c>.</summary>
+    public ThreatIntelOptions ThreatIntel { get; set; } = new();
+
     /// <summary>Editing the catalog through the API and the MCP write tools (D-83, D-85).</summary>
     public CatalogOptions Catalog { get; set; } = new();
 
@@ -108,6 +114,42 @@ public sealed class PortarrOptions
     }
 }
 
+/// <summary>Section <c>Vulnerabilities</c> (D-131): what the image scanner's findings must reach to be shown and to need attention.</summary>
+public sealed class VulnerabilityOptions
+{
+    public const string DefaultMinSeverity = "high";
+
+    /// <summary>The values <see cref="MinSeverity"/> takes, worst first.</summary>
+    public static readonly IReadOnlyList<string> Severities = ["critical", "high"];
+
+    /// <summary>
+    /// The lowest severity shown and raised as attention: <c>critical</c> or <c>high</c> (the default). The counts of an
+    /// image stay complete; the scanner describes high and critical findings only, so no lower value is accepted.
+    /// </summary>
+    public string MinSeverity { get; set; } = DefaultMinSeverity;
+}
+
+/// <summary>
+/// Section <c>ThreatIntel</c> (D-133): which vulnerabilities are known to be exploited (CISA's KEV catalog) and how likely the others are to be
+/// (FIRST's EPSS), read once a day to enrich the image scanner's findings. Both files are downloaded whole: Portarr never tells a third party
+/// which vulnerabilities the fleet has. The addresses can point at a mirror (an air-gapped installation), https only.
+/// </summary>
+public sealed class ThreatIntelOptions
+{
+    public static readonly Uri DefaultKevUrl = new("https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json");
+
+    public static readonly Uri DefaultEpssUrl = new("https://epss.empiricalsecurity.com/epss_scores-current.csv.gz");
+
+    /// <summary>On by default (read only when an image scanner is declared); false: nothing is fetched and the findings carry no exploitation.</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>The KEV catalog in CISA's JSON format.</summary>
+    public Uri KevUrl { get; set; } = DefaultKevUrl;
+
+    /// <summary>The EPSS scores of the day, as FIRST publishes them (a gzip-compressed CSV).</summary>
+    public Uri EpssUrl { get; set; } = DefaultEpssUrl;
+}
+
 /// <summary>Section <c>Catalog</c>: <c>PORTARR__CATALOG__WRITABLE</c>, <c>PORTARR__CATALOG__BACKUPS</c>.</summary>
 public sealed class CatalogOptions
 {
@@ -118,7 +160,7 @@ public sealed class CatalogOptions
 
     /// <summary>
     /// Environment variables, besides each connector's own namespace (<c>PORTARR_K8S_</c>, <c>PORTARR_BACKREST_</c>, <c>PORTARR_CLOUDFLARE_</c>,
-    /// <c>PORTARR_GITHUB_</c>, <c>PORTARR_PROXMOX_</c>) and default name, that a catalog may name as a secret (comma separated): <c>PORTARR__CATALOG__SECRETVARIABLES</c>.
+    /// <c>PORTARR_GITHUB_</c>, <c>PORTARR_PROXMOX_</c>, <c>PORTARR_SCANNER_</c>) and default name, that a catalog may name as a secret (comma separated): <c>PORTARR__CATALOG__SECRETVARIABLES</c>.
     /// Set by whoever runs Portarr, never by the catalog: it is how an existing setup keeps its variable names.
     /// </summary>
     public string? SecretVariables { get; set; }

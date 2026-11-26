@@ -36,6 +36,51 @@ describe('MaintenanceIndex', () => {
     expect(within(elsewhere).getByRole('listitem', { name: 'example/desktop' })).toBeInTheDocument();
   });
 
+  it('opens the alerts of a repository: what is wrong, which package, what mends it', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<MaintenanceIndex />);
+    const running = await screen.findByRole('list', { name: 'Running in the fleet' });
+    const shop = within(running).getByRole('listitem', { name: 'example/shop' });
+    const toggle = within(shop).getByRole('button', { name: 'Details' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(within(shop).queryByRole('list', { name: 'Alerts of example/shop' })).not.toBeInTheDocument();
+
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const alerts = within(within(shop).getByRole('list', { name: 'Alerts of example/shop' })).getAllByRole('listitem');
+    expect(alerts).toHaveLength(2);
+    expect(alerts[0]).toHaveTextContent('critical');
+    expect(
+      within(alerts[0] as HTMLElement).getByRole('link', { name: 'Prototype pollution in minimist' }),
+    ).toHaveAttribute('href', 'https://github.com/example/shop/security/dependabot/8');
+    expect(alerts[0]).toHaveTextContent(
+      'minimist (npm) · affects < 1.2.6 · fixed in 1.2.8 · CVE-2021-44906 · GHSA-xvch-5gv4-984h',
+    );
+    expect(alerts[1]).toHaveTextContent('no fix yet');
+    expect(within(alerts[1] as HTMLElement).queryByRole('link')).not.toBeInTheDocument();
+    expect(within(shop).getByText('2 of 3 alerts shown; the rest is on the code host')).toBeInTheDocument();
+    expect(toggle).toHaveAttribute(
+      'aria-controls',
+      within(shop).getByRole('list', { name: /^Alerts of/ }).parentElement?.id,
+    );
+
+    await user.click(toggle);
+
+    expect(within(shop).queryByRole('list', { name: 'Alerts of example/shop' })).not.toBeInTheDocument();
+  });
+
+  it('offers no Details button for a repository without alerts', async () => {
+    renderWithProviders(<MaintenanceIndex />);
+    const elsewhere = await screen.findByRole('list', { name: 'Not deployed here (desktop apps, libraries, tools)' });
+
+    expect(
+      within(within(elsewhere).getByRole('listitem', { name: 'example/desktop' })).queryByRole('button', {
+        name: 'Details',
+      }),
+    ).not.toBeInTheDocument();
+  });
+
   it('switches to the deployed images with the keyboard and says when it cannot tell', async () => {
     const user = userEvent.setup();
     renderWithProviders(<MaintenanceIndex />);

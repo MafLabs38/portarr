@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import AppIcon from 'Components/AppIcon/AppIcon';
 import * as icons from 'Helpers/Props/icons';
 import type App from 'typings/App';
@@ -5,6 +7,8 @@ import type { CiRun, Repository } from 'typings/Maintenance';
 import formatAge from 'Utilities/Date/formatAge';
 import translate from 'Utilities/String/translate';
 
+import ReleaseVulnerabilityCell from './ReleaseVulnerabilityCell';
+import RepositoryAlerts, { alertsPanelId, hasAlertDetails } from './RepositoryAlerts';
 import styles from './RepositoryRow.module.css';
 import SeverityChips from './SeverityChips';
 
@@ -25,6 +29,46 @@ function ciLabel(ci: CiRun): { text: string; className: string | undefined } {
     : { text: translate('CiOther', { conclusion: ci.conclusion }), className: styles.ciRunning };
 }
 
+interface RepositorySecurityProps {
+  repository: Repository;
+  open: boolean;
+  onToggle: () => void;
+}
+
+/** The security features of a repository as chips, and the button that opens the alerts behind them. */
+function RepositorySecurity({ repository, open, onToggle }: Readonly<RepositorySecurityProps>) {
+  const base = repository.url;
+
+  return (
+    <div className={styles.security}>
+      <SeverityChips label={translate('Dependabot')} scan={repository.dependabot} url={`${base}/security/dependabot`} />
+      <SeverityChips
+        label={translate('CodeScanning')}
+        scan={repository.codeScanning}
+        url={`${base}/security/code-scanning`}
+      />
+      {repository.secretScanning.state === 'off' && repository.visibility !== 'public' ? null : (
+        <SeverityChips
+          label={translate('Secrets')}
+          scan={repository.secretScanning}
+          url={`${base}/security/secret-scanning`}
+        />
+      )}
+      {hasAlertDetails(repository) ? (
+        <button
+          aria-controls={open ? alertsPanelId(repository) : undefined}
+          aria-expanded={open}
+          className={styles.toggle}
+          onClick={onToggle}
+          type="button"
+        >
+          {translate(open ? 'AlertDetailsHide' : 'AlertDetailsShow')}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * One repository the operator makes, on one line: what it is (name, visibility, language, what runs from it),
  * its security alerts (Dependabot, code scanning, secrets), then its health as a project (CI of the default
@@ -34,6 +78,7 @@ export default function RepositoryRow({ repository, apps }: Readonly<RepositoryR
   const linked = repository.appIds.map((id) => apps.get(id)).filter((app): app is App => app !== undefined);
   const ci = repository.ci ? ciLabel(repository.ci) : null;
   const base = repository.url;
+  const [open, setOpen] = useState(false);
 
   return (
     <li aria-label={repository.fullName} className={styles.row}>
@@ -60,25 +105,9 @@ export default function RepositoryRow({ repository, apps }: Readonly<RepositoryR
         ) : null}
       </div>
 
-      <div className={styles.security}>
-        <SeverityChips
-          label={translate('Dependabot')}
-          scan={repository.dependabot}
-          url={`${base}/security/dependabot`}
-        />
-        <SeverityChips
-          label={translate('CodeScanning')}
-          scan={repository.codeScanning}
-          url={`${base}/security/code-scanning`}
-        />
-        {repository.secretScanning.state === 'off' && repository.visibility !== 'public' ? null : (
-          <SeverityChips
-            label={translate('Secrets')}
-            scan={repository.secretScanning}
-            url={`${base}/security/secret-scanning`}
-          />
-        )}
-      </div>
+      <RepositorySecurity onToggle={() => setOpen((current) => !current)} open={open} repository={repository} />
+
+      <ReleaseVulnerabilityCell repository={repository} />
 
       <div className={styles.project}>
         {ci && repository.ci ? (
@@ -121,6 +150,7 @@ export default function RepositoryRow({ repository, apps }: Readonly<RepositoryR
           {repository.pushedAt ? translate('PushedAge', { age: formatAge(repository.pushedAt) }) : null}
         </span>
       </div>
+      {open ? <RepositoryAlerts repository={repository} /> : null}
     </li>
   );
 }

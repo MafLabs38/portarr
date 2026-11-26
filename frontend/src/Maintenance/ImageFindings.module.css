@@ -1,0 +1,131 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: var(--borderWidth) solid var(--hairline);
+  border-radius: var(--radiusSmall);
+  background-color: var(--paperSunken);
+}
+
+.summary,
+.empty {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin: 0;
+  color: var(--inkMuted);
+  font-size: var(--fontSizeMeta);
+  font-weight: 700;
+}
+
+.beyondHeading {
+  margin: 4px 0 0;
+  color: var(--dangerColor);
+  font-size: var(--fontSizeMeta);
+  font-weight: 800;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.finding {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  min-width: 0;
+  font-size: var(--fontSizeMeta);
+}
+
+.severity {
+  min-width: 64px;
+  padding: 0 7px;
+  border: var(--borderWidth) solid var(--hairlineStrong);
+  border-radius: var(--radiusPill);
+  font-weight: 800;
+  text-align: center;
+}
+
+.critical,
+.high {
+  border-color: var(--dangerColor);
+  background-color: var(--dangerColor);
+  color: var(--inkOnAccent);
+}
+
+.medium {
+  border-color: var(--warningColor);
+  color: var(--warningColor);
+}
+
+.low {
+  border-color: var(--infoColor);
+  color: var(--infoColor);
+}
+
+.unrated {
+  color: var(--inkMuted);
+}
+
+.id,
+.package,
+.versions {
+  font-family: var(--monoSpaceFontFamily);
+  font-weight: 600;
+}
+
+.id {
+  color: var(--ink);
+}
+
+a.id:hover {
+  text-decoration: underline;
+}
+
+.package {
+  color: var(--inkSoft);
+}
+
+.versions {
+  color: var(--inkMuted);
+}
+
+.fixed {
+  color: var(--successColor);
+}
+
+.noFix {
+  font-family: var(--defaultFontFamily);
+  font-style: italic;
+}
+
+.title {
+  overflow: hidden;
+  flex: 1 1 240px;
+  min-width: 0;
+  color: var(--inkSoft);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exploited {
+  padding: 0 7px;
+  border: var(--borderWidth) solid var(--dangerColor);
+  border-radius: var(--radiusPill);
+  color: var(--dangerColor);
+  font-weight: 800;
+}
+
+.epss {
+  color: var(--inkMuted);
+  font-weight: 700;
+}

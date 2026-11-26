@@ -27,3 +27,6 @@ An accepted ADR is never edited to change its decision: a new ADR supersedes it.
 | [0020](0020-the-catalog-is-writable-and-a-connection-change-waits-for-approval.md) | The catalog is writable, and a change of connection waits for approval | D-122 to D-125 |
 | [0021](0021-a-host-without-an-engine-and-a-proxmox-node-are-runtimes.md) | A host without an engine and a Proxmox node are runtimes | D-126 to D-128 |
 | [0022](0022-portarr-writes-to-the-operator-through-the-shared-notification-package-in-categories.md) | Portarr writes to the operator through the shared notification package, in categories | D-129 |
+| [0023](0023-image-vulnerabilities-are-read-from-a-scanner-companion.md) | The vulnerabilities of the images that run are read from a scanner companion | D-131 |
+| [0024](0024-the-vulnerabilities-of-a-release-are-read-from-its-sbom.md) | The vulnerabilities of a release are read from its SBOM | D-132 |
+| [0025](0025-known-exploited-and-likely-exploited-vulnerabilities.md) | Known exploited and likely exploited vulnerabilities | D-133 |

@@ -39,7 +39,8 @@ public sealed class GitHubRepositorySourceFixture
         var repositories = await Subject().ScanAsync(Source, TestContext.Current.CancellationToken);
 
         var shop = repositories.Should().ContainSingle("old, archived, forked and excluded repositories are filtered out").Subject;
-        shop.Dependabot.Should().Be(AlertScan.On(new AlertCounts(1, 0, 1, 0, 0)));
+        shop.Dependabot.State.Should().Be(ScanningState.On);
+        shop.Dependabot.Counts.Should().Be(new AlertCounts(1, 0, 1, 0, 0));
         shop.CodeScanning.State.Should().Be(ScanningState.Off, "no analysis means code scanning was never set up");
         shop.SecretScanning.State.Should().Be(ScanningState.Off);
         shop.Release.Should().Be(new ReleaseInfo("v1.2.0", null, null, true));
@@ -50,6 +51,91 @@ public sealed class GitHubRepositorySourceFixture
             r.Method.Should().Be(HttpMethod.Get);
             r.Headers.Authorization!.ToString().Should().Be("Bearer test-token");
         });
+    }
+
+    [Fact]
+    public async Task should_describe_each_dependabot_alert_with_its_package_and_the_version_that_mends_it()
+    {
+        _answers["/repos/example/shop/dependabot/alerts?state=open&per_page=100"] = new(HttpStatusCode.OK, """
+            [
+              { "number": 7, "html_url": "https://github.com/example/shop/security/dependabot/7", "created_at": "2026-01-10T08:00:00Z",
+                "dependency": { "package": { "ecosystem": "npm", "name": "lodash" }, "manifest_path": "package-lock.json" },
+                "security_advisory": { "severity": "high", "ghsa_id": "GHSA-xxxx-yyyy-zzzz", "cve_id": "CVE-2026-0001", "summary": "Prototype pollution in lodash" },
+                "security_vulnerability": { "package": { "ecosystem": "npm", "name": "lodash" }, "vulnerable_version_range": "< 4.17.21", "first_patched_version": { "identifier": "4.17.21" } } },
+              { "number": 8, "html_url": "javascript:alert(1)", "dependency": { "package": { "ecosystem": "pip", "name": "requests" } },
+                "security_advisory": { "severity": "critical", "ghsa_id": "GHSA-aaaa-bbbb-cccc", "summary": "Something worse" } }
+            ]
+            """);
+
+        var shop = (await Subject().ScanAsync(Source, TestContext.Current.CancellationToken)).Should().ContainSingle().Subject;
+
+        shop.Dependabot.Alerts.Select(a => a.Id).Should().Equal(["8", "7"], "the worst alert comes first");
+        var lodash = shop.Dependabot.Alerts[1];
+        lodash.Should().Be(new AlertDetail(
+            "dependabot", "7", "high", "Prototype pollution in lodash", "lodash", "npm", "< 4.17.21", "4.17.21",
+            "GHSA-xxxx-yyyy-zzzz", "CVE-2026-0001", "package-lock.json", new Uri("https://github.com/example/shop/security/dependabot/7"),
+            new DateTimeOffset(2026, 1, 10, 8, 0, 0, TimeSpan.Zero)));
+        shop.Dependabot.Alerts[0].Url.Should().BeNull("only an https link is kept");
+        shop.Dependabot.Alerts[0].FixedVersion.Should().BeNull("a flaw nobody fixed yet says so");
+    }
+
+    [Fact]
+    public async Task should_keep_the_place_of_a_code_alert_and_never_the_value_of_a_secret()
+    {
+        _answers["/repos/example/shop/code-scanning/alerts?state=open&per_page=100"] = new(HttpStatusCode.OK, """
+            [
+              { "number": 3, "html_url": "https://github.com/example/shop/security/code-scanning/3",
+                "rule": { "id": "js/sql-injection", "security_severity_level": "high", "severity": "error", "description": "Database query built from user-controlled sources" },
+                "most_recent_instance": { "location": { "path": "src/db.js", "start_line": 42 } } },
+              { "number": 4, "rule": { "id": "js/unused-local", "severity": "note", "description": "Unused variable" } }
+            ]
+            """);
+        _answers["/repos/example/shop/secret-scanning/alerts?state=open&per_page=100&hide_secret=true"] = new(HttpStatusCode.OK, """
+            [{ "number": 1, "html_url": "https://github.com/example/shop/security/secret-scanning/1", "secret_type_display_name": "GitHub Personal Access Token", "secret": "ghp_must_never_be_kept" }]
+            """);
+
+        var shop = (await Subject().ScanAsync(Source, TestContext.Current.CancellationToken)).Should().ContainSingle().Subject;
+
+        shop.CodeScanning.Counts.Should().Be(new AlertCounts(0, 1, 0, 0, 1), "a quality rule is never a vulnerability");
+        shop.CodeScanning.Alerts[0].Location.Should().Be("src/db.js:42");
+        shop.CodeScanning.Alerts[0].Title.Should().Be("Database query built from user-controlled sources");
+        shop.CodeScanning.Alerts[1].Severity.Should().BeNull();
+        shop.SecretScanning.Alerts.Should().ContainSingle().Which.Title.Should().Be("GitHub Personal Access Token");
+    }
+
+    [Fact]
+    public async Task should_count_every_alert_but_describe_only_the_worst_fifty()
+    {
+        var alerts = string.Join(',', Enumerable.Range(1, 60).Select(n => $$"""{ "number": {{n}}, "security_advisory": { "severity": "{{(n == 60 ? "critical" : "low")}}", "summary": "Flaw {{n}}" } }"""));
+        _answers["/repos/example/shop/dependabot/alerts?state=open&per_page=100"] = new(HttpStatusCode.OK, $"[{alerts}]");
+
+        var shop = (await Subject().ScanAsync(Source, TestContext.Current.CancellationToken)).Should().ContainSingle().Subject;
+
+        shop.Dependabot.Counts.Total.Should().Be(60);
+        shop.Dependabot.Alerts.Should().HaveCount(AlertScan.MaxAlerts);
+        shop.Dependabot.Alerts[0].Id.Should().Be("60", "the critical one is kept first even though it came last");
+    }
+
+    [Fact]
+    public async Task should_cut_long_text_drop_control_and_direction_characters_and_name_a_bare_alert()
+    {
+        var summary = new string('x', 300);
+        var emoji = new string('y', 199) + "\uD83D\uDE00 and more";
+        _answers["/repos/example/shop/dependabot/alerts?state=open&per_page=100"] = new(HttpStatusCode.OK, $$"""
+            [
+              { "number": 1, "security_advisory": { "severity": "high", "summary": "{{summary}}" } },
+              { "number": 2, "security_advisory": { "severity": "low", "summary": "Fix\u202E me\nnow\u001b[0m\uDB40\uDC41" } },
+              { "number": 3 },
+              { "number": 4, "security_advisory": { "severity": "low", "summary": "{{emoji}}" } }
+            ]
+            """);
+
+        var shop = (await Subject().ScanAsync(Source, TestContext.Current.CancellationToken)).Should().ContainSingle().Subject;
+
+        shop.Dependabot.Alerts.Single(a => a.Id == "1").Title.Should().HaveLength(201).And.EndWith("…");
+        shop.Dependabot.Alerts.Single(a => a.Id == "2").Title.Should().Be("Fix menow[0m");
+        shop.Dependabot.Alerts.Single(a => a.Id == "3").Title.Should().Be("Dependency alert");
+        shop.Dependabot.Alerts.Single(a => a.Id == "4").Title.Should().Be(new string('y', 199) + "…", "a character outside the basic plane is not cut in two");
     }
 
     [Theory]

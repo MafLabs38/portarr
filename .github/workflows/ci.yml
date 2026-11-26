@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -86,7 +86,7 @@ jobs:
       PORTARR_TEST_DATABASE: ${{ matrix.database }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
       - run: dotnet build src/Portarr.sln --configuration Release
@@ -120,6 +120,12 @@ jobs:
       - run: yarn test --coverage
       # The chat's agent runner (agent/) has its own tests, on Node's runner.
       - run: yarn test:agent
+      # The image scanner (scanner/, D-131) too, with its coverage for SonarQube (lcov, paths relative to the repository).
+      - run: >-
+          node --test --experimental-test-coverage --test-coverage-exclude='scanner/test/**'
+          --test-reporter=spec --test-reporter-destination=stdout
+          --test-reporter=lcov --test-reporter-destination=coverage/frontend/scanner.lcov.info
+          scanner/test/*.test.ts
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-frontend
@@ -190,7 +196,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
-      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -232,6 +238,24 @@ jobs:
           labels: ${{ steps.meta-agent.outputs.labels }}
           cache-from: type=gha,scope=agent
           cache-to: type=gha,mode=max,scope=agent
+      # The image scanner (D-131) is the third companion image, built from scanner/.
+      - id: meta-scanner
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        with:
+          images: ghcr.io/${{ github.repository }}-scanner
+          tags: |
+            type=ref,event=branch
+            type=sha
+            type=raw,value=${{ needs.release.outputs.version }},enable=${{ needs.release.outputs.version != '' }}
+            type=raw,value=latest,enable=${{ needs.release.outputs.version != '' }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: scanner
+          push: true
+          tags: ${{ steps.meta-scanner.outputs.tags }}
+          labels: ${{ steps.meta-scanner.outputs.labels }}
+          cache-from: type=gha,scope=scanner
+          cache-to: type=gha,mode=max,scope=scanner
 
   sonarqube:
     name: sonarqube
@@ -243,7 +267,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           global-json-file: global.json
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
@@ -252,6 +276,8 @@ jobs:
       - run: dotnet tool install --global dotnet-sonarscanner
       # MarkdownView keys its blocks, items and cells by position: they come from a parsed document replaced as a whole, never reordered,
       # and equal cells would collide as text keys (typescript:S6479). The other accessibility exceptions are NOSONAR comments in the code.
+      # The Dockerfiles pin each base image by tag and digest on purpose (docker:S8431): the digest makes the build immutable,
+      # the tag is what Dependabot and readers follow.
       # en.ts holds the UI texts: "Confirm the password" is a label, not a credential (typescript:S2068 reads the key names).
       # Roslyn/IDE analyzers are already enforced by the build and dotnet format: importing them into
       # Sonar only duplicates them (38 IDE0022 infos blocked the quality gate).
@@ -262,14 +288,16 @@ jobs:
           /d:sonar.host.url="${{ vars.SONAR_HOST_URL }}"
           /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
           /d:sonar.cs.vscoveragexml.reportsPaths="coverage/**/*.xml"
-          /d:sonar.javascript.lcov.reportPaths="coverage/coverage-frontend/lcov.info"
+          /d:sonar.javascript.lcov.reportPaths="coverage/coverage-frontend/lcov.info,coverage/coverage-frontend/scanner.lcov.info"
           /d:sonar.coverage.exclusions="**/obj/**,**/*.g.cs,**/__tests__/**,**/__mocks__/**,tests/**"
           /d:sonar.cs.roslyn.ignoreIssues=true
-          /d:sonar.issue.ignore.multicriteria=e1,e2
+          /d:sonar.issue.ignore.multicriteria=e1,e2,e3
           /d:sonar.issue.ignore.multicriteria.e1.ruleKey=typescript:S2068
           /d:sonar.issue.ignore.multicriteria.e1.resourceKey=frontend/src/Utilities/String/en.ts
           /d:sonar.issue.ignore.multicriteria.e2.ruleKey=typescript:S6479
           /d:sonar.issue.ignore.multicriteria.e2.resourceKey=frontend/src/Components/Markdown/MarkdownView.tsx
+          /d:sonar.issue.ignore.multicriteria.e3.ruleKey=docker:S8431
+          /d:sonar.issue.ignore.multicriteria.e3.resourceKey=**/Dockerfile
           /d:sonar.qualitygate.wait=true
       - run: dotnet build src/Portarr.sln
       - name: End SonarQube analysis

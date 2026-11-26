@@ -35,6 +35,11 @@ export const imageFilters = {
   rebuilt: (i: DeployedImage) => i.status === 'newer-build',
   'cannot-tell': (i: DeployedImage) => i.status === 'floating' || i.status === 'unknown' || i.status === 'pending',
   unknown: (i: DeployedImage) => i.status === 'unknown',
+  scanned: (i: DeployedImage) => i.vulnerabilities.state === 'scanned',
+  vulnerable: (i: DeployedImage) => i.vulnerabilities.fixable.critical + i.vulnerabilities.fixable.high > 0,
+  'vulnerable-critical': (i: DeployedImage) => i.vulnerabilities.fixable.critical > 0,
+  'with-critical': (i: DeployedImage) => i.vulnerabilities.counts.critical > 0,
+  'with-high': (i: DeployedImage) => i.vulnerabilities.counts.high > 0,
 } as const satisfies Record<string, (image: DeployedImage) => boolean>;
 
 /** Filters of the "Platforms" tab: what each finding of the attention list counts. */
@@ -99,7 +104,7 @@ export function maintenanceSearch(tab: MaintenanceTab, filter?: MaintenanceFilte
 }
 
 /** The tab a finding of the attention list ("kind") filters, and the filter. Null: nothing to filter. */
-const attentionFilters: Record<string, { tab: MaintenanceTab; filter: MaintenanceFilter } | undefined> = {
+const attentionFilters: Record<string, { tab: MaintenanceTab; filter?: MaintenanceFilter } | undefined> = {
   'severe-alerts': { tab: codeTab, filter: 'severe' },
   'secret-alerts': { tab: codeTab, filter: 'secrets' },
   'ci-failing': { tab: codeTab, filter: 'ci-failing' },
@@ -111,6 +116,13 @@ const attentionFilters: Record<string, { tab: MaintenanceTab; filter: Maintenanc
   'images-behind': { tab: imagesTab, filter: 'behind-minor' },
   'image-rebuilt': { tab: imagesTab, filter: 'rebuilt' },
   'images-unknown': { tab: imagesTab, filter: 'unknown' },
+  'image-critical-vulnerabilities': { tab: imagesTab, filter: 'vulnerable-critical' },
+  'image-vulnerabilities': { tab: imagesTab, filter: 'vulnerable' },
+  'image-scanner-error': { tab: imagesTab },
+  'known-exploited-vulnerabilities': { tab: imagesTab },
+  'threat-intel-error': { tab: imagesTab },
+  'release-critical-vulnerabilities': { tab: codeTab },
+  'release-vulnerabilities': { tab: codeTab },
   'platform-out-of-support': { tab: platformsTab, filter: 'platform-out-of-support' },
   'platform-support-ending': { tab: platformsTab, filter: 'platform-support-ending' },
   'platforms-behind': { tab: platformsTab, filter: 'platform-behind' },

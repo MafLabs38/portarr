@@ -19,6 +19,16 @@ const behindImage = {
   fromLabel: false,
   users: [{ environmentId: 'server-1', environmentName: 'Server 1', name: 'db', namespace: null, appIds: [] }],
   repositoryFullName: null,
+  vulnerabilities: {
+    state: 'off',
+    reason: null,
+    scannedAt: null,
+    counts: { critical: 0, high: 0, medium: 0, low: 0, unknown: 0, total: 0 },
+    fixable: { critical: 0, high: 0, medium: 0, low: 0, unknown: 0, total: 0 },
+    findings: [],
+    exploitedBeyondFindings: [],
+    idsTruncated: false,
+  },
 };
 
 const report = {
@@ -41,6 +51,10 @@ const report = {
     imagesMajor: 1,
     imagesFloating: 0,
     imagesUnknown: 0,
+    imagesScanned: 0,
+    imagesVulnerable: 0,
+    imageCritical: 0,
+    imageHigh: 0,
   },
   attention: [],
   codeSource: { configured: false, owners: [], scannedAt: null, error: null },
@@ -67,6 +81,10 @@ const report = {
     availableAt: null,
   },
   platforms: [],
+  // No image scanner declared (D-131): the report always carries its status.
+  imageScanner: { configured: false, readAt: null, error: null, databaseUpdatedAt: null },
+  threatIntel: { configured: false, readAt: null, error: null, kevUpdatedAt: null, epssScoreDate: null },
+  minSeverity: 'high',
 };
 
 test.describe('Maintenance', { tag: '@smoke' }, () => {

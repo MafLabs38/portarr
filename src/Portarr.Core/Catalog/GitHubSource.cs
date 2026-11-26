@@ -45,7 +45,18 @@ public sealed record GitHubSource(
 
     public IReadOnlyList<string> Logins => Owners;
 
-    public string Fingerprint => string.Join('|', string.Join(',', Owners), TokenVariable, PushedWithinMonths, string.Join(',', Include), string.Join(',', Exclude), Forks, Archived, ApiUrl);
+    /// <summary>
+    /// Where the builds of a repository are published when it is not itself (<c>sources.github.releases</c>, D-132): <c>owner/source-repo</c> to
+    /// <c>owner/releases-repo</c>, a private source repository publishing to a public repository of releases. Empty by default.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> ReleaseRepositories { get; init; } = NoReleases;
+
+    public string Fingerprint => string.Join('|', string.Join(',', Owners), TokenVariable, PushedWithinMonths, string.Join(',', Include), string.Join(',', Exclude), Forks, Archived, ApiUrl, string.Join(',', ReleaseRepositories.OrderBy(e => e.Key, StringComparer.OrdinalIgnoreCase).Select(e => $"{e.Key}>{e.Value}")));
+
+    private static readonly IReadOnlyDictionary<string, string> NoReleases = new Dictionary<string, string>();
+
+    /// <summary>The most entries <c>releases</c> may hold.</summary>
+    public const int MaxReleaseRepositories = 100;
 
     public const string DefaultTokenVariable = "GITHUB_TOKEN";
 

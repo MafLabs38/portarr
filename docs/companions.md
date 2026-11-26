@@ -10,11 +10,12 @@ Generic deployment examples live in [`deploy/companions/`](../deploy/companions/
 | Graphics card of a Docker host (load, memory, encoder, decoder, temperature, power) | [NVIDIA GPU exporter](#nvidia-gpu-exporter) (`nvidia_gpu_exporter`, [compose example](../deploy/companions/gpu-exporter/docker-compose.yml)) | `/metrics`, every 5 seconds |
 | Backups of hosts and VMs | [Backrest](#backrest) | plans and their last backups (its API) |
 | Backups in Kubernetes | [K8up](#k8up) | `Schedule`, `Backup` and `Snapshot` resources |
+| Vulnerabilities of the images that run (optional) | [Image scanner](#image-scanner) (`portarr-scanner`, runs the Trivy command line) | its results, every 30 minutes (its API) |
 | Built-in chat (optional) | [Agent runner](#agent-runner) (`portarr-agent`) | — (it calls Portarr's MCP server) |
 
 The product ships no machine-side component (D-117): a machine is connected through the tools it runs, listed below.
 
-Companions are read and never changed by Portarr (D-31): GET only, except Backrest, whose API takes POST for the two read calls Portarr makes.
+Companions are read and never changed by Portarr (D-31): GET only, except Backrest, whose API takes POST for the two read calls Portarr makes, and the [image scanner](#image-scanner), which Portarr asks with a POST to scan the images it names (the scanner only pulls layers from registries and changes nothing on your machines).
 
 ## node_exporter
 
@@ -364,3 +365,77 @@ Secrets are never logged and never returned. The CLI's environment is an allow-l
 1. `curl -s http://portarr-agent:8488/healthz` answers `{"status":"ok"}`; without the secret, `/v1/conversations` answers 401.
 2. `GET /api/v1/assistant/chat` on Portarr answers `"enabled": true, "reachable": true` and lists Claude Code with `"available": true`; the chat icon appears in the header.
 3. Ask "Which machines are in my infrastructure?": the panel shows the read tool calls and the answer. Ask for a note on a provider: an "Apply this change?" card appears; **Reject** leaves the catalog untouched, **Approve** writes it, and the Assistant page's "Catalog edits" card lists the edit "through mcp (built-in chat)".
+
+## Image scanner
+
+`portarr-scanner` (D-131, [ADR 0023](adr/0023-image-vulnerabilities-are-read-from-a-scanner-companion.md)) runs the [Trivy](https://trivy.dev/) command line on the images that run in your fleet, one at a time, and answers Portarr with their vulnerabilities. It is optional and lives in its own container, never in Portarr's image. Trivy's server mode is not used: it has no endpoint that scans a named image. Source: [`scanner/`](../scanner/) (Node.js 22, TypeScript run directly, no runtime dependency, and the `trivy` binary of a pinned image).
+
+### What it gives Portarr
+
+For each image that runs (Docker containers and Kubernetes pods, third-party ones included): the vulnerabilities by severity, how many of them have a fix, the worst findings (id, package, installed and fixed version, a link; critical and high, at most 50), and the ids of every finding (any severity, plain ids only, at most 5000, with `idsTruncated` beyond), which Portarr matches against the vulnerabilities known to be exploited (D-133, [connectors/threat-intel.md](connectors/threat-intel.md)) so that an exploited flaw is reported even when its finding is not among the 50. A critical vulnerability with a fix becomes a **danger** on the Maintenance page, a high one a warning ([connectors/trivy.md](connectors/trivy.md)). `results.json` keeps the ids with each result; a file written by an older companion still loads (its results simply have no ids until the next scan).
+
+### Releases and their SBOM (D-132, [ADR 0024](adr/0024-the-vulnerabilities-of-a-release-are-read-from-its-sbom.md))
+
+For software that is not an image (a desktop application, a tool), the companion scans the **SBOM published with the latest GitHub release**. The project's release workflow writes it: a CycloneDX file named `<name>.cdx.json` (`*.spdx.json`, `sbom*.json` and the tools' default `bom.json` are read too), uploaded as a release asset (for a .NET application, a few lines of PowerShell turn the publish output's `deps.json` into one, runtime pack included). Components no advisory database knows (a bundled FFmpeg) can be listed but are not matched. The scan describes the latest published release, not what the users have installed.
+
+### What it does and does not do
+
+| Does | Does not |
+|---|---|
+| Pull the layers of the images Portarr names from their registries, read them with Trivy, keep the result | Run, start, stop or change anything on your machines (Portarr never acts on the infrastructure, D-16, D-31) |
+| One scan at a time, at the lowest priority, ten minutes at most, Trivy's scan cache dropped after each | Scan in parallel, or the same image twice in a day |
+| Answer Portarr behind a shared secret (every route but `/healthz`) | Listen on the Internet: publish its port only on an address Portarr reaches (or share a Docker network); every route but `/healthz` needs the secret |
+| Report an image it cannot read with a reason (`not-found`, `unauthorized`, `timeout`, `unsupported`, `error`, and for a release `no-sbom`, D-132) | Read private registries (not supported yet), or pin the scan to the running digest of a floating tag |
+
+**Where to run it.** On a **staging machine, outside the production cluster**: a scan reads every layer of an image (network, disk, CPU). Give the container a CPU and memory limit (the example sets `cpus: 2` and `mem_limit: 2g`); the data volume holds Trivy's vulnerability database (a few hundred MB) and the results.
+
+### Install
+
+The image is published with Portarr's: `ghcr.io/<owner>/portarr-scanner:<tag>`. A compose example is in [`deploy/companions/scanner/`](../deploy/companions/scanner/docker-compose.yml). To build it yourself: `docker build -t portarr-scanner scanner/` (the Trivy release and the Node base are pinned by version and digest in `scanner/Dockerfile`; Dependabot keeps them current).
+
+```bash
+openssl rand -hex 32   # the shared secret, set on both sides
+```
+
+```yaml
+services:
+  portarr-scanner:
+    image: ghcr.io/<owner>/portarr-scanner:<tag>
+    restart: unless-stopped
+    environment:
+      PORTARR_SCANNER_SECRET: ${SCANNER_SECRET}
+    volumes:
+      - scanner-data:/data
+    # No published port on a shared network: only Portarr talks to it.
+volumes:
+  scanner-data:
+```
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `PORTARR_SCANNER_SECRET` | — (required, 32+ characters) | Bearer secret Portarr sends; every route but `/healthz` checks it |
+| `PORTARR_SCANNER_PORT`, `PORTARR_SCANNER_HOST` | `8489`, `0.0.0.0` | Listening address |
+| `PORTARR_SCANNER_DATA` | `/data` | `results.json` and Trivy's cache (`trivy/`: its database and the layers of the scan in progress) |
+| `PORTARR_SCANNER_TIMEOUT_MINUTES` | `10` | One scan stops after this long and is reported as `timeout` |
+| `PORTARR_SCANNER_RESCAN_HOURS` | `24` | An image is scanned again when Portarr names it after this long |
+| `PORTARR_SCANNER_FORGET_DAYS` | `7` | An image Portarr has not named for this long is forgotten |
+| `PORTARR_SCANNER_MAX_IMAGES` | `2000` | Targets tracked at most, images and releases together (10 to 10000); a new one beyond it is ignored |
+| `PORTARR_SCANNER_GITHUB_TOKEN` | — (optional) | Only lifts GitHub's anonymous rate limit when the companion reads releases (D-132): a fine-grained token **with no repository permission**. It is never sent with the SBOM download; release scans are public repositories only |
+| `TRIVY_BIN` | `trivy` | The Trivy executable |
+
+Secrets are never logged and never returned.
+
+### Catalog
+
+```yaml
+imageScanner:
+  url: http://scanner.homelab.example:8489   # a Compose service name works when both run in one network
+  secretEnv: PORTARR_SCANNER_SECRET          # in Portarr's environment, the same value as above
+  allowInsecure: true                        # plain http, the secret in clear on a network you trust; https needs no flag
+```
+
+### Verification
+
+1. `curl -s http://scanner.homelab.example:8489/healthz` answers `{"status":"ok"}`; without the secret, `/v1/results` answers 401.
+2. After the next pass of the Maintenance monitor (up to 30 minutes, or **Refresh** on the Maintenance page), `curl -s -H "Authorization: Bearer $SCANNER_SECRET" http://scanner.homelab.example:8489/v1/results` lists your images, `queued` then `scanned`.
+3. On the Maintenance page, the **Deployed images** rows show their vulnerabilities (`GET /api/v1/maintenance`, `images[].vulnerabilities`), and `imageScanner.configured` is true with no `error`. The first scan of a fleet takes a while: one image at a time.

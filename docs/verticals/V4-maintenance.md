@@ -2,7 +2,7 @@
 
 > **Naming:** this page is called V4 because it was the fourth vertical built in the sandbox order; the implementation plan calls the same work **V12 Maintenance**. The page keeps its name so existing links hold.
 
-> Status: **in progress** (sandbox, phase 1). Pulls forward plan entry V12 Maintenance ("Maintainer priorities (2026-10-30)"); the plan entry V4 Kubernetes keeps its row (its connector already shipped with V2). Features: F-SEC-04 (Dependabot and code scanning alerts), F-UPD-01 (outdated images, partial), F-UPD-04 (version inventory, deployed and available only), F-UPD-07 (first step: Dependabot pull requests waiting). Decisions: D-64 to D-67, D-75. Screen: E-06, first slice.
+> Status: **in progress** (sandbox, phase 1). Pulls forward plan entry V12 Maintenance ("Maintainer priorities (2026-10-30)"); the plan entry V4 Kubernetes keeps its row (its connector already shipped with V2). Features: F-SEC-04 (Dependabot and code scanning alerts), F-UPD-01 (outdated images, partial), F-UPD-04 (version inventory, deployed and available only), F-UPD-07 (first step: Dependabot pull requests waiting). Decisions: D-64 to D-67, D-75, D-130 to D-133. F-SEC-01 (first slice: image vulnerabilities). Screen: E-06, first slice.
 
 ## Need
 
@@ -18,10 +18,11 @@ Two halves of one question, "what is vulnerable, outdated or late?":
 | In | Out (later) |
 |---|---|
 | A `sources: github:` catalog section: owners to scan (users, organizations), activity filter, include and exclude lists, forks and archived switches | GitLab, Gitea and Forgejo sources; a GitHub App instead of a token |
-| GitHub connector (GET only, conditional requests): visibility, language, last push, default branch, open Dependabot alerts by severity, open code scanning alerts by severity (quality rules apart), open secret scanning alerts, latest release (or tag), open Dependabot pull requests, last CI run of the default branch | Alert details (package, fixed version) and Security → Vulnerabilities (E-07); closing or dismissing alerts (D-16); the repository's dependency list and library versions (F-UPD-07 proper, SBOM) |
+| GitHub connector (GET only, conditional requests): visibility, language, last push, default branch, open Dependabot alerts by severity, open code scanning alerts by severity (quality rules apart), open secret scanning alerts, latest release (or tag), open Dependabot pull requests, last CI run of the default branch | Security → Vulnerabilities (E-07) as its own screen (alert details are in, D-130); closing or dismissing alerts (D-16); the repository's dependency list and library versions (F-UPD-07 proper: a dependency list read from source; the SBOM of a release is read by the scanner, D-132) |
 | Links between repositories and catalog apps: `repository:` on an app, an image's OCI source label, a GHCR or Docker Hub image named like a scanned repository | Declared versions read from the IaC and drift (F-UPD-04 "declared", Q-27); the IaC file to change (F-UPD-02) |
 | Registry connector (anonymous, GET and HEAD only): Docker Hub, GHCR, lscr.io, Quay, any OCI registry; tags, their dates and digests when cheap | Private registries (a pull token per registry), Helm charts, host OS packages (Q-26) |
 | Image verdicts for running Docker containers and Kubernetes pods: up to date, behind (patch / minor / major / build), rebuilt (floating tag moved), floating (cannot tell), unknown (with the reason) | Per-app tag filters and ignored versions (F-UPD-01 rules); release notes links; end of life of the runtimes of apps (base images, files of repositories; F-UPD-06: the machines' platforms are done, D-119); deployment detection (F-UPD-05) |
+| Vulnerabilities of the running images (D-131): an optional scanner companion runs the Trivy command line, Portarr reads it; counts by severity, those that have a fix, the worst findings, per image | Private registries; pinning the scan to the running digest of a floating tag; Security → Vulnerabilities (E-07); per-app findings; a history |
 | **Maintenance** page after Data: a summary, "what needs attention" across the halves, sub-tabs *My code*, *Deployed images* and *Platforms* (D-119) | Issues and notifications (V5, V6); the "update" badge on app tiles; a timeline of releases |
 
 ## UI proposal (D-67)
@@ -31,7 +32,7 @@ One page, `/maintenance`, sidebar entry **Maintenance** after Data, three blocks
 1. **Summary tiles**, two groups. *My code*: repositories (and how many are deployed), critical and high alerts, medium and low alerts, Dependabot off (n/N), CI failing. *Deployed images*: running images, up to date, behind, major updates, cannot tell.
 2. **Needs attention**: one line per kind of finding, worst first, each naming what it concerns as links (the repository's GitHub page, the failing CI run): critical/high vulnerabilities and leaked secrets (danger); CI failing, images with a new major version, Dependabot alerts off (warning); minor/patch updates, rebuilt floating tags, medium/low/quality alerts, code scanning off, Dependabot pull requests waiting, images that cannot be checked (info). Mixing both halves here is the point: the operator reads one list, then drills down.
 3. **Two sub-tabs** (WAI-ARIA tabs; `?tab=images` keeps the choice in the URL):
-   - **My code**: repositories in two groups, *Running in the fleet* (linked to an app or a running image) and *Not deployed here* (desktop apps, libraries, tools). One compact row each: name (link), private lock, language, the apps or images it runs as; Dependabot / Code scanning / Secrets chips (severity chips, "off" dashed and struck through, "?" when the token cannot read it); CI state (link to the run), latest release, Dependabot PRs waiting, last push.
+   - **My code**: repositories in two groups, *Running in the fleet* (linked to an app or a running image) and *Not deployed here* (desktop apps, libraries, tools). One compact row each: name (link), private lock, language, the apps or images it runs as; Dependabot / Code scanning / Secrets chips (severity chips, "off" dashed and struck through, "?" when the token cannot read it); CI state (link to the run), latest release, Dependabot PRs waiting, last push. A *Details* button opens one line per alert under the row (D-130).
    - **Deployed images**: one row per running image (identical containers merged: three socket proxies are one row), worst first: verdict (icon + text), reference, current → newest of the same kind, how old that release is, or why it cannot tell; then the apps (or workloads) running it and their environments.
 
 Why not two separate sidebar entries: the maintainer asked one question ("what needs attention?"); the summary and the attention list must mix both halves, and *arr pages use tabs for facets of one subject.
@@ -60,6 +61,13 @@ sources:
 - A failed scan keeps the last repositories and shows the reason above them.
 - **Token**: the sandbox uses the maintainer's `gh` session token. **Production must use a fine-grained, read-only token** limited to the scanned owners, with *Metadata*, *Contents*, *Dependabot alerts*, *Code scanning alerts*, *Secret scanning alerts*, *Actions* and *Pull requests*, all **Read-only**. Portarr only sends GET requests ([connectors/github.md](../connectors/github.md)).
 
+### Alert detail (D-130)
+- **What is kept.** For every open alert: its source (`dependabot`, `code-scanning`, `secret-scanning`), severity (none for a secret or a code quality rule), title, package and ecosystem, vulnerable range, the version that mends it (none when nobody fixed it yet), GHSA and CVE identifiers, the file (and line) it points at, its link and date. These are fields of the pages Portarr already reads: no request is added.
+- **How much.** The counts cover every open alert; the resource describes the **worst 50 per feature and repository**, worst first (`alerts` next to `total` in each `dependabot`, `codeScanning` and `secretScanning`). When `total` is larger, the page says how many are shown and the rest is on GitHub.
+- **The page.** A *Details* button on each repository row (WAI-ARIA disclosure) opens one line per alert under the row: severity, title (a link to the alert), package, range, fixed version or "no fix yet", identifiers, file.
+- **The assistant.** `get_maintenance` gives each repository `severeAlerts`: its critical and high alerts and open secrets, at most ten, worst first, with the package, the version that mends it, the advisory (the CVE identifier, else the GHSA one) and the link. An assistant (Orchestrarr, a chat) reads *which* flaw to mend without reading GitHub itself.
+- **Safety.** A secret's value is never read (`hide_secret=true`, and no field of it is mapped). A text from a third party (an advisory's summary) is cut at 200 characters; a link is kept only when it is an absolute https address.
+
 ### Linking code and apps (D-65)
 A repository is **deployed** when one of these links it to the fleet:
 1. `repository: owner/name` on a catalog app (explicit, wins);
@@ -74,6 +82,76 @@ Everything else is code the operator makes but does not run here (a Windows app,
 - **Comparison**: a tag is read as prefix + numbers + suffix and only compared with tags of the **same shape**: `16-alpine` with `18-alpine`, never with `18`, `18.1-alpine`, `19-rc1-alpine` or `amd64-19-alpine`; `4.0.20.3014-ls1` with `4.0.20.3014-ls2` (a **build** change). The change is major, minor or patch from the first number that differs.
 - **Floating tags** (`latest`, `stable`, a name without numbers): compared by **digest** when the runtime reports the running one (Kubernetes `imageID`): same digest is up to date, a different one is **rebuilt**. Otherwise through the image's OCI version label, **only when that label is itself a tag of the repository** (a base image's label, such as an OS version, would be compared with unrelated tags). Otherwise **Floating: cannot tell**.
 - **Unknown**, always with a reason: started from an image id (Docker shows `sha256:…`: the repository is lost), not in the registry (built locally), registry refused anonymous access (private image), rate limited, unreachable.
+
+### Image vulnerabilities (D-131)
+- **Source**: the [scanner companion](../companions.md#image-scanner) (`scanner/`), declared by `imageScanner:` in the catalog ([connectors/trivy.md](../connectors/trivy.md), [ADR 0023](../adr/0023-image-vulnerabilities-are-read-from-a-scanner-companion.md)). It runs the Trivy command line, one image at a time, each image once a day; Portarr tells it the running images (not the ones created from an id) every 30 minutes (5 after a failure) and keeps its last answer in memory. No `imageScanner:` section: every image says `off` and nothing is asked.
+- **A scanner that is down** keeps the previous results; the error (a reason code) is shown next to them (`imageScanner.error`, and the attention line `image-scanner-error`).
+- **The threshold** `PORTARR__VULNERABILITIES__MINSEVERITY` (default `high`) hides the findings and the attention below it; the counts stay whole.
+- **What needs attention**: `image-critical-vulnerabilities` (danger: an image with a critical vulnerability that has a fix) and `image-vulnerabilities` (warning: the worst fixable vulnerability is high), each naming the image and how many; `image-scanner-error` (warning). A vulnerability with no fix is counted, not raised.
+- **The summary** gets `imagesScanned`, `imagesVulnerable` (images with a critical or high vulnerability that has a fix, at the threshold), `imageCritical` and `imageHigh` (every critical and high vulnerability of the scanned images, fixed or not).
+
+### Release vulnerabilities (D-132)
+- **Source**: the same [scanner companion](../companions.md#image-scanner), told the repositories whose latest release to read: every scanned public github.com repository that publishes a release (not archived, not a fork, not a bare tag), plus the repositories named by the catalog's `sources.github.releases` mapping (a private source repository to the public one that publishes its builds; the mapped target is not shown for itself).
+- **On the page**: the repository row says which build was scanned (and where it was read when mapped), then the same severity chips and Details panel as an image; a release without an SBOM says "no SBOM published", never "no vulnerability".
+- **What needs attention**: `release-critical-vulnerabilities` (danger: a critical vulnerability with a fix in the latest release) and `release-vulnerabilities` (warning: a high one with a fix); an unfixed one is counted only. Same `PORTARR__VULNERABILITIES__MINSEVERITY` threshold. Not built: a Code-tab filter for these two (they open the Code tab).
+
+### Known exploited vulnerabilities (D-133)
+- **Source**: CISA's catalog of Known Exploited Vulnerabilities and FIRST's EPSS scores, two public files read whole once a day (an hour after a failure) when an image scanner is declared ([connectors/threat-intel.md](../connectors/threat-intel.md), [ADR 0025](../adr/0025-known-exploited-and-likely-exploited-vulnerabilities.md)). Nothing about the fleet is sent: the EPSS file is streamed and filtered on the way. `PORTARR__THREATINTEL__ENABLED=false` turns it off.
+- **On each finding** of an image or a release: `exploited` (in KEV: the day it was added, the due date, the ransomware flag) and `epss` (score and percentile). Known exploited first, then by severity, then by EPSS; a known exploited finding is shown whatever the threshold. The counts do not change.
+- **Every id is matched**: the companion describes the 50 worst findings but sends the ids of every finding (any severity, at most 5000); a known exploited id whose finding is not described is listed in `exploitedBeyondFindings`, and `idsTruncated` says when the list of ids was cut.
+- **What needs attention**: `known-exploited-vulnerabilities` (danger: an image or a latest release has an id in KEV, among the findings or beyond them, **fix or no fix**; each subject with its number of such distinct ids, a repository with its link) and `threat-intel-error` (warning: the files could not be read, the last read is kept). EPSS raises nothing.
+- **Limits**: beyond 5000 distinct ids per target, the 5000 most severe are matched (`idsTruncated`); an exploited flaw beyond the 50 findings shows its id, not its package; the EPSS score of a new id arrives at the next daily read.
+
+**The API shape** (`GET /api/v1/maintenance`). Each element of `images[]` has a `vulnerabilities` object; the response has an `imageScanner` object:
+
+```json
+{
+  "images": [
+    {
+      "reference": "idp:1",
+      "status": "up-to-date",
+      "vulnerabilities": {
+        "state": "scanned",
+        "reason": null,
+        "scannedAt": "2026-11-25T09:00:00+00:00",
+        "counts":  { "critical": 1, "high": 14, "medium": 30, "low": 2, "unknown": 0, "total": 47 },
+        "fixable": { "critical": 1, "high": 10, "medium": 0,  "low": 0, "unknown": 0, "total": 11 },
+        "findings": [
+          { "id": "CVE-2026-0001", "package": "openssl", "installedVersion": "3.0.1", "fixedVersion": "3.0.2",
+            "severity": "critical", "title": "…", "url": "https://avd.example/cve-2026-0001",
+            "exploited": { "dateAdded": "2026-11-20", "dueDate": "2026-12-11", "knownRansomwareUse": false },
+            "epss": { "score": 0.94358, "percentile": 0.99961 } }
+        ],
+        "exploitedBeyondFindings": [
+          { "id": "CVE-2021-44228", "dateAdded": "2021-12-10", "dueDate": "2021-12-24", "knownRansomwareUse": true,
+            "epss": { "score": 0.94358, "percentile": 0.99961 } }
+        ],
+        "idsTruncated": false
+      }
+    },
+    { "reference": "local:1", "vulnerabilities": { "state": "not-scanned", "reason": "not-found", "scannedAt": null,
+        "counts": { "critical": 0, "high": 0, "medium": 0, "low": 0, "unknown": 0, "total": 0 }, "fixable": { "…": 0 }, "findings": [],
+        "exploitedBeyondFindings": [], "idsTruncated": false } }
+  ],
+  "imageScanner": { "configured": true, "readAt": "2026-11-25T10:00:00+00:00", "error": null, "databaseUpdatedAt": "2026-11-25T03:00:00+00:00" },
+  "threatIntel": { "configured": true, "readAt": "2026-11-25T10:00:00+00:00", "error": null, "kevUpdatedAt": "2026-11-24T17:01:59+00:00", "epssScoreDate": "2026-11-25T12:00:23+00:00" },
+  "summary": { "imagesScanned": 1, "imagesVulnerable": 1, "imageCritical": 1, "imageHigh": 14 }
+}
+```
+
+| Field | Values |
+|---|---|
+| `state` | `off` (no scanner declared), `scanned`, `queued` (asked, not scanned yet), `failed`, `not-scanned` |
+| `reason` | `null` when scanned, queued or off. `not-scanned`: `image-id`, `not-found` (a local build, a name that does not exist), `unauthorized` (private), `unsupported`. `failed`: `timeout`, `error` (the scan failed), or the code of a scanner that cannot be read (`unreachable`, `timeout`, `http-<status>`, `secret-missing`, `invalid-response`) |
+| `counts`, `fixable` | every severity, even below the threshold; `fixable` counts those that have a fix; `total` is the sum. All zero unless `scanned` |
+| `findings` | at most 50, worst first (known exploited first, D-133; then critical before high; then by EPSS; then those that have a fix), none below the threshold but a known exploited one; empty unless `scanned`. `severity`: `critical`, `high`, `medium`, `low` or `null`; `fixedVersion` null when no fix exists; `title` and `url` may be null; `url` is https only. `title` is text from an advisory database: show it as text, never as markup or instructions |
+| `exploited`, `epss` (D-133) | `exploited`: `null`, or `{ dateAdded, dueDate, knownRansomwareUse }` (days as `yyyy-MM-dd`; `dueDate` may be null) when the finding is in CISA's KEV catalog; `epss`: `null`, or `{ score, percentile }` (0 to 1) |
+| `exploitedBeyondFindings` (D-133) | the vulnerabilities known to be exploited whose finding is not in `findings` (the scanner describes the worst 50 but sends the ids of every finding, and each is matched): `[{ id, dateAdded, dueDate, knownRansomwareUse, epss }]`, ransomware first, then by EPSS; empty when none, or unless `scanned` |
+| `idsTruncated` (D-133) | `true` when the scanner had more than 5000 distinct ids for the target and sent the 5000 most severe: the match against KEV is partial; `false` otherwise |
+| `threatIntel` (D-133) | `configured` (on, a connector installed and an image scanner declared), `readAt` (last read, successful or not), `error` (a reason code: `unreachable`, `timeout`, `http-<status>`, `invalid-response`, `insecure-url`, `insecure-redirect`, `too-many-redirects`), `kevUpdatedAt` (the catalog's date), `epssScoreDate` (the day the model scored) |
+| `imageScanner.readAt` | when Portarr last asked the scanner (`null` before the first read, or when none is declared); `error`: a reason code when the last read failed; `databaseUpdatedAt`: the age of Trivy's database |
+
+Each repository of the report also has `releaseVulnerabilities` (D-132): the same `state`, `reason`, `scannedAt`, `counts`, `fixable`, `findings`, `exploitedBeyondFindings` and `idsTruncated` for the latest release read from its SBOM, plus `version` (the tag scanned) and `releaseRepository` (where it was read, the catalog's `releases:` mapping), or `null` when the repository has no release to scan; the attention kinds `release-critical-vulnerabilities` (danger) and `release-vulnerabilities` (warning) follow the images' rule (a fix exists). The attention kinds are `image-critical-vulnerabilities` and `image-vulnerabilities` (subjects: the image, with the count of its fixable critical and high vulnerabilities) and `image-scanner-error` (subject: the reason code). The MCP tool `get_maintenance` carries `images[].vulnerabilities` (the counts, `fixableCritical`, `fixableHigh`, at most ten `worst` findings, and with D-133 at most ten `exploitedBeyondFindings` with `exploitedBeyondFindingsTotal` and `idsTruncated`), lists an up-to-date image that has a critical or high vulnerability with a fix, and says the titles are third-party text.
 
 ### Maintenance page (D-67)
 As proposed above. The page is built from memory (last scan, last lookups): opening it reaches neither GitHub nor a registry; it refreshes every minute.
@@ -94,9 +172,11 @@ As proposed above. The page is built from memory (last scan, last lookups): open
 |---|---|---|
 | GitHub (repositories, alerts, releases, CI) | every 30 min, 4 repositories in parallel | ETags (`If-None-Match`: a 304 costs no rate limit); calls stop below 250 remaining requests of the window |
 | Registries | each image repository every 6 h (1 h after a failure) | at most 25 repositories per minute, 3 in parallel; anonymous GET and HEAD only |
-| Both | on request (Refresh), at most once per 60 s | the guards above still apply |
+| Image scanner (D-131) | Portarr tells it the running images and reads it every 30 min (5 min after a failure); it scans each image once a day, one at a time | niced, ten minutes at most, run outside the production cluster |
+| Exploit intelligence (D-133) | once a day (1 h after a failure), not on a manual refresh | two public files read whole with GET, size-capped, https only |
+| All | on request (Refresh), at most once per 60 s | the guards above still apply |
 
-Everything is in memory: a restart rescans (the first scan takes about a minute). The API (`GET /api/v1/maintenance`) returns `refresh.codeAt`, `codeNextAt`, `registriesAt`, `refreshing` and `availableAt`.
+Everything is in memory: a restart rescans (the first scan takes about a minute; the scanner companion keeps its own results across a restart). The API (`GET /api/v1/maintenance`) returns `refresh.codeAt`, `codeNextAt`, `registriesAt`, `refreshing` and `availableAt`.
 
 ## Statuses
 Maintenance findings are not app statuses: an app is not Down because a newer version exists. Severe vulnerabilities and failing CI become issues in V5 (F-SEC-04 rules: a critical vulnerability with a fix older than N days).

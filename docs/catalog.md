@@ -1,6 +1,6 @@
 # The catalog (`catalog.yaml`)
 
-The catalog declares what you run: **environments**, **stacks** and **apps**, plus the **data you follow** (and which backup tools should protect it), the **code sources** you make apps from, **what you know** about the fleet for people and AI assistants: notes, how to reach each machine, network links and external providers ([Knowledge](#knowledge-for-people-and-assistants)), and the **MCP servers** you use with your AI assistants and the **workstations** you use them from ([MCP servers](#mcp-servers)). Workloads (containers, pods, Pages projects, Workers) are never declared: Portarr discovers them and links them to apps through selectors (spec §4.2).
+The catalog declares what you run: **environments**, **stacks** and **apps**, plus the **data you follow** (and which backup tools should protect it), the **code sources** you make apps from, an optional **image scanner** for the vulnerabilities of what runs ([Image scanner](#image-scanner)), **what you know** about the fleet for people and AI assistants: notes, how to reach each machine, network links and external providers ([Knowledge](#knowledge-for-people-and-assistants)), and the **MCP servers** you use with your AI assistants and the **workstations** you use them from ([MCP servers](#mcp-servers)). Workloads (containers, pods, Pages projects, Workers) are never declared: Portarr discovers them and links them to apps through selectors (spec §4.2).
 
 - Location: `<data folder>/catalog.yaml` (`/config/catalog.yaml` in the image), or `PORTARR__CATALOGFILE`.
 - Reloaded as soon as the file is saved. A broken edit keeps the last valid catalog; the errors are shown on the Apps page and at `GET /api/v1/catalog/status`.
@@ -139,6 +139,7 @@ The catalog never holds a secret: a section that sends a credential to a URL nam
 | `cloudflare.tokenEnv` | `PORTARR_CLOUDFLARE_…`, or the default `CLOUDFLARE_API_TOKEN` |
 | `sources.github.tokenEnv` | `PORTARR_GITHUB_…`, or the default `GITHUB_TOKEN` |
 | `proxmox.tokenEnv` | `PORTARR_PROXMOX_…` |
+| `imageScanner.secretEnv` | `PORTARR_SCANNER_…`, or the default `PORTARR_SCANNER_SECRET` |
 
 A catalog that names anything else is refused, with the way out in the message. An existing setup keeps its variable names without touching the catalog: whoever runs Portarr lists them in `PORTARR__CATALOG__SECRETVARIABLES` (comma separated, for example `BACKREST_USER,BACKREST_PASSWORD`). That list is outside the catalog on purpose: the catalog cannot widen it.
 
@@ -277,6 +278,7 @@ sources:
     pushedWithinMonths: 6            # default 6: only repositories pushed recently; 0 scans them all
     include: [example/legacy-tool]   # always scanned, even inactive or owned by someone else
     exclude: ["example/test-*", "*/sandbox"]   # never scanned; * matches anything
+    releases: { example/desktop-app: example/desktop-app-releases }   # builds published in another repository (D-132); at most 100
     forks: false                     # default false
     archived: false                  # default false
 
@@ -286,7 +288,23 @@ apps:
 ```
 
 - A repository is shown as **running in the fleet** when an app declares it in `repository:`, when a running image carries its URL in the OCI label `org.opencontainers.image.source`, or when a running image is named like it (`ghcr.io/example/shop`, Docker Hub `example/shop`). The others are listed as **not deployed here**.
+- **`releases:`** links a repository to the one where its builds are published (a private source, a public releases repository). With an [image scanner](#image-scanner) declared, Portarr asks it for the vulnerabilities of the **latest release** of every scanned repository that has one (not archived, not a fork, a real release rather than a bare tag), read from the SBOM published with it (D-132, [connectors/trivy.md](connectors/trivy.md)); a mapped repository shows the result of the repository named on the right, and that one is not asked for itself. Both sides are `owner/name`.
 - Running images need no declaration: every running container and pod is checked against its registry ([connectors/registries.md](connectors/registries.md)).
+
+## Image scanner
+
+The companion that scans the images that run for vulnerabilities (D-131): an optional container that runs the Trivy command line, one image at a time ([companions.md](companions.md#image-scanner), [connectors/trivy.md](connectors/trivy.md)). Portarr tells it which images run and reads what it found; nothing runs on your machines.
+
+```yaml
+imageScanner:
+  url: http://portarr-scanner:8489     # the companion's address (a Compose service name, or https://scanner.homelab.example)
+  secretEnv: PORTARR_SCANNER_SECRET    # default PORTARR_SCANNER_SECRET: the variable name, never the secret
+  allowInsecure: true                  # required for plain http: the shared secret then travels in clear
+```
+
+- One scanner per Portarr. `url` is its address without credentials, query or fragment (a path prefix is kept); `secretEnv` names the variable holding the secret both share, of the `PORTARR_SCANNER_` namespace ([Secret variables](#secret-variables)).
+- Edited in the catalog file only (like `secretStore`): it says where the secret is sent.
+- What an image shows, and `PORTARR__VULNERABILITIES__MINSEVERITY` (the lowest severity shown and raised as attention, `high` by default): [connectors/trivy.md](connectors/trivy.md).
 
 ## Knowledge for people and assistants
 

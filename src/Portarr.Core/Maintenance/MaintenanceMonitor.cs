@@ -7,10 +7,16 @@ using Portarr.Core.Workloads;
 
 namespace Portarr.Core.Maintenance;
 
-/// <summary>The last scan of the code sources and the registry lookups, per repository key. In memory only.</summary>
-public sealed record MaintenanceState(RepositoryScan Repositories, IReadOnlyDictionary<string, RegistryLookup> Registries)
+/// <summary>The last scan of the code sources, the registry lookups per repository key, the image scanner's report and the exploit intelligence (D-133). In memory only.</summary>
+public sealed record MaintenanceState(RepositoryScan Repositories, IReadOnlyDictionary<string, RegistryLookup> Registries, ImageScanSnapshot? ImageScans = null, ThreatIntelSnapshot? ThreatIntel = null)
 {
     public static MaintenanceState Empty { get; } = new(RepositoryScan.NotConfigured, new Dictionary<string, RegistryLookup>());
+
+    /// <summary>What the image scanner said at the last read (<see cref="ImageScanSnapshot.Off"/> when none is declared).</summary>
+    public ImageScanSnapshot Scans => ImageScans ?? ImageScanSnapshot.Off;
+
+    /// <summary>What the exploit intelligence said at the last read (<see cref="ThreatIntelSnapshot.Off"/> when it is not read).</summary>
+    public ThreatIntelSnapshot Intel => ThreatIntel ?? ThreatIntelSnapshot.Off;
 }
 
 /// <summary>
@@ -63,6 +69,21 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
     public static readonly TimeSpan RegistryInterval = TimeSpan.FromHours(6);
     public static readonly TimeSpan RegistryRetryInterval = TimeSpan.FromHours(1);
 
+    /// <summary>The image scanner is told the running images and read at most this often (it scans each image once a day on its own).</summary>
+    public static readonly TimeSpan ScannerInterval = TimeSpan.FromMinutes(30);
+
+    /// <summary>The image scanner is asked again this soon after a failure.</summary>
+    public static readonly TimeSpan ScannerRetryInterval = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// The exploit intelligence (D-133) is read once a day: its sources publish once a day. A manual refresh does not read it again (the files
+    /// are large, and the next version is a day away).
+    /// </summary>
+    public static readonly TimeSpan ThreatIntelInterval = TimeSpan.FromHours(24);
+
+    /// <summary>The exploit intelligence is read again this soon after a failure.</summary>
+    public static readonly TimeSpan ThreatIntelRetryInterval = TimeSpan.FromHours(1);
+
     /// <summary>A manual refresh is accepted at most this often: GitHub's and the registries' limits matter more than impatience.</summary>
     public static readonly TimeSpan RefreshCooldown = TimeSpan.FromSeconds(60);
 
@@ -79,24 +100,34 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
     private readonly IWorkloadInventory _inventory;
     private readonly IEnumerable<ICodeRepositorySource> _codeSources;
     private readonly IEnumerable<IImageRegistry> _registries;
+    private readonly IEnumerable<IImageScanner> _scanners;
+    private readonly IEnumerable<IExploitIntelligence> _exploitIntelligence;
     private readonly bool _imageUpdates;
+    private readonly bool _threatIntel;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<MaintenanceMonitor> _logger;
     private readonly SemaphoreSlim _refreshing = new(1, 1);
     private readonly Lock _requestLock = new();
     private volatile MaintenanceState _current = MaintenanceState.Empty;
     private volatile string? _scannedKey;
+    private volatile string? _scannerKey;
+
+    // Whether the last read of the exploit intelligence had no CVE id to ask about (a first start, before the scanner's first answer).
+    private volatile bool _threatIntelAskedNone;
 
     // Manual refresh: when it was last accepted, and which request the last finished pass answered.
     private DateTimeOffset? _requestedAt;
     private DateTimeOffset? _answeredAt;
     private volatile TaskCompletionSource _wake = NewWake();
 
+    [global::System.Diagnostics.CodeAnalysis.SuppressMessage("Major Code Smell", "S107:Methods should not have too many parameters", Justification = "Dependency injection: each parameter is a connector capability or a service the monitor orchestrates; a parameter object would only hide them.")]
     public MaintenanceMonitor(
         ICatalogService catalogService,
         IWorkloadInventory inventory,
         IEnumerable<ICodeRepositorySource> codeSources,
         IEnumerable<IImageRegistry> registries,
+        IEnumerable<IImageScanner> scanners,
+        IEnumerable<IExploitIntelligence> exploitIntelligence,
         IOptions<PortarrOptions> options,
         TimeProvider timeProvider,
         ILogger<MaintenanceMonitor> logger)
@@ -105,7 +136,10 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
         _inventory = inventory;
         _codeSources = codeSources;
         _registries = registries;
+        _scanners = scanners;
+        _exploitIntelligence = exploitIntelligence;
         _imageUpdates = options.Value.ImageUpdates;
+        _threatIntel = options.Value.ThreatIntel.Enabled;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -179,6 +213,12 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
 
                 var registries = await LookUpImagesAsync(_current.Registries, forced, cancellationToken);
                 _current = _current with { Registries = registries };
+
+                var scans = await ReadScannerAsync(_current.Scans, forced, cancellationToken);
+                _current = _current with { ImageScans = scans };
+
+                var intel = await ReadThreatIntelAsync(_current.Intel, scans, cancellationToken);
+                _current = _current with { ThreatIntel = intel };
             }
             finally
             {
@@ -344,6 +384,139 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
             .ToDictionary(entry => entry.Key, entry => entry.Value, StringComparer.Ordinal);
     }
 
+    /// <summary>
+    /// The image scanner (D-131), when the catalog declares one: told the images that run and the repositories whose latest release is scanned (D-132), and read, at most every 30 minutes (5 after a
+    /// failure). A scanner that cannot be reached keeps the previous results, with the error next to them; one that is not declared is off.
+    /// </summary>
+    private async Task<ImageScanSnapshot> ReadScannerAsync(ImageScanSnapshot previous, DateTimeOffset? forced, CancellationToken cancellationToken)
+    {
+        var source = _catalogService.Current.Catalog.ImageScanner;
+        var scanner = _scanners.FirstOrDefault();
+        if (source is null || scanner is null)
+        {
+            _scannerKey = null;
+            return ImageScanSnapshot.Off;
+        }
+
+        var now = _timeProvider.GetUtcNow();
+        var sameSource = _scannerKey == source.Fingerprint;
+        if (sameSource && previous.At is { } at && now - at < (previous.Error is null ? ScannerInterval : ScannerRetryInterval) && !(forced is { } asked && at < asked))
+        {
+            return previous;
+        }
+
+        _scannerKey = source.Fingerprint;
+        // Another scanner (its address changed) knows nothing of what the previous one said.
+        var kept = sameSource ? previous : ImageScanSnapshot.Off;
+        var targets = RunningImages(_inventory.Current)
+            .Where(pair => !pair.Image.IsImageId)
+            .Select(pair => pair.Image.ScanReference)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .Select(image => new ScanTarget(ScanTargetKinds.Image, image))
+            .Concat(ReleaseTargets.Of(_catalogService.Current.Catalog).ScanTargets(_current.Repositories.Repositories))
+            .ToList();
+        try
+        {
+            await RequestScansAsync(scanner, targets, cancellationToken);
+            var report = await scanner.ReadAsync(cancellationToken);
+            return new ImageScanSnapshot(
+                report.Images.Where(i => i.Kind == ScanTargetKinds.Image).ToDictionary(i => i.Image, StringComparer.Ordinal),
+                now,
+                null,
+                report.DatabaseUpdatedAt,
+                report.Images.Where(i => i.Kind == ScanTargetKinds.Release).DistinctBy(i => i.Image, StringComparer.OrdinalIgnoreCase).ToDictionary(i => i.Image, StringComparer.OrdinalIgnoreCase));
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            var reason = ScannerReason(exception);
+            LogScannerFailed(reason);
+            return kept with { At = now, Error = reason };
+        }
+    }
+
+    // A request that fails does not stop the read: the read is the source of truth (the scanner may answer it while it refuses new work).
+    private async Task RequestScansAsync(IImageScanner scanner, List<ScanTarget> targets, CancellationToken cancellationToken)
+    {
+        if (targets.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await scanner.RequestAsync(targets, cancellationToken);
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            LogScannerRequestFailed(ScannerReason(exception));
+        }
+    }
+
+    /// <summary>
+    /// The exploit intelligence (D-133), when it is on and an image scanner is declared (it enriches the scanner's findings, nothing else): the catalog of
+    /// known exploited vulnerabilities whole, and the predictions of the CVE ids the scanner reports now (every finding's, not only those it describes), once a day (an hour after a failure). A CVE id
+    /// that appears in between gets its prediction at the next daily read (its exploitation is known at once: the catalog is whole); a read that had no id to
+    /// ask about is made again as soon as there are some. A part that cannot be read keeps the previous data, with the error next to it.
+    /// </summary>
+    private async Task<ThreatIntelSnapshot> ReadThreatIntelAsync(ThreatIntelSnapshot previous, ImageScanSnapshot scans, CancellationToken cancellationToken)
+    {
+        var source = _exploitIntelligence.FirstOrDefault();
+        if (!_threatIntel || source is null || _catalogService.Current.Catalog.ImageScanner is null)
+        {
+            return ThreatIntelSnapshot.Off;
+        }
+
+        var current = previous.Enabled ? previous : ThreatIntelSnapshot.Waiting;
+        var now = _timeProvider.GetUtcNow();
+        var ids = ExploitIntelligence.CveIdsOf(scans);
+        var interval = current.Error is null ? ThreatIntelInterval : ThreatIntelRetryInterval;
+        if (current.At is { } at && now - at < interval && !(_threatIntelAskedNone && ids.Count > 0))
+        {
+            return current;
+        }
+
+        string? error = null;
+        var knownExploited = current.KnownExploited;
+        try
+        {
+            knownExploited = await source.ReadKnownExploitedAsync(cancellationToken);
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            error = ThreatIntelReason(exception);
+            LogThreatIntelFailed("known exploited vulnerabilities", error);
+        }
+
+        var predictions = current.Predictions;
+        if (ids.Count > 0)
+        {
+            try
+            {
+                predictions = await source.ReadPredictionsAsync(ids, cancellationToken);
+            }
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                var reason = ThreatIntelReason(exception);
+                error ??= reason;
+                LogThreatIntelFailed("exploit predictions", reason);
+            }
+        }
+
+        _threatIntelAskedNone = ids.Count == 0;
+        return new ThreatIntelSnapshot(true, knownExploited, predictions, now, error);
+    }
+
+    // The whole read has a time limit: a stream cut by it says OperationCanceledException, which is a timeout here (the pass itself was not cancelled).
+    private static string ThreatIntelReason(Exception exception) => exception switch
+    {
+        ExploitIntelligenceUnavailableException unavailable => unavailable.Reason,
+        OperationCanceledException => ReasonCodes.Timeout,
+        _ => ReasonCodes.From(exception),
+    };
+
+    private static string ScannerReason(Exception exception) => exception is ImageScannerUnavailableException unavailable ? unavailable.Reason : ReasonCodes.From(exception);
+
     private async Task<RegistryLookup> LookUpAsync(IImageRegistry registry, IReadOnlyList<(Workload Workload, ImageReference Image)> users, CancellationToken cancellationToken)
     {
         var image = users[0].Image;
@@ -409,6 +582,15 @@ public sealed partial class MaintenanceMonitor : BackgroundService, IMaintenance
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Code repositories could not be scanned: {Reason}")]
     private partial void LogScanFailed(string reason);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The image scanner could not be read: {Reason}")]
+    private partial void LogScannerFailed(string reason);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The image scanner could not be asked to scan: {Reason}")]
+    private partial void LogScannerRequestFailed(string reason);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The exploit intelligence ({Part}) could not be read: {Reason}; the previous data is kept")]
+    private partial void LogThreatIntelFailed(string part, string reason);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Registry lookup of {Repository} failed: {Reason}")]
     private partial void LogLookupFailed(string repository, string reason);

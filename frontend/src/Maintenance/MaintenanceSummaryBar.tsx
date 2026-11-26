@@ -1,7 +1,7 @@
 import SummaryTile, { type Tile } from 'Components/SummaryTile/SummaryTile';
 import * as icons from 'Helpers/Props/icons';
 import * as kinds from 'Helpers/Props/kinds';
-import type { MaintenanceSummary } from 'typings/Maintenance';
+import type { ImageScanner, MaintenanceSummary } from 'typings/Maintenance';
 import translate from 'Utilities/String/translate';
 
 import {
@@ -19,6 +19,8 @@ function alarm(count: number, kind: kinds.Kind): kinds.Kind {
 
 interface MaintenanceSummaryBarProps {
   summary: MaintenanceSummary;
+  /** The image scanner: its figures are shown only when one is declared. */
+  scanner: ImageScanner;
   /** The tab and filter shown: their tile is marked as the active one. */
   tab: MaintenanceTab;
   filter: MaintenanceFilter | null;
@@ -29,7 +31,7 @@ interface MaintenanceSummaryBarProps {
  * features turned off, failing CI) and the images the fleet runs (behind, major updates, cannot tell). Each
  * figure is a link that shows the items it counts (the filter is kept in the URL).
  */
-export default function MaintenanceSummaryBar({ summary, tab, filter }: Readonly<MaintenanceSummaryBarProps>) {
+export default function MaintenanceSummaryBar({ summary, scanner, tab, filter }: Readonly<MaintenanceSummaryBarProps>) {
   const severe = summary.critical + summary.high;
   const link = (target: MaintenanceTab, id?: MaintenanceFilter): Pick<Tile, 'to' | 'active'> => ({
     to: maintenanceSearch(target, id),
@@ -119,6 +121,40 @@ export default function MaintenanceSummaryBar({ summary, tab, filter }: Readonly
       icon: icons.UNKNOWN,
     },
   ];
+  const vulnerabilities: Tile[] = [
+    {
+      key: 'scanned',
+      ...link(imagesTab, 'scanned'),
+      value: translate('CountOf', { count: summary.imagesScanned, total: summary.images }),
+      label: translate('ImagesScanned'),
+      kind: kinds.DEFAULT,
+      icon: icons.PROTECTED,
+    },
+    {
+      key: 'vulnerable',
+      ...link(imagesTab, 'vulnerable'),
+      value: `${summary.imagesVulnerable}`,
+      label: translate('ImagesVulnerable'),
+      kind: alarm(summary.imagesVulnerable, kinds.WARNING),
+      icon: icons.VULNERABILITY,
+    },
+    {
+      key: 'image-critical',
+      ...link(imagesTab, 'with-critical'),
+      value: `${summary.imageCritical}`,
+      label: translate('ImageCriticalVulnerabilities'),
+      kind: alarm(summary.imageCritical, kinds.DANGER),
+      icon: icons.VULNERABILITY,
+    },
+    {
+      key: 'image-high',
+      ...link(imagesTab, 'with-high'),
+      value: `${summary.imageHigh}`,
+      label: translate('ImageHighVulnerabilities'),
+      kind: alarm(summary.imageHigh, kinds.WARNING),
+      icon: icons.VULNERABILITY,
+    },
+  ];
 
   return (
     <div className={styles.bar}>
@@ -128,7 +164,7 @@ export default function MaintenanceSummaryBar({ summary, tab, filter }: Readonly
         ))}
       </ul>
       <ul aria-label={translate('DeployedImages')} className={styles.group}>
-        {images.map((tile) => (
+        {(scanner.configured ? [...images, ...vulnerabilities] : images).map((tile) => (
           <SummaryTile key={tile.key} tile={tile} />
         ))}
       </ul>

@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Options;
 using Portarr.Core.Catalog;
+using Portarr.Core.Configuration;
 using Portarr.Core.Platforms;
 using Portarr.Core.Workloads;
 
@@ -8,8 +10,9 @@ namespace Portarr.Core.Maintenance;
 /// <summary>
 /// A repository with the catalog apps and the running images built from it: <c>Deployed</c> when either links
 /// to it. A repository without any is code the operator makes but does not run here (a desktop app, a library).
+/// <c>ReleaseVulnerabilities</c> (D-132) are those of its latest release, read from the SBOM it publishes; null when it has no release to scan.
 /// </summary>
-public sealed record RepositoryView(CodeRepository Repository, IReadOnlyList<string> AppIds, IReadOnlyList<string> Images, bool Deployed);
+public sealed record RepositoryView(CodeRepository Repository, IReadOnlyList<string> AppIds, IReadOnlyList<string> Images, bool Deployed, ReleaseVulnerabilities? ReleaseVulnerabilities = null);
 
 /// <summary>A running workload of an image: where it runs and the apps it belongs to.</summary>
 public sealed record ImageUser(string EnvironmentId, string Name, string? Namespace, IReadOnlyList<string> AppIds);
@@ -19,7 +22,11 @@ public sealed record ImageUser(string EnvironmentId, string Name, string? Namesp
 /// verdict, so twenty socket proxies make one row. <c>RepositoryFullName</c> is the scanned repository the
 /// image is built from, when it is one of the operator's.
 /// </summary>
-public sealed record DeployedImageView(ImageReference Image, ImageCheck Check, IReadOnlyList<ImageUser> Users, string? RepositoryFullName);
+public sealed record DeployedImageView(ImageReference Image, ImageCheck Check, IReadOnlyList<ImageUser> Users, string? RepositoryFullName, ImageVulnerabilities? Scan = null)
+{
+    /// <summary>The image's vulnerabilities (<see cref="ImageVulnerabilities.Off"/> when no scanner is declared).</summary>
+    public ImageVulnerabilities Vulnerabilities => Scan ?? ImageVulnerabilities.Off;
+}
 
 public enum AttentionLevel
 {
@@ -34,7 +41,10 @@ public sealed record AttentionSubject(string Label, Uri? Url, int? Count = null)
 /// <summary>
 /// "What needs attention" (D-67): one entry per kind of finding, worst first, naming what it concerns.
 /// <c>Kind</c>: severe-alerts, secret-alerts, ci-failing, image-major, images-behind, image-rebuilt,
-/// dependabot-off, code-scanning-off, other-alerts, dependabot-prs, images-unknown, code-source-error, and for the platforms the machines
+/// dependabot-off, code-scanning-off, other-alerts, dependabot-prs, images-unknown, code-source-error, and for the vulnerabilities of the
+/// running images (D-131): image-critical-vulnerabilities (a critical one with a fix), image-vulnerabilities (a high one with a fix), image-scanner-error, and for
+/// the latest release of a repository, read from its SBOM (D-132): release-critical-vulnerabilities (a critical one with a fix), release-vulnerabilities (a high one with a fix), and for the
+/// vulnerabilities known to be exploited in the wild (D-133): known-exploited-vulnerabilities (an image or a release with one, fix or no fix), threat-intel-error, and for the platforms the machines
 /// run (D-119): platform-out-of-support (end of life reached), platform-support-ending, platforms-behind, platform-lookup-failed.
 /// </summary>
 public sealed record AttentionItem(string Kind, AttentionLevel Level, int Count, IReadOnlyList<AttentionSubject> Subjects);
@@ -57,7 +67,11 @@ public sealed record MaintenanceSummary(
     int ImagesBehind,
     int ImagesMajor,
     int ImagesFloating,
-    int ImagesUnknown);
+    int ImagesUnknown,
+    int ImagesScanned = 0,
+    int ImagesVulnerable = 0,
+    int ImageCritical = 0,
+    int ImageHigh = 0);
 
 public sealed record MaintenanceReport(
     MaintenanceSummary Summary,
@@ -67,7 +81,10 @@ public sealed record MaintenanceReport(
     IReadOnlyList<RepositoryView> Repositories,
     IReadOnlyList<DeployedImageView> Images,
     MaintenanceRefresh Refresh,
-    IReadOnlyList<PlatformStatus> Platforms);
+    IReadOnlyList<PlatformStatus> Platforms,
+    ImageScannerStatus? ImageScanner = null,
+    string? MinSeverity = null,
+    ThreatIntelStatus? ThreatIntel = null);
 
 public interface IMaintenanceService
 {
@@ -85,10 +102,12 @@ public sealed class MaintenanceService : IMaintenanceService
     private readonly IMaintenanceMonitor _monitor;
     private readonly IReadOnlyList<ICodeRepositorySource> _codeSources;
     private readonly IPlatformService _platforms;
+    private readonly string _minSeverity;
 
-    public MaintenanceService(ICatalogService catalogService, IWorkloadInventory inventory, IMaintenanceMonitor monitor, IEnumerable<ICodeRepositorySource> codeSources, IPlatformService platforms)
+    public MaintenanceService(ICatalogService catalogService, IWorkloadInventory inventory, IMaintenanceMonitor monitor, IEnumerable<ICodeRepositorySource> codeSources, IPlatformService platforms, IOptions<PortarrOptions> options)
     {
         _platforms = platforms;
+        _minSeverity = options.Value.Vulnerabilities.MinSeverity;
         _catalogService = catalogService;
         _inventory = inventory;
         _monitor = monitor;
@@ -97,15 +116,19 @@ public sealed class MaintenanceService : IMaintenanceService
 
     public MaintenanceReport GetReport()
     {
-        return Build(_catalogService.Current.Catalog, _inventory.Current, _monitor.Current, _monitor.Refresh, _codeSources, _platforms.GetPlatforms());
+        return Build(_catalogService.Current.Catalog, _inventory.Current, _monitor.Current, _monitor.Refresh, _codeSources, _platforms.GetPlatforms(), _minSeverity);
     }
 
-    public static MaintenanceReport Build(Catalog.Catalog catalog, IReadOnlyDictionary<string, EnvironmentInventory> inventory, MaintenanceState state, MaintenanceRefresh? refresh = null, IReadOnlyList<ICodeRepositorySource>? codeSources = null, IReadOnlyList<PlatformStatus>? platforms = null)
+    // minSeverity: the lowest severity of an image finding shown and raised as attention (PORTARR__VULNERABILITIES__MINSEVERITY); null: high.
+    public static MaintenanceReport Build(Catalog.Catalog catalog, IReadOnlyDictionary<string, EnvironmentInventory> inventory, MaintenanceState state, MaintenanceRefresh? refresh = null, IReadOnlyList<ICodeRepositorySource>? codeSources = null, IReadOnlyList<PlatformStatus>? platforms = null, string? minSeverity = null)
     {
+        var thresholdRank = VulnerabilitySeverities.ThresholdRank(minSeverity);
         var scanned = state.Repositories.Repositories.ToDictionary(r => r.FullName, StringComparer.OrdinalIgnoreCase);
         var appsOf = AppsOf(catalog);
 
-        var images = RunningImages(inventory, state, scanned, appsOf, codeSources ?? []);
+        // The exploit intelligence enriches the scanner's findings (D-133): nothing to enrich without a scanner.
+        var intel = catalog.ImageScanner is not null ? state.Intel : ThreatIntelSnapshot.Off;
+        var images = RunningImages(inventory, state, scanned, appsOf, codeSources ?? [], catalog.ImageScanner is not null, thresholdRank);
 
         // A repository is linked to an app by the catalog (repository:), or by an image built from it.
         var links = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
@@ -121,23 +144,32 @@ public sealed class MaintenanceService : IMaintenanceService
 
         var built = images.Where(i => i.RepositoryFullName is not null)
             .ToLookup(i => i.RepositoryFullName!, i => i.Image.Display, StringComparer.OrdinalIgnoreCase);
+        var scannerDeclared = catalog.ImageScanner is not null;
+        var releaseTargets = ReleaseTargets.Of(catalog);
         var repositories = state.Repositories.Repositories
-            .Select(repository => links.TryGetValue(repository.FullName, out var apps)
-                ? new RepositoryView(repository, apps.Order(StringComparer.Ordinal).ToList(), built[repository.FullName].Distinct(StringComparer.Ordinal).ToList(), true)
-                : new RepositoryView(repository, [], [], false))
+            .Select(repository =>
+            {
+                var release = releaseTargets.TargetOf(repository) is { } target ? ReleaseVulnerabilities.Of(target, scannerDeclared, state.Scans, thresholdRank, intel) : null;
+                return links.TryGetValue(repository.FullName, out var apps)
+                    ? new RepositoryView(repository, apps.Order(StringComparer.Ordinal).ToList(), built[repository.FullName].Distinct(StringComparer.Ordinal).ToList(), true, release)
+                    : new RepositoryView(repository, [], [], false, release);
+            })
             .OrderByDescending(view => Weight(view.Repository))
             .ThenByDescending(view => view.Repository.PushedAt)
             .ToList();
 
         return new MaintenanceReport(
-            Summarize(repositories, images),
-            Attention(repositories, images, state.Repositories, platforms ?? []),
+            Summarize(repositories, images, thresholdRank),
+            Attention(repositories, images, state.Repositories, platforms ?? [], catalog.ImageScanner is not null ? state.Scans : null, thresholdRank, intel),
             catalog.CodeSources.Count > 0,
             state.Repositories,
             repositories,
             images,
             refresh ?? MaintenanceRefresh.None,
-            platforms ?? []);
+            platforms ?? [],
+            catalog.ImageScanner is null ? ImageScannerStatus.NotConfigured : new ImageScannerStatus(true, state.Scans.At, state.Scans.Error, state.Scans.DatabaseUpdatedAt),
+            minSeverity,
+            ThreatIntelStatus.Of(intel));
     }
 
     private static HashSet<string> Link(Dictionary<string, HashSet<string>> links, string repository)
@@ -164,8 +196,11 @@ public sealed class MaintenanceService : IMaintenanceService
         MaintenanceState state,
         Dictionary<string, CodeRepository> scanned,
         Func<Workload, IReadOnlyList<string>> appsOf,
-        IReadOnlyList<ICodeRepositorySource> codeSources)
+        IReadOnlyList<ICodeRepositorySource> codeSources,
+        bool scannerDeclared,
+        int thresholdRank)
     {
+        var intel = scannerDeclared ? state.Intel : ThreatIntelSnapshot.Off;
         return MaintenanceMonitor.RunningImages(inventory)
             .Select(pair =>
             {
@@ -182,7 +217,8 @@ public sealed class MaintenanceService : IMaintenanceService
                     .OrderBy(u => u.EnvironmentId, StringComparer.Ordinal)
                     .ThenBy(u => u.Name, StringComparer.Ordinal)
                     .ToList(),
-                group.Select(e => e.Repository).FirstOrDefault(r => r is not null)))
+                group.Select(e => e.Repository).FirstOrDefault(r => r is not null),
+                ImageVulnerabilities.Of(group.First().Image, scannerDeclared, state.Scans, thresholdRank, intel)))
             .OrderBy(view => Rank(view.Check))
             .ThenBy(view => view.Image.Display, StringComparer.Ordinal)
             .ToList();
@@ -229,9 +265,10 @@ public sealed class MaintenanceService : IMaintenanceService
             + repository.Dependabot.Counts.Total + repository.CodeScanning.Counts.Total - repository.CodeScanning.Counts.Other;
     }
 
-    private static MaintenanceSummary Summarize(List<RepositoryView> repositories, List<DeployedImageView> images)
+    private static MaintenanceSummary Summarize(List<RepositoryView> repositories, List<DeployedImageView> images, int thresholdRank)
     {
         var code = repositories.Select(r => r.Repository).ToList();
+        var scanned = images.Where(i => i.Vulnerabilities.State == VulnerabilityState.Scanned).DistinctBy(i => i.Image.ScanReference, StringComparer.Ordinal).ToList();
         int Sum(Func<AlertCounts, int> pick) => code.Sum(r => pick(r.Dependabot.Counts) + pick(r.CodeScanning.Counts));
 
         return new MaintenanceSummary(
@@ -252,10 +289,14 @@ public sealed class MaintenanceService : IMaintenanceService
             images.Count(i => i.Check.Status is ImageStatus.Behind or ImageStatus.NewerBuild),
             images.Count(i => i.Check is { Status: ImageStatus.Behind, Change: VersionChange.Major }),
             images.Count(i => i.Check.Status == ImageStatus.Floating),
-            images.Count(i => i.Check.Status is ImageStatus.Unknown or ImageStatus.Pending));
+            images.Count(i => i.Check.Status is ImageStatus.Unknown or ImageStatus.Pending),
+            scanned.Count,
+            scanned.Count(i => ImageVulnerabilityAttention.NeedsAttention(i.Vulnerabilities, thresholdRank)),
+            scanned.Sum(i => i.Vulnerabilities.Counts.Critical),
+            scanned.Sum(i => i.Vulnerabilities.Counts.High));
     }
 
-    private static List<AttentionItem> Attention(List<RepositoryView> repositories, List<DeployedImageView> images, RepositoryScan scan, IReadOnlyList<PlatformStatus> platforms)
+    private static List<AttentionItem> Attention(List<RepositoryView> repositories, List<DeployedImageView> images, RepositoryScan scan, IReadOnlyList<PlatformStatus> platforms, ImageScanSnapshot? scans, int thresholdRank, ThreatIntelSnapshot intel)
     {
         var code = repositories.Select(r => r.Repository).ToList();
         var items = new List<AttentionItem>();
@@ -294,6 +335,9 @@ public sealed class MaintenanceService : IMaintenanceService
         var pulls = code.Where(r => r.DependabotPullRequests > 0).ToList();
         Add("dependabot-prs", AttentionLevel.Info, pulls.Select(r => new AttentionSubject(r.FullName, r.DependabotPullsUrl ?? r.Url, r.DependabotPullRequests)).ToList(), pulls.Sum(r => r.DependabotPullRequests ?? 0));
         Add("images-unknown", AttentionLevel.Info, images.Where(i => i.Check.Status == ImageStatus.Unknown).Select(Image).ToList());
+        items.AddRange(ImageVulnerabilityAttention.Of(images, scans, thresholdRank));
+        items.AddRange(ImageVulnerabilityAttention.OfReleases(repositories, thresholdRank));
+        items.AddRange(ImageVulnerabilityAttention.OfKnownExploited(images, repositories, intel));
 
         // A platform past its end of life gets no more security fixes: it is a danger; the ones about to be are a warning; a newer version is news.
         static AttentionSubject Platform(PlatformStatus platform) => new($"{platform.MachineName}: {platform.Label}", null);
