@@ -5,6 +5,16 @@ import renderWithProviders from '__mocks__/renderWithProviders';
 import { portal, server } from '__mocks__/server';
 import PortalBadge from 'Components/Page/PortalBadge';
 
+/**
+ * The color the badge sets inline, compared the way the browser writes it back: jsdom 31 resolves a computed
+ * `var(--x)` to black when the variable is not defined, so the inline declaration is what the test can read.
+ */
+function expectColor(element: HTMLElement, color: string) {
+  const probe = document.createElement('span');
+  probe.style.color = color;
+  expect(element.style.color).toBe(probe.style.color);
+}
+
 describe('PortalBadge', () => {
   it('shows the name, the version of the running Portarr and the porthole when no logo is set', async () => {
     const { container } = renderWithProviders(<PortalBadge />);
@@ -18,8 +28,8 @@ describe('PortalBadge', () => {
   it('colors the name and the version with Portarr accent by default', async () => {
     renderWithProviders(<PortalBadge />);
 
-    expect(await screen.findByText('Homelab')).toHaveStyle({ color: 'var(--accent)' });
-    expect(screen.getByText('v1.2.3')).toHaveStyle({ color: 'var(--accent)' });
+    expectColor(await screen.findByText('Homelab'), 'var(--accent)');
+    expectColor(screen.getByText('v1.2.3'), 'var(--accent)');
   });
 
   it('uses the colors of the catalog: a hex color as it is, a theme token as its variable', async () => {
@@ -30,8 +40,8 @@ describe('PortalBadge', () => {
     );
     renderWithProviders(<PortalBadge />);
 
-    expect(await screen.findByText('Homelab')).toHaveStyle({ color: '#abc123' });
-    expect(screen.getByText('v1.2.3')).toHaveStyle({ color: 'var(--inkMuted)' });
+    expectColor(await screen.findByText('Homelab'), '#abc123');
+    expectColor(screen.getByText('v1.2.3'), 'var(--inkMuted)');
   });
 
   it('never lets an unknown color through', async () => {
@@ -42,8 +52,8 @@ describe('PortalBadge', () => {
     );
     renderWithProviders(<PortalBadge />);
 
-    expect(await screen.findByText('Homelab')).toHaveStyle({ color: 'var(--accent)' });
-    expect(screen.getByText('v1.2.3')).toHaveStyle({ color: 'var(--accent)' });
+    expectColor(await screen.findByText('Homelab'), 'var(--accent)');
+    expectColor(screen.getByText('v1.2.3'), 'var(--accent)');
   });
 
   it('shows the operator logo with the name as its alternative text', async () => {
