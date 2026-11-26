@@ -32,3 +32,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      # init and analyze must move together: one without the other fails the CodeQL job of every pull request.
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
