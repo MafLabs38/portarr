@@ -76,6 +76,36 @@ describe('AppsIndex', () => {
     expect(within(recyclarr).getByText('no healthcheck')).toBeInTheDocument();
   });
 
+  it('lists every link of a desktop app, the first one included, since none launches it', async () => {
+    server.use(
+      http.get('/api/v1/apps', () =>
+        HttpResponse.json([
+          {
+            id: 'player',
+            name: 'Player',
+            type: 'desktop',
+            urls: [
+              { label: 'Download', href: 'https://github.com/example/player/releases/latest/download/Setup.exe' },
+              { label: 'Release notes', href: 'https://github.com/example/player/releases/latest' },
+            ],
+            workloads: [],
+            status: { status: 'Healthy', reason: 'HTTP 302' },
+          },
+        ]),
+      ),
+    );
+    renderWithProviders(<AppsIndex />);
+
+    const player = await screen.findByRole('article', { name: 'Player' });
+    expect(within(player).getByRole('link', { name: 'Download' })).toHaveAttribute(
+      'href',
+      'https://github.com/example/player/releases/latest/download/Setup.exe',
+    );
+    expect(within(player).getByRole('link', { name: 'Release notes' })).toBeInTheDocument();
+    expect(within(player).queryByRole('link', { name: 'Player' })).not.toBeInTheDocument();
+    expect(within(player).getByText('Desktop')).toBeInTheDocument();
+  });
+
   it('shows catalog errors', async () => {
     server.use(
       http.get('/api/v1/catalog/status', () =>
